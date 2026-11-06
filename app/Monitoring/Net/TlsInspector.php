@@ -124,7 +124,7 @@ final class TlsInspector
                 ! $checkProtocols => [],
                 // The check is down for the certificate anyway; spare the server further connections.
                 $error !== null => null,
-                default => $this->deprecatedProtocols($host, $port, $starttls, $peerName, $caller, $this->probeBudget($timeoutSeconds, $started)),
+                default => $this->deprecatedProtocols($host, $port, $starttls, $peerName, $caller, $timeoutSeconds, $started),
             },
             latencyMs: $latencyMs,
         );
@@ -203,25 +203,23 @@ final class TlsInspector
      *
      * @throws CancelledException When $cancellation is requested.
      */
-    private function deprecatedProtocols(string $host, int $port, string $starttls, string $peerName, Cancellation $cancellation, ?float $budget): ?array
+    private function deprecatedProtocols(string $host, int $port, string $starttls, string $peerName, Cancellation $cancellation, ?float $timeoutSeconds, int $started): ?array
     {
-        if ($budget === null) {
-            return null;
-        }
+        // The budget is taken from the clock right before each probe starts, so probes that run one after
+        // another together still end at the check's deadline.
+        $probe = fn (string $name): ?bool => $this->probe($name, $host, $port, $starttls, $peerName, $cancellation, $this->probeBudget($timeoutSeconds, $started));
 
         if ($starttls === 'none') {
             [$errors, $results] = Future\awaitAll([
-                'TLSv1.0' => async(fn (): ?bool => $this->probe('TLSv1.0', $host, $port, $starttls, $peerName, $cancellation, $budget)),
-                'TLSv1.1' => async(fn (): ?bool => $this->probe('TLSv1.1', $host, $port, $starttls, $peerName, $cancellation, $budget)),
+                'TLSv1.0' => async(fn (): ?bool => $probe('TLSv1.0')),
+                'TLSv1.1' => async(fn (): ?bool => $probe('TLSv1.1')),
             ]);
             foreach ($errors as $error) {
                 throw $error;
             }
         } else {
-            $results = ['TLSv1.1' => $this->probe('TLSv1.1', $host, $port, $starttls, $peerName, $cancellation, $budget)];
-            $results['TLSv1.0'] = $results['TLSv1.1'] === true
-                ? $this->probe('TLSv1.0', $host, $port, $starttls, $peerName, $cancellation, $budget)
-                : false;
+            $results = ['TLSv1.1' => $probe('TLSv1.1')];
+            $results['TLSv1.0'] = $results['TLSv1.1'] === true ? $probe('TLSv1.0') : false;
         }
 
         $accepted = [];
@@ -239,10 +237,14 @@ final class TlsInspector
 
     /**
      * One handshake restricted to a deprecated protocol: true when accepted, false when refused, null when it
-     * ran out of time.
+     * ran out of time or no time was left to start it.
      */
-    private function probe(string $name, string $host, int $port, string $starttls, string $peerName, Cancellation $cancellation, float $budget): ?bool
+    private function probe(string $name, string $host, int $port, string $starttls, string $peerName, Cancellation $cancellation, ?float $budget): ?bool
     {
+        if ($budget === null) {
+            return null;
+        }
+
         [$method, $reported] = self::DEPRECATED_PROTOCOLS[$name];
         $context = $this->context($peerName, verify: false)
             ->withSecurityLevel(0)

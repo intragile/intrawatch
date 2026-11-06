@@ -17,6 +17,7 @@ use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\ResultRecorder;
 use App\Monitoring\Net\GuardedConnector;
 use App\Monitoring\Net\NetworkPolicy;
+use App\Monitoring\Net\StartTls;
 use App\Monitoring\Net\TlsInspector;
 use App\Monitoring\Worker\Clock;
 use App\Monitoring\Worker\SystemClock;
@@ -70,10 +71,11 @@ class TlsCheckerTest extends TestCase
 
     /**
      * @param  array<string, mixed>  $sslOptions
+     * @param  array<int, float>  $delays
      */
-    private function serve(string $certificate, string $mode = 'none', array $sslOptions = []): TlsFixtureServer
+    private function serve(string $certificate, string $mode = 'none', array $sslOptions = [], array $delays = [], ?int $hangFrom = null): TlsFixtureServer
     {
-        return $this->servers[] = new TlsFixtureServer($certificate, $mode, $sslOptions);
+        return $this->servers[] = new TlsFixtureServer($certificate, $mode, $sslOptions, $delays, $hangFrom);
     }
 
     /**
@@ -332,6 +334,14 @@ class TlsCheckerTest extends TestCase
      */
     private function acceptsTls10(int $port): bool
     {
+        return $this->accepts($port, STREAM_CRYPTO_METHOD_TLSv1_0_CLIENT, 'TLSv1');
+    }
+
+    /**
+     * A direct handshake restricted to one protocol, outside the inspector.
+     */
+    private function accepts(int $port, int $method, string $version, string $starttls = 'none'): bool
+    {
         $context = (new ClientTlsContext('secure.test'))->withoutPeerVerification()->withSecurityLevel(0)->withCiphers('DEFAULT:@SECLEVEL=0');
 
         try {
@@ -341,13 +351,14 @@ class TlsCheckerTest extends TestCase
             if (! is_resource($resource) || ! is_array($options)) {
                 return false;
             }
-            $options['crypto_method'] = STREAM_CRYPTO_METHOD_TLSv1_0_CLIENT;
+            $options['crypto_method'] = $method;
             stream_context_set_options($resource, ['ssl' => $options]);
+            StartTls::negotiate($socket, $starttls, new NullCancellation);
             $socket->setupTls();
-            $version = $socket->getTlsInfo()?->getVersion();
+            $negotiated = $socket->getTlsInfo()?->getVersion();
             $socket->close();
 
-            return $version === 'TLSv1';
+            return $negotiated === $version;
         } catch (Throwable) {
             return false;
         }
@@ -419,6 +430,32 @@ class TlsCheckerTest extends TestCase
         $outcome = $this->probe(['port' => $this->serve($this->fixtures()->valid, 'imap-untagged')->port(), 'starttls' => 'imap']);
 
         $this->assertSame(MonitorStatus::Up, $outcome->status, $outcome->message);
+    }
+
+    public function test_sequential_starttls_probes_stay_within_the_deadline(): void
+    {
+        $legacy = [
+            'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_1_SERVER | STREAM_CRYPTO_METHOD_TLSv1_2_SERVER | STREAM_CRYPTO_METHOD_TLSv1_3_SERVER,
+            'ciphers' => 'DEFAULT:@SECLEVEL=0',
+            'security_level' => 0,
+        ];
+        $capability = $this->serve($this->fixtures()->valid, 'smtp', $legacy);
+        if (! $this->accepts($capability->port(), STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT, 'TLSv1.1', 'smtp')) {
+            $this->markTestSkipped('The local OpenSSL refuses a TLS 1.1 handshake on both ends.');
+        }
+
+        // Connection 1 is the main handshake, 2 the slow TLS 1.1 probe, 3 the TLS 1.0 probe, which never answers.
+        $server = $this->serve($this->fixtures()->valid, 'smtp', $legacy, delays: [2 => 1.0], hangFrom: 3);
+        $started = microtime(true);
+
+        $outcome = $this->probe(['port' => $server->port(), 'starttls' => 'smtp'], timeout: 2);
+
+        $this->assertLessThan(2.5, microtime(true) - $started);
+        $this->assertSame(3, $server->connections);
+        // TLS 1.1 was accepted, so the result is known to be deprecated even though TLS 1.0 ran out of time.
+        $this->assertSame(['TLSv1.1'], $outcome->facts['tls.deprecated_protocols']);
+        $this->assertSame(MonitorStatus::Degraded, $outcome->status, $outcome->message);
+        $this->assertSame('Deprecated protocols accepted: TLSv1.1', $outcome->message);
     }
 
     public function test_tls_type_is_registered(): void

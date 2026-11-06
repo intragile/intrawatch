@@ -12,6 +12,7 @@ use Amp\Socket\Socket;
 use Throwable;
 
 use function Amp\async;
+use function Amp\delay;
 use function Amp\Socket\listen;
 
 /**
@@ -38,9 +39,16 @@ final class TlsFixtureServer
      *                        hang-after-first (serves the first connection, never answers later ones) or
      *                        reset-first (closes the first connection at once, serves later ones)
      * @param  array<string, mixed>  $sslOptions  Extra ssl stream context options applied to every connection.
+     * @param  array<int, float>  $delays  Seconds to wait before serving a connection, by connection number.
+     * @param  int|null  $hangFrom  From this connection number on, connections are accepted and never answered.
      */
-    public function __construct(string $certificate, private readonly string $mode = 'none', private readonly array $sslOptions = [])
-    {
+    public function __construct(
+        string $certificate,
+        private readonly string $mode = 'none',
+        private readonly array $sslOptions = [],
+        private readonly array $delays = [],
+        private readonly ?int $hangFrom = null,
+    ) {
         $this->certificate = $certificate;
         $tls = (new ServerTlsContext)->withDefaultCertificate(new Certificate($certificate));
         $this->server = listen('127.0.0.1:0', (new BindContext)->withTlsContext($tls));
@@ -55,7 +63,10 @@ final class TlsFixtureServer
                         if ($this->mode === 'reset-first' && $number === 1) {
                             return;
                         }
-                        if ($this->mode === 'hang-after-first' && $number > 1) {
+                        if (isset($this->delays[$number])) {
+                            delay($this->delays[$number]);
+                        }
+                        if (($this->mode === 'hang-after-first' && $number > 1) || ($this->hangFrom !== null && $number >= $this->hangFrom)) {
                             // Swallow the ClientHello and anything after it without answering.
                             while ($client->read() !== null);
 
