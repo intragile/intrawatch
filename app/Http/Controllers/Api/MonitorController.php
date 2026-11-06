@@ -12,9 +12,12 @@ use App\Http\Resources\MonitorPresenter;
 use App\Jobs\PurgeMonitorData;
 use App\Models\Monitor;
 use App\Models\Workspace;
+use App\Monitoring\Engine\GroupEvaluator;
+use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\MonitorActivation;
 use App\Monitoring\Types\GroupHierarchy;
 use App\Support\Audit;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +30,8 @@ use Illuminate\Validation\ValidationException;
 
 class MonitorController extends Controller
 {
+    public function __construct(private readonly GroupEvaluator $groups) {}
+
     public function index(Request $request, Workspace $workspace): JsonResponse
     {
         $request->validate([
@@ -101,7 +106,9 @@ class MonitorController extends Controller
             GroupHierarchy::assertValidParent($monitor, $this->parent($workspace, $request->parentId()));
         }
 
-        DB::transaction(function () use ($request, $monitor, $changes, $active): void {
+        $transitions = [];
+        DB::transaction(function () use ($request, $monitor, $changes, $active, &$transitions): void {
+            $oldParentId = $monitor->parent_id;
             $before = $monitor->only(array_keys($changes));
             $oldSecretKeys = $this->secretKeys($monitor->secrets);
             $oldTags = $monitor->tagIds();
@@ -141,17 +148,35 @@ class MonitorController extends Controller
             if ($diff !== []) {
                 Audit::record('monitor.updated', $monitor, $diff);
             }
+
+            $affected = [];
+            if ($oldParentId !== $monitor->parent_id || $wasActive !== $monitor->active) {
+                $affected = [$oldParentId, $monitor->parent_id];
+            }
+            if ($monitor->type === MonitorType::Group && (array_key_exists('config', $changes) || $wasActive !== $monitor->active)) {
+                $affected[] = $monitor->id;
+            }
+            $affected = array_values(array_unique(array_filter($affected, fn (?int $id): bool => $id !== null)));
+            if ($affected !== []) {
+                $transitions = $this->groups->recompute($affected);
+            }
         });
+        PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
 
         return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor))]);
     }
 
     public function destroy(Workspace $workspace, Monitor $monitor): Response
     {
-        DB::transaction(function () use ($monitor): void {
+        $transitions = [];
+        DB::transaction(function () use ($monitor, &$transitions): void {
             $monitor->delete();
             Audit::record('monitor.deleted', $monitor, ['name' => [$monitor->name, null]]);
+            if ($monitor->parent_id !== null) {
+                $transitions = $this->groups->recompute([$monitor->parent_id]);
+            }
         });
+        PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
         PurgeMonitorData::dispatch($monitor->id)->afterCommit();
 
         return response()->noContent();

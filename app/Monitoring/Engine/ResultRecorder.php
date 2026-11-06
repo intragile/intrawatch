@@ -9,9 +9,7 @@ use App\Events\MonitorStatusChanged;
 use App\Models\MonitorEvent;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use JsonException;
-use Throwable;
 
 /**
  * Persists check outcomes: results, monitor states, monitor events and group recomputes, all in one
@@ -49,20 +47,8 @@ final class ResultRecorder
             return $this->persist($items, $events);
         });
 
-        // The results are committed at this point. A failing dispatch (for instance a queue that cannot be
-        // written) must not surface as a failed record call, or the caller would retry and store them twice.
-        foreach ($events as $event) {
-            try {
-                event($event);
-            } catch (Throwable $e) {
-                Log::warning('Dispatching a monitor event failed after its results were recorded.', [
-                    'event' => $event::class,
-                    'monitor_id' => property_exists($event, 'monitorId') ? $event->monitorId : null,
-                    'workspace_id' => property_exists($event, 'workspaceId') ? $event->workspaceId : null,
-                    'exception' => $e::class,
-                ]);
-            }
-        }
+        // The results are committed at this point; see PostCommit for why a failing dispatch is swallowed.
+        PostCommit::dispatch($events);
 
         return $batch;
     }
@@ -197,14 +183,7 @@ final class ResultRecorder
         }
 
         $groupTransitions = $parentIds === [] ? [] : $this->groups->recompute(array_keys($parentIds));
-        foreach ($groupTransitions as $group) {
-            if ($group->changed) {
-                $events[] = new MonitorStatusChanged(
-                    $group->workspaceId, $group->monitorId, $group->from, $group->effective,
-                    $now, $group->previousSince, $group->message,
-                );
-            }
-        }
+        array_push($events, ...PostCommit::statusEvents($groupTransitions, $now));
 
         foreach ($checks as $workspaceId => $list) {
             foreach (array_chunk($list, self::BROADCAST_CHUNK) as $chunk) {

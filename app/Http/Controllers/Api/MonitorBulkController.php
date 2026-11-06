@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\MonitorType;
 use App\Http\Controllers\Controller;
 use App\Jobs\PurgeMonitorData;
 use App\Models\Monitor;
 use App\Models\Tag;
 use App\Models\Workspace;
+use App\Monitoring\Engine\GroupEvaluator;
+use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\MonitorActivation;
 use App\Support\Audit;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +21,8 @@ use Illuminate\Validation\Rule;
 class MonitorBulkController extends Controller
 {
     private const ACTIONS = ['pause', 'resume', 'delete', 'tag', 'untag'];
+
+    public function __construct(private readonly GroupEvaluator $groups) {}
 
     public function __invoke(Request $request, Workspace $workspace): JsonResponse
     {
@@ -35,10 +41,18 @@ class MonitorBulkController extends Controller
         $tag = $needsTag ? Tag::query()->forWorkspace($workspace)->findOrFail($request->integer('tag_id')) : null;
 
         $deleted = [];
-        $affected = DB::transaction(function () use ($workspace, $ids, $action, $tag, &$deleted): int {
+        $transitions = [];
+        $affected = DB::transaction(function () use ($workspace, $ids, $action, $tag, &$deleted, &$transitions): int {
             $monitors = $workspace->monitors()->whereIn('id', $ids)->with('state')->orderBy('id')->get();
 
+            $regroup = [];
             foreach ($monitors as $monitor) {
+                if (in_array($action, ['pause', 'resume', 'delete'], true)) {
+                    $regroup[] = $monitor->parent_id;
+                }
+                if ($action !== 'delete' && $monitor->type === MonitorType::Group) {
+                    $regroup[] = $monitor->id;
+                }
                 match ($action) {
                     'pause', 'resume' => $this->toggle($monitor, $action === 'resume'),
                     'delete' => $this->delete($monitor, $deleted),
@@ -46,8 +60,15 @@ class MonitorBulkController extends Controller
                 };
             }
 
+            $regroup = array_values(array_unique(array_filter($regroup, fn (?int $id): bool => $id !== null)));
+            if ($regroup !== []) {
+                $transitions = $this->groups->recompute($regroup);
+            }
+
             return $monitors->count();
         });
+
+        PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
 
         foreach ($deleted as $id) {
             PurgeMonitorData::dispatch($id);
