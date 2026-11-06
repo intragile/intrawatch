@@ -381,6 +381,24 @@ class WorkerTest extends TestCase
         $this->assertSame(2, Artisan::call('intrawatch:worker:status', ['--local' => true]));
     }
 
+    public function test_shutdown_skips_the_final_heartbeat_when_outcomes_could_not_be_written(): void
+    {
+        $this->tcpMonitors(2, ['interval_seconds' => 20, 'retry_interval_seconds' => 20]);
+        $this->failResultInserts(PHP_INT_MAX);
+
+        [$stop, $run] = $this->start($this->scheduler());
+        $this->clock->advance(25);
+        $lastBeat = DB::table('check_workers')->where('shard', 0)->value('last_seen_at');
+        $this->assertNotNull($lastBeat);
+
+        $stop->cancel();
+        $this->clock->advance(12);
+        $run->await();
+
+        $this->assertSame($lastBeat, DB::table('check_workers')->where('shard', 0)->value('last_seen_at'),
+            'a drain that leaves outcomes behind spends no more time on the database');
+    }
+
     public function test_sigterm_flushes_and_exits_cleanly(): void
     {
         [$steady, $held] = $this->tcpMonitors(2, ['interval_seconds' => 20, 'retry_interval_seconds' => 20]);

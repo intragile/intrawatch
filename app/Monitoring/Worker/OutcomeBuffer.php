@@ -287,8 +287,10 @@ final class OutcomeBuffer
      * Writes whatever is queued during shutdown. Failed flushes are retried every half second instead of
      * with the open-ended backoff, and no new attempt starts once $budgetSeconds have passed, so the
      * process stops within the container's stop grace period.
+     *
+     * @return bool False when outcomes had to be dropped because the database did not take them.
      */
-    public function drain(float $budgetSeconds = 2.0): void
+    public function drain(float $budgetSeconds = 2.0): bool
     {
         $deadline = $this->timestamp() + $budgetSeconds;
         while (true) {
@@ -308,9 +310,14 @@ final class OutcomeBuffer
                 'dropped' => count($this->queue),
             ]);
             $this->queue = [];
+            $this->broadcast(true);
+
+            return false;
         }
 
         $this->broadcast(true);
+
+        return true;
     }
 
     /**

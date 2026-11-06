@@ -19,19 +19,21 @@ use App\Monitoring\Worker\MonitorLoader;
 use App\Monitoring\Worker\OutcomeBuffer;
 use App\Monitoring\Worker\Scheduler;
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Revolt\EventLoop;
+use Revolt\EventLoop\UnsupportedFeatureException;
 use Throwable;
 
 use function Amp\async;
 use function Amp\delay;
 use function Amp\Socket\listen;
 
-#[Signature('intrawatch:bench {--monitors=1000} {--interval=60} {--duration=180}')]
+#[Signature('intrawatch:bench {--monitors=1000} {--interval=60} {--duration=180} {--force : Run even though the database holds other workspaces}')]
 #[Description('Measure schedule drift of one check worker against a local HTTP target with 50-300 ms latency')]
 class BenchCommand extends Command
 {
@@ -45,6 +47,17 @@ class BenchCommand extends Command
     private const MAX_LATENCY_MS = 300;
 
     private const MAX_REQUEST_HEAD_BYTES = 65536;
+
+    /**
+     * A run that records fewer than this share of the expected checks fell behind its schedule.
+     */
+    private const MIN_CHECK_RATIO = 0.95;
+
+    private const QUEUE = 'intrawatch-bench';
+
+    private const SIGINT = 2;
+
+    private const SIGTERM = 15;
 
     public function handle(ResultRecorder $recorder, CheckerRegistry $checkers, DeadlineEvaluator $deadlines, Clock $clock, DomainExpiryService $domains): int
     {
@@ -61,41 +74,66 @@ class BenchCommand extends Command
 
             return self::INVALID;
         }
-        if (config()->string('queue.default') === 'sync') {
-            $this->error('The benchmark needs a real queue connection: QUEUE_CONNECTION is sync.');
-
-            return self::FAILURE;
-        }
-        // The benchmark writes the heartbeat of shard 0; it must not stand in for, or race with, a real worker.
+        // A worker checking the same database would compete for the CPU and the database with the measurement.
         if (DB::table('check_workers')->where('last_seen_at', '>=', CarbonImmutable::now()->subMinute())->exists()) {
             $this->error('A check worker reported within the last minute. Run the benchmark in a separate container without workers.');
 
             return self::FAILURE;
         }
+        if (! $this->option('force') && Workspace::query()->exists()) {
+            $this->error('The database already holds workspaces. Run the benchmark against an empty database, or pass --force.');
 
+            return self::FAILURE;
+        }
+
+        $stop = new DeferredCancellation;
+        $interrupted = false;
+        $signals = $this->onInterrupt(static function () use ($stop, &$interrupted): void {
+            $interrupted = true;
+            $stop->cancel();
+        });
+        $previousQueue = config()->string('queue.default');
         $server = listen('127.0.0.1:0');
-        $address = $server->getAddress();
-        $port = $address instanceof InternetAddress ? $address->getPort() : 0;
-        $acceptor = async(fn () => $this->serve($server));
-
-        $workspace = $this->seed($monitors, $interval, "http://127.0.0.1:{$port}/");
-        $this->line("Seeded {$monitors} http monitors at {$interval} s in workspace {$workspace->slug}; running for {$duration} s.");
+        $workspace = null;
 
         try {
+            $address = $server->getAddress();
+            $port = $address instanceof InternetAddress ? $address->getPort() : 0;
+            $acceptor = async(fn () => $this->serve($server));
+
+            // Broadcast jobs go to a queue of their own, so the clean-up can remove exactly those.
+            config([
+                'queue.connections.'.self::QUEUE => [
+                    'driver' => 'database',
+                    'connection' => null,
+                    'table' => config()->string('queue.connections.database.table', 'jobs'),
+                    'queue' => self::QUEUE,
+                    'retry_after' => 90,
+                    'after_commit' => false,
+                ],
+                'queue.default' => self::QUEUE,
+            ]);
+
+            $workspace = $this->seed($monitors, $interval, "http://127.0.0.1:{$port}/");
+            $this->line("Seeded {$monitors} http monitors at {$interval} s in workspace {$workspace->slug}; running for {$duration} s.");
+
             $buffer = new OutcomeBuffer($recorder, $clock, afterFlush: $domains->flushPending(...));
             $scheduler = new Scheduler(
                 shard: 0,
                 shards: 1,
                 loader: new MonitorLoader($clock, $domains, $workspace->id),
                 buffer: $buffer,
-                heartbeat: new Heartbeat($clock, 0, 1),
+                // The benchmark owns no shard; its heartbeat must never replace a real worker's row.
+                heartbeat: new Heartbeat($clock, 0, 1, persist: false),
                 checkers: $checkers,
                 deadlines: $deadlines,
                 clock: $clock,
                 concurrency: config()->integer('monitoring.worker.concurrency'),
             );
 
-            $stop = new DeferredCancellation;
+            // Seeded inactive, so that an interrupted seeding never leaves monitors a real worker would check.
+            Monitor::query()->where('workspace_id', $workspace->id)->update(['active' => true]);
+
             $timer = EventLoop::delay($duration, static fn () => $stop->cancel());
             $startedAt = microtime(true);
             $scheduler->run($stop->getCancellation());
@@ -105,11 +143,45 @@ class BenchCommand extends Command
             $server->close();
             $acceptor->await();
 
-            return $this->report($workspace, $elapsed, $buffer->maxFlushMs());
+            if ($interrupted) {
+                $this->warn('Interrupted; no results are reported.');
+
+                return self::FAILURE;
+            }
+
+            return $this->report($workspace, $monitors, $interval, $elapsed, $buffer->maxFlushMs());
         } finally {
             $server->close();
-            $this->cleanUp($workspace);
+            foreach ($signals as $id) {
+                EventLoop::cancel($id);
+            }
+            if ($workspace !== null) {
+                $this->cleanUp($workspace);
+            }
+            DB::table(config()->string('queue.connections.database.table', 'jobs'))->where('queue', self::QUEUE)->delete();
+            config(['queue.default' => $previousQueue]);
         }
+    }
+
+    /**
+     * Ends the run on SIGINT or SIGTERM, so that the clean-up always runs.
+     *
+     * @return list<string> Callback ids to cancel afterwards.
+     */
+    private function onInterrupt(Closure $handler): array
+    {
+        $ids = [];
+        foreach ([self::SIGINT, self::SIGTERM] as $signal) {
+            try {
+                $ids[] = EventLoop::unreference(EventLoop::onSignal($signal, $handler));
+            } catch (UnsupportedFeatureException) {
+                $this->warn('Signals cannot be handled without the pcntl extension; an interrupted run leaves its workspace behind.');
+
+                break;
+            }
+        }
+
+        return $ids;
     }
 
     private function seed(int $count, int $interval, string $url): Workspace
@@ -125,7 +197,7 @@ class BenchCommand extends Command
                 (new Monitor([
                     'name' => "bench {$i}",
                     'type' => MonitorType::Http,
-                    'active' => true,
+                    'active' => false,
                     'interval_seconds' => $interval,
                     'timeout_seconds' => max(1, $timeout),
                     'retries' => 0,
@@ -138,7 +210,7 @@ class BenchCommand extends Command
         });
     }
 
-    private function report(Workspace $workspace, float $elapsed, int $maxFlushMs): int
+    private function report(Workspace $workspace, int $monitors, int $interval, float $elapsed, int $maxFlushMs): int
     {
         $drifts = array_map(
             static fn (mixed $value): int => is_numeric($value) ? (int) $value : 0,
@@ -164,9 +236,13 @@ class BenchCommand extends Command
 
         $max = $drifts[count($drifts) - 1];
         $perMinute = count($drifts) / max(1.0, $elapsed) * 60;
+        // Each monitor's first check falls somewhere in its first interval, so a run of k intervals
+        // checks every monitor at least k times.
+        $expected = $monitors * (int) floor($elapsed / $interval);
 
         $this->table(['metric', 'value'], [
             ['checks', (string) count($drifts)],
+            ['expected checks', ">= {$expected}"],
             ['checks not up', (string) $failed],
             ['checks per minute', number_format($perMinute, 1, '.', '')],
             ['drift p50 (ms)', (string) $this->percentile($drifts, 0.50)],
@@ -175,13 +251,34 @@ class BenchCommand extends Command
             ['max flush (ms)', (string) $maxFlushMs],
         ]);
 
-        if ($max >= self::MAX_DRIFT_MS) {
-            $this->error("Maximum drift {$max} ms is not below ".self::MAX_DRIFT_MS.' ms.');
-
-            return self::FAILURE;
+        $failures = self::verdict(count($drifts), $expected, $failed, $max);
+        foreach ($failures as $failure) {
+            $this->error($failure);
         }
 
-        return self::SUCCESS;
+        return $failures === [] ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * Why a run failed: too much drift, too few checks for its duration, or checks that were not up although
+     * the target always answers.
+     *
+     * @return list<string>
+     */
+    public static function verdict(int $checks, int $expected, int $failed, int $maxDriftMs): array
+    {
+        $failures = [];
+        if ($maxDriftMs >= self::MAX_DRIFT_MS) {
+            $failures[] = "Maximum drift {$maxDriftMs} ms is not below ".self::MAX_DRIFT_MS.' ms.';
+        }
+        if ($checks < self::MIN_CHECK_RATIO * $expected) {
+            $failures[] = "Only {$checks} of at least {$expected} expected checks ran.";
+        }
+        if ($failed > 0) {
+            $failures[] = "{$failed} checks were not up.";
+        }
+
+        return $failures;
     }
 
     /**
@@ -238,7 +335,6 @@ class BenchCommand extends Command
                 DB::table('monitor_events')->whereIn('monitor_id', $chunk)->delete();
             }
             $workspace->delete();
-            DB::table('check_workers')->where('shard', 0)->where('shards', 1)->delete();
         });
         $this->line("Deleted workspace {$workspace->slug}.");
     }

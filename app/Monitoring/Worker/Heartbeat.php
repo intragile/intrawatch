@@ -26,6 +26,7 @@ final class Heartbeat
         private readonly Clock $clock,
         private readonly int $shard,
         private readonly int $shards,
+        private readonly bool $persist = true,
     ) {
         $this->startedAt = $clock->now();
     }
@@ -66,6 +67,11 @@ final class Heartbeat
      */
     public function beat(int $monitors, int $buffered): ?Throwable
     {
+        // A worker that does not own its shard, such as the benchmark's, keeps its statistics in memory only.
+        if (! $this->persist) {
+            return null;
+        }
+
         $stats = $this->lastMinute();
 
         try {

@@ -28,7 +28,7 @@ cleanup() {
     timeout 60 docker logs --tail 60 "$NAME" >&2 2>&1 || true
   fi
   timeout 60 docker rm -f "$NAME" >/dev/null 2>&1 || true
-  timeout 60 docker rm -f "$PG_NAME" >/dev/null 2>&1 || true
+  timeout 60 docker rm -f "$PG_NAME" "${NAME}-ping" >/dev/null 2>&1 || true
   timeout 60 docker volume rm -f "$VOLUME" >/dev/null 2>&1 || true
   timeout 60 docker network rm "$NETWORK" >/dev/null 2>&1 || true
   [[ "${SMOKE_KEEP_IMAGE:-0}" == "1" ]] || timeout 60 docker rmi "$IMAGE" >/dev/null 2>&1 || true
@@ -44,10 +44,11 @@ STATEFUL=(-H "Origin: http://localhost:3000" -H "Referer: http://localhost:3000/
 
 http_code() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@" || true; }
 
+# Polls run against a wall-clock deadline, so slow requests cannot stretch the advertised wait.
 wait_for_up() {
-  local i
-  for i in $(seq 1 60); do
-    [[ "$(http_code "$BASE/up")" == "200" ]] && return 0
+  local deadline=$((SECONDS + 60))
+  while ((SECONDS < deadline)); do
+    [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/up" || true)" == "200" ]] && return 0
     sleep 1
   done
   fail "/up did not return 200 within 60s"
@@ -169,14 +170,15 @@ ok "http and push monitors created, push received"
 
 # monitor_status <id>: prints the monitor's state.status
 monitor_status() {
-  curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/monitors/$1" 2>/dev/null | jq -r '.data.state.status // empty' || true
+  curl -fsS --max-time 5 "${AUTH[@]}" "$WS_URL/monitors/$1" 2>/dev/null | jq -r '.data.state.status // empty' || true
 }
 http_status="" push_status=""
-for i in $(seq 1 60); do
+deadline=$((SECONDS + 60))
+while true; do
   http_status="$(monitor_status "$HTTP_ID")"
   push_status="$(monitor_status "$PUSH_ID")"
   [[ "$http_status" == "up" && "$push_status" == "up" ]] && break
-  [[ $i -eq 60 ]] && fail "monitors not up within 60s (http: ${http_status:-none}, push: ${push_status:-none})"
+  ((SECONDS < deadline)) || fail "monitors not up within 60s (http: ${http_status:-none}, push: ${push_status:-none})"
   sleep 1
 done
 ok "http and push monitors are up"
@@ -188,6 +190,8 @@ ok "worker status and healthcheck pass"
 [[ "$(timeout 30 docker exec "$NAME" id -u)" == "1000" ]] || fail "docker exec does not run as uid 1000"
 timeout 30 docker exec "$NAME" ping -c1 -W5 127.0.0.1 >/dev/null || fail "ping as uid 1000 failed"
 ok "ping works as uid 1000"
+run_docker 60 "ping without NET_RAW" run --rm --name "${NAME}-ping" --cap-drop NET_RAW --entrypoint ping "$IMAGE" -c1 -W5 127.0.0.1 >/dev/null
+ok "ping works without NET_RAW"
 
 echo "== stop within the docker stop grace period"
 started="$(date +%s)"

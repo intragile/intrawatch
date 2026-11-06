@@ -60,7 +60,11 @@ healthcheck (`/usr/local/bin/healthcheck.sh`) requires both `GET /up` to answer
 and every check worker of the container to have reported within the last 60
 seconds (`php artisan intrawatch:worker:status --local`); each step has its own
 time limit, so a stuck database marks the container unhealthy instead of
-hanging the check.
+hanging the check. While the database is unreachable the container therefore
+reports unhealthy, although the workers keep checking and buffer up to 10 000
+results until it is back. A restart discards that buffer, so do not use this
+healthcheck as a restart (liveness) trigger in an orchestrator, or give it a
+failure threshold longer than the database outages you want to ride out.
 
 ### Recovery
 
@@ -118,7 +122,7 @@ commented-out PostgreSQL and MySQL services.
 | --- | --- |
 | `http` | An HTTP(S) request: accepted status codes, keyword or JSON query, response headers, redirects, basic or bearer auth, mTLS, an optional HTTP or SOCKS proxy, and TLS validity of the endpoint |
 | `tcp` | A TCP connection to a host and port |
-| `ping` | ICMP echo (1 to 5 packets) |
+| `ping` | ICMP echo (1 to 5 packets), sent without privileges through unprivileged ICMP sockets |
 | `dns` | A DNS record (A, AAAA, CNAME, MX, NS, TXT, SOA, SRV, CAA, PTR), optionally against a given resolver and expected values, and watching for changes |
 | `tls` | The certificate of a TLS endpoint (with optional SMTP, IMAP or POP3 STARTTLS): expiry thresholds, chain, protocols and ciphers |
 | `domain` | Domain registration expiry through RDAP, with WHOIS as the fallback (interval at least one hour) |
@@ -129,6 +133,11 @@ commented-out PostgreSQL and MySQL services.
 The interval is 20 seconds to 24 hours (60 seconds by default, one hour for
 `tls` and `domain`). `GET /api/v1/monitor-types` lists every type with its
 configuration fields and defaults.
+
+`ping` needs no `NET_RAW` capability: it uses unprivileged ICMP sockets, which
+Docker allows by default (`net.ipv4.ping_group_range`). Other container
+runtimes may need that sysctl set to include uid 1000, for example
+`net.ipv4.ping_group_range=0 2147483647`.
 
 Checks may not connect to the networks in `CHECK_BLOCKED_NETWORKS` (CIDR list,
 by default the cloud metadata addresses `169.254.169.254/32` and
@@ -199,7 +208,9 @@ On `docker stop` every program stops in parallel. Check workers wait up to
 every program is killed after 8 seconds at the latest, so the container stops
 within Docker's default 10-second grace period. Keep at least that grace
 period (`docker stop -t`, or `stop_grace_period` in Compose; the example file
-sets `stop_grace_period: 10s`). A day rollup rebuild that is still running when
+sets `stop_grace_period: 10s`). A database write already in progress, or a
+database that does not answer, can take longer than these limits; results
+still buffered when a worker is killed are lost. A day rollup rebuild that is still running when
 the container stops is left partly done (each day is replaced atomically, so
 no day is counted twice) and is not resumed; change the timezone again to
 rebuild the remaining days.
@@ -277,16 +288,22 @@ The schedule drift benchmark seeds a throwaway workspace with HTTP monitors
 against a local target that answers in 50 to 300 ms, runs one check worker and
 prints the median, 95th percentile and maximum delay from the schedule, the
 checks per minute and the longest result flush. It exits with 1 when the
-maximum delay reaches two seconds. Run it in a container of its own, without
-check workers (it refuses to run next to a live one):
+maximum delay reaches two seconds, when fewer than 95% of the expected checks
+ran, or when any check was not up. Run it in a container of its own with a
+fresh volume and the default SQLite database: it refuses to run next to a live
+check worker, and against a database that already holds workspaces unless
+`--force` is given. Ctrl-C or `docker stop` ends the run early and still
+deletes the benchmark workspace.
 
 ```bash
 docker run --rm --cpus=2 intrawatch \
   php artisan intrawatch:bench --monitors=1000 --interval=60 --duration=180
 ```
 
-A command passed to `docker run` runs after the usual setup (migrations,
-generated keys) instead of the services.
+A command passed to `docker run` runs after the usual setup instead of the
+services. That setup migrates the configured database with the image's own
+version; set `INTRAWATCH_SKIP_MIGRATE=1` to run a one-off command against a
+database another version manages.
 
 Guzzle is pinned to 7.x (`guzzlehttp/guzzle ^7.9`): Laravel Reverb requires
 `guzzlehttp/psr7 ^2.6`, while Guzzle 8 needs psr7 3.x. Lift the pin once a

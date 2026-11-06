@@ -1,5 +1,7 @@
 {
 	admin off
+	# Requests still running after this are cut off, well before supervisord's kill at 8 s.
+	grace_period 5s
 	auto_https off
 	frankenphp
 	log {

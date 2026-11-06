@@ -18,6 +18,8 @@ LABEL org.opencontainers.image.title="IntraWatch" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${APP_VERSION}"
 
+# ping runs without a file capability: it uses unprivileged ICMP sockets (net.ipv4.ping_group_range, which
+# Docker opens by default), so it also works in containers that drop NET_RAW.
 RUN install-php-extensions pdo_sqlite pdo_mysql pdo_pgsql intl pcntl bcmath opcache \
     && apt-get update \
     && apt-get install -y --no-install-recommends supervisor curl iputils-ping tini \
@@ -26,7 +28,8 @@ RUN install-php-extensions pdo_sqlite pdo_mysql pdo_pgsql intl pcntl bcmath opca
     && useradd --uid 1000 --create-home --shell /usr/sbin/nologin app \
     && mkdir -p /data /app \
     && chown app:app /data /app \
-    && (setcap -r /usr/local/bin/frankenphp || true)
+    && (setcap -r /usr/local/bin/frankenphp || true) \
+    && (setcap -r /usr/bin/ping 2>/dev/null || true)
 
 WORKDIR /app
 COPY --from=composer --chown=app:app /app /app
@@ -69,7 +72,9 @@ VOLUME /data
 EXPOSE 3000
 
 # Covers the web server and every local check worker (see docker/healthcheck.sh).
-HEALTHCHECK --interval=30s --timeout=30s --start-period=60s CMD ["/usr/local/bin/healthcheck.sh"]
+# The start period covers the entrypoint's minute of migration retries; --start-interval needs Docker Engine 25+.
+HEALTHCHECK --interval=30s --timeout=30s --retries=3 --start-period=120s --start-interval=5s \
+    CMD ["/usr/local/bin/healthcheck.sh"]
 
 # tini runs as PID 1: it forwards signals to the entrypoint and reaps orphaned processes.
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]

@@ -179,8 +179,11 @@ final class Scheduler
 
         $flushStop->cancel();
         $flusher->await();
-        $this->buffer->drain();
-        $this->heartbeat->beat(count($this->specs), $this->buffer->count());
+        // The last heartbeat is skipped when the database did not take the outcomes: it would only spend
+        // more of the stop grace period waiting for it.
+        if ($this->buffer->drain()) {
+            $this->heartbeat->beat(count($this->specs), $this->buffer->count());
+        }
     }
 
     /**

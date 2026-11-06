@@ -100,9 +100,10 @@ if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
   touch "$DB_DATABASE"
 fi
 
-# External databases may still be starting; retry for up to a minute.
+# External databases may still be starting; retry for up to a minute. INTRAWATCH_SKIP_MIGRATE=1 leaves the
+# schema alone, for one-off commands against a database another version of the image manages.
 attempt=0
-until php artisan migrate --force; do
+until [ "${INTRAWATCH_SKIP_MIGRATE:-0}" = "1" ] || php artisan migrate --force; do
   attempt=$((attempt + 1))
   if [ "$attempt" -ge 30 ]; then
     echo "migrate failed after $attempt attempts" >&2
