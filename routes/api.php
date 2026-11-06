@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\MonitorBulkController;
 use App\Http\Controllers\Api\MonitorController;
 use App\Http\Controllers\Api\MonitorTypeController;
 use App\Http\Controllers\Api\OpenApiController;
+use App\Http\Controllers\Api\PushController;
 use App\Http\Controllers\Api\SetupController;
 use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TokenController;
@@ -20,6 +21,15 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/openapi.json', OpenApiController::class)->middleware('throttle:openapi');
     Route::get('/setup', [SetupController::class, 'show']);
     Route::post('/setup', [SetupController::class, 'store'])->middleware(['throttle:setup', 'session.required']);
+
+    // Push and cron monitors report here; the token in the path is the only credential.
+    Route::prefix('/push/{token}')->where(['token' => '[A-Za-z0-9]+'])->middleware('throttle:push')->group(function (): void {
+        $methods = ['GET', 'POST', 'HEAD'];
+        Route::match($methods, '/', [PushController::class, 'ping']);
+        Route::match($methods, '/start', [PushController::class, 'start']);
+        Route::match($methods, '/fail', [PushController::class, 'fail']);
+        Route::match($methods, '/{exitCode}', [PushController::class, 'exit'])->whereNumber('exitCode');
+    });
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/me', MeController::class);

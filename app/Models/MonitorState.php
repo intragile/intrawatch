@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property array<string, mixed>|null $watch
  * @property Carbon|null $last_ping_at
  * @property Carbon|null $run_started_at
+ * @property Carbon|null $deadline_anchor_at
  * @property Carbon|null $updated_at
  */
 class MonitorState extends Model
@@ -53,6 +54,7 @@ class MonitorState extends Model
             'watch' => 'array',
             'last_ping_at' => 'datetime',
             'run_started_at' => 'datetime',
+            'deadline_anchor_at' => 'datetime',
         ];
     }
 

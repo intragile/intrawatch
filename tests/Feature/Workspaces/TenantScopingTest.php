@@ -73,6 +73,10 @@ class TenantScopingTest extends TestCase
             }
             $wheres = $route->wheres;
             foreach ($route->parameterNames() as $parameter) {
+                // A push token is a credential, not a model id; it only has to be alphanumeric.
+                if ($parameter === 'token' && str_starts_with($route->uri(), 'api/v1/push/') && ($wheres[$parameter] ?? null) === '[A-Za-z0-9]+') {
+                    continue;
+                }
                 if (is_string($parameter) && $parameter !== 'workspace' && ($wheres[$parameter] ?? null) !== '[0-9]+') {
                     $unconstrained[] = $route->uri().' {'.$parameter.'}';
                 }

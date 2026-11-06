@@ -13,4 +13,14 @@ final class NullDeadlineEvaluator implements DeadlineEvaluator
     {
         return [null, $now->addSeconds($spec->intervalSeconds)];
     }
+
+    public function evaluateMany(array $specs, CarbonImmutable $now): array
+    {
+        $results = [];
+        foreach ($specs as $spec) {
+            $results[$spec->id] = $this->evaluate($spec, $now);
+        }
+
+        return $results;
+    }
 }

@@ -118,8 +118,13 @@ class MonitorController extends Controller
             $oldSecretKeys = $this->secretKeys($monitor->secrets);
             $oldTags = $monitor->tagIds();
             $wasActive = $monitor->active;
+            $oldTiming = $this->deadlineTiming($monitor);
 
             $monitor->fill($changes)->save();
+            if ($oldTiming !== $this->deadlineTiming($monitor)) {
+                // New push or cron timing applies from now, so an edit never turns into an instant down.
+                $monitor->state()->update(['deadline_anchor_at' => now()]);
+            }
             if (is_bool($active)) {
                 MonitorActivation::apply($monitor, $active);
             }
@@ -186,6 +191,25 @@ class MonitorController extends Controller
         PurgeMonitorData::dispatch($monitor->id)->afterCommit();
 
         return response()->noContent();
+    }
+
+    /**
+     * The settings a push or cron deadline is computed from; null for other monitor types.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function deadlineTiming(Monitor $monitor): ?array
+    {
+        if (! in_array($monitor->type, [MonitorType::Push, MonitorType::Cron], true)) {
+            return null;
+        }
+
+        return [
+            'interval_seconds' => $monitor->interval_seconds,
+            'grace_seconds' => $monitor->config['grace_seconds'] ?? null,
+            'schedule' => $monitor->config['schedule'] ?? null,
+            'timezone' => $monitor->config['timezone'] ?? null,
+        ];
     }
 
     private function monitor(Model $model): Monitor

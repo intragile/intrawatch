@@ -688,6 +688,181 @@
                 }
             }
         },
+        "/push/{token}": {
+            "get": {
+                "operationId": "push.ping",
+                "description": "Push monitors: `status` is `up` (the default) or `down`; a reported down skips the retries. `msg` is\nstored as the result message (longer than 200 characters is cut). `ping` is the latency in\nmilliseconds; anything but a non-negative integer is ignored. Cron monitors: records the run as up,\nwith the time since its start as latency.",
+                "summary": "Report a heartbeat or a successful cron run",
+                "tags": [
+                    "Push"
+                ],
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "ok"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/push/{token}/fail": {
+            "get": {
+                "operationId": "push.fail",
+                "description": "Records a down that skips the retries, with `msg` appended to the message when given.",
+                "summary": "Report a failure",
+                "tags": [
+                    "Push"
+                ],
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "ok"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/push/{token}/start": {
+            "get": {
+                "operationId": "push.start",
+                "description": "Records nothing; the run's duration is measured from here and its maximum runtime is enforced.",
+                "summary": "Report that a cron run has started",
+                "tags": [
+                    "Push"
+                ],
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "ok"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/push/{token}/{exitCode}": {
+            "get": {
+                "operationId": "push.exit",
+                "description": "Exit code 0 records the run as up; 1 to 255 record a down that skips the retries.",
+                "summary": "Report a finished cron run by its exit code",
+                "tags": [
+                    "Push"
+                ],
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "exitCode",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "ok"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFoundHttpException"
+                    }
+                },
+                "security": []
+            }
+        },
         "/setup": {
             "get": {
                 "operationId": "setup.show",
@@ -3705,6 +3880,25 @@
                 }
             },
             "ModelNotFoundException": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Error overview."
+                                }
+                            },
+                            "required": [
+                                "message"
+                            ]
+                        }
+                    }
+                }
+            },
+            "NotFoundHttpException": {
                 "description": "Not found",
                 "content": {
                     "application/json": {

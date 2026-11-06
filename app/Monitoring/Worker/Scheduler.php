@@ -29,6 +29,14 @@ use function Amp\async;
  * Due times live in a min-heap with lazy deletion: rescheduling a monitor pushes a new entry and makes the
  * old one stale. A monitor has either a heap entry or a check in flight, never both, so it never overlaps
  * itself; its next due time is set only once its outcome has been recorded.
+ *
+ * Nothing on the event loop may block on network I/O. The only blocking calls allowed are database calls
+ * made by these collaborators:
+ * - MonitorLoader: loading the shard and polling it for changes;
+ * - OutcomeBuffer, through the ResultRecorder: writing outcomes;
+ * - Heartbeat: writing the worker's heartbeat row;
+ * - DatabaseDeadlineEvaluator: reading the state rows of the push and cron monitors due in one tick, in
+ *   one batched query (reads only).
  */
 final class Scheduler
 {
@@ -43,6 +51,11 @@ final class Scheduler
     private const MAX_IDLE_SECONDS = 1.0;
 
     private const MAX_LOAD_BACKOFF_SECONDS = 30;
+
+    /**
+     * Longest wait before push and cron deadlines are evaluated again after their state could not be read.
+     */
+    private const DEADLINE_RETRY_SECONDS = 30;
 
     private readonly LocalSemaphore $slots;
 
@@ -166,8 +179,11 @@ final class Scheduler
         foreach ($specs as $id => $spec) {
             $this->specs[$id] = $spec;
             $this->generations[$id] = ++$this->generation;
-            // Spreading the first checks over one interval avoids a thundering herd on start.
-            $this->schedule($id, $now + (crc32((string) $id) % max(1, $spec->intervalSeconds)));
+            // Spreading the first checks over one interval avoids a thundering herd on start. Deadlines are
+            // evaluated right away: they are cheap and read together in one batch.
+            $this->schedule($id, $this->mode($spec) === 'deadline'
+                ? $now
+                : $now + (crc32((string) $id) % max(1, $spec->intervalSeconds)));
         }
         foreach ($this->loader->requestedOnLoad() as $id) {
             $this->schedule($id, $now);
@@ -180,6 +196,7 @@ final class Scheduler
     {
         while (! $stop->isRequested()) {
             $now = $this->timestamp();
+            $deadlines = [];
             while (! $this->heap->isEmpty()) {
                 [$due, $entry, $id] = $this->heap->top();
                 if (($this->entries[$id] ?? null) !== $entry) {
@@ -192,7 +209,15 @@ final class Scheduler
                 }
                 $this->heap->extract();
                 unset($this->entries[$id], $this->dueAt[$id]);
-                $this->launch($id, $due);
+                $spec = $this->specs[$id] ?? null;
+                if ($spec !== null && $this->mode($spec) === 'deadline') {
+                    $deadlines[] = $id;
+                } else {
+                    $this->launch($id, $due);
+                }
+            }
+            if ($deadlines !== []) {
+                $this->launchDeadlines($deadlines);
             }
 
             $next = $this->nextDue();
@@ -344,9 +369,7 @@ final class Scheduler
         $key = ++$this->runSequence;
         $this->running[$key] = async(function () use ($spec, $generation, $due, $key): void {
             try {
-                $this->mode($spec) === 'deadline'
-                    ? $this->evaluateDeadline($spec, $generation)
-                    : $this->runCheck($spec, $generation, $due);
+                $this->runCheck($spec, $generation, $due);
             } catch (Throwable $e) {
                 Log::error('A scheduled check crashed.', ['monitor_id' => $spec->id, 'exception' => $e::class]);
                 $this->finish($spec->id, $generation, $this->timestamp(), $spec, null, null);
@@ -397,27 +420,100 @@ final class Scheduler
             fn (?Transition $transition) => $this->finish($spec->id, $generation, $started, $spec, $outcome, $transition));
     }
 
-    private function evaluateDeadline(MonitorSpec $spec, int $generation): void
+    /**
+     * Evaluates the push and cron monitors that fell due in the same tick together, so their state is read
+     * in one batch.
+     *
+     * @param  list<int>  $ids
+     */
+    private function launchDeadlines(array $ids): void
+    {
+        /** @var array<int, array{0: MonitorSpec, 1: int}> $batch */
+        $batch = [];
+        foreach ($ids as $id) {
+            $spec = $this->specs[$id] ?? null;
+            $generation = $this->generations[$id] ?? null;
+            if ($spec !== null && $generation !== null) {
+                $this->busy[$id] = true;
+                $batch[$id] = [$spec, $generation];
+            }
+        }
+        if ($batch === []) {
+            return;
+        }
+
+        $key = ++$this->runSequence;
+        $this->running[$key] = async(function () use ($batch, $key): void {
+            try {
+                $this->evaluateDeadlines($batch);
+            } catch (Throwable $e) {
+                Log::error('Evaluating push and cron deadlines crashed.', ['shard' => $this->shard, 'exception' => $e::class]);
+                $now = $this->timestamp();
+                foreach ($batch as $id => [$spec, $generation]) {
+                    if (isset($this->busy[$id])) {
+                        $this->release($id, $generation, $now + min($spec->intervalSeconds, self::DEADLINE_RETRY_SECONDS));
+                    }
+                }
+            } finally {
+                unset($this->running[$key]);
+            }
+        });
+    }
+
+    /**
+     * @param  array<int, array{0: MonitorSpec, 1: int}>  $batch
+     */
+    private function evaluateDeadlines(array $batch): void
     {
         $now = $this->clock->now();
-        [$outcome, $next] = $this->deadlines->evaluate($spec, $now);
-        $nextAt = $this->timestampOf($next);
+        $nowAt = $this->timestampOf($now);
+        $specs = [];
+        foreach ($batch as [$spec]) {
+            $specs[] = $spec;
+        }
 
-        if ($outcome === null || ! $this->isCurrent($spec->id, $generation)) {
-            unset($this->busy[$spec->id]);
-            if ($this->isCurrent($spec->id, $generation)) {
-                $this->schedule($spec->id, $nextAt);
+        try {
+            $results = $this->deadlines->evaluateMany($specs, $now);
+        } catch (Throwable $e) {
+            // Without the state rows nothing is known, so nothing is recorded: a database outage never turns
+            // into a missed heartbeat.
+            Log::warning('Reading push and cron deadlines failed; retrying.', [
+                'shard' => $this->shard,
+                'monitors' => count($batch),
+                'exception' => $e::class,
+            ]);
+            foreach ($batch as $id => [$spec, $generation]) {
+                $this->release($id, $generation, $nowAt + min($spec->intervalSeconds, self::DEADLINE_RETRY_SECONDS));
             }
 
             return;
         }
 
-        $this->buffer->push($spec, $outcome, $now, null, function () use ($spec, $generation, $nextAt): void {
-            unset($this->busy[$spec->id]);
-            if ($this->isCurrent($spec->id, $generation)) {
-                $this->schedule($spec->id, $nextAt);
+        foreach ($batch as $id => [$spec, $generation]) {
+            [$outcome, $next] = $results[$id] ?? [null, $now->addSeconds($spec->intervalSeconds)];
+            $nextAt = max($nowAt + 1, $this->timestampOf($next));
+
+            if ($outcome === null || ! $this->isCurrent($id, $generation)) {
+                $this->release($id, $generation, $nextAt);
+
+                continue;
             }
-        });
+
+            $this->buffer->push($spec, $outcome, $now, null, fn () => $this->release($id, $generation, $nextAt));
+        }
+    }
+
+    /**
+     * Ends a deadline evaluation: the monitor is evaluated again at $nextAt.
+     */
+    private function release(int $id, int $generation, float $nextAt): void
+    {
+        unset($this->busy[$id]);
+        if ($this->isCurrent($id, $generation)) {
+            $this->schedule($id, $nextAt);
+        } else {
+            $this->rescheduleReadded($id);
+        }
     }
 
     /**

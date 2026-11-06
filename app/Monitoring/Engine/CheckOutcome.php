@@ -18,6 +18,7 @@ final readonly class CheckOutcome
      * @param  array<string, scalar|list<scalar>|null>  $facts  Structured details stored with the result.
      * @param  array<string, string>  $watch  Values whose changes are reported as monitor events.
      * @param  bool  $final  Whether the failure is definitive and retries are skipped.
+     * @param  ?Deadline  $deadline  The missed push or cron deadline this outcome reports, if any.
      */
     private function __construct(
         public MonitorStatus $status,
@@ -26,6 +27,7 @@ final readonly class CheckOutcome
         public array $facts,
         public array $watch,
         public bool $final,
+        public ?Deadline $deadline = null,
     ) {
         $this->message = mb_substr($message, 0, self::MAX_MESSAGE_LENGTH);
     }
@@ -74,6 +76,15 @@ final readonly class CheckOutcome
      */
     public function final(): self
     {
-        return new self($this->status, $this->latencyMs, $this->message, $this->facts, $this->watch, true);
+        return new self($this->status, $this->latencyMs, $this->message, $this->facts, $this->watch, true, $this->deadline);
+    }
+
+    /**
+     * A copy that reports a missed deadline. The recorder skips it when the monitor reported in after the
+     * deadline was evaluated, or when a down for the same deadline was recorded already.
+     */
+    public function forDeadline(Deadline $deadline): self
+    {
+        return new self($this->status, $this->latencyMs, $this->message, $this->facts, $this->watch, $this->final, $deadline);
     }
 }

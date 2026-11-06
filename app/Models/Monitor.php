@@ -68,6 +68,7 @@ class Monitor extends Model
             $monitor->state()->create([
                 'status' => $monitor->active ? MonitorStatus::Pending : MonitorStatus::Paused,
                 'status_since' => now(),
+                'deadline_anchor_at' => now(),
             ]);
         });
     }

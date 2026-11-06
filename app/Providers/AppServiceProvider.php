@@ -21,12 +21,12 @@ use App\Monitoring\Domain\RdapBootstrap;
 use App\Monitoring\Domain\RdapClient;
 use App\Monitoring\Domain\RegistrableDomains;
 use App\Monitoring\Domain\WhoisClient;
+use App\Monitoring\Engine\DatabaseDeadlineEvaluator;
 use App\Monitoring\Engine\DatabaseGroupEvaluator;
 use App\Monitoring\Engine\DeadlineEvaluator;
 use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Engine\NoMaintenance;
-use App\Monitoring\Engine\NullDeadlineEvaluator;
 use App\Monitoring\Net\GuardedConnector;
 use App\Monitoring\Net\NetworkPolicy;
 use App\Monitoring\Worker\Clock;
@@ -39,13 +39,17 @@ use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\Server;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Events\TwoFactorAuthenticationDisabled;
 use Laravel\Fortify\Events\TwoFactorAuthenticationEnabled;
+use Symfony\Component\HttpFoundation\Response;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -57,7 +61,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(CurrentWorkspace::class);
         $this->app->bind(MaintenanceOracle::class, NoMaintenance::class);
         $this->app->bind(GroupEvaluator::class, DatabaseGroupEvaluator::class);
-        $this->app->bind(DeadlineEvaluator::class, NullDeadlineEvaluator::class);
+        $this->app->bind(DeadlineEvaluator::class, DatabaseDeadlineEvaluator::class);
         $this->app->singleton(CheckerRegistry::class);
         $this->app->resolving(CheckerRegistry::class, function (CheckerRegistry $registry): void {
             $registry->register(MonitorType::Http, HttpChecker::class);
@@ -119,6 +123,20 @@ class AppServiceProvider extends ServiceProvider
         Password::defaults(fn (): Password => Password::min(10));
 
         Gate::policy(Workspace::class, WorkspacePolicy::class);
+
+        // Heartbeats are limited per token. Misses (unknown token, inactive monitor, wrong type) also count per
+        // client address, and once that budget is spent every push request from the address is refused, so a
+        // token cannot be guessed by trying.
+        RateLimiter::for('push', function (Request $request): array {
+            $token = $request->route('token');
+
+            return [
+                Limit::perMinute(120)->by('token:'.(is_string($token) ? $token : '')),
+                Limit::perMinute(60)->by('miss:'.$request->ip())->after(
+                    fn (mixed $response): bool => $response instanceof Response && $response->getStatusCode() === 404,
+                ),
+            ];
+        });
 
         Event::listen(Login::class, [RecordAuthEvent::class, 'handleLogin']);
         Event::listen(Failed::class, [RecordAuthEvent::class, 'handleFailed']);

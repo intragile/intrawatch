@@ -8,6 +8,7 @@ use App\Events\MonitorChanged;
 use App\Events\MonitorStatusChanged;
 use App\Models\MonitorEvent;
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Support\Facades\DB;
 use JsonException;
 
@@ -35,8 +36,10 @@ final class ResultRecorder
      *
      * @param  list<array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}>  $items  Spec, outcome, checked-at, schedule drift in ms.
      * @param  bool  $broadcastChecks  Whether to dispatch ChecksRecorded; callers that throttle the broadcast pass false.
+     * @param  ?Closure(RecordedBatch): void  $within  Further writes made in the same transaction once the batch is persisted,
+     *                                                 while the monitor and state rows are still locked.
      */
-    public function record(array $items, bool $broadcastChecks = true): RecordedBatch
+    public function record(array $items, bool $broadcastChecks = true, ?Closure $within = null): RecordedBatch
     {
         if ($items === []) {
             return new RecordedBatch;
@@ -44,8 +47,13 @@ final class ResultRecorder
 
         /** @var list<object> $events */
         $events = [];
-        $batch = DB::transaction(function () use ($items, $broadcastChecks, &$events): RecordedBatch {
-            return $this->persist($items, $broadcastChecks, $events);
+        $batch = DB::transaction(function () use ($items, $broadcastChecks, $within, &$events): RecordedBatch {
+            $batch = $this->persist($items, $broadcastChecks, $events);
+            if ($within !== null) {
+                $within($batch);
+            }
+
+            return $batch;
         });
 
         // The results are committed at this point; see PostCommit for why a failing dispatch is swallowed.
@@ -78,12 +86,15 @@ final class ResultRecorder
 
         /** @var array<int, StateSnapshot> $states */
         $states = [];
+        /** @var array<int, DeadlineState> $deadlineStates */
+        $deadlineStates = [];
         $stateRows = DB::table('monitor_states')
             ->whereIn('monitor_id', $ids)
             ->orderBy('monitor_id')
             ->lockForUpdate()
-            ->get(['monitor_id', 'status', 'consecutive_failures', 'status_since', 'watch']);
+            ->get(array_values(array_unique(['monitor_id', 'status', 'consecutive_failures', 'status_since', 'watch', ...DeadlineState::COLUMNS])));
         foreach ($stateRows as $row) {
+            $deadlineStates[$this->int($row->monitor_id)] = DeadlineState::fromRow($row);
             $states[$this->int($row->monitor_id)] = new StateSnapshot(
                 MonitorStatus::tryFrom($this->string($row->status)) ?? MonitorStatus::Pending,
                 $this->int($row->consecutive_failures),
@@ -104,6 +115,10 @@ final class ResultRecorder
 
         foreach ($items as $index => [$spec, $outcome, $checkedAt, $driftMs]) {
             if (! isset($active[$spec->id])) {
+                continue;
+            }
+
+            if ($outcome->deadline !== null && $this->deadlineSettled($spec, $outcome->deadline, $deadlineStates[$spec->id] ?? null)) {
                 continue;
             }
 
@@ -166,6 +181,9 @@ final class ResultRecorder
                 'updated_at' => $now,
             ];
             $transitions[$spec->id] = $transition;
+            if (isset($deadlineStates[$spec->id])) {
+                $deadlineStates[$spec->id] = $deadlineStates[$spec->id]->withCheck($transition->effective, $checkedAt);
+            }
 
             if ($spec->parentId !== null) {
                 $parentIds[$spec->parentId] = true;
@@ -199,6 +217,29 @@ final class ResultRecorder
         }
 
         return new RecordedBatch($transitions, $groupTransitions);
+    }
+
+    /**
+     * Whether a missed-deadline outcome no longer applies. The state row is read under the same lock as the
+     * rest of the batch, so a heartbeat, run start or completion, resume or edit that committed after the
+     * deadline was evaluated is seen here, and so is a down already recorded for the same deadline.
+     */
+    private function deadlineSettled(MonitorSpec $spec, Deadline $deadline, ?DeadlineState $state): bool
+    {
+        if ($state === null) {
+            return false;
+        }
+        if ($state->reported($deadline->at)) {
+            return true;
+        }
+        if ($deadline->runStartedAt !== null) {
+            // An overrun applies only while the same run is still in progress.
+            return $state->runStartedAt === null || ! $state->runStartedAt->equalTo($deadline->runStartedAt);
+        }
+
+        $anchor = $state->anchor($spec->type);
+
+        return $anchor->gt($deadline->anchor) || $anchor->gte($deadline->at);
     }
 
     /**
