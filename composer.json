@@ -10,6 +10,7 @@
         "dedoc/scramble": "^0.13",
         "laravel/fortify": "^1.41",
         "laravel/framework": "^13.17",
+        "laravel/reverb": "^1.12",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^3.0"
     },

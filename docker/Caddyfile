@@ -1,0 +1,21 @@
+{
+	admin off
+	auto_https off
+	frankenphp
+	log {
+		output stderr
+	}
+}
+
+:3000 {
+	root * /app/public
+	encode zstd gzip
+
+	route {
+		# Reverb runs inside the container; only port 3000 is exposed.
+		@reverb path /app /app/* /apps /apps/*
+		reverse_proxy @reverb 127.0.0.1:8080
+
+		php_server
+	}
+}

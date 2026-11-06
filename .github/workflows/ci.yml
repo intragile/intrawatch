@@ -112,3 +112,14 @@ jobs:
           php artisan migrate --force
           php artisan scramble:export --path=/tmp/o.json
           diff -q /tmp/o.json docs/openapi.json
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Smoke test the image (sqlite)
+        run: bash tests/docker/smoke.sh
+
+      - name: Smoke test the image (pgsql)
+        run: bash tests/docker/smoke.sh --pgsql

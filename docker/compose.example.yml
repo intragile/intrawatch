@@ -1,0 +1,55 @@
+# Minimal IntraWatch deployment. SQLite is the default and needs nothing else.
+services:
+  intrawatch:
+    image: ghcr.io/intragile/intrawatch:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - intrawatch-data:/data
+    environment:
+      APP_URL: http://localhost:3000
+      # TRUSTED_PROXIES: "*"            # set when running behind a reverse proxy
+      # SANCTUM_STATEFUL_DOMAINS: status.example.com
+      # --- PostgreSQL instead of SQLite ---
+      # DB_CONNECTION: pgsql
+      # DB_HOST: postgres
+      # DB_PORT: 5432
+      # DB_DATABASE: intrawatch
+      # DB_USERNAME: intrawatch
+      # DB_PASSWORD: change-me
+      # --- MySQL / MariaDB instead of SQLite ---
+      # DB_CONNECTION: mysql
+      # DB_HOST: mysql
+      # DB_PORT: 3306
+      # DB_DATABASE: intrawatch
+      # DB_USERNAME: intrawatch
+      # DB_PASSWORD: change-me
+    restart: unless-stopped
+    # depends_on:
+    #   - postgres
+
+  # postgres:
+  #   image: postgres:16
+  #   environment:
+  #     POSTGRES_DB: intrawatch
+  #     POSTGRES_USER: intrawatch
+  #     POSTGRES_PASSWORD: change-me
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+  # mysql:
+  #   image: mysql:8.4
+  #   environment:
+  #     MYSQL_DATABASE: intrawatch
+  #     MYSQL_USER: intrawatch
+  #     MYSQL_PASSWORD: change-me
+  #     MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #   restart: unless-stopped
+
+volumes:
+  intrawatch-data:
+  # postgres-data:
+  # mysql-data:
