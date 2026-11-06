@@ -46,6 +46,7 @@ final class MonitorSpecFactory
         int $id = 1,
         int $workspaceId = 1,
         ?int $parentId = null,
+        int $timeoutSeconds = 10,
     ): MonitorSpec {
         return new MonitorSpec(
             id: $id,
@@ -54,7 +55,7 @@ final class MonitorSpecFactory
             config: $config,
             secrets: [],
             intervalSeconds: $intervalSeconds,
-            timeoutSeconds: 10,
+            timeoutSeconds: $timeoutSeconds,
             retries: $retries,
             retryIntervalSeconds: $retryIntervalSeconds,
             degradedThresholdMs: $degradedThresholdMs,

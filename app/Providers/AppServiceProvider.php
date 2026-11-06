@@ -2,14 +2,20 @@
 
 namespace App\Providers;
 
+use Amp\Dns\DnsResolver;
+use App\Enums\MonitorType;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
+use App\Monitoring\Checks\PingChecker;
+use App\Monitoring\Checks\TcpChecker;
 use App\Monitoring\Engine\DatabaseGroupEvaluator;
 use App\Monitoring\Engine\DeadlineEvaluator;
 use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Engine\NoMaintenance;
 use App\Monitoring\Engine\NullDeadlineEvaluator;
+use App\Monitoring\Net\GuardedConnector;
+use App\Monitoring\Net\NetworkPolicy;
 use App\Monitoring\Worker\Clock;
 use App\Monitoring\Worker\SystemClock;
 use App\Policies\WorkspacePolicy;
@@ -39,6 +45,13 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(GroupEvaluator::class, DatabaseGroupEvaluator::class);
         $this->app->bind(DeadlineEvaluator::class, NullDeadlineEvaluator::class);
         $this->app->singleton(CheckerRegistry::class);
+        $this->app->resolving(CheckerRegistry::class, function (CheckerRegistry $registry): void {
+            $registry->register(MonitorType::Tcp, TcpChecker::class);
+            $registry->register(MonitorType::Ping, PingChecker::class);
+        });
+        $this->app->singleton(DnsResolver::class, fn (): DnsResolver => \Amp\Dns\dnsResolver());
+        $this->app->singleton(NetworkPolicy::class, fn (): NetworkPolicy => NetworkPolicy::fromConfig());
+        $this->app->singleton(GuardedConnector::class);
         $this->app->singleton(Clock::class, SystemClock::class);
     }
 
