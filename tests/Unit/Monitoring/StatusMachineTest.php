@@ -81,6 +81,7 @@ class StatusMachineTest extends TestCase
         $this->assertSame(1, $t->consecutiveFailures);
         $this->assertTrue($t->changed);
         $this->assertSame($spec->intervalSeconds, $t->nextDelaySeconds);
+        $this->assertSame('Maintenance window', $t->message);
     }
 
     public function test_outcome_truncates_message_and_hides_exception_messages(): void

@@ -19,7 +19,7 @@ return new class extends Migration
             $table->json('facts')->nullable();
             $table->dateTime('checked_at');
             $table->integer('drift_ms')->nullable();
-            $table->unsignedInteger('bucket_minute');
+            $table->bigInteger('bucket_minute');
             $table->index(['monitor_id', 'checked_at']);
         });
     }

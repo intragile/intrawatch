@@ -9,10 +9,12 @@ use App\Enums\MonitorStatus;
  */
 final class StatusMachine
 {
+    public const MAINTENANCE_MESSAGE = 'Maintenance window';
+
     public function apply(MonitorSpec $spec, StateSnapshot $state, CheckOutcome $o, bool $inMaintenance): Transition
     {
         if ($inMaintenance) {
-            return $this->transition($spec, $state, MonitorStatus::Maintenance, $state->consecutiveFailures, $o->message);
+            return $this->transition($spec, $state, MonitorStatus::Maintenance, $state->consecutiveFailures, self::MAINTENANCE_MESSAGE);
         }
 
         $status = $o->status;

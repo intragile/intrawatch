@@ -9,7 +9,9 @@ use App\Events\MonitorStatusChanged;
 use App\Models\MonitorEvent;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use JsonException;
+use Throwable;
 
 /**
  * Persists check outcomes: results, monitor states, monitor events and group recomputes, all in one
@@ -18,6 +20,11 @@ use JsonException;
 final class ResultRecorder
 {
     private const INSERT_CHUNK = 500;
+
+    /**
+     * Checks per ChecksRecorded event, which keeps each broadcast below the WebSocket message size limit.
+     */
+    private const BROADCAST_CHUNK = 200;
 
     public function __construct(
         private readonly StatusMachine $machine,
@@ -42,8 +49,19 @@ final class ResultRecorder
             return $this->persist($items, $events);
         });
 
+        // The results are committed at this point. A failing dispatch (for instance a queue that cannot be
+        // written) must not surface as a failed record call, or the caller would retry and store them twice.
         foreach ($events as $event) {
-            event($event);
+            try {
+                event($event);
+            } catch (Throwable $e) {
+                Log::warning('Dispatching a monitor event failed after its results were recorded.', [
+                    'event' => $event::class,
+                    'monitor_id' => property_exists($event, 'monitorId') ? $event->monitorId : null,
+                    'workspace_id' => property_exists($event, 'workspaceId') ? $event->workspaceId : null,
+                    'exception' => $e::class,
+                ]);
+            }
         }
 
         return $batch;
@@ -83,10 +101,7 @@ final class ResultRecorder
             $active[$this->int($id)] = true;
         }
 
-        $maintenance = array_fill_keys(
-            $this->maintenance->underMaintenance(array_keys($active), CarbonImmutable::now()),
-            true,
-        );
+        $maintenance = $this->maintenanceByItem($items, $active);
 
         $now = CarbonImmutable::now();
         $results = [];
@@ -96,13 +111,13 @@ final class ResultRecorder
         $checks = [];
         $parentIds = [];
 
-        foreach ($items as [$spec, $outcome, $checkedAt, $driftMs]) {
+        foreach ($items as $index => [$spec, $outcome, $checkedAt, $driftMs]) {
             if (! isset($active[$spec->id])) {
                 continue;
             }
 
             $state = $states[$spec->id] ?? StateSnapshot::of(MonitorStatus::Pending, 0, $checkedAt);
-            $transition = $this->machine->apply($spec, $state, $outcome, isset($maintenance[$spec->id]));
+            $transition = $this->machine->apply($spec, $state, $outcome, isset($maintenance[$index]));
             $since = $transition->changed ? $checkedAt : $state->since;
 
             $results[] = [
@@ -192,10 +207,50 @@ final class ResultRecorder
         }
 
         foreach ($checks as $workspaceId => $list) {
-            $events[] = new ChecksRecorded($workspaceId, $list);
+            foreach (array_chunk($list, self::BROADCAST_CHUNK) as $chunk) {
+                $events[] = new ChecksRecorded($workspaceId, $chunk);
+            }
         }
 
         return new RecordedBatch($transitions, $groupTransitions);
+    }
+
+    /**
+     * Which items fall into a maintenance window at their own check time. The oracle is asked once per
+     * distinct check second, which keeps a flushed batch to a handful of calls.
+     *
+     * @param  list<array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}>  $items
+     * @param  array<int, true>  $active
+     * @return array<int, true> Item indexes under maintenance.
+     */
+    private function maintenanceByItem(array $items, array $active): array
+    {
+        /** @var array<int, array{at: CarbonImmutable, ids: array<int, true>, items: list<int>}> $bySecond */
+        $bySecond = [];
+        foreach ($items as $index => [$spec, , $checkedAt]) {
+            if (! isset($active[$spec->id])) {
+                continue;
+            }
+            $second = $checkedAt->getTimestamp();
+            $bySecond[$second] ??= ['at' => $checkedAt, 'ids' => [], 'items' => []];
+            $bySecond[$second]['ids'][$spec->id] = true;
+            $bySecond[$second]['items'][] = $index;
+        }
+
+        $maintenance = [];
+        foreach ($bySecond as $group) {
+            $inWindow = array_fill_keys($this->maintenance->underMaintenance(array_keys($group['ids']), $group['at']), true);
+            if ($inWindow === []) {
+                continue;
+            }
+            foreach ($group['items'] as $index) {
+                if (isset($inWindow[$items[$index][0]->id])) {
+                    $maintenance[$index] = true;
+                }
+            }
+        }
+
+        return $maintenance;
     }
 
     /**
