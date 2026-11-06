@@ -12,6 +12,12 @@ services:
       # TRUSTED_PROXIES: "*"            # set when running behind a reverse proxy
       # SESSION_SECURE_COOKIE: "true"   # set when served over HTTPS
       # SANCTUM_STATEFUL_DOMAINS: status.example.com
+      # --- Check workers (see the README); several hosts need an external database ---
+      # CHECK_WORKERS: "1"
+      # CHECK_SHARD_OFFSET: "0"
+      # CHECK_SHARDS_TOTAL: "1"
+      # CHECK_BLOCKED_NETWORKS: "169.254.169.254/32,fd00:ec2::254/128,10.0.0.0/8"
+      # DB_SQLITE_JOURNAL_MODE: DELETE  # when /data is on NFS or another network file system
       # --- PostgreSQL instead of SQLite ---
       # DB_CONNECTION: pgsql
       # DB_HOST: postgres
@@ -28,6 +34,8 @@ services:
       # DB_PASSWORD: change-me
     # Required: the container exits when an internal program fails permanently.
     restart: unless-stopped
+    # Check workers write their buffered results on shutdown; the container stops within 10 s.
+    stop_grace_period: 10s
     # depends_on:
     #   - postgres
 

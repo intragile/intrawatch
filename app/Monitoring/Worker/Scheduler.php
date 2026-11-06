@@ -138,7 +138,7 @@ final class Scheduler
         int $concurrency = 200,
         private readonly float $pollSeconds = 5.0,
         private readonly float $heartbeatSeconds = 10.0,
-        private readonly float $shutdownGraceSeconds = 10.0,
+        private readonly float $shutdownGraceSeconds = 4.0,
     ) {
         $this->slots = new LocalSemaphore(max(1, $concurrency));
         $this->heap = new SplMinHeap;
@@ -721,7 +721,8 @@ final class Scheduler
     }
 
     /**
-     * Waits up to the grace period for checks in flight, then cancels the rest.
+     * Waits up to the grace period for checks in flight, then cancels the rest. The grace period and the
+     * buffer's drain budget together stay well inside the 10 s that `docker stop` allows by default.
      */
     private function awaitInFlight(): void
     {

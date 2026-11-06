@@ -44,10 +44,12 @@ final class MonitorLoader
     /**
      * @param  ?DomainExpiryService  $domains  Preloaded with the cached domain lookups of the monitors handed out,
      *                                         so checks never read them from the database.
+     * @param  ?int  $workspaceId  Restricts the shard to the monitors of one workspace (used by the benchmark).
      */
     public function __construct(
         private readonly Clock $clock,
         private readonly ?DomainExpiryService $domains = null,
+        private readonly ?int $workspaceId = null,
     ) {}
 
     /**
@@ -178,7 +180,8 @@ final class MonitorLoader
     {
         return Monitor::query()
             ->where('active', true)
-            ->whereRaw('id % ? = ?', [$shards, $shard]);
+            ->whereRaw('id % ? = ?', [$shards, $shard])
+            ->when($this->workspaceId !== null, fn (Builder $q) => $q->where('workspace_id', $this->workspaceId));
     }
 
     /**
@@ -190,6 +193,7 @@ final class MonitorLoader
         return DB::table('monitors')
             ->where('active', true)
             ->whereRaw('id % ? = ?', [$shards, $shard])
+            ->when($this->workspaceId !== null, fn ($q) => $q->where('workspace_id', $this->workspaceId))
             ->orderBy('id')
             ->get(['id', 'updated_at', 'check_requested_at']);
     }

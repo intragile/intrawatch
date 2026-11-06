@@ -45,6 +45,8 @@ final class OutcomeBuffer
 {
     private const MAX_BACKOFF_SECONDS = 30;
 
+    private const DRAIN_RETRY_SECONDS = 0.5;
+
     private const MESSAGE_LOG_LENGTH = 500;
 
     /**
@@ -87,6 +89,8 @@ final class OutcomeBuffer
     private int $sequence = 0;
 
     private int $droppedSinceLog = 0;
+
+    private float $maxFlushSeconds = 0.0;
 
     private DeferredCancellation $wake;
 
@@ -222,6 +226,24 @@ final class OutcomeBuffer
      */
     public function flush(): bool
     {
+        $started = hrtime(true);
+        try {
+            return $this->writeQueued();
+        } finally {
+            $this->maxFlushSeconds = max($this->maxFlushSeconds, (hrtime(true) - $started) / 1e9);
+        }
+    }
+
+    /**
+     * Longest wall-clock duration of one flush so far, in milliseconds.
+     */
+    public function maxFlushMs(): int
+    {
+        return (int) round($this->maxFlushSeconds * 1000);
+    }
+
+    private function writeQueued(): bool
+    {
         $this->logDropped();
         $this->handBackHeld();
         $wrote = $this->queue !== [];
@@ -262,18 +284,23 @@ final class OutcomeBuffer
     }
 
     /**
-     * Writes whatever is queued during shutdown, with a few quick retries instead of the open-ended backoff.
+     * Writes whatever is queued during shutdown. Failed flushes are retried every half second instead of
+     * with the open-ended backoff, and no new attempt starts once $budgetSeconds have passed, so the
+     * process stops within the container's stop grace period.
      */
-    public function drain(int $attempts = 3): void
+    public function drain(float $budgetSeconds = 2.0): void
     {
-        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+        $deadline = $this->timestamp() + $budgetSeconds;
+        while (true) {
             if ($this->flush()) {
                 $this->afterFlush?->__invoke();
                 break;
             }
-            if ($attempt < $attempts) {
-                $this->clock->sleep(2 ** ($attempt - 1));
+            $remaining = $deadline - $this->timestamp();
+            if ($remaining <= 0) {
+                break;
             }
+            $this->clock->sleep(min(self::DRAIN_RETRY_SECONDS, $remaining));
         }
 
         if ($this->queue !== []) {
@@ -557,5 +584,10 @@ final class OutcomeBuffer
         } catch (Throwable $e) {
             Log::error('A recorded outcome callback failed.', ['exception' => $e::class]);
         }
+    }
+
+    private function timestamp(): float
+    {
+        return (float) $this->clock->now()->format('U.u');
     }
 }

@@ -21,8 +21,8 @@ docker run -d --name intrawatch --restart unless-stopped -p 3000:3000 \
 ```
 
 Keep the restart policy: when one of the internal programs (web server, queue
-worker, scheduler, websocket server) cannot be kept running, the container
-exits with a non-zero status so that Docker replaces it.
+workers, check workers, scheduler, websocket server) cannot be kept running,
+the container exits with a non-zero status so that Docker replaces it.
 
 Then finish the first-run setup, which creates the owner account and the first
 workspace. The endpoint accepts a single use only, and it logs you in with a
@@ -55,8 +55,12 @@ docker exec -it intrawatch php artisan intrawatch:user:create bob@example.com \
   --name="Bob Example" --owner-of=acme-ops
 ```
 
-The API reference is served at `/api/v1/openapi.json`, and `GET /up` is the
-health endpoint used by the container healthcheck.
+The API reference is served at `/api/v1/openapi.json`. The container
+healthcheck (`/usr/local/bin/healthcheck.sh`) requires both `GET /up` to answer
+and every check worker of the container to have reported within the last 60
+seconds (`php artisan intrawatch:worker:status --local`); each step has its own
+time limit, so a stuck database marks the container unhealthy instead of
+hanging the check.
 
 ### Recovery
 
@@ -108,6 +112,104 @@ websockets are proxied internally.
 A ready-made `docker/compose.example.yml` shows the SQLite default and
 commented-out PostgreSQL and MySQL services.
 
+### Monitors
+
+| Type | Checks |
+| --- | --- |
+| `http` | An HTTP(S) request: accepted status codes, keyword or JSON query, response headers, redirects, basic or bearer auth, mTLS, an optional HTTP or SOCKS proxy, and TLS validity of the endpoint |
+| `tcp` | A TCP connection to a host and port |
+| `ping` | ICMP echo (1 to 5 packets) |
+| `dns` | A DNS record (A, AAAA, CNAME, MX, NS, TXT, SOA, SRV, CAA, PTR), optionally against a given resolver and expected values, and watching for changes |
+| `tls` | The certificate of a TLS endpoint (with optional SMTP, IMAP or POP3 STARTTLS): expiry thresholds, chain, protocols and ciphers |
+| `domain` | Domain registration expiry through RDAP, with WHOIS as the fallback (interval at least one hour) |
+| `push` | A heartbeat: the monitored job calls the monitor's `push_url`; a missing call within interval plus grace counts as a failure |
+| `cron` | A push monitor on a cron schedule, with start and finish reports and an optional maximum runtime |
+| `group` | Aggregates its child monitors (`all`, `any` or a quorum) |
+
+The interval is 20 seconds to 24 hours (60 seconds by default, one hour for
+`tls` and `domain`). `GET /api/v1/monitor-types` lists every type with its
+configuration fields and defaults.
+
+Checks may not connect to the networks in `CHECK_BLOCKED_NETWORKS` (CIDR list,
+by default the cloud metadata addresses `169.254.169.254/32` and
+`fd00:ec2::254/128`); add your internal ranges there if workspace members must
+not probe them. When an HTTP monitor uses a proxy, only the proxy's address is
+checked against this list: the proxy resolves and connects to the target
+itself, so its own egress rules apply to the target.
+
+Push and cron reports are rate limited per token (120 per minute) in the
+application cache (`CACHE_STORE`, the database by default). With several
+containers behind one address, keep the cache on a store they share, such as
+the shared database or Redis, so that the limit applies across all of them.
+
+### Check workers and scaling
+
+Every container runs `CHECK_WORKERS` check worker processes. Monitors are split
+into `CHECK_SHARDS_TOTAL` shards by id, and each worker runs one shard: the
+workers of a container run the shards `CHECK_SHARD_OFFSET` to
+`CHECK_SHARD_OFFSET + CHECK_WORKERS - 1`.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CHECK_WORKERS` | `1` | Check worker processes in this container (1 to 32) |
+| `CHECK_SHARD_OFFSET` | `0` | First shard this container runs |
+| `CHECK_SHARDS_TOTAL` | `CHECK_WORKERS` | Number of shards across all containers |
+| `CHECK_CONCURRENCY` | `200` | Checks one worker runs at the same time |
+| `CHECK_BLOCKED_NETWORKS` | `169.254.169.254/32,fd00:ec2::254/128` | Networks checks may not connect to |
+
+One worker handles about 1 000 HTTP monitors at a 60-second interval on two
+CPU cores with less than two seconds of delay from the schedule
+(`php artisan intrawatch:bench`, see Development). Add workers for more.
+
+To spread the checks over several hosts, every container must use the same
+external MySQL or PostgreSQL database (SQLite cannot be shared between hosts)
+and a shared cache store, all must agree on `CHECK_SHARDS_TOTAL`, and together
+they must cover every shard exactly once. For example, two hosts with two
+workers each:
+
+```bash
+# host A runs shards 0 and 1
+-e CHECK_WORKERS=2 -e CHECK_SHARD_OFFSET=0 -e CHECK_SHARDS_TOTAL=4
+# host B runs shards 2 and 3
+-e CHECK_WORKERS=2 -e CHECK_SHARD_OFFSET=2 -e CHECK_SHARDS_TOTAL=4
+```
+
+The container refuses to start when `CHECK_SHARD_OFFSET + CHECK_WORKERS`
+exceeds `CHECK_SHARDS_TOTAL`. `php artisan intrawatch:worker:status` without
+options checks that every shard of the installation has reported, which is
+useful for monitoring the whole cluster from one place.
+
+### Queues
+
+Two queue workers run in the container: one for regular jobs (such as live
+update broadcasts) and one for the `long` queue connection, which runs the day
+rollup rebuilds after a timezone change (up to 900 seconds each, with
+`retry_after` 960 seconds). The separate worker keeps a long rebuild from
+delaying regular jobs. Outside the image, run both:
+
+```bash
+php artisan queue:work
+php artisan queue:work long --queue=long --timeout=900
+```
+
+### Stopping the container
+
+On `docker stop` every program stops in parallel. Check workers wait up to
+4 seconds for checks in flight and up to 2 more to write buffered results, and
+every program is killed after 8 seconds at the latest, so the container stops
+within Docker's default 10-second grace period. Keep at least that grace
+period (`docker stop -t`, or `stop_grace_period` in Compose; the example file
+sets `stop_grace_period: 10s`). A day rollup rebuild that is still running when
+the container stops is left partly done (each day is replaced atomically, so
+no day is counted twice) and is not resumed; change the timezone again to
+rebuild the remaining days.
+
+### SQLite on network storage
+
+SQLite runs in WAL mode, which needs shared memory and is not safe on network
+file systems such as NFS or SMB. When `/data` lives on one, set
+`DB_SQLITE_JOURNAL_MODE=DELETE`, or use MySQL or PostgreSQL.
+
 ### History, rollups and retention
 
 Every check result is stored raw and aggregated once a minute
@@ -141,7 +243,8 @@ results are tracked again from about two minutes later; nothing already being
 tracked is skipped.
 
 Day rollups start at midnight in the workspace timezone. Changing the timezone
-rebuilds the day rollups in the background from the data still retained:
+rebuilds the day rollups in the background from the data still retained, so
+days older than the retained data keep the boundaries of the old timezone:
 
 - days within the minute retention (48 hours by default) are rebuilt exactly;
 - older days are summed from hour rollups. That is exact for timezones with a
@@ -154,8 +257,8 @@ rebuilds the day rollups in the background from the data still retained:
 The rebuild replaces one day at a time, so day rollups never overlap, even if
 the rebuild is interrupted. While it runs, only that workspace's day rollups
 pause; they catch up afterwards. Rebuilds run on the `long` queue connection
-(`retry_after` 960 s, above the job's 900 s timeout), so a queue worker must
-also process that connection (`php artisan queue:work long`).
+(`retry_after` 960 s, above the job's 900 s timeout); the image runs a worker
+for it (see Queues).
 
 Availability is `(up + degraded + pending) / (total - maintenance)`; it is
 empty when every check of the period fell into a maintenance window.
@@ -169,6 +272,21 @@ composer analyse
 vendor/bin/pint --test
 bash tests/docker/smoke.sh          # image smoke test (add --pgsql for PostgreSQL)
 ```
+
+The schedule drift benchmark seeds a throwaway workspace with HTTP monitors
+against a local target that answers in 50 to 300 ms, runs one check worker and
+prints the median, 95th percentile and maximum delay from the schedule, the
+checks per minute and the longest result flush. It exits with 1 when the
+maximum delay reaches two seconds. Run it in a container of its own, without
+check workers (it refuses to run next to a live one):
+
+```bash
+docker run --rm --cpus=2 intrawatch \
+  php artisan intrawatch:bench --monitors=1000 --interval=60 --duration=180
+```
+
+A command passed to `docker run` runs after the usual setup (migrations,
+generated keys) instead of the services.
 
 Guzzle is pinned to 7.x (`guzzlehttp/guzzle ^7.9`): Laravel Reverb requires
 `guzzlehttp/psr7 ^2.6`, while Guzzle 8 needs psr7 3.x. Lift the pin once a

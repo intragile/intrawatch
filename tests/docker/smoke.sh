@@ -2,7 +2,8 @@
 # Builds the image, boots it with a fresh volume and exercises the setup and
 # session flow over HTTP, a restart, an upgrade (new container, same volume),
 # a non-localhost APP_URL, a permanently failing worker and an unwritable
-# /data. Usage: bash tests/docker/smoke.sh [--pgsql]
+# /data, plus monitors checked by the in-image worker and a timed docker
+# stop. Usage: bash tests/docker/smoke.sh [--pgsql]
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -141,8 +142,65 @@ ws="$(curl -s -i --max-time 3 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
 [[ "$ws" == *"101"* ]] || fail "websocket upgrade via /app did not return 101 (got: $ws)"
 ok "reverb reachable through /app"
 
+echo "== monitors and checker"
+WS_URL="$BASE/api/v1/workspaces/smoke-ops"
+load_xsrf
+token_json="$(curl -fsS --max-time 10 -c "$JAR" -b "$JAR" "${STATEFUL[@]}" -H "X-XSRF-TOKEN: $XSRF" \
+  -H 'Content-Type: application/json' -X POST "$WS_URL/tokens" \
+  -d '{"name":"smoke","abilities":["monitors:write","monitors:read"]}')" || fail "token creation failed"
+API_TOKEN="$(jq -r '.token // empty' <<<"$token_json")"
+[[ -n "$API_TOKEN" ]] || fail "no token in response: $token_json"
+AUTH=(-H "Authorization: Bearer $API_TOKEN" -H 'Accept: application/json' -H 'Content-Type: application/json')
+ok "api token created"
+
+http_json="$(curl -fsS --max-time 10 "${AUTH[@]}" -X POST "$WS_URL/monitors" \
+  -d '{"name":"self","type":"http","interval_seconds":20,"config":{"url":"http://127.0.0.1:3000/up"}}')" \
+  || fail "http monitor creation failed"
+HTTP_ID="$(jq -r '.data.id // empty' <<<"$http_json")"
+[[ -n "$HTTP_ID" ]] || fail "no http monitor id: $http_json"
+push_json="$(curl -fsS --max-time 10 "${AUTH[@]}" -X POST "$WS_URL/monitors" \
+  -d '{"name":"heartbeat","type":"push","interval_seconds":60}')" || fail "push monitor creation failed"
+PUSH_ID="$(jq -r '.data.id // empty' <<<"$push_json")"
+push_url="$(jq -r '.data.push_url // empty' <<<"$push_json")"
+[[ -n "$PUSH_ID" && "$push_url" == */api/v1/push/* ]] || fail "no push monitor or push_url: $push_json"
+# push_url carries APP_URL; the published port differs, so only its path is used.
+[[ "$(http_code "$BASE/api/v1/push/${push_url##*/api/v1/push/}")" == "200" ]] || fail "push_url did not accept the ping"
+ok "http and push monitors created, push received"
+
+# monitor_status <id>: prints the monitor's state.status
+monitor_status() {
+  curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/monitors/$1" 2>/dev/null | jq -r '.data.state.status // empty' || true
+}
+http_status="" push_status=""
+for i in $(seq 1 60); do
+  http_status="$(monitor_status "$HTTP_ID")"
+  push_status="$(monitor_status "$PUSH_ID")"
+  [[ "$http_status" == "up" && "$push_status" == "up" ]] && break
+  [[ $i -eq 60 ]] && fail "monitors not up within 60s (http: ${http_status:-none}, push: ${push_status:-none})"
+  sleep 1
+done
+ok "http and push monitors are up"
+
+timeout 30 docker exec "$NAME" php artisan intrawatch:worker:status >/dev/null || fail "intrawatch:worker:status failed"
+timeout 30 docker exec "$NAME" /usr/local/bin/healthcheck.sh >/dev/null || fail "container healthcheck failed"
+ok "worker status and healthcheck pass"
+
+[[ "$(timeout 30 docker exec "$NAME" id -u)" == "1000" ]] || fail "docker exec does not run as uid 1000"
+timeout 30 docker exec "$NAME" ping -c1 -W5 127.0.0.1 >/dev/null || fail "ping as uid 1000 failed"
+ok "ping works as uid 1000"
+
+echo "== stop within the docker stop grace period"
+started="$(date +%s)"
+run_docker 60 "container stop" stop -t 10 "$NAME" >/dev/null
+STOP_SECONDS=$(($(date +%s) - started))
+stop_code="$(timeout 30 docker inspect -f '{{.State.ExitCode}}' "$NAME")" || fail "docker inspect failed"
+# 137 means the 10 s grace period ran out and Docker sent SIGKILL.
+[[ "$stop_code" != "137" ]] || fail "container was killed after the grace period (${STOP_SECONDS}s)"
+[[ $STOP_SECONDS -lt 10 ]] || fail "docker stop took ${STOP_SECONDS}s"
+ok "docker stop finished in ${STOP_SECONDS}s (exit $stop_code)"
+
 echo "== restart"
-run_docker 90 "container restart" restart "$NAME" >/dev/null
+run_docker 90 "container start" start "$NAME" >/dev/null
 wait_for_up
 ok "/up returns 200 after restart"
 [[ "$(http_code -c "$JAR" -b "$JAR" "${STATEFUL[@]}" "$BASE/api/v1/me")" == "200" ]] || fail "login did not survive restart"

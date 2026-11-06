@@ -352,6 +352,35 @@ class WorkerTest extends TestCase
         $this->assertStringContainsString('Shard 1: never reported', Artisan::output());
     }
 
+    public function test_status_command_checks_only_selected_or_local_shards(): void
+    {
+        config(['monitoring.worker.shards_total' => 4, 'monitoring.worker.shard_offset' => 2, 'monitoring.worker.workers' => 2]);
+        $now = CarbonImmutable::now();
+        $row = fn (int $shard, CarbonImmutable $seen): array => [
+            'shard' => $shard, 'shards' => 4, 'hostname' => 'worker-b', 'pid' => 200 + $shard, 'started_at' => $now->subHour(),
+            'last_seen_at' => $seen, 'monitors' => 10, 'checks_last_minute' => 10, 'max_drift_ms_last_minute' => 5, 'buffered' => 0,
+        ];
+        // Shard 0 runs on another host and is stale; shard 1 never reported.
+        DB::table('check_workers')->insert([$row(0, $now->subSeconds(300)), $row(2, $now->subSeconds(5)), $row(3, $now->subSeconds(5))]);
+
+        $this->assertSame(1, Artisan::call('intrawatch:worker:status'));
+        $this->assertSame(0, Artisan::call('intrawatch:worker:status', ['--local' => true]));
+        $this->assertStringContainsString('Shards 2, 3 of 4 reported', Artisan::output());
+        $this->assertSame(0, Artisan::call('intrawatch:worker:status', ['--shard' => ['3', '2']]));
+        $this->assertSame(1, Artisan::call('intrawatch:worker:status', ['--shard' => ['1', '2']]));
+        $this->assertStringContainsString('Shard 1: never reported', Artisan::output());
+        $this->assertStringNotContainsString('Shard 0', Artisan::output());
+
+        DB::table('check_workers')->where('shard', 3)->update(['last_seen_at' => $now->subSeconds(90)]);
+        $this->assertSame(1, Artisan::call('intrawatch:worker:status', ['--local' => true]));
+        $this->assertStringContainsString('Shard 3: last seen 90 s ago', Artisan::output());
+
+        $this->assertSame(2, Artisan::call('intrawatch:worker:status', ['--shard' => ['4']]));
+        $this->assertSame(2, Artisan::call('intrawatch:worker:status', ['--local' => true, '--shard' => ['2']]));
+        config(['monitoring.worker.shard_offset' => 3]);
+        $this->assertSame(2, Artisan::call('intrawatch:worker:status', ['--local' => true]));
+    }
+
     public function test_sigterm_flushes_and_exits_cleanly(): void
     {
         [$steady, $held] = $this->tcpMonitors(2, ['interval_seconds' => 20, 'retry_interval_seconds' => 20]);

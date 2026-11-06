@@ -5,6 +5,33 @@ DATA_DIR="${DATA_DIR:-/data}"
 FATAL_MARKER=/tmp/intrawatch-fatal
 cd /app
 
+# Exits unless VALUE is a whole number from MIN to MAX, written without sign or leading zero:
+# check_int NAME VALUE MIN MAX
+check_int() {
+  name="$1" value="$2" min="$3" max="$4"
+  case "$value" in
+    0 | [1-9] | [1-9][0-9] | [1-9][0-9][0-9] | [1-9][0-9][0-9][0-9]) ;;
+    *) echo "FATAL: $name must be a whole number from $min to $max, got '$value'" >&2; exit 1 ;;
+  esac
+  if [ "$value" -lt "$min" ] || [ "$value" -gt "$max" ]; then
+    echo "FATAL: $name must be a whole number from $min to $max, got '$value'" >&2
+    exit 1
+  fi
+}
+
+# Check worker processes in this container, the first shard they run and the shard count across all hosts.
+CHECK_WORKERS="${CHECK_WORKERS:-1}"
+CHECK_SHARD_OFFSET="${CHECK_SHARD_OFFSET:-0}"
+CHECK_SHARDS_TOTAL="${CHECK_SHARDS_TOTAL:-$CHECK_WORKERS}"
+check_int CHECK_WORKERS "$CHECK_WORKERS" 1 32
+check_int CHECK_SHARD_OFFSET "$CHECK_SHARD_OFFSET" 0 9998
+check_int CHECK_SHARDS_TOTAL "$CHECK_SHARDS_TOTAL" 1 9999
+if [ $((CHECK_SHARD_OFFSET + CHECK_WORKERS)) -gt "$CHECK_SHARDS_TOTAL" ]; then
+  echo "FATAL: CHECK_SHARD_OFFSET + CHECK_WORKERS ($CHECK_SHARD_OFFSET + $CHECK_WORKERS) exceeds CHECK_SHARDS_TOTAL ($CHECK_SHARDS_TOTAL)" >&2
+  exit 1
+fi
+export CHECK_WORKERS CHECK_SHARD_OFFSET CHECK_SHARDS_TOTAL
+
 # Fail with a clear message instead of a cryptic error further down.
 probe="$DATA_DIR/.write-test.$$"
 if ! (: >"$probe") 2>/dev/null; then
@@ -19,16 +46,6 @@ mkdir -p \
   "$DATA_DIR/storage/framework/sessions" \
   "$DATA_DIR/storage/framework/views" \
   "$DATA_DIR/storage/logs"
-
-# Keep generated secrets in the data volume so restarts preserve sessions and
-# websocket credentials.
-if [ -z "${APP_KEY:-}" ]; then
-  if [ ! -s "$DATA_DIR/app.key" ]; then
-    (umask 077 && php artisan key:generate --show >"$DATA_DIR/app.key.tmp" && mv "$DATA_DIR/app.key.tmp" "$DATA_DIR/app.key")
-  fi
-  APP_KEY="$(cat "$DATA_DIR/app.key")"
-  export APP_KEY
-fi
 
 REVERB_FILE="$DATA_DIR/reverb.env"
 REVERB_VARS="REVERB_APP_ID REVERB_APP_KEY REVERB_APP_SECRET"
@@ -67,6 +84,16 @@ for var in $REVERB_VARS; do
   fi
 done
 
+# Keep the generated application key in the data volume so restarts preserve sessions. Generated after the
+# websocket credentials: booting the application resolves the broadcaster, which needs them.
+if [ -z "${APP_KEY:-}" ]; then
+  if [ ! -s "$DATA_DIR/app.key" ]; then
+    (umask 077 && php artisan key:generate --show >"$DATA_DIR/app.key.tmp" && mv "$DATA_DIR/app.key.tmp" "$DATA_DIR/app.key")
+  fi
+  APP_KEY="$(cat "$DATA_DIR/app.key")"
+  export APP_KEY
+fi
+
 if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
   : "${DB_DATABASE:=$DATA_DIR/database.sqlite}"
   export DB_DATABASE
@@ -88,6 +115,12 @@ done
 php artisan config:cache
 php artisan route:cache
 php artisan event:cache
+
+# A command passed to `docker run` runs instead of the services, after the setup above, for example
+# `docker run --rm intrawatch php artisan intrawatch:bench`.
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
 
 # supervisord runs as a child so that a permanently failed program (see the fatal-exit listener) turns
 # into a non-zero container exit; signals from `docker stop` are forwarded.

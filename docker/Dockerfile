@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.title="IntraWatch" \
 
 RUN install-php-extensions pdo_sqlite pdo_mysql pdo_pgsql intl pcntl bcmath opcache \
     && apt-get update \
-    && apt-get install -y --no-install-recommends supervisor curl \
+    && apt-get install -y --no-install-recommends supervisor curl iputils-ping tini \
     && rm -rf /var/lib/apt/lists/* \
     && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
     && useradd --uid 1000 --create-home --shell /usr/sbin/nologin app \
@@ -34,6 +34,8 @@ COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chmod=0755 docker/supervisor-fatal-exit /usr/local/bin/supervisor-fatal-exit
+COPY --chmod=0755 docker/checker.sh /usr/local/bin/checker.sh
+COPY --chmod=0755 docker/healthcheck.sh /usr/local/bin/healthcheck.sh
 
 USER app
 # Fails the build when the runtime image lacks a PHP extension or version the lock file requires.
@@ -59,11 +61,15 @@ ENV APP_ENV=production \
     REVERB_PORT=8080 \
     REVERB_SCHEME=http \
     XDG_CONFIG_HOME=/tmp/caddy-config \
-    XDG_DATA_HOME=/tmp/caddy-data
+    XDG_DATA_HOME=/tmp/caddy-data \
+    CHECK_WORKERS=1 \
+    CHECK_SHARD_OFFSET=0
 
 VOLUME /data
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s CMD curl -fsS http://127.0.0.1:3000/up || exit 1
+# Covers the web server and every local check worker (see docker/healthcheck.sh).
+HEALTHCHECK --interval=30s --timeout=30s --start-period=60s CMD ["/usr/local/bin/healthcheck.sh"]
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# tini runs as PID 1: it forwards signals to the entrypoint and reaps orphaned processes.
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
