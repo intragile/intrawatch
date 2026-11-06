@@ -7,6 +7,13 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
+        "amphp/amp": "^3.1",
+        "amphp/dns": "^2.4",
+        "amphp/http-client": "^5.3",
+        "amphp/http-tunnel": "^2.0",
+        "amphp/process": "^2.1",
+        "amphp/socket": "^2.4",
+        "amphp/sync": "^2.3",
         "dedoc/scramble": "^0.13",
         "guzzlehttp/guzzle": "^7.9",
         "laravel/fortify": "^1.41",

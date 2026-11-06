@@ -3,6 +3,10 @@
 namespace App\Providers;
 
 use App\Models\Workspace;
+use App\Monitoring\Engine\GroupEvaluator;
+use App\Monitoring\Engine\MaintenanceOracle;
+use App\Monitoring\Engine\NoMaintenance;
+use App\Monitoring\Engine\NullGroupEvaluator;
 use App\Policies\WorkspacePolicy;
 use App\Support\CurrentWorkspace;
 use App\Support\RecordAuthEvent;
@@ -26,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(CurrentWorkspace::class);
+        $this->app->bind(MaintenanceOracle::class, NoMaintenance::class);
+        $this->app->bind(GroupEvaluator::class, NullGroupEvaluator::class);
     }
 
     /**
