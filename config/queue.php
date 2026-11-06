@@ -44,6 +44,17 @@ return [
             'after_commit' => false,
         ],
 
+        // Long-running maintenance jobs (day rollup rebuilds, up to 900 s). retry_after must stay above the
+        // longest job timeout, or a job still running would be handed to a second worker.
+        'long' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'long',
+            'retry_after' => 960,
+            'after_commit' => false,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

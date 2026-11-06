@@ -352,12 +352,14 @@ class RollupTest extends TestCase
         for ($i = 0; $i <= 30; $i++) {
             $this->insertResult($monitor, $base->addMinutes($i)->addSeconds(5));
         }
-        $this->builder()->run($base->addMinutes(32));
+        $this->builder()->run($base->addMinutes(31));
         $this->builder()->run($base->addMinutes(33));
 
         // Flushed from a worker buffer after an outage: far outside the five-minute lookback.
         $this->insertResult($monitor, $base->addMinutes(10)->addSeconds(30), 'down', null);
         $this->builder()->run($base->addMinutes(34));
+        // Late rows are scanned once the id they got is older than the safe lag.
+        $this->builder()->run($base->addMinutes(36));
 
         $minute = $this->rollupRow($monitor, 'minute', $base->addMinutes(10)->getTimestamp());
         $this->assertSame([2, 1], [$minute['total'], $minute['down']]);
@@ -365,7 +367,56 @@ class RollupTest extends TestCase
         $this->assertSame(32, $this->rollupRow($monitor, 'day', $base->startOfDay()->getTimestamp())['total']);
     }
 
-    public function test_a_missing_result_id_watermark_starts_at_the_newest_row_instead_of_reprocessing_the_table(): void
+    public function test_a_row_committed_out_of_id_order_is_still_counted(): void
+    {
+        $monitor = $this->monitor();
+        $t = CarbonImmutable::parse('2026-03-10 10:30:00', 'UTC');
+        for ($i = 0; $i <= 25; $i++) {
+            $this->insertResult($monitor, $t->subMinutes(30)->addMinutes($i));
+        }
+        $first = $this->maxResultId();
+        $this->builder()->run($t->subSeconds(130));
+        $this->builder()->run($t->subSeconds(5));
+        $this->assertSame($first, Cache::get(RollupBuilder::LAST_ID_KEY));
+
+        // Another writer commits a high id while a slow flush transaction still holds a lower one uncommitted.
+        DB::table('check_results')->insert($this->resultRow($monitor, $t->subSeconds(20), $first + 200));
+        $this->builder()->run($t);
+        DB::table('check_results')->insert($this->resultRow($monitor, $t->subMinutes(25)->addSeconds(30), $first + 150));
+        $this->builder()->run($t->addSeconds(60));
+        $this->assertSame(1, $this->rollupRow($monitor, 'minute', $t->subMinutes(25)->getTimestamp())['total']);
+
+        // Once the high id is older than the safe lag, the range up to it is scanned and the late row is found.
+        $this->builder()->run($t->addSeconds(125));
+        $this->assertSame(2, $this->rollupRow($monitor, 'minute', $t->subMinutes(25)->getTimestamp())['total']);
+        $this->assertSame($first + 200, Cache::get(RollupBuilder::LAST_ID_KEY));
+    }
+
+    public function test_cold_start_never_skips_ahead(): void
+    {
+        $monitor = $this->monitor();
+        $base = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
+        for ($i = 0; $i <= 30; $i++) {
+            $this->insertResult($monitor, $base->addMinutes($i));
+        }
+        $first = $this->maxResultId();
+        $this->builder()->run($base->addMinutes(31));
+        $this->builder()->run($base->addMinutes(34));
+        $this->assertSame($first, Cache::get(RollupBuilder::LAST_ID_KEY));
+
+        // The safe-point marks are lost (cache cleared), the id watermark survives.
+        Cache::forget(RollupBuilder::ID_MARKS_KEY);
+        $this->insertResult($monitor, $base->addMinutes(5)->addSeconds(30));
+        $this->builder()->run($base->addMinutes(35));
+        $this->assertSame($first, Cache::get(RollupBuilder::LAST_ID_KEY), 'Without a mark older than the lag nothing is scanned');
+        $this->builder()->run($base->addMinutes(36));
+        $this->builder()->run($base->addMinutes(38));
+
+        $this->assertSame(2, $this->rollupRow($monitor, 'minute', $base->addMinutes(5)->getTimestamp())['total']);
+        $this->assertSame($this->maxResultId(), Cache::get(RollupBuilder::LAST_ID_KEY));
+    }
+
+    public function test_a_missing_result_id_watermark_starts_at_a_safe_point_instead_of_reprocessing_the_table(): void
     {
         $monitor = $this->monitor();
         $base = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
@@ -377,11 +428,14 @@ class RollupTest extends TestCase
         // Marker: an old minute row that a full reprocessing would overwrite.
         DB::table('check_rollups')->where(['bucket' => 'minute', 'bucket_start' => $base->addMinutes(5)->getTimestamp()])->update(['total' => 99]);
         Cache::forget(RollupBuilder::LAST_ID_KEY);
+        Cache::forget(RollupBuilder::ID_MARKS_KEY);
 
         $this->builder()->run($base->addMinutes(33));
+        $this->assertNull(Cache::get(RollupBuilder::LAST_ID_KEY));
+        $this->builder()->run($base->addMinutes(36));
 
         $this->assertSame(99, $this->rollupRow($monitor, 'minute', $base->addMinutes(5)->getTimestamp())['total']);
-        $this->assertEquals(DB::table('check_results')->max('id'), Cache::get(RollupBuilder::LAST_ID_KEY));
+        $this->assertSame($this->maxResultId(), Cache::get(RollupBuilder::LAST_ID_KEY));
     }
 
     public function test_late_results_are_worked_off_in_bounded_id_batches(): void
@@ -392,18 +446,36 @@ class RollupTest extends TestCase
         for ($i = 0; $i <= 30; $i++) {
             $this->insertResult($monitor, $base->addMinutes($i));
         }
-        $now = $base->addMinutes(32);
-        $this->builder()->run($now);
+        $this->builder()->run($base->addMinutes(31));
+        $this->builder()->run($base->addMinutes(34));
 
         $this->insertResult($monitor, $base->addMinutes(3)->addSeconds(30));
         $this->insertResult($monitor, $base->addMinutes(4)->addSeconds(30));
-
-        $this->builder()->run($now);
+        $this->builder()->run($base->addMinutes(35));
+        $this->builder()->run($base->addMinutes(37));
         $this->assertSame(2, $this->rollupRow($monitor, 'minute', $base->addMinutes(3)->getTimestamp())['total']);
         $this->assertSame(1, $this->rollupRow($monitor, 'minute', $base->addMinutes(4)->getTimestamp())['total']);
 
-        $this->builder()->run($now);
+        $this->builder()->run($base->addMinutes(38));
         $this->assertSame(2, $this->rollupRow($monitor, 'minute', $base->addMinutes(4)->getTimestamp())['total']);
+    }
+
+    private function maxResultId(): int
+    {
+        $id = DB::table('check_results')->max('id');
+
+        return is_numeric($id) ? (int) $id : 0;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resultRow(Monitor $monitor, CarbonImmutable $at, int $id): array
+    {
+        return [
+            'id' => $id, 'monitor_id' => $monitor->id, 'status' => 'up', 'latency_ms' => 100,
+            'checked_at' => $at->format('Y-m-d H:i:s'), 'bucket_minute' => intdiv($at->getTimestamp(), 60) * 60,
+        ];
     }
 
     public function test_unchanged_rollups_are_not_rewritten(): void
@@ -441,21 +513,65 @@ class RollupTest extends TestCase
         $this->assertSame(0, CheckRollup::query()->count());
     }
 
-    public function test_rollup_run_is_skipped_while_a_day_rebuild_holds_the_lock(): void
+    public function test_a_rebuild_in_one_workspace_only_pauses_that_workspaces_days(): void
     {
-        $monitor = $this->monitor();
+        $a = $this->monitor();
+        $b = $this->monitor();
         $base = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
-        $this->insertResult($monitor, $base);
+        $this->insertResult($a, $base);
+        $this->insertResult($b, $base);
 
-        $lock = Cache::lock(RollupBuilder::LOCK_KEY, 60);
+        $lock = Cache::lock(RollupBuilder::rebuildLockKey($a->workspace_id), 60);
         $this->assertTrue($lock->get());
         $this->builder()->run($base->addMinutes(3));
-        $this->assertSame(0, CheckRollup::query()->count());
-        $this->assertNull(Cache::get(RollupBuilder::WATERMARK_KEY));
+
+        // Minutes and hours never wait for a rebuild; only workspace A's days do.
+        $this->assertSame(2, CheckRollup::query()->where('bucket', 'minute')->count());
+        $this->assertSame(2, CheckRollup::query()->where('bucket', 'hour')->count());
+        $this->assertSame(1, $this->rollupRow($b, 'day', $base->startOfDay()->getTimestamp())['total']);
+        $this->assertSame(0, CheckRollup::query()->where(['bucket' => 'day', 'monitor_id' => $a->id])->count());
 
         $lock->release();
-        $this->builder()->run($base->addMinutes(3));
-        $this->assertSame(1, CheckRollup::query()->where('bucket', 'minute')->count());
+        $this->builder()->run($base->addMinutes(4));
+        $this->assertSame(1, $this->rollupRow($a, 'day', $base->startOfDay()->getTimestamp())['total']);
+    }
+
+    public function test_one_minute_of_more_monitors_than_one_statement_can_bind_is_written_in_chunks(): void
+    {
+        // 5 000 monitors x 14 columns would exceed the 65 535 placeholders PostgreSQL and MySQL allow per statement.
+        $workspace = Workspace::factory()->create();
+        $minute = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
+        $now = now()->format('Y-m-d H:i:s');
+        for ($chunk = 0; $chunk < 10; $chunk++) {
+            $monitors = [];
+            for ($i = 0; $i < 500; $i++) {
+                $monitors[] = [
+                    'workspace_id' => $workspace->id, 'name' => "m{$chunk}-{$i}", 'type' => 'http', 'active' => true,
+                    'interval_seconds' => 60, 'timeout_seconds' => 10, 'retries' => 1, 'retry_interval_seconds' => 60,
+                    'inverted' => false, 'config' => '{}', 'created_at' => $now, 'updated_at' => $now,
+                ];
+            }
+            DB::table('monitors')->insert($monitors);
+        }
+        foreach (DB::table('monitors')->where('workspace_id', $workspace->id)->pluck('id')->chunk(500) as $ids) {
+            DB::table('check_results')->insert($ids->map(fn (mixed $id): array => [
+                'monitor_id' => $id, 'status' => 'up', 'latency_ms' => 10,
+                'checked_at' => $minute->format('Y-m-d H:i:s'), 'bucket_minute' => $minute->getTimestamp(),
+            ])->values()->all());
+        }
+
+        $upserts = 0;
+        DB::listen(function (QueryExecuted $query) use (&$upserts): void {
+            if (preg_match('/^insert into ["`]check_rollups["`]/i', $query->sql) === 1) {
+                $upserts++;
+            }
+        });
+        $this->builder()->run($minute->addMinutes(2));
+
+        $this->assertSame(5000, CheckRollup::query()->where('bucket', 'minute')->count());
+        $this->assertSame(5000, CheckRollup::query()->where('bucket', 'hour')->count());
+        $this->assertSame(5000, CheckRollup::query()->where('bucket', 'day')->count());
+        $this->assertGreaterThanOrEqual(30, $upserts);
     }
 
     public function test_day_buckets_follow_dst_in_europe_budapest(): void
@@ -490,6 +606,9 @@ class RollupTest extends TestCase
         $this->assertSame('42', (string) $job->uniqueId());
         $this->assertSame(900, $job->timeout);
         $this->assertSame(1, $job->tries);
+        // A dedicated connection whose retry_after outlives the timeout, so a running rebuild is never redelivered.
+        $this->assertSame('long', $job->connection);
+        $this->assertGreaterThan(900, config('queue.connections.long.retry_after'));
 
         Queue::fake();
         RebuildDayRollups::dispatch(42);

@@ -32,8 +32,17 @@ final class RollupBuilder
 
     public const LAST_ID_KEY = 'rollup:last_id';
 
-    /** Held by every rollup run and by day rebuilds, so a run never writes days of a timezone being replaced. */
-    public const LOCK_KEY = 'rollup:build';
+    /** Recent (time, max result id) observations, from which the safe point of the id watermark is taken. */
+    public const ID_MARKS_KEY = 'rollup:id_marks';
+
+    /**
+     * Seconds an observed max result id must age before the id watermark may pass it. On MySQL and PostgreSQL
+     * ids are allocated at insert time but become visible at commit, so a lower id can appear after a higher one;
+     * no recorder transaction lives this long.
+     */
+    public const SAFE_LAG = 120;
+
+    private const MAX_ID_MARKS = 20;
 
     /** Seconds before the watermark that every run re-aggregates, to absorb results committed slightly late. */
     public const LOOKBACK = 300;
@@ -41,7 +50,7 @@ final class RollupBuilder
     /** Most seconds of minute buckets a single run aggregates; a longer backlog is worked off over several runs. */
     public const MAX_CATCH_UP = 3600;
 
-    /** Seconds a rebuild waits for a running rollup to finish before it gives up. */
+    /** Seconds a rebuild waits for a running day build of its workspace to finish before it gives up. */
     private const REBUILD_WAIT = 600;
 
     /** The longest possible local day (a day that ends daylight saving time). */
@@ -57,21 +66,20 @@ final class RollupBuilder
 
     /**
      * Aggregate the minute buckets in [watermark - LOOKBACK, now - 1 min) and the minutes of late results, the
-     * hours they belong to and the workspace-local days those hours touch, then advance both watermarks. A run is
-     * skipped while a day rebuild holds the lock; the next run catches up.
+     * hours they belong to and the workspace-local days those hours touch, then advance both watermarks. Days of a
+     * workspace whose day rollups are being rebuilt are skipped; minutes and hours never wait.
      */
     public function run(CarbonImmutable $now): void
     {
-        $lock = Cache::lock(self::LOCK_KEY, 600);
-        if (! $lock->get()) {
-            return;
-        }
+        $this->build($now);
+    }
 
-        try {
-            $this->build($now);
-        } finally {
-            $lock->release();
-        }
+    /**
+     * The lock a workspace's day rebuild holds, and that a rollup run takes while it builds that workspace's days.
+     */
+    public static function rebuildLockKey(int $workspaceId): string
+    {
+        return 'rollup:rebuild:'.$workspaceId;
     }
 
     /**
@@ -79,16 +87,16 @@ final class RollupBuilder
      * minute rows are retained are exact; older days are summed from hour rows, which is exact for whole-hour
      * offsets and approximate (shifted by the sub-hour part of the offset) for offsets such as +05:30.
      *
-     * Each local day is replaced in its own transaction: the new row is written and the old-timezone rows that
-     * start inside that day are deleted together, so an interrupted rebuild never leaves overlapping day rows.
-     * Day rows older than the retained hour rows keep the boundaries of the timezone they were built in; the one
-     * old row that would overlap the first rebuilt day is dropped.
+     * Each local day is replaced in its own transaction (see buildDay), so an interrupted rebuild never leaves
+     * overlapping day rows. Day rows older than the retained hour rows keep the boundaries of the timezone they
+     * were built in; the one old row that would overlap the first rebuilt day is dropped.
      */
     public function rebuildDays(Workspace $workspace): void
     {
-        Cache::lock(self::LOCK_KEY, self::REBUILD_WAIT + 360)->block(self::REBUILD_WAIT, function () use ($workspace): void {
-            $this->rebuild($workspace);
-        });
+        Cache::lock(self::rebuildLockKey($workspace->id), self::REBUILD_WAIT + 360)
+            ->block(self::REBUILD_WAIT, function () use ($workspace): void {
+                $this->rebuild($workspace);
+            });
     }
 
     private function build(CarbonImmutable $now): void
@@ -100,7 +108,7 @@ final class RollupBuilder
         $oldestRaw = self::nullableInt(DB::table('check_results')->min('bucket_minute'));
         if ($oldestRaw === null) {
             $this->cache->forever(self::WATERMARK_KEY, $end);
-            $this->cache->forever(self::LAST_ID_KEY, $maxId);
+            $this->safePoint($now->getTimestamp(), $maxId);
 
             return;
         }
@@ -138,32 +146,41 @@ final class RollupBuilder
         if ($start < $end) {
             $this->cache->forever(self::WATERMARK_KEY, $end);
         }
-        $this->cache->forever(self::LAST_ID_KEY, $lastId);
+        if ($lastId !== null) {
+            $this->cache->forever(self::LAST_ID_KEY, $lastId);
+        }
     }
 
     /**
-     * Feed the minutes of results inserted since the last run that lie before the regular window to $build, at
-     * most `monitoring.rollups.late_id_batch` result ids per run. Minutes old enough to be partly pruned are
-     * skipped. When the id watermark is missing it starts at the newest result.
+     * Feed the minutes of results inserted since the last run that lie before the regular window to $build. The
+     * id watermark only advances to a safe point, the max result id observed at least SAFE_LAG seconds ago, and
+     * by at most `monitoring.rollups.late_id_batch` ids per run. Minutes old enough to be partly pruned are
+     * skipped. Without a safe point (cold start, cleared cache) nothing is scanned; a missing id watermark starts
+     * at the first safe point.
      *
      * @param  Closure(int, list<int>): void  $build  Receives a minute and the monitors to recompute in it.
-     * @return int The new id watermark.
+     * @return int|null The new id watermark, or null while it is still unknown.
      */
-    private function lateMinutes(CarbonImmutable $now, int $windowStart, int $maxId, Closure $build): int
+    private function lateMinutes(CarbonImmutable $now, int $windowStart, int $maxId, Closure $build): ?int
     {
         $lastId = $this->cache->get(self::LAST_ID_KEY);
-        if (! is_numeric($lastId)) {
-            return $maxId;
+        $lastId = is_numeric($lastId) ? (int) $lastId : null;
+        $safeId = $this->safePoint($now->getTimestamp(), $maxId);
+        if ($safeId === null) {
+            return $lastId;
+        }
+        if ($lastId === null) {
+            return $safeId;
         }
 
-        $upTo = min($maxId, (int) $lastId + max(1, config()->integer('monitoring.rollups.late_id_batch', 50000)));
-        if ($upTo <= (int) $lastId) {
-            return max((int) $lastId, $maxId);
+        $upTo = min($safeId, $lastId + max(1, config()->integer('monitoring.rollups.late_id_batch', 50000)));
+        if ($upTo <= $lastId) {
+            return $lastId;
         }
 
         $rawCutoff = $now->getTimestamp() - config()->integer('monitoring.retention.raw_hours', 24) * 3600;
         $pairs = DB::table('check_results')
-            ->where('id', '>', (int) $lastId)
+            ->where('id', '>', $lastId)
             ->where('id', '<=', $upTo)
             ->where('bucket_minute', '<', $windowStart)
             ->where('bucket_minute', '>', $rawCutoff - $rawCutoff % 60)
@@ -180,6 +197,34 @@ final class RollupBuilder
         }
 
         return $upTo;
+    }
+
+    /**
+     * Record this run's max result id and return the newest one observed at least SAFE_LAG seconds ago.
+     */
+    private function safePoint(int $now, int $maxId): ?int
+    {
+        $marks = [];
+        $stored = $this->cache->get(self::ID_MARKS_KEY);
+        foreach (is_array($stored) ? $stored : [] as $mark) {
+            if (is_array($mark) && is_int($mark[0] ?? null) && is_int($mark[1] ?? null) && $mark[0] <= $now) {
+                $marks[] = [$mark[0], $mark[1]];
+            }
+        }
+        $marks[] = [$now, $maxId];
+        usort($marks, fn (array $a, array $b): int => $a[0] <=> $b[0]);
+
+        $safe = null;
+        $keepFrom = 0;
+        foreach ($marks as $index => [$time, $id]) {
+            if ($time <= $now - self::SAFE_LAG) {
+                $safe = $id;
+                $keepFrom = $index;
+            }
+        }
+        $this->cache->forever(self::ID_MARKS_KEY, array_slice(array_slice($marks, $keepFrom), -self::MAX_ID_MARKS));
+
+        return $safe;
     }
 
     /**
@@ -204,16 +249,32 @@ final class RollupBuilder
         }
 
         $minuteCutoff = $now->getTimestamp() - $this->minuteRetentionSeconds();
-        foreach ($this->timezones(array_keys($workspaceHours)) as $workspaceId => $timezone) {
-            $days = [];
-            foreach (array_keys($workspaceHours[$workspaceId]) as $hour) {
-                foreach ($this->localDays($timezone, $hour, $hour + 3600) as [$dayStart, $dayEnd]) {
-                    $days[$dayStart] = $dayEnd;
-                }
+        ksort($workspaceHours);
+        foreach ($workspaceHours as $workspaceId => $hours) {
+            // A workspace whose days are being rebuilt is skipped; the rebuild covers these days. The timezone is
+            // read under the lock, so days are never built for a timezone a finished rebuild replaced.
+            $lock = Cache::lock(self::rebuildLockKey($workspaceId), 600);
+            if (! $lock->get()) {
+                continue;
             }
-            ksort($days);
-            foreach ($days as $dayStart => $dayEnd) {
-                $this->buildDay($workspaceId, $dayStart, $dayEnd, $dayStart >= $minuteCutoff);
+
+            try {
+                $timezone = DB::table('workspaces')->where('id', $workspaceId)->value('timezone');
+                if (! is_string($timezone)) {
+                    continue;
+                }
+                $days = [];
+                foreach (array_keys($hours) as $hour) {
+                    foreach ($this->localDays($timezone, $hour, $hour + 3600) as [$dayStart, $dayEnd]) {
+                        $days[$dayStart] = $dayEnd;
+                    }
+                }
+                ksort($days);
+                foreach ($days as $dayStart => $dayEnd) {
+                    $this->buildDay($workspaceId, $timezone, $dayStart, $dayEnd, $dayStart >= $minuteCutoff);
+                }
+            } finally {
+                $lock->release();
             }
         }
     }
@@ -239,35 +300,28 @@ final class RollupBuilder
 
         $minuteCutoff = $now->getTimestamp() - $this->minuteRetentionSeconds();
         foreach ($this->localDays($timezone, $firstDay, $now->getTimestamp()) as [$dayStart, $dayEnd]) {
-            DB::transaction(function () use ($workspace, $timezone, $firstDay, $dayStart, $dayEnd, $minuteCutoff): void {
-                $this->buildDay($workspace->id, $dayStart, $dayEnd, $dayStart >= $minuteCutoff);
-                if ($dayStart === $firstDay) {
-                    $this->dropStraddlingDays($workspace->id, $timezone, $firstDay);
-                }
-                $this->dayRows($workspace->id)
-                    ->where('bucket_start', '>', $dayStart)
-                    ->where('bucket_start', '<', $dayEnd)
-                    ->delete();
-            });
+            $this->buildDay($workspace->id, $timezone, $dayStart, $dayEnd, $dayStart >= $minuteCutoff);
         }
     }
 
     /**
-     * Delete old-timezone day rows that start before the first rebuilt day but may reach into it. Rows that start
-     * on a local midnight of the current timezone are current and stay.
+     * Delete day rows of another timezone that overlap a local day: rows that start inside it, and rows that
+     * start within the longest possible day before it without being a local midnight of the current timezone.
+     * Rows on a local midnight of the current timezone are current and stay.
      */
-    private function dropStraddlingDays(int $workspaceId, string $timezone, int $firstDay): void
+    private function dropOverlappingDays(int $workspaceId, string $timezone, int $dayStart, int $dayEnd): void
     {
         $starts = $this->dayRows($workspaceId)
-            ->where('bucket_start', '>', $firstDay - self::LONGEST_DAY)
-            ->where('bucket_start', '<', $firstDay)
+            ->where('bucket_start', '>', $dayStart - self::LONGEST_DAY)
+            ->where('bucket_start', '<', $dayEnd)
+            ->where('bucket_start', '<>', $dayStart)
             ->distinct()
             ->pluck('bucket_start');
 
         $stale = [];
         foreach ($starts as $start) {
             $start = self::int($start);
-            if ($this->dayStart($timezone, $start) !== $start) {
+            if ($start > $dayStart || $this->dayStart($timezone, $start) !== $start) {
                 $stale[] = $start;
             }
         }
@@ -375,8 +429,11 @@ final class RollupBuilder
      *
      * Without minute rows ($exact false), the day is summed from the hour rows that start inside it, which is
      * approximate for sub-hour offsets.
+     *
+     * The day row is written and day rows of another timezone that overlap it are deleted in one transaction, so
+     * overlapping (double-counted) days are never visible, whether this runs from a rollup or from a rebuild.
      */
-    private function buildDay(int $workspaceId, int $dayStart, int $dayEnd, bool $exact): void
+    private function buildDay(int $workspaceId, string $timezone, int $dayStart, int $dayEnd, bool $exact): void
     {
         $hourFrom = $exact ? intdiv($dayStart + 3599, 3600) * 3600 : $dayStart;
         $hourTo = $exact ? $dayEnd - $dayEnd % 3600 : $dayEnd;
@@ -419,9 +476,11 @@ final class RollupBuilder
         foreach ($merged as $monitorId => $totals) {
             $records[] = $this->record($monitorId, CheckRollup::BUCKET_DAY, $dayStart, $totals);
         }
-        foreach (array_chunk($records, self::UPSERT_CHUNK) as $chunk) {
-            $this->upsertChanged($chunk);
-        }
+
+        DB::transaction(function () use ($records, $workspaceId, $timezone, $dayStart, $dayEnd): void {
+            $this->upsertChanged($records);
+            $this->dropOverlappingDays($workspaceId, $timezone, $dayStart, $dayEnd);
+        });
     }
 
     /**
@@ -489,34 +548,33 @@ final class RollupBuilder
     }
 
     /**
-     * Write the records whose values differ from the stored rows. All records share one bucket and start, and
-     * there are at most UPSERT_CHUNK of them.
+     * Write the records whose values differ from the stored rows. All records share one bucket and start. Reads
+     * and writes go in chunks of UPSERT_CHUNK rows, far below the 65 535 placeholders PostgreSQL and MySQL allow
+     * per statement.
      *
      * @param  list<array<string, int|string|null>>  $records
      */
     private function upsertChanged(array $records): void
     {
-        if ($records === []) {
-            return;
-        }
+        foreach (array_chunk($records, self::UPSERT_CHUNK) as $chunk) {
+            $existing = DB::table('check_rollups')
+                ->where('bucket', $chunk[0]['bucket'])
+                ->where('bucket_start', $chunk[0]['bucket_start'])
+                ->whereIn('monitor_id', array_column($chunk, 'monitor_id'))
+                ->get(['monitor_id', ...self::VALUES])
+                ->keyBy(fn (object $row): int => self::int($row->monitor_id));
 
-        $existing = DB::table('check_rollups')
-            ->where('bucket', $records[0]['bucket'])
-            ->where('bucket_start', $records[0]['bucket_start'])
-            ->whereIn('monitor_id', array_column($records, 'monitor_id'))
-            ->get(['monitor_id', ...self::VALUES])
-            ->keyBy(fn (object $row): int => self::int($row->monitor_id));
-
-        $changed = [];
-        foreach ($records as $record) {
-            $stored = $existing->get(self::int($record['monitor_id']));
-            if (! is_object($stored) || $this->differs($record, (array) $stored)) {
-                $changed[] = $record;
+            $changed = [];
+            foreach ($chunk as $record) {
+                $stored = $existing->get(self::int($record['monitor_id']));
+                if (! is_object($stored) || $this->differs($record, (array) $stored)) {
+                    $changed[] = $record;
+                }
             }
-        }
 
-        if ($changed !== []) {
-            DB::table('check_rollups')->upsert($changed, ['monitor_id', 'bucket', 'bucket_start'], self::VALUES);
+            if ($changed !== []) {
+                DB::table('check_rollups')->upsert($changed, ['monitor_id', 'bucket', 'bucket_start'], self::VALUES);
+            }
         }
     }
 
@@ -549,22 +607,6 @@ final class RollupBuilder
         }
 
         return $map;
-    }
-
-    /**
-     * @param  list<int>  $workspaceIds
-     * @return array<int, string> Workspace id => timezone.
-     */
-    private function timezones(array $workspaceIds): array
-    {
-        $timezones = [];
-        foreach (array_chunk($workspaceIds, 1000) as $chunk) {
-            foreach (DB::table('workspaces')->whereIn('id', $chunk)->get(['id', 'timezone']) as $workspace) {
-                $timezones[self::int($workspace->id)] = is_string($workspace->timezone) ? $workspace->timezone : 'UTC';
-            }
-        }
-
-        return $timezones;
     }
 
     /**

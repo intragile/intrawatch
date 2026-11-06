@@ -32,7 +32,11 @@ class RebuildDayRollups implements ShouldBeUnique, ShouldQueue
     /** Seconds the uniqueness lock lives if the job never finishes. */
     public int $uniqueFor = 3600;
 
-    public function __construct(public readonly int $workspaceId) {}
+    public function __construct(public readonly int $workspaceId)
+    {
+        // Runs on the connection whose retry_after outlives the timeout (see config/queue.php).
+        $this->onConnection('long');
+    }
 
     public function uniqueId(): string
     {

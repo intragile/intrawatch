@@ -131,12 +131,14 @@ these minimums.
 
 Results that reach the database late, such as outcomes a worker buffered
 during a database outage, are still counted: each rollup run also recomputes
-the minutes, hours and days of every result inserted since the previous run
-(at most 50 000 results per run; a larger backlog is worked off over the next
-runs). Results older than the raw retention when they arrive are not counted.
-If the rollup state in the cache is lost, rollups resume five minutes before
-the newest minute rollup, and only results inserted from then on are treated
-as late.
+the minutes, hours and days of results inserted since the previous scan,
+about two minutes after they were inserted (so rows that commit out of order
+on MySQL or PostgreSQL are not missed), at most 50 000 results per run; a
+larger backlog is worked off over the next runs. Results older than the raw
+retention when they arrive are not counted. If the rollup state in the cache
+is lost, rollups resume five minutes before the newest minute rollup, and late
+results are tracked again from about two minutes later; nothing already being
+tracked is skipped.
 
 Day rollups start at midnight in the workspace timezone. Changing the timezone
 rebuilds the day rollups in the background from the data still retained:
@@ -150,7 +152,10 @@ rebuilds the day rollups in the background from the data still retained:
   rebuilt day is dropped.
 
 The rebuild replaces one day at a time, so day rollups never overlap, even if
-the rebuild is interrupted; rollups pause while it runs and catch up afterwards.
+the rebuild is interrupted. While it runs, only that workspace's day rollups
+pause; they catch up afterwards. Rebuilds run on the `long` queue connection
+(`retry_after` 960 s, above the job's 900 s timeout), so a queue worker must
+also process that connection (`php artisan queue:work long`).
 
 Availability is `(up + degraded + pending) / (total - maintenance)`; it is
 empty when every check of the period fell into a maintenance window.
