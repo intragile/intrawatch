@@ -16,8 +16,9 @@ use Illuminate\Support\Str;
  * @property string $public_id
  * @property string $name
  * @property string $slug
+ * @property string $timezone
  */
-#[Fillable(['name', 'slug'])]
+#[Fillable(['name', 'slug', 'timezone'])]
 class Workspace extends Model
 {
     /** @use HasFactory<WorkspaceFactory> */
@@ -65,6 +66,22 @@ class Workspace extends Model
     public function memberships(): HasMany
     {
         return $this->hasMany(Membership::class);
+    }
+
+    /**
+     * @return HasMany<Monitor, $this>
+     */
+    public function monitors(): HasMany
+    {
+        return $this->hasMany(Monitor::class);
+    }
+
+    /**
+     * @return HasMany<Tag, $this>
+     */
+    public function tags(): HasMany
+    {
+        return $this->hasMany(Tag::class);
     }
 
     /**

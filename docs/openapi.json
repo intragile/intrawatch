@@ -861,6 +861,9 @@
                                                 "slug": {
                                                     "type": "string"
                                                 },
+                                                "timezone": {
+                                                    "type": "string"
+                                                },
                                                 "role": {
                                                     "type": "string",
                                                     "const": "owner"
@@ -870,6 +873,7 @@
                                                 "id",
                                                 "name",
                                                 "slug",
+                                                "timezone",
                                                 "role"
                                             ]
                                         }
@@ -939,6 +943,9 @@
                                     "name": {
                                         "type": "string",
                                         "maxLength": 120
+                                    },
+                                    "timezone": {
+                                        "type": "string"
                                     }
                                 },
                                 "required": [
@@ -968,6 +975,9 @@
                                                 "slug": {
                                                     "type": "string"
                                                 },
+                                                "timezone": {
+                                                    "type": "string"
+                                                },
                                                 "role": {
                                                     "type": [
                                                         "string",
@@ -979,6 +989,7 @@
                                                 "id",
                                                 "name",
                                                 "slug",
+                                                "timezone",
                                                 "role"
                                             ]
                                         }

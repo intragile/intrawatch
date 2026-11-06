@@ -57,15 +57,27 @@ class WorkspaceController extends Controller
     public function update(Request $request, Workspace $workspace): JsonResponse
     {
         Gate::authorize('update', $workspace);
-        $request->validate(['name' => ['required', 'string', 'max:120']]);
+        $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'timezone' => ['sometimes', 'string', 'timezone:all'],
+        ]);
         $name = $request->string('name')->toString();
+        $timezone = $request->has('timezone') ? $request->string('timezone')->toString() : $workspace->timezone;
 
-        $previous = $workspace->name;
-        DB::transaction(function () use ($workspace, $name, $previous): void {
-            $workspace->update(['name' => $name]);
+        $previousName = $workspace->name;
+        $previousTimezone = $workspace->timezone;
+        DB::transaction(function () use ($workspace, $name, $timezone, $previousName, $previousTimezone): void {
+            $workspace->update(['name' => $name, 'timezone' => $timezone]);
 
-            if ($previous !== $name) {
-                Audit::record('workspace.updated', $workspace, ['name' => [$previous, $name]]);
+            $changes = [];
+            if ($previousName !== $name) {
+                $changes['name'] = [$previousName, $name];
+            }
+            if ($previousTimezone !== $timezone) {
+                $changes['timezone'] = [$previousTimezone, $timezone];
+            }
+            if ($changes !== []) {
+                Audit::record('workspace.updated', $workspace, $changes);
             }
         });
 
@@ -93,6 +105,7 @@ class WorkspaceController extends Controller
             'id' => $workspace->public_id,
             'name' => $workspace->name,
             'slug' => $workspace->slug,
+            'timezone' => $workspace->timezone,
             'role' => $role?->value,
         ];
     }

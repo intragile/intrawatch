@@ -96,6 +96,30 @@ class WorkspaceAccessTest extends TestCase
         $this->assertSame('New', $workspace->fresh()?->name);
     }
 
+    public function test_workspace_timezone_is_validated_as_an_iana_zone(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $admin = User::factory()->memberOf($workspace, WorkspaceRole::Admin)->create();
+        $url = "/api/v1/workspaces/{$workspace->slug}";
+
+        $this->actingAs($admin, 'sanctum')
+            ->patchJson($url, ['name' => $workspace->name, 'timezone' => 'Europe/Budapest'])
+            ->assertOk()
+            ->assertJsonPath('data.timezone', 'Europe/Budapest');
+        $this->assertSame('Europe/Budapest', $workspace->refresh()->timezone);
+        $this->assertDatabaseHas('audit_events', ['action' => 'workspace.updated', 'workspace_id' => $workspace->id]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->patchJson($url, ['name' => $workspace->name, 'timezone' => 'Mars/Base'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('timezone');
+        $this->assertSame('Europe/Budapest', $workspace->refresh()->timezone);
+
+        // Omitting the timezone leaves it untouched.
+        $this->actingAs($admin, 'sanctum')->patchJson($url, ['name' => 'Renamed'])->assertOk()
+            ->assertJsonPath('data.timezone', 'Europe/Budapest');
+    }
+
     public function test_only_owner_can_delete_workspace(): void
     {
         $workspace = Workspace::factory()->create();
