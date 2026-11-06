@@ -171,7 +171,7 @@ final class RdapClient
             }
 
             try {
-                return CarbonImmutable::parse($date, 'UTC')->utc();
+                return DomainExpiry::storable(CarbonImmutable::parse($date, 'UTC'));
             } catch (Throwable) {
                 return null;
             }

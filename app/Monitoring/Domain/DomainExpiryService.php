@@ -16,6 +16,7 @@ use App\Monitoring\Net\BlockedTarget;
 use App\Monitoring\Types\Hostname;
 use App\Monitoring\Worker\Clock;
 use Closure;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -130,9 +131,19 @@ class DomainExpiryService
 
         $this->startLookup($domain)->ignore();
 
-        $stale = $this->memory[$domain] ?? null;
+        return $this->stale($host);
+    }
 
-        return $stale !== null && $stale->status === DomainExpiry::STATUS_OK && ! $stale->isExpired($this->clock->now()) ? $stale : null;
+    /**
+     * The last answer for the host's registrable domain, fresh or not, when it holds an expiry date that has not
+     * passed. Callers use it for facts only, never to report a domain as expired or missing.
+     */
+    public function stale(string $host): ?DomainExpiry
+    {
+        $domain = $this->registrableDomain($host);
+        $last = $domain === null ? null : ($this->memory[$domain] ?? null);
+
+        return $last !== null && $last->status === DomainExpiry::STATUS_OK && ! $last->isExpired($this->clock->now()) ? $last : null;
     }
 
     /**
@@ -200,18 +211,64 @@ class DomainExpiryService
             return true;
         }
 
-        try {
-            foreach (array_chunk($this->pending, self::QUERY_CHUNK, true) as $chunk) {
-                DomainLookup::query()->upsert(array_values($chunk), ['domain'], ['source', 'status', 'expires_at', 'registrar', 'error', 'checked_at']);
+        foreach (array_chunk($this->pending, self::QUERY_CHUNK, true) as $chunk) {
+            try {
+                $this->upsert($chunk);
                 $this->pending = array_diff_key($this->pending, $chunk);
-            }
-        } catch (Throwable $e) {
-            Log::warning('Domain lookups could not be cached.', ['pending' => count($this->pending), 'exception' => $e::class]);
 
-            return false;
+                continue;
+            } catch (Throwable $e) {
+                if (! self::rejectsData($e)) {
+                    return $this->writeFailed($e);
+                }
+            }
+
+            // The database rejected something in the chunk: write row by row and drop only the rows it rejects.
+            foreach ($chunk as $key => $row) {
+                try {
+                    $this->upsert([$key => $row]);
+                } catch (Throwable $e) {
+                    if (! self::rejectsData($e)) {
+                        return $this->writeFailed($e);
+                    }
+                    Log::error('Dropped a domain lookup the database rejects.', ['domain' => $key, 'exception' => $e::class]);
+                }
+                unset($this->pending[$key]);
+            }
         }
 
         return true;
+    }
+
+    /**
+     * @param  array<string, array<string, ?string>>  $rows
+     */
+    private function upsert(array $rows): void
+    {
+        DomainLookup::query()->upsert(array_values($rows), ['domain'], ['source', 'status', 'expires_at', 'registrar', 'error', 'checked_at']);
+    }
+
+    private function writeFailed(Throwable $e): bool
+    {
+        Log::warning('Domain lookups could not be cached.', ['pending' => count($this->pending), 'exception' => $e::class]);
+
+        return false;
+    }
+
+    /**
+     * Whether the database refused the data itself (SQLSTATE class 22, data exception, or 23, integrity
+     * violation), as opposed to being unavailable, which a later attempt can overcome.
+     */
+    private static function rejectsData(Throwable $e): bool
+    {
+        if (! $e instanceof QueryException) {
+            return false;
+        }
+
+        $info = $e->errorInfo;
+        $state = is_array($info) && is_string($info[0] ?? null) ? $info[0] : (string) $e->getCode();
+
+        return str_starts_with($state, '22') || str_starts_with($state, '23');
     }
 
     public function pendingWrites(): int

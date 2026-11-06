@@ -130,7 +130,7 @@ final class WhoisParser
             return null;
         }
 
-        return $date->utc();
+        return DomainExpiry::storable($date);
     }
 
     private static function registrar(string $text): ?string

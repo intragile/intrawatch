@@ -72,6 +72,10 @@ class WhoisParserTest extends TestCase
         $this->assertNull(WhoisParser::parse("Expiry Date: 01/02/2030\n")->expiresAt);
         $this->assertNull(WhoisParser::parse("Expiry Date: soon\n")->expiresAt);
         $this->assertNull(WhoisParser::parse("Registered until expiry date.\n")->expiresAt);
+        // Years outside 1000 to 9999 in UTC cannot be stored by every database.
+        $this->assertNull(WhoisParser::parse("Registry Expiry Date: 9999-12-31T23:00:00-05:00\n")->expiresAt);
+        $this->assertNull(WhoisParser::parse("Expiry Date: 0999-01-01\n")->expiresAt);
+        $this->assertNotNull(WhoisParser::parse("Expiry Date: 9999-12-31\n")->expiresAt);
     }
 
     public function test_not_found_answers_are_recognised(): void

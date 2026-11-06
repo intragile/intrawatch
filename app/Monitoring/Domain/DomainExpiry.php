@@ -34,6 +34,16 @@ final readonly class DomainExpiry
         public CarbonImmutable $checkedAt,
     ) {}
 
+    /**
+     * The date in UTC, or null when its year is outside 1000 to 9999, which not every database can store.
+     */
+    public static function storable(?CarbonImmutable $date): ?CarbonImmutable
+    {
+        $utc = $date?->utc();
+
+        return $utc !== null && $utc->year >= 1000 && $utc->year <= 9999 ? $utc : null;
+    }
+
     public static function error(string $domain, string $source, string $reason, CarbonImmutable $checkedAt): self
     {
         return new self($domain, $source, self::STATUS_ERROR, null, null, $reason, $checkedAt);

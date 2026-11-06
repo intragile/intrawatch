@@ -44,7 +44,7 @@ final class DomainChecker implements Checker
         } catch (CancelledException) {
             $cancellation->throwIfRequested();
 
-            return CheckOutcome::up(null, "Lookup failed: Timed out after {$timeout} s");
+            return self::timedOut($spec->config, $this->expiries->stale($domain), $this->now(), "Lookup failed: Timed out after {$timeout} s");
         } catch (Throwable $e) {
             return CheckOutcome::up(null, 'Lookup failed: '.CheckOutcome::fromThrowable($e)->message);
         }
@@ -78,6 +78,23 @@ final class DomainChecker implements Checker
             $daysLeft < $degradedBelow => CheckOutcome::degraded(ExpiryThresholds::expiresIn('Domain', $daysLeft), null, $facts, $watch),
             default => CheckOutcome::up(null, '', $facts, $watch),
         };
+    }
+
+    /**
+     * Up with the timeout message; a stale answer still in memory supplies the facts and the band.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private static function timedOut(array $config, ?DomainExpiry $stale, CarbonImmutable $now, string $message): CheckOutcome
+    {
+        $daysLeft = $stale?->daysLeft($now);
+        if ($stale === null || $daysLeft === null) {
+            return CheckOutcome::up(null, $message);
+        }
+
+        return CheckOutcome::up(null, $message, self::facts($stale, $now), [
+            'domain.expiry_band' => ExpiryThresholds::band($daysLeft, ExpiryThresholds::fromConfig($config['expiry_days'] ?? null)),
+        ]);
     }
 
     /**

@@ -265,6 +265,61 @@ class DomainCheckerTest extends TestCase
         $this->assertSame('ok', DomainLookup::query()->findOrFail('example.com')->status);
     }
 
+    public function test_a_row_the_database_rejects_is_dropped_without_blocking_the_others(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            $this->markTestSkipped('The rejecting trigger is written for SQLite.');
+        }
+        DB::statement("CREATE TRIGGER reject_bad_domain BEFORE INSERT ON domain_lookups WHEN NEW.domain = 'bad.com' BEGIN SELECT RAISE(ABORT, 'rejected'); END");
+        $this->rdap()->respond('/domain/good.com', 200, RdapFixtureServer::domain('good.com', '2030-01-01T00:00:00Z'));
+        $this->rdap()->respond('/domain/bad.com', 200, RdapFixtureServer::domain('bad.com', '2030-01-01T00:00:00Z'));
+        $service = $this->service();
+        $service->lookup('bad.com', new NullCancellation);
+        $service->lookup('good.com', new NullCancellation);
+        $log = Log::spy();
+
+        $this->assertTrue($service->flushPending());
+
+        $this->assertSame(0, $service->pendingWrites());
+        $this->assertSame(['good.com'], DomainLookup::query()->pluck('domain')->all());
+        $log->shouldHaveReceived('error')->once();
+    }
+
+    public function test_a_timed_out_domain_check_keeps_the_stale_facts(): void
+    {
+        $clock = new FakeClock(CarbonImmutable::parse('2026-11-06 12:00:00', 'UTC'));
+        $this->rdap()->respond('/domain/example.com', 200, RdapFixtureServer::domain('example.com', '2026-11-20T12:00:00Z'));
+        $service = $this->service($clock);
+        $this->probe($service, 'example.com');
+
+        $clock->advance(25 * 3600);
+        $this->rdap()->respond('/domain/example.com', 200, RdapFixtureServer::domain('example.com', '2026-11-20T12:00:00Z'), delay: 2.0);
+        $outcome = $this->probe($service, 'example.com', timeout: 1);
+
+        // The stale answer supplies facts and the band, never the status.
+        $this->assertSame(MonitorStatus::Up, $outcome->status);
+        $this->assertSame('Lookup failed: Timed out after 1 s', $outcome->message);
+        $this->assertSame('2026-11-20T12:00:00Z', $outcome->facts['domain.expires_at']);
+        $this->assertSame(12, $outcome->facts['domain.days_left']);
+        $this->assertSame(['domain.expiry_band' => '14'], $outcome->watch);
+        delay(1.2);
+    }
+
+    public function test_a_stale_answer_whose_date_has_passed_is_never_served(): void
+    {
+        $clock = new FakeClock(CarbonImmutable::parse('2026-11-06 12:00:00', 'UTC'));
+        $this->rdap()->respond('/domain/example.com', 200, RdapFixtureServer::domain('example.com', '2026-11-08T12:00:00Z'));
+        $service = $this->service($clock);
+        $service->lookup('example.com', new NullCancellation);
+
+        $clock->advance(3 * 86400);
+        $this->rdap()->respond('/domain/example.com', 200, RdapFixtureServer::domain('example.com', '2027-11-08T12:00:00Z'), delay: 0.5);
+        $this->assertNull($service->stale('example.com'));
+        $this->assertNull($service->peek('example.com'));
+        delay(0.7);
+        $this->assertSame('2027-11-08T12:00:00Z', $service->cached('example.com')?->expiresAt?->toIso8601ZuluString());
+    }
+
     public function test_the_loader_preloads_and_the_buffer_writes_domain_lookups(): void
     {
         DomainLookup::query()->insert((new DomainExpiry('example.com', 'rdap', 'ok', CarbonImmutable::parse('2032-01-01', 'UTC'), null, null, CarbonImmutable::now()))->toRow());
@@ -395,7 +450,8 @@ class DomainCheckerTest extends TestCase
             $domains[] = $domain = "site{$i}.com";
             $this->rdap()->respond("/domain/{$domain}", 200, RdapFixtureServer::domain($domain, '2030-01-01T00:00:00Z'), delay: 0.1);
         }
-        $service = $this->service(lookupTimeout: 1.0);
+        // The last query waits about 0.4 s for a slot, longer than its own 0.25 s deadline.
+        $service = $this->service(lookupTimeout: 0.25);
 
         foreach ($domains as $domain) {
             $this->assertNull($service->peek($domain));
@@ -605,6 +661,7 @@ class DomainCheckerTest extends TestCase
         $this->rdap()->respond('/domain/noexpiry.com', 200, RdapFixtureServer::domain('noexpiry.com', null));
         $this->rdap()->respond('/domain/badexpiry.com', 200, RdapFixtureServer::domain('badexpiry.com', 'next tuesday'));
         $this->rdap()->respond('/domain/badredirect.com', 302, '', headers: ['location' => 'http://[::1']);
+        $this->rdap()->respond('/domain/farfuture.com', 200, RdapFixtureServer::domain('farfuture.com', '9999-12-31T23:00:00-05:00'));
         $service = $this->service();
 
         $this->assertSame('Lookup failed: Invalid RDAP response', $this->probe($service, 'broken.com')->message);
@@ -612,6 +669,7 @@ class DomainCheckerTest extends TestCase
         $this->assertSame('Expiry date not published by the registry', $this->probe($service, 'noexpiry.com')->message);
         $this->assertSame('Expiry date not published by the registry', $this->probe($service, 'badexpiry.com')->message);
         $this->assertSame('Lookup failed: Invalid redirect', $this->probe($service, 'badredirect.com')->message);
+        $this->assertSame('Expiry date not published by the registry', $this->probe($service, 'farfuture.com')->message);
     }
 
     public function test_a_slow_registry_is_bounded_by_the_check_timeout_and_the_answer_is_kept(): void
