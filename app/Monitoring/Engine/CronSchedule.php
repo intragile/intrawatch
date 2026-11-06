@@ -69,9 +69,10 @@ final class CronSchedule
     /**
      * The run expected next after a report at $reportedAt.
      *
-     * A report satisfies every run up to a small tolerance after it: min(60 s, half the gap between that run
-     * and the following one). A job whose clock runs a few seconds ahead therefore reports the upcoming run,
-     * not the previous one.
+     * A report satisfies every run up to a small tolerance after it: min(60 s, half the gap of the interval
+     * the report falls into, from the last run at or before it to the next one). A job whose clock runs a
+     * few seconds ahead therefore reports the upcoming run, not the previous one, and in closely spaced
+     * slots a run's own finish never counts for the next slot.
      */
     public function expectedAfter(CarbonImmutable $reportedAt): ?CarbonImmutable
     {
@@ -80,13 +81,38 @@ final class CronSchedule
             return null;
         }
 
-        $following = $this->nextAfter($next);
         $tolerance = self::MAX_EARLY_SECONDS;
-        if ($following !== null) {
-            $tolerance = min($tolerance, intdiv($following->getTimestamp() - $next->getTimestamp(), 2));
+        $previous = $this->previousAtOrBefore($reportedAt);
+        if ($previous !== null) {
+            $tolerance = min($tolerance, intdiv($next->getTimestamp() - $previous->getTimestamp(), 2));
         }
 
-        return $next->getTimestamp() - $reportedAt->getTimestamp() <= $tolerance ? $following : $next;
+        return $next->getTimestamp() - $reportedAt->getTimestamp() <= $tolerance ? $this->nextAfter($next) : $next;
+    }
+
+    /**
+     * The last run at or before $at, or null when there is none.
+     */
+    public function previousAtOrBefore(CarbonImmutable $at): ?CarbonImmutable
+    {
+        $utc = new DateTimeZone('UTC');
+        $wall = new DateTimeImmutable($at->setTimezone($this->zone)->format('Y-m-d H:i:s'), $utc);
+        $allowCurrent = true;
+
+        for ($step = 0; $step < self::MAX_STEPS; $step++) {
+            try {
+                $wall = DateTimeImmutable::createFromMutable($this->cron->getPreviousRunDate($wall, 0, $allowCurrent, 'UTC'));
+            } catch (Throwable) {
+                return null;
+            }
+            $allowCurrent = false;
+            $instant = $this->instant($wall);
+            if ($instant->lte($at)) {
+                return $instant;
+            }
+        }
+
+        return null;
     }
 
     /**

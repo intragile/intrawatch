@@ -14,19 +14,20 @@ use Illuminate\Support\Facades\DB;
  * chunk of 500, never one query per monitor. Outcomes go through the ResultRecorder like any check outcome.
  *
  * A missed deadline is only ever reported as down when the state row says so; when it cannot be read, the
- * caller retries later and nothing is recorded. Deadlines that passed before $availableSince (the moment the
- * worker started or saw the database come back) are moved to start from that moment instead.
+ * caller retries later and nothing is recorded. Deadlines that passed while the worker could not see them
+ * (see Availability) count from the end of that blind spot instead, unless a miss of theirs is already
+ * recorded: then the worker that recorded it saw the monitor, and the retries continue.
  */
 final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
 {
     private const CHUNK = 500;
 
-    public function evaluate(MonitorSpec $spec, CarbonImmutable $now, ?CarbonImmutable $availableSince = null): array
+    public function evaluate(MonitorSpec $spec, CarbonImmutable $now, ?Availability $availability = null): array
     {
-        return $this->evaluateMany([$spec], $now, $availableSince)[$spec->id];
+        return $this->evaluateMany([$spec], $now, $availability)[$spec->id];
     }
 
-    public function evaluateMany(array $specs, CarbonImmutable $now, ?CarbonImmutable $availableSince = null): array
+    public function evaluateMany(array $specs, CarbonImmutable $now, ?Availability $availability = null): array
     {
         /** @var array<int, MonitorSpec> $byId */
         $byId = [];
@@ -49,8 +50,8 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
             $state = $states[$id] ?? null;
             $results[$id] = match (true) {
                 $state === null => [null, $now->addSeconds($spec->intervalSeconds)],
-                $spec->type === MonitorType::Push => $this->push($spec, $state, $now, $availableSince),
-                $spec->type === MonitorType::Cron => $this->cron($spec, $state, $now, $availableSince),
+                $spec->type === MonitorType::Push => $this->push($spec, $state, $now, $availability),
+                $spec->type === MonitorType::Cron => $this->cron($spec, $state, $now, $availability),
                 default => [null, $now->addSeconds($spec->intervalSeconds)],
             };
         }
@@ -70,15 +71,18 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
     /**
      * @return array{0: ?CheckOutcome, 1: CarbonImmutable}
      */
-    private function push(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now, ?CarbonImmutable $availableSince): array
+    private function push(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now, ?Availability $availability): array
     {
         $anchor = $state->anchor(MonitorType::Push);
         $period = $spec->intervalSeconds + $this->int($spec->config['grace_seconds'] ?? null, 0);
         $deadline = $anchor->addSeconds($period);
-        if ($availableSince !== null && $deadline->lt($availableSince)) {
-            // Missed while this worker could not see the monitor (not running yet, or the database was
-            // unavailable): its heartbeats may have been lost on the way, so it gets a full period from then.
-            $deadline = $availableSince->addSeconds($period);
+        if ($state->missDeadlineAt !== null && $state->missDeadlineAt->getTimestamp() >= $deadline->getTimestamp()) {
+            // A miss of this deadline (possibly moved before) is recorded: its retry count continues.
+            $deadline = $state->missDeadlineAt;
+        } elseif (! $state->reported($deadline) && ($from = $availability?->shift($deadline)) !== null) {
+            // Missed while this worker could not see the monitor (not running yet, or during an outage): its
+            // heartbeats may have been lost on the way, so it gets a full period from then.
+            $deadline = $from->addSeconds($period);
         }
         if ($now->lte($deadline)) {
             return [null, $deadline->addSecond()];
@@ -103,7 +107,7 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
     /**
      * @return array{0: ?CheckOutcome, 1: CarbonImmutable}
      */
-    private function cron(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now, ?CarbonImmutable $availableSince): array
+    private function cron(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now, ?Availability $availability): array
     {
         // A run can start at any time, so the monitor is looked at least once per interval for an overrun.
         $poll = $now->addSeconds($spec->intervalSeconds);
@@ -113,9 +117,9 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
         $maxRuntime = $this->int($spec->config['max_runtime_seconds'] ?? null, null);
         if ($state->runStartedAt !== null && $maxRuntime !== null) {
             $limit = $state->runStartedAt->addSeconds($maxRuntime);
-            if ($availableSince !== null && $limit->lt($availableSince)) {
+            if (! $state->reported($limit) && ($from = $availability?->shift($limit)) !== null) {
                 // The finish may have been lost while this worker could not see the monitor.
-                $limit = $availableSince->addSeconds($maxRuntime);
+                $limit = $from->addSeconds($maxRuntime);
             }
             if ($now->lte($limit)) {
                 $next[] = $limit->addSecond();
@@ -129,14 +133,16 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
         }
 
         $schedule = CronSchedule::parse(is_string($spec->config['schedule'] ?? null) ? $spec->config['schedule'] : '', $this->timezone($spec));
+        $grace = $this->int($spec->config['grace_seconds'] ?? null, 0);
         $expected = $schedule?->expectedAfter($anchor);
-        if ($schedule !== null && $expected !== null && $availableSince !== null && $expected->lt($availableSince)) {
-            // Runs scheduled before this worker could see the monitor are not reported: their pings may
-            // have been lost on the way.
-            $expected = $schedule->nextAfter($availableSince->subSecond());
+        if ($schedule !== null && $expected !== null && ! $state->reported($expected->addSeconds($grace))
+            && ($from = $availability?->shift($expected->addSeconds($grace))) !== null) {
+            // A run due while this worker could not see the monitor is not reported, its ping may have been
+            // lost on the way; the first run from then on is expected. Runs due before an outage still are.
+            $expected = $schedule->nextAfter($from->subSecond());
         }
         if ($expected !== null) {
-            $due = $expected->addSeconds($this->int($spec->config['grace_seconds'] ?? null, 0));
+            $due = $expected->addSeconds($grace);
             if ($now->lte($due)) {
                 $next[] = $due->addSecond();
             } elseif (! $state->reported($due)) {

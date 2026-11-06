@@ -28,7 +28,7 @@ final class MonitorActivation
         if ($active) {
             // A resumed push or cron monitor gets a full deadline from now, and a run that was in progress
             // when it was paused is forgotten, so resuming never yields an instant down.
-            $state += ['deadline_anchor_at' => now(), 'run_started_at' => null];
+            $state += ['deadline_anchor_at' => now(), 'run_started_at' => null, 'miss_deadline_at' => null, 'miss_number' => null];
         }
         $monitor->state()->updateOrCreate([], $state);
 

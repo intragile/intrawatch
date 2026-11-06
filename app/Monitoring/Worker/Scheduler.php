@@ -12,6 +12,7 @@ use Amp\TimeoutCancellation;
 use App\Enums\MonitorStatus;
 use App\Enums\MonitorType;
 use App\Monitoring\Checks\CheckerRegistry;
+use App\Monitoring\Engine\Availability;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\DeadlineEvaluator;
 use App\Monitoring\Engine\MonitorSpec;
@@ -55,7 +56,7 @@ final class Scheduler
     /**
      * Longest wait before push and cron deadlines are evaluated again after their state could not be read.
      */
-    private const DEADLINE_RETRY_SECONDS = 30;
+    private const DEADLINE_RETRY_SECONDS = 10;
 
     private readonly LocalSemaphore $slots;
 
@@ -107,12 +108,9 @@ final class Scheduler
     private DeferredCancellation $abort;
 
     /**
-     * Since when this worker has been able to see push and cron reports: its start, or the moment it saw
-     * the database come back after an outage. Deadlines that passed earlier count from this moment.
+     * When this worker started evaluating. Deadlines that passed earlier count from this moment.
      */
-    private ?CarbonImmutable $availableSince = null;
-
-    private bool $deadlineReadsFailing = false;
+    private ?CarbonImmutable $startedAt = null;
 
     public function __construct(
         private readonly int $shard,
@@ -142,7 +140,7 @@ final class Scheduler
         if (! $this->load($stop)) {
             return;
         }
-        $this->availableSince = $this->clock->now();
+        $this->startedAt = $this->clock->now();
 
         $flushStop = new DeferredCancellation;
         $flusher = async(fn () => $this->buffer->run($flushStop->getCancellation()));
@@ -481,12 +479,15 @@ final class Scheduler
             $specs[] = $spec;
         }
 
-        // After failed reads, a successful one is the moment the database came back.
-        $since = $this->deadlineReadsFailing ? $now : $this->availableSince();
+        // Reads and writes share one outage tracker. An outage still going on counts up to now, so the first
+        // successful read after it already moves the deadlines that fell inside.
+        $outages = $this->buffer->outages();
+        $window = $outages->windowAt($now);
+        $availability = new Availability($this->startedAt, $window[0] ?? null, $window[1] ?? null);
         try {
-            $results = $this->deadlines->evaluateMany($specs, $now, $since);
+            $results = $this->deadlines->evaluateMany($specs, $now, $availability);
         } catch (Throwable $e) {
-            $this->deadlineReadsFailing = true;
+            $outages->failed($now);
             // Without the state rows nothing is known, so nothing is recorded: a database outage never turns
             // into a missed heartbeat.
             Log::warning('Reading push and cron deadlines failed; retrying.', [
@@ -500,10 +501,7 @@ final class Scheduler
 
             return;
         }
-        if ($this->deadlineReadsFailing) {
-            $this->deadlineReadsFailing = false;
-            $this->availableSince = $now;
-        }
+        $outages->succeeded($now);
 
         foreach ($batch as $id => [$spec, $generation]) {
             [$outcome, $next] = $results[$id] ?? [null, $now->addSeconds($spec->intervalSeconds)];
@@ -517,16 +515,6 @@ final class Scheduler
 
             $this->buffer->push($spec, $outcome, $now, null, fn () => $this->release($id, $generation, $nextAt));
         }
-    }
-
-    private function availableSince(): ?CarbonImmutable
-    {
-        $recovered = $this->buffer->recoveredAt();
-        if ($recovered === null || ($this->availableSince !== null && $recovered->lt($this->availableSince))) {
-            return $this->availableSince;
-        }
-
-        return $recovered;
     }
 
     /**

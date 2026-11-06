@@ -10,6 +10,7 @@ use App\Models\Monitor;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
+use App\Monitoring\Engine\Availability;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\DatabaseDeadlineEvaluator;
 use App\Monitoring\Engine\DeadlineEvaluator;
@@ -222,6 +223,10 @@ class CronMonitorTest extends TestCase
         $this->assertSame('2026-11-06T02:00:00+00:00', DatabaseDeadlineEvaluator::expectedRun('0 * * * *', 'UTC', CarbonImmutable::parse('2026-11-06T00:59:55Z'))?->format(DATE_ATOM));
         $this->assertSame('2026-11-06T01:00:00+00:00', DatabaseDeadlineEvaluator::expectedRun('0 * * * *', 'UTC', CarbonImmutable::parse('2026-11-06T00:58:59Z'))?->format(DATE_ATOM), 'more than 60 s early is the previous run');
         $this->assertSame('2026-11-06T00:02:00+00:00', DatabaseDeadlineEvaluator::expectedRun('* * * * *', 'UTC', CarbonImmutable::parse('2026-11-06T00:00:31Z'))?->format(DATE_ATOM), 'at most half the gap between runs');
+        // The gap that counts is the one the report falls into: 00:00 to 00:01, not the hour after 00:01.
+        $this->assertSame('2026-11-06T00:01:00+00:00', DatabaseDeadlineEvaluator::expectedRun('0,1 * * * *', 'UTC', CarbonImmutable::parse('2026-11-06T00:00:25Z'))?->format(DATE_ATOM), 'the 00:00 run finishing at 00:00:25');
+        $this->assertSame('2026-11-06T01:00:00+00:00', DatabaseDeadlineEvaluator::expectedRun('0,1 * * * *', 'UTC', CarbonImmutable::parse('2026-11-06T00:00:31Z'))?->format(DATE_ATOM), 'within 30 s of 00:01');
+        $this->assertSame('2026-11-06T00:01:00+00:00', DatabaseDeadlineEvaluator::expectedRun('0,1 * * * *', 'UTC', CarbonImmutable::parse('2026-11-05T23:59:30Z'))?->format(DATE_ATOM), 'within 60 s before 00:00, the hour before');
 
         $monitor = $this->cron('0 * * * *', grace: 300);
         $this->moveTo('2026-11-06T00:59:55Z');
@@ -288,6 +293,31 @@ class CronMonitorTest extends TestCase
         $this->assertSame(['Missed run expected at 2026-11-06T04:00:00+00:00'], CheckResult::where('monitor_id', $monitor->id)->pluck('message')->all());
     }
 
+    public function test_a_cron_run_missed_before_an_outage_is_still_reported(): void
+    {
+        // Created at 00:30; the 01:00 run is due by 01:05. The database was out from 01:10 to 01:50.
+        $monitor = $this->cron('0 * * * *', grace: 300);
+        $outage = new Availability(
+            CarbonImmutable::parse('2026-11-06T00:00:00Z'),
+            CarbonImmutable::parse('2026-11-06T01:10:00Z'),
+            CarbonImmutable::parse('2026-11-06T01:50:00Z'),
+        );
+
+        $this->moveTo('2026-11-06T01:51:00Z');
+        [$outcome] = $this->evaluate($monitor, $outage);
+        $this->assertSame('Missed run expected at 2026-11-06T01:00:00+00:00', $outcome?->message);
+
+        // A run due inside the outage is not reported; the first one after it is expected.
+        $inside = new Availability(
+            CarbonImmutable::parse('2026-11-06T00:00:00Z'),
+            CarbonImmutable::parse('2026-11-06T01:00:00Z'),
+            CarbonImmutable::parse('2026-11-06T01:50:00Z'),
+        );
+        [$outcome, $next] = $this->evaluate($monitor, $inside);
+        $this->assertNull($outcome);
+        $this->assertSame('2026-11-06T01:52:00+00:00', $next->format(DATE_ATOM), 'polled every interval until 02:05:01');
+    }
+
     private function moveTo(string $at): void
     {
         $this->clock->advance(CarbonImmutable::parse($at)->getTimestamp() - $this->clock->now()->getTimestamp());
@@ -319,9 +349,9 @@ class CronMonitorTest extends TestCase
     /**
      * @return array{0: ?CheckOutcome, 1: CarbonImmutable}
      */
-    private function evaluate(Monitor $monitor): array
+    private function evaluate(Monitor $monitor, ?Availability $availability = null): array
     {
-        return $this->app->make(DeadlineEvaluator::class)->evaluate(MonitorSpec::fromModel($monitor->fresh() ?? $monitor), $this->clock->now());
+        return $this->app->make(DeadlineEvaluator::class)->evaluate(MonitorSpec::fromModel($monitor->fresh() ?? $monitor), $this->clock->now(), $availability);
     }
 
     private function record(Monitor $monitor, CheckOutcome $outcome): void

@@ -59,8 +59,7 @@ final class OutcomeBuffer
 
     private ?int $failingBatch = null;
 
-    /** When a flush last succeeded after failing, that is when the database was seen to come back. */
-    private ?CarbonImmutable $recoveredAt = null;
+    private readonly OutageTracker $outages;
 
     private int $batchFailures = 0;
 
@@ -99,7 +98,9 @@ final class OutcomeBuffer
         private readonly float $broadcastSeconds = 5.0,
         ?Closure $reconnect = null,
         private readonly ?Closure $afterFlush = null,
+        ?OutageTracker $outages = null,
     ) {
+        $this->outages = $outages ?? new OutageTracker;
         $this->reconnect = $reconnect ?? static function (): void {
             DB::reconnect();
         };
@@ -131,11 +132,11 @@ final class OutcomeBuffer
     }
 
     /**
-     * The last time a flush succeeded after failing, or null when no flush has failed.
+     * Failures and successes of the writes, which tell an outage of the database from a transient error.
      */
-    public function recoveredAt(): ?CarbonImmutable
+    public function outages(): OutageTracker
     {
-        return $this->recoveredAt;
+        return $this->outages;
     }
 
     public function count(): int
@@ -186,6 +187,7 @@ final class OutcomeBuffer
     public function flush(): bool
     {
         $this->logDropped();
+        $wrote = $this->queue !== [];
 
         while ($this->queue !== []) {
             $keys = array_slice(array_keys($this->queue), 0, $this->batchSize);
@@ -194,6 +196,9 @@ final class OutcomeBuffer
                 $batch = $this->recorder->record($this->items($keys), false);
             } catch (Throwable $e) {
                 $this->failed($e, count($keys));
+                if ($this->isDatabaseError($e)) {
+                    $this->outages->failed($this->clock->now());
+                }
                 if ($this->isDatabaseError($e) || ! $this->countBatchFailure($keys[0])) {
                     return $this->markFailing();
                 }
@@ -207,8 +212,9 @@ final class OutcomeBuffer
             $this->completed($keys, $batch);
         }
 
-        if ($this->failing) {
-            $this->recoveredAt = $this->clock->now();
+        // Only a write proves the database is reachable; an empty queue touches nothing.
+        if ($wrote) {
+            $this->outages->succeeded($this->clock->now());
         }
         $this->failing = false;
         $this->failingBatch = null;

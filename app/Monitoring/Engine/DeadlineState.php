@@ -77,8 +77,9 @@ final readonly class DeadlineState
      */
     public function missRecorded(CarbonImmutable $deadline, int $miss): bool
     {
+        // Stored deadlines have whole seconds, so they are compared at that precision.
         return $this->missDeadlineAt !== null && $this->missNumber !== null
-            && $this->missDeadlineAt->equalTo($deadline) && $this->missNumber >= $miss;
+            && $this->missDeadlineAt->getTimestamp() === $deadline->getTimestamp() && $this->missNumber >= $miss;
     }
 
     /**

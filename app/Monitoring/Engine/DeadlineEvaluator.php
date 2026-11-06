@@ -10,11 +10,10 @@ use Carbon\CarbonImmutable;
 interface DeadlineEvaluator
 {
     /**
-     * @param  ?CarbonImmutable  $availableSince  Since when the caller has been able to see reports: deadlines that passed
-     *                                            earlier count from this moment instead.
+     * @param  ?Availability  $availability  When the caller could see reports; deadlines it could not see count from later.
      * @return array{0: ?CheckOutcome, 1: CarbonImmutable} The outcome to record, if any, and when to evaluate next.
      */
-    public function evaluate(MonitorSpec $spec, CarbonImmutable $now, ?CarbonImmutable $availableSince = null): array;
+    public function evaluate(MonitorSpec $spec, CarbonImmutable $now, ?Availability $availability = null): array;
 
     /**
      * Evaluates several monitors at once, reading their state together.
@@ -22,5 +21,5 @@ interface DeadlineEvaluator
      * @param  list<MonitorSpec>  $specs
      * @return array<int, array{0: ?CheckOutcome, 1: CarbonImmutable}> Keyed by monitor id.
      */
-    public function evaluateMany(array $specs, CarbonImmutable $now, ?CarbonImmutable $availableSince = null): array;
+    public function evaluateMany(array $specs, CarbonImmutable $now, ?Availability $availability = null): array;
 }

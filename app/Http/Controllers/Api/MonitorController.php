@@ -123,7 +123,7 @@ class MonitorController extends Controller
             $monitor->fill($changes)->save();
             if ($oldTiming !== $this->deadlineTiming($monitor)) {
                 // New push or cron timing applies from now, so an edit never turns into an instant down.
-                $monitor->state()->update(['deadline_anchor_at' => now()]);
+                $monitor->state()->update(['deadline_anchor_at' => now(), 'miss_deadline_at' => null, 'miss_number' => null]);
             }
             if (is_bool($active)) {
                 MonitorActivation::apply($monitor, $active);
