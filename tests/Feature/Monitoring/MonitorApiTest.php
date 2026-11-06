@@ -49,15 +49,15 @@ class MonitorApiTest extends TestCase
     {
         $this->actingAs($this->editor)->postJson($this->url(), $this->http())
             ->assertCreated()
-            ->assertJsonPath('interval_seconds', 60)
-            ->assertJsonPath('timeout_seconds', 10)
-            ->assertJsonPath('retries', 1)
-            ->assertJsonPath('retry_interval_seconds', 60)
-            ->assertJsonPath('config.accepted_status', ['200-299'])
-            ->assertJsonPath('config.method', 'GET')
-            ->assertJsonPath('state.status', 'pending')
-            ->assertJsonPath('push_url', null)
-            ->assertJsonPath('secret_keys', []);
+            ->assertJsonPath('data.interval_seconds', 60)
+            ->assertJsonPath('data.timeout_seconds', 10)
+            ->assertJsonPath('data.retries', 1)
+            ->assertJsonPath('data.retry_interval_seconds', 60)
+            ->assertJsonPath('data.config.accepted_status', ['200-299'])
+            ->assertJsonPath('data.config.method', 'GET')
+            ->assertJsonPath('data.state.status', 'pending')
+            ->assertJsonPath('data.push_url', null)
+            ->assertJsonPath('data.secret_keys', []);
 
         $this->assertDatabaseHas('audit_events', ['action' => 'monitor.created']);
     }
@@ -83,19 +83,19 @@ class MonitorApiTest extends TestCase
             'secrets' => ['bearer_token' => 'tok-123', 'secret_headers' => ['X-Key' => 'hdr-456']],
             'config' => ['url' => 'https://example.test', 'auth' => ['type' => 'bearer']],
         ]))->assertCreated()
-            ->assertJsonPath('secret_keys', ['bearer_token', 'secret_headers'])
-            ->json('id');
+            ->assertJsonPath('data.secret_keys', ['bearer_token', 'secret_headers'])
+            ->json('data.id');
         $this->assertIsInt($id);
 
         $body = $this->actingAs($this->editor)->getJson($this->url("/{$id}"))
-            ->assertOk()->assertJsonPath('secret_keys', ['bearer_token', 'secret_headers'])->getContent();
+            ->assertOk()->assertJsonPath('data.secret_keys', ['bearer_token', 'secret_headers'])->getContent();
         $this->assertStringNotContainsString('tok-123', (string) $body);
         $this->assertStringNotContainsString('hdr-456', (string) $body);
 
         $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), [
             'secrets' => ['bearer_token' => null],
             'config' => ['auth' => ['type' => 'none']],
-        ])->assertOk()->assertJsonPath('secret_keys', ['secret_headers']);
+        ])->assertOk()->assertJsonPath('data.secret_keys', ['secret_headers']);
 
         $monitor = Monitor::findOrFail($id);
         $this->assertSame(['secret_headers' => ['X-Key' => 'hdr-456']], $monitor->secrets);
@@ -134,8 +134,8 @@ class MonitorApiTest extends TestCase
         $this->actingAs($this->editor)->postJson($this->url(), [
             'name' => 'Backup', 'type' => 'cron', 'config' => ['schedule' => '*/5 * * * *'],
         ])->assertCreated()
-            ->assertJsonPath('config.timezone', 'Europe/Budapest')
-            ->assertJsonPath('push_url', fn (string $url) => str_starts_with($url, rtrim(config()->string('app.url'), '/').'/api/v1/push/') && strlen($url) > 60);
+            ->assertJsonPath('data.config.timezone', 'Europe/Budapest')
+            ->assertJsonPath('data.push_url', fn (string $url) => str_starts_with($url, rtrim(config()->string('app.url'), '/').'/api/v1/push/') && strlen($url) > 60);
         $this->assertSame(48, strlen((string) Monitor::firstOrFail()->push_token));
     }
 
@@ -148,8 +148,8 @@ class MonitorApiTest extends TestCase
 
         $this->actingAs($this->editor)->patchJson($this->url("/{$m->id}"), ['config' => ['method' => 'HEAD']])
             ->assertOk()
-            ->assertJsonPath('config.method', 'HEAD')
-            ->assertJsonPath('config.url', 'https://a.test');
+            ->assertJsonPath('data.config.method', 'HEAD')
+            ->assertJsonPath('data.config.url', 'https://a.test');
     }
 
     public function test_group_parent_rules(): void
@@ -177,7 +177,7 @@ class MonitorApiTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors(['parent_id']);
 
         $this->actingAs($this->editor)->postJson($this->url(), $this->http(['parent_id' => $a->id]))
-            ->assertCreated()->assertJsonPath('parent_id', $a->id);
+            ->assertCreated()->assertJsonPath('data.parent_id', $a->id);
     }
 
     public function test_moving_a_subtree_counts_its_height(): void
@@ -203,13 +203,13 @@ class MonitorApiTest extends TestCase
 
         $id = $this->actingAs($this->editor)->postJson($this->url(), $this->http(['tags' => [['id' => $t1->id, 'value' => 'prod']]]))
             ->assertCreated()
-            ->assertJsonPath('tags.0.id', $t1->id)
-            ->assertJsonPath('tags.0.value', 'prod')
-            ->json('id');
+            ->assertJsonPath('data.tags.0.id', $t1->id)
+            ->assertJsonPath('data.tags.0.value', 'prod')
+            ->json('data.id');
         $this->assertIsInt($id);
 
         $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['tags' => [['id' => $t2->id]]])
-            ->assertOk()->assertJsonCount(1, 'tags')->assertJsonPath('tags.0.id', $t2->id)->assertJsonPath('tags.0.value', null);
+            ->assertOk()->assertJsonCount(1, 'data.tags')->assertJsonPath('data.tags.0.id', $t2->id)->assertJsonPath('data.tags.0.value', null);
 
         $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['tags' => [['id' => $foreign->id]]])
             ->assertUnprocessable()->assertJsonValidationErrors(['tags.0.id']);
@@ -269,9 +269,9 @@ class MonitorApiTest extends TestCase
         $m = Monitor::factory()->for($this->ws)->http()->create();
 
         $this->actingAs($this->editor)->postJson($this->url("/{$m->id}/pause"))
-            ->assertOk()->assertJsonPath('active', false)->assertJsonPath('state.status', 'paused');
+            ->assertOk()->assertJsonPath('data.active', false)->assertJsonPath('data.state.status', 'paused');
         $this->actingAs($this->editor)->postJson($this->url("/{$m->id}/resume"))
-            ->assertOk()->assertJsonPath('active', true)->assertJsonPath('state.status', 'pending');
+            ->assertOk()->assertJsonPath('data.active', true)->assertJsonPath('data.state.status', 'pending');
 
         $this->assertNull($m->fresh()?->check_requested_at);
         $this->actingAs($this->editor)->postJson($this->url("/{$m->id}/check"))->assertStatus(202);
@@ -291,7 +291,7 @@ class MonitorApiTest extends TestCase
     {
         $m = Monitor::factory()->for($this->ws)->http()->create();
         $this->actingAs($this->editor)->patchJson($this->url("/{$m->id}"), ['active' => false])
-            ->assertOk()->assertJsonPath('state.status', 'paused');
+            ->assertOk()->assertJsonPath('data.state.status', 'paused');
     }
 
     public function test_push_token_rotation(): void

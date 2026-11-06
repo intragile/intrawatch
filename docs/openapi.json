@@ -1647,135 +1647,159 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "id": {
-                                            "type": "integer"
-                                        },
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "description": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "type": {
-                                            "type": "string",
-                                            "enum": [
-                                                "http",
-                                                "tcp",
-                                                "ping",
-                                                "dns",
-                                                "tls",
-                                                "domain",
-                                                "push",
-                                                "cron",
-                                                "group"
-                                            ]
-                                        },
-                                        "active": {
-                                            "type": "boolean"
-                                        },
-                                        "interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "timeout_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "retries": {
-                                            "type": "integer"
-                                        },
-                                        "retry_interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "degraded_threshold_ms": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "inverted": {
-                                            "type": "boolean"
-                                        },
-                                        "parent_id": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "config": {
-                                            "type": "object",
-                                            "additionalProperties": {}
-                                        },
-                                        "secret_keys": {
-                                            "type": "array",
-                                            "items": {}
-                                        },
-                                        "tags": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "id": {
-                                                        "type": "integer"
-                                                    },
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "color": {
-                                                        "type": "string"
-                                                    },
-                                                    "value": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    }
-                                                },
-                                                "required": [
-                                                    "id",
-                                                    "name",
-                                                    "color",
-                                                    "value"
-                                                ]
-                                            }
-                                        },
-                                        "push_url": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "state": {
+                                        "data": {
                                             "type": "object",
                                             "properties": {
-                                                "status": {
-                                                    "type": "string",
-                                                    "enum": [
-                                                        "up",
-                                                        "down",
-                                                        "degraded",
-                                                        "maintenance",
-                                                        "pending",
-                                                        "paused"
-                                                    ]
+                                                "id": {
+                                                    "type": "integer"
                                                 },
-                                                "since": {
+                                                "name": {
                                                     "type": "string"
                                                 },
-                                                "last_checked_at": {
+                                                "description": {
                                                     "type": [
                                                         "string",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_latency_ms": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "http",
+                                                        "tcp",
+                                                        "ping",
+                                                        "dns",
+                                                        "tls",
+                                                        "domain",
+                                                        "push",
+                                                        "cron",
+                                                        "group"
+                                                    ]
+                                                },
+                                                "active": {
+                                                    "type": "boolean"
+                                                },
+                                                "interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "timeout_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "retries": {
+                                                    "type": "integer"
+                                                },
+                                                "retry_interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "degraded_threshold_ms": {
                                                     "type": [
                                                         "integer",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_message": {
+                                                "inverted": {
+                                                    "type": "boolean"
+                                                },
+                                                "parent_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "config": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                },
+                                                "secret_keys": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "tags": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
+                                                    }
+                                                },
+                                                "push_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "state": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "up",
+                                                                "down",
+                                                                "degraded",
+                                                                "maintenance",
+                                                                "pending",
+                                                                "paused"
+                                                            ]
+                                                        },
+                                                        "since": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_checked_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_latency_ms": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_message": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "since",
+                                                        "last_checked_at",
+                                                        "last_latency_ms",
+                                                        "last_message"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
                                                     "type": [
                                                         "string",
                                                         "null"
@@ -1783,46 +1807,30 @@
                                                 }
                                             },
                                             "required": [
-                                                "status",
-                                                "since",
-                                                "last_checked_at",
-                                                "last_latency_ms",
-                                                "last_message"
-                                            ]
-                                        },
-                                        "created_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "updated_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
+                                                "id",
+                                                "name",
+                                                "description",
+                                                "type",
+                                                "active",
+                                                "interval_seconds",
+                                                "timeout_seconds",
+                                                "retries",
+                                                "retry_interval_seconds",
+                                                "degraded_threshold_ms",
+                                                "inverted",
+                                                "parent_id",
+                                                "config",
+                                                "secret_keys",
+                                                "tags",
+                                                "push_url",
+                                                "state",
+                                                "created_at",
+                                                "updated_at"
                                             ]
                                         }
                                     },
                                     "required": [
-                                        "id",
-                                        "name",
-                                        "description",
-                                        "type",
-                                        "active",
-                                        "interval_seconds",
-                                        "timeout_seconds",
-                                        "retries",
-                                        "retry_interval_seconds",
-                                        "degraded_threshold_ms",
-                                        "inverted",
-                                        "parent_id",
-                                        "config",
-                                        "secret_keys",
-                                        "tags",
-                                        "push_url",
-                                        "state",
-                                        "created_at",
-                                        "updated_at"
+                                        "data"
                                     ]
                                 }
                             }
@@ -1967,135 +1975,159 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "id": {
-                                            "type": "integer"
-                                        },
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "description": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "type": {
-                                            "type": "string",
-                                            "enum": [
-                                                "http",
-                                                "tcp",
-                                                "ping",
-                                                "dns",
-                                                "tls",
-                                                "domain",
-                                                "push",
-                                                "cron",
-                                                "group"
-                                            ]
-                                        },
-                                        "active": {
-                                            "type": "boolean"
-                                        },
-                                        "interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "timeout_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "retries": {
-                                            "type": "integer"
-                                        },
-                                        "retry_interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "degraded_threshold_ms": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "inverted": {
-                                            "type": "boolean"
-                                        },
-                                        "parent_id": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "config": {
-                                            "type": "object",
-                                            "additionalProperties": {}
-                                        },
-                                        "secret_keys": {
-                                            "type": "array",
-                                            "items": {}
-                                        },
-                                        "tags": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "id": {
-                                                        "type": "integer"
-                                                    },
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "color": {
-                                                        "type": "string"
-                                                    },
-                                                    "value": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    }
-                                                },
-                                                "required": [
-                                                    "id",
-                                                    "name",
-                                                    "color",
-                                                    "value"
-                                                ]
-                                            }
-                                        },
-                                        "push_url": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "state": {
+                                        "data": {
                                             "type": "object",
                                             "properties": {
-                                                "status": {
-                                                    "type": "string",
-                                                    "enum": [
-                                                        "up",
-                                                        "down",
-                                                        "degraded",
-                                                        "maintenance",
-                                                        "pending",
-                                                        "paused"
-                                                    ]
+                                                "id": {
+                                                    "type": "integer"
                                                 },
-                                                "since": {
+                                                "name": {
                                                     "type": "string"
                                                 },
-                                                "last_checked_at": {
+                                                "description": {
                                                     "type": [
                                                         "string",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_latency_ms": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "http",
+                                                        "tcp",
+                                                        "ping",
+                                                        "dns",
+                                                        "tls",
+                                                        "domain",
+                                                        "push",
+                                                        "cron",
+                                                        "group"
+                                                    ]
+                                                },
+                                                "active": {
+                                                    "type": "boolean"
+                                                },
+                                                "interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "timeout_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "retries": {
+                                                    "type": "integer"
+                                                },
+                                                "retry_interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "degraded_threshold_ms": {
                                                     "type": [
                                                         "integer",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_message": {
+                                                "inverted": {
+                                                    "type": "boolean"
+                                                },
+                                                "parent_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "config": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                },
+                                                "secret_keys": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "tags": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
+                                                    }
+                                                },
+                                                "push_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "state": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "up",
+                                                                "down",
+                                                                "degraded",
+                                                                "maintenance",
+                                                                "pending",
+                                                                "paused"
+                                                            ]
+                                                        },
+                                                        "since": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_checked_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_latency_ms": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_message": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "since",
+                                                        "last_checked_at",
+                                                        "last_latency_ms",
+                                                        "last_message"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
                                                     "type": [
                                                         "string",
                                                         "null"
@@ -2103,46 +2135,30 @@
                                                 }
                                             },
                                             "required": [
-                                                "status",
-                                                "since",
-                                                "last_checked_at",
-                                                "last_latency_ms",
-                                                "last_message"
-                                            ]
-                                        },
-                                        "created_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "updated_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
+                                                "id",
+                                                "name",
+                                                "description",
+                                                "type",
+                                                "active",
+                                                "interval_seconds",
+                                                "timeout_seconds",
+                                                "retries",
+                                                "retry_interval_seconds",
+                                                "degraded_threshold_ms",
+                                                "inverted",
+                                                "parent_id",
+                                                "config",
+                                                "secret_keys",
+                                                "tags",
+                                                "push_url",
+                                                "state",
+                                                "created_at",
+                                                "updated_at"
                                             ]
                                         }
                                     },
                                     "required": [
-                                        "id",
-                                        "name",
-                                        "description",
-                                        "type",
-                                        "active",
-                                        "interval_seconds",
-                                        "timeout_seconds",
-                                        "retries",
-                                        "retry_interval_seconds",
-                                        "degraded_threshold_ms",
-                                        "inverted",
-                                        "parent_id",
-                                        "config",
-                                        "secret_keys",
-                                        "tags",
-                                        "push_url",
-                                        "state",
-                                        "created_at",
-                                        "updated_at"
+                                        "data"
                                     ]
                                 }
                             }
@@ -2201,135 +2217,159 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "id": {
-                                            "type": "integer"
-                                        },
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "description": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "type": {
-                                            "type": "string",
-                                            "enum": [
-                                                "http",
-                                                "tcp",
-                                                "ping",
-                                                "dns",
-                                                "tls",
-                                                "domain",
-                                                "push",
-                                                "cron",
-                                                "group"
-                                            ]
-                                        },
-                                        "active": {
-                                            "type": "boolean"
-                                        },
-                                        "interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "timeout_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "retries": {
-                                            "type": "integer"
-                                        },
-                                        "retry_interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "degraded_threshold_ms": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "inverted": {
-                                            "type": "boolean"
-                                        },
-                                        "parent_id": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "config": {
-                                            "type": "object",
-                                            "additionalProperties": {}
-                                        },
-                                        "secret_keys": {
-                                            "type": "array",
-                                            "items": {}
-                                        },
-                                        "tags": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "id": {
-                                                        "type": "integer"
-                                                    },
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "color": {
-                                                        "type": "string"
-                                                    },
-                                                    "value": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    }
-                                                },
-                                                "required": [
-                                                    "id",
-                                                    "name",
-                                                    "color",
-                                                    "value"
-                                                ]
-                                            }
-                                        },
-                                        "push_url": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "state": {
+                                        "data": {
                                             "type": "object",
                                             "properties": {
-                                                "status": {
-                                                    "type": "string",
-                                                    "enum": [
-                                                        "up",
-                                                        "down",
-                                                        "degraded",
-                                                        "maintenance",
-                                                        "pending",
-                                                        "paused"
-                                                    ]
+                                                "id": {
+                                                    "type": "integer"
                                                 },
-                                                "since": {
+                                                "name": {
                                                     "type": "string"
                                                 },
-                                                "last_checked_at": {
+                                                "description": {
                                                     "type": [
                                                         "string",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_latency_ms": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "http",
+                                                        "tcp",
+                                                        "ping",
+                                                        "dns",
+                                                        "tls",
+                                                        "domain",
+                                                        "push",
+                                                        "cron",
+                                                        "group"
+                                                    ]
+                                                },
+                                                "active": {
+                                                    "type": "boolean"
+                                                },
+                                                "interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "timeout_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "retries": {
+                                                    "type": "integer"
+                                                },
+                                                "retry_interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "degraded_threshold_ms": {
                                                     "type": [
                                                         "integer",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_message": {
+                                                "inverted": {
+                                                    "type": "boolean"
+                                                },
+                                                "parent_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "config": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                },
+                                                "secret_keys": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "tags": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
+                                                    }
+                                                },
+                                                "push_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "state": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "up",
+                                                                "down",
+                                                                "degraded",
+                                                                "maintenance",
+                                                                "pending",
+                                                                "paused"
+                                                            ]
+                                                        },
+                                                        "since": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_checked_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_latency_ms": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_message": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "since",
+                                                        "last_checked_at",
+                                                        "last_latency_ms",
+                                                        "last_message"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
                                                     "type": [
                                                         "string",
                                                         "null"
@@ -2337,46 +2377,30 @@
                                                 }
                                             },
                                             "required": [
-                                                "status",
-                                                "since",
-                                                "last_checked_at",
-                                                "last_latency_ms",
-                                                "last_message"
-                                            ]
-                                        },
-                                        "created_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "updated_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
+                                                "id",
+                                                "name",
+                                                "description",
+                                                "type",
+                                                "active",
+                                                "interval_seconds",
+                                                "timeout_seconds",
+                                                "retries",
+                                                "retry_interval_seconds",
+                                                "degraded_threshold_ms",
+                                                "inverted",
+                                                "parent_id",
+                                                "config",
+                                                "secret_keys",
+                                                "tags",
+                                                "push_url",
+                                                "state",
+                                                "created_at",
+                                                "updated_at"
                                             ]
                                         }
                                     },
                                     "required": [
-                                        "id",
-                                        "name",
-                                        "description",
-                                        "type",
-                                        "active",
-                                        "interval_seconds",
-                                        "timeout_seconds",
-                                        "retries",
-                                        "retry_interval_seconds",
-                                        "degraded_threshold_ms",
-                                        "inverted",
-                                        "parent_id",
-                                        "config",
-                                        "secret_keys",
-                                        "tags",
-                                        "push_url",
-                                        "state",
-                                        "created_at",
-                                        "updated_at"
+                                        "data"
                                     ]
                                 }
                             }
@@ -2531,135 +2555,159 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "id": {
-                                            "type": "integer"
-                                        },
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "description": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "type": {
-                                            "type": "string",
-                                            "enum": [
-                                                "http",
-                                                "tcp",
-                                                "ping",
-                                                "dns",
-                                                "tls",
-                                                "domain",
-                                                "push",
-                                                "cron",
-                                                "group"
-                                            ]
-                                        },
-                                        "active": {
-                                            "type": "boolean"
-                                        },
-                                        "interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "timeout_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "retries": {
-                                            "type": "integer"
-                                        },
-                                        "retry_interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "degraded_threshold_ms": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "inverted": {
-                                            "type": "boolean"
-                                        },
-                                        "parent_id": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "config": {
-                                            "type": "object",
-                                            "additionalProperties": {}
-                                        },
-                                        "secret_keys": {
-                                            "type": "array",
-                                            "items": {}
-                                        },
-                                        "tags": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "id": {
-                                                        "type": "integer"
-                                                    },
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "color": {
-                                                        "type": "string"
-                                                    },
-                                                    "value": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    }
-                                                },
-                                                "required": [
-                                                    "id",
-                                                    "name",
-                                                    "color",
-                                                    "value"
-                                                ]
-                                            }
-                                        },
-                                        "push_url": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "state": {
+                                        "data": {
                                             "type": "object",
                                             "properties": {
-                                                "status": {
-                                                    "type": "string",
-                                                    "enum": [
-                                                        "up",
-                                                        "down",
-                                                        "degraded",
-                                                        "maintenance",
-                                                        "pending",
-                                                        "paused"
-                                                    ]
+                                                "id": {
+                                                    "type": "integer"
                                                 },
-                                                "since": {
+                                                "name": {
                                                     "type": "string"
                                                 },
-                                                "last_checked_at": {
+                                                "description": {
                                                     "type": [
                                                         "string",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_latency_ms": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "http",
+                                                        "tcp",
+                                                        "ping",
+                                                        "dns",
+                                                        "tls",
+                                                        "domain",
+                                                        "push",
+                                                        "cron",
+                                                        "group"
+                                                    ]
+                                                },
+                                                "active": {
+                                                    "type": "boolean"
+                                                },
+                                                "interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "timeout_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "retries": {
+                                                    "type": "integer"
+                                                },
+                                                "retry_interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "degraded_threshold_ms": {
                                                     "type": [
                                                         "integer",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_message": {
+                                                "inverted": {
+                                                    "type": "boolean"
+                                                },
+                                                "parent_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "config": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                },
+                                                "secret_keys": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "tags": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
+                                                    }
+                                                },
+                                                "push_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "state": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "up",
+                                                                "down",
+                                                                "degraded",
+                                                                "maintenance",
+                                                                "pending",
+                                                                "paused"
+                                                            ]
+                                                        },
+                                                        "since": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_checked_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_latency_ms": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_message": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "since",
+                                                        "last_checked_at",
+                                                        "last_latency_ms",
+                                                        "last_message"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
                                                     "type": [
                                                         "string",
                                                         "null"
@@ -2667,46 +2715,30 @@
                                                 }
                                             },
                                             "required": [
-                                                "status",
-                                                "since",
-                                                "last_checked_at",
-                                                "last_latency_ms",
-                                                "last_message"
-                                            ]
-                                        },
-                                        "created_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "updated_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
+                                                "id",
+                                                "name",
+                                                "description",
+                                                "type",
+                                                "active",
+                                                "interval_seconds",
+                                                "timeout_seconds",
+                                                "retries",
+                                                "retry_interval_seconds",
+                                                "degraded_threshold_ms",
+                                                "inverted",
+                                                "parent_id",
+                                                "config",
+                                                "secret_keys",
+                                                "tags",
+                                                "push_url",
+                                                "state",
+                                                "created_at",
+                                                "updated_at"
                                             ]
                                         }
                                     },
                                     "required": [
-                                        "id",
-                                        "name",
-                                        "description",
-                                        "type",
-                                        "active",
-                                        "interval_seconds",
-                                        "timeout_seconds",
-                                        "retries",
-                                        "retry_interval_seconds",
-                                        "degraded_threshold_ms",
-                                        "inverted",
-                                        "parent_id",
-                                        "config",
-                                        "secret_keys",
-                                        "tags",
-                                        "push_url",
-                                        "state",
-                                        "created_at",
-                                        "updated_at"
+                                        "data"
                                     ]
                                 }
                             }
@@ -2818,135 +2850,159 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "id": {
-                                            "type": "integer"
-                                        },
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "description": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "type": {
-                                            "type": "string",
-                                            "enum": [
-                                                "http",
-                                                "tcp",
-                                                "ping",
-                                                "dns",
-                                                "tls",
-                                                "domain",
-                                                "push",
-                                                "cron",
-                                                "group"
-                                            ]
-                                        },
-                                        "active": {
-                                            "type": "boolean"
-                                        },
-                                        "interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "timeout_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "retries": {
-                                            "type": "integer"
-                                        },
-                                        "retry_interval_seconds": {
-                                            "type": "integer"
-                                        },
-                                        "degraded_threshold_ms": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "inverted": {
-                                            "type": "boolean"
-                                        },
-                                        "parent_id": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ]
-                                        },
-                                        "config": {
-                                            "type": "object",
-                                            "additionalProperties": {}
-                                        },
-                                        "secret_keys": {
-                                            "type": "array",
-                                            "items": {}
-                                        },
-                                        "tags": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "id": {
-                                                        "type": "integer"
-                                                    },
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "color": {
-                                                        "type": "string"
-                                                    },
-                                                    "value": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    }
-                                                },
-                                                "required": [
-                                                    "id",
-                                                    "name",
-                                                    "color",
-                                                    "value"
-                                                ]
-                                            }
-                                        },
-                                        "push_url": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "state": {
+                                        "data": {
                                             "type": "object",
                                             "properties": {
-                                                "status": {
-                                                    "type": "string",
-                                                    "enum": [
-                                                        "up",
-                                                        "down",
-                                                        "degraded",
-                                                        "maintenance",
-                                                        "pending",
-                                                        "paused"
-                                                    ]
+                                                "id": {
+                                                    "type": "integer"
                                                 },
-                                                "since": {
+                                                "name": {
                                                     "type": "string"
                                                 },
-                                                "last_checked_at": {
+                                                "description": {
                                                     "type": [
                                                         "string",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_latency_ms": {
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "http",
+                                                        "tcp",
+                                                        "ping",
+                                                        "dns",
+                                                        "tls",
+                                                        "domain",
+                                                        "push",
+                                                        "cron",
+                                                        "group"
+                                                    ]
+                                                },
+                                                "active": {
+                                                    "type": "boolean"
+                                                },
+                                                "interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "timeout_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "retries": {
+                                                    "type": "integer"
+                                                },
+                                                "retry_interval_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "degraded_threshold_ms": {
                                                     "type": [
                                                         "integer",
                                                         "null"
                                                     ]
                                                 },
-                                                "last_message": {
+                                                "inverted": {
+                                                    "type": "boolean"
+                                                },
+                                                "parent_id": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "config": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                },
+                                                "secret_keys": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "tags": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
+                                                    }
+                                                },
+                                                "push_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "state": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "status": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "up",
+                                                                "down",
+                                                                "degraded",
+                                                                "maintenance",
+                                                                "pending",
+                                                                "paused"
+                                                            ]
+                                                        },
+                                                        "since": {
+                                                            "type": "string"
+                                                        },
+                                                        "last_checked_at": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_latency_ms": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "last_message": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "status",
+                                                        "since",
+                                                        "last_checked_at",
+                                                        "last_latency_ms",
+                                                        "last_message"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
                                                     "type": [
                                                         "string",
                                                         "null"
@@ -2954,46 +3010,30 @@
                                                 }
                                             },
                                             "required": [
-                                                "status",
-                                                "since",
-                                                "last_checked_at",
-                                                "last_latency_ms",
-                                                "last_message"
-                                            ]
-                                        },
-                                        "created_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "updated_at": {
-                                            "type": [
-                                                "string",
-                                                "null"
+                                                "id",
+                                                "name",
+                                                "description",
+                                                "type",
+                                                "active",
+                                                "interval_seconds",
+                                                "timeout_seconds",
+                                                "retries",
+                                                "retry_interval_seconds",
+                                                "degraded_threshold_ms",
+                                                "inverted",
+                                                "parent_id",
+                                                "config",
+                                                "secret_keys",
+                                                "tags",
+                                                "push_url",
+                                                "state",
+                                                "created_at",
+                                                "updated_at"
                                             ]
                                         }
                                     },
                                     "required": [
-                                        "id",
-                                        "name",
-                                        "description",
-                                        "type",
-                                        "active",
-                                        "interval_seconds",
-                                        "timeout_seconds",
-                                        "retries",
-                                        "retry_interval_seconds",
-                                        "degraded_threshold_ms",
-                                        "inverted",
-                                        "parent_id",
-                                        "config",
-                                        "secret_keys",
-                                        "tags",
-                                        "push_url",
-                                        "state",
-                                        "created_at",
-                                        "updated_at"
+                                        "data"
                                     ]
                                 }
                             }
@@ -3125,20 +3165,28 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "id": {
-                                            "type": "integer"
-                                        },
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "color": {
-                                            "type": "string"
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "color": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "color"
+                                            ]
                                         }
                                     },
                                     "required": [
-                                        "id",
-                                        "name",
-                                        "color"
+                                        "data"
                                     ]
                                 }
                             }
@@ -3212,20 +3260,28 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
-                                        "id": {
-                                            "type": "string"
-                                        },
-                                        "name": {
-                                            "type": "string"
-                                        },
-                                        "color": {
-                                            "type": "string"
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "color": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "color"
+                                            ]
                                         }
                                     },
                                     "required": [
-                                        "id",
-                                        "name",
-                                        "color"
+                                        "data"
                                     ]
                                 }
                             }

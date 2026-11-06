@@ -58,8 +58,9 @@ class MonitorBulkController extends Controller
 
     private function toggle(Monitor $monitor, bool $active): void
     {
-        MonitorActivation::apply($monitor, $active);
-        Audit::record($active ? 'monitor.resumed' : 'monitor.paused', $monitor, ['active' => [! $active, $active]]);
+        if (MonitorActivation::apply($monitor, $active)) {
+            Audit::record($active ? 'monitor.resumed' : 'monitor.paused', $monitor, ['active' => [! $active, $active]]);
+        }
     }
 
     /**
@@ -76,6 +77,9 @@ class MonitorBulkController extends Controller
     {
         $before = $monitor->tagIds();
         $attach ? $monitor->tags()->syncWithoutDetaching([$tag->id]) : $monitor->tags()->detach($tag->id);
-        Audit::record('monitor.updated', $monitor, ['tags' => [$before, $monitor->tagIds()]]);
+        $after = $monitor->tagIds();
+        if ($before !== $after) {
+            Audit::record('monitor.updated', $monitor, ['tags' => [$before, $after]]);
+        }
     }
 }

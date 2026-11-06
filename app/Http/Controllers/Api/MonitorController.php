@@ -83,12 +83,12 @@ class MonitorController extends Controller
             Audit::record('monitor.created', $monitor, $this->createdChanges($monitor, $tags ?? []));
         });
 
-        return response()->json(MonitorPresenter::toArray($this->fresh($monitor)), 201);
+        return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor))], 201);
     }
 
     public function show(Workspace $workspace, Monitor $monitor): JsonResponse
     {
-        return response()->json(MonitorPresenter::toArray($this->fresh($monitor)));
+        return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor))]);
     }
 
     public function update(UpdateMonitorRequest $request, Workspace $workspace, Monitor $monitor): JsonResponse
@@ -143,7 +143,7 @@ class MonitorController extends Controller
             }
         });
 
-        return response()->json(MonitorPresenter::toArray($this->fresh($monitor)));
+        return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor))]);
     }
 
     public function destroy(Workspace $workspace, Monitor $monitor): Response

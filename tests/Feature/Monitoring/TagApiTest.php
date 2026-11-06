@@ -34,7 +34,7 @@ class TagApiTest extends TestCase
     public function test_tag_crud_with_audit(): void
     {
         $id = $this->actingAs($this->editor)->postJson($this->url(), ['name' => 'prod', 'color' => '#FF0000'])
-            ->assertCreated()->assertJsonPath('name', 'prod')->assertJsonPath('color', '#ff0000')->json('id');
+            ->assertCreated()->assertJsonPath('data.name', 'prod')->assertJsonPath('data.color', '#ff0000')->json('data.id');
         $this->assertIsInt($id);
 
         $this->actingAs($this->editor)->postJson($this->url(), ['name' => 'prod', 'color' => '#00ff00'])
@@ -43,7 +43,7 @@ class TagApiTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors(['color']);
 
         $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['name' => 'production'])
-            ->assertOk()->assertJsonPath('name', 'production')->assertJsonPath('color', '#ff0000');
+            ->assertOk()->assertJsonPath('data.name', 'production')->assertJsonPath('data.color', '#ff0000');
 
         $this->actingAs($this->editor)->getJson($this->url())
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', 'production')->assertJsonStructure(['meta' => ['next_cursor', 'limit']]);

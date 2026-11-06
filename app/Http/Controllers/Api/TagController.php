@@ -43,7 +43,7 @@ class TagController extends Controller
             return $tag;
         });
 
-        return response()->json($this->payload($tag), 201);
+        return response()->json(['data' => $this->payload($tag)], 201);
     }
 
     public function update(Request $request, Workspace $workspace, Tag $tag): JsonResponse
@@ -75,7 +75,7 @@ class TagController extends Controller
             }
         });
 
-        return response()->json($this->payload($tag));
+        return response()->json(['data' => $this->payload($tag)]);
     }
 
     public function destroy(Workspace $workspace, Tag $tag): Response
