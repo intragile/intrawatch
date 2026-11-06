@@ -62,9 +62,9 @@ final class Heartbeat
     }
 
     /**
-     * Writes the row. A failure is logged and otherwise ignored: a missed heartbeat must not stop checks.
+     * Writes the row. A failure is logged and returned, never thrown: a missed heartbeat must not stop checks.
      */
-    public function beat(int $monitors, int $buffered): void
+    public function beat(int $monitors, int $buffered): ?Throwable
     {
         $stats = $this->lastMinute();
 
@@ -89,6 +89,10 @@ final class Heartbeat
                 'shard' => $this->shard,
                 'exception' => $e::class,
             ]);
+
+            return $e;
         }
+
+        return null;
     }
 }

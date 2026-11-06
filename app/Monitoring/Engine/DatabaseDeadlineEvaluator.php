@@ -4,6 +4,7 @@ namespace App\Monitoring\Engine;
 
 use App\Enums\MonitorType;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -15,48 +16,94 @@ use Illuminate\Support\Facades\DB;
  *
  * A missed deadline is only ever reported as down when the state row says so; when it cannot be read, the
  * caller retries later and nothing is recorded. Deadlines that passed while the worker could not see them
- * (see Availability) count from the end of that blind spot instead, unless a miss of theirs is already
- * recorded: then the worker that recorded it saw the monitor, and the retries continue.
+ * (before it started, or during a database outage) are moved by reanchor(), which persists the new anchor:
+ * evaluation itself only ever reads the stored state, so nothing it decides depends on worker memory.
  */
 final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
 {
     private const CHUNK = 500;
 
-    public function evaluate(MonitorSpec $spec, CarbonImmutable $now, ?Availability $availability = null): array
+    public function evaluate(MonitorSpec $spec, CarbonImmutable $now): array
     {
-        return $this->evaluateMany([$spec], $now, $availability)[$spec->id];
+        return $this->evaluateMany([$spec], $now)[$spec->id];
     }
 
-    public function evaluateMany(array $specs, CarbonImmutable $now, ?Availability $availability = null): array
+    public function evaluateMany(array $specs, CarbonImmutable $now): array
     {
-        /** @var array<int, MonitorSpec> $byId */
-        $byId = [];
-        foreach ($specs as $spec) {
-            $byId[$spec->id] = $spec;
-        }
-
-        /** @var array<int, DeadlineState> $states */
-        $states = [];
-        foreach (array_chunk(array_keys($byId), self::CHUNK) as $chunk) {
-            $rows = DB::table('monitor_states')->whereIn('monitor_id', $chunk)->get(['monitor_id', ...DeadlineState::COLUMNS]);
-            foreach ($rows as $row) {
-                $id = is_numeric($row->monitor_id) ? (int) $row->monitor_id : 0;
-                $states[$id] = DeadlineState::fromRow($row);
-            }
-        }
+        $byId = $this->byId($specs);
+        $states = $this->states(array_keys($byId));
 
         $results = [];
         foreach ($byId as $id => $spec) {
             $state = $states[$id] ?? null;
             $results[$id] = match (true) {
                 $state === null => [null, $now->addSeconds($spec->intervalSeconds)],
-                $spec->type === MonitorType::Push => $this->push($spec, $state, $now, $availability),
-                $spec->type === MonitorType::Cron => $this->cron($spec, $state, $now, $availability),
+                $spec->type === MonitorType::Push => $this->push($spec, $state, $now),
+                $spec->type === MonitorType::Cron => $this->cron($spec, $state, $now),
                 default => [null, $now->addSeconds($spec->intervalSeconds)],
             };
         }
 
         return $results;
+    }
+
+    /**
+     * Reads the state rows in batches, picks the monitors whose current deadline falls in the window, and
+     * moves them with one batched update per chunk. The updates never move an anchor backwards, so a report
+     * that arrived after the read wins.
+     */
+    public function reanchor(array $specs, ?CarbonImmutable $from, CarbonImmutable $to): int
+    {
+        $to = $to->startOfSecond();
+        $from = $from?->startOfSecond();
+        $inside = static fn (CarbonImmutable $at): bool => $at->getTimestamp() < $to->getTimestamp()
+            && ($from === null || $at->getTimestamp() >= $from->getTimestamp());
+
+        $byId = $this->byId($specs);
+        $anchors = [];
+        $runs = [];
+        foreach ($this->states(array_keys($byId)) as $id => $state) {
+            $spec = $byId[$id] ?? null;
+            if ($spec === null) {
+                continue;
+            }
+            if ($spec->type === MonitorType::Push) {
+                $deadline = $state->anchor(MonitorType::Push)->addSeconds($this->pushPeriod($spec));
+                $missed = $state->missDeadlineAt !== null && $state->missDeadlineAt->getTimestamp() >= $deadline->getTimestamp();
+                if ($inside($deadline) && ! $missed && ! $state->reported($deadline)) {
+                    $anchors[] = $id;
+                }
+            } elseif ($spec->type === MonitorType::Cron) {
+                $maxRuntime = $this->int($spec->config['max_runtime_seconds'] ?? null, null);
+                $limit = $state->runStartedAt !== null && $maxRuntime !== null ? $state->runStartedAt->addSeconds($maxRuntime) : null;
+                if ($limit !== null && $inside($limit) && ! $state->reported($limit)) {
+                    // The finish may have been lost: the run counts as started at the recovery.
+                    $runs[] = $id;
+                }
+                $due = $this->cronDue($spec, $state);
+                if ($due !== null && $inside($due) && ! $state->reported($due)) {
+                    $anchors[] = $id;
+                }
+            }
+        }
+
+        if ($anchors === [] && $runs === []) {
+            return 0;
+        }
+
+        DB::transaction(function () use ($anchors, $runs, $to): void {
+            foreach (array_chunk($anchors, self::CHUNK) as $chunk) {
+                DB::table('monitor_states')->whereIn('monitor_id', $chunk)
+                    ->where(fn (Builder $query) => $query->whereNull('deadline_anchor_at')->orWhere('deadline_anchor_at', '<', $to))
+                    ->update(['deadline_anchor_at' => $to]);
+            }
+            foreach (array_chunk($runs, self::CHUNK) as $chunk) {
+                DB::table('monitor_states')->whereIn('monitor_id', $chunk)->where('run_started_at', '<', $to)
+                    ->update(['run_started_at' => $to]);
+            }
+        });
+
+        return count(array_unique([...$anchors, ...$runs]));
     }
 
     /**
@@ -69,21 +116,61 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
     }
 
     /**
+     * @param  list<MonitorSpec>  $specs
+     * @return array<int, MonitorSpec>
+     */
+    private function byId(array $specs): array
+    {
+        $byId = [];
+        foreach ($specs as $spec) {
+            $byId[$spec->id] = $spec;
+        }
+
+        return $byId;
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return array<int, DeadlineState>
+     */
+    private function states(array $ids): array
+    {
+        $states = [];
+        foreach (array_chunk($ids, self::CHUNK) as $chunk) {
+            $rows = DB::table('monitor_states')->whereIn('monitor_id', $chunk)->get(['monitor_id', ...DeadlineState::COLUMNS]);
+            foreach ($rows as $row) {
+                $id = is_numeric($row->monitor_id) ? (int) $row->monitor_id : 0;
+                $states[$id] = DeadlineState::fromRow($row);
+            }
+        }
+
+        return $states;
+    }
+
+    private function pushPeriod(MonitorSpec $spec): int
+    {
+        return $spec->intervalSeconds + $this->int($spec->config['grace_seconds'] ?? null, 0);
+    }
+
+    /**
+     * When the run expected after the cron monitor's anchor is missed, grace included; null when the
+     * expression is invalid or has no next run.
+     */
+    private function cronDue(MonitorSpec $spec, DeadlineState $state): ?CarbonImmutable
+    {
+        $schedule = CronSchedule::parse(is_string($spec->config['schedule'] ?? null) ? $spec->config['schedule'] : '', $this->timezone($spec));
+
+        return $schedule?->expectedAfter($state->anchor(MonitorType::Cron))
+            ?->addSeconds($this->int($spec->config['grace_seconds'] ?? null, 0));
+    }
+
+    /**
      * @return array{0: ?CheckOutcome, 1: CarbonImmutable}
      */
-    private function push(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now, ?Availability $availability): array
+    private function push(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now): array
     {
         $anchor = $state->anchor(MonitorType::Push);
-        $period = $spec->intervalSeconds + $this->int($spec->config['grace_seconds'] ?? null, 0);
-        $deadline = $anchor->addSeconds($period);
-        if ($state->missDeadlineAt !== null && $state->missDeadlineAt->getTimestamp() >= $deadline->getTimestamp()) {
-            // A miss of this deadline (possibly moved before) is recorded: its retry count continues.
-            $deadline = $state->missDeadlineAt;
-        } elseif (! $state->reported($deadline) && ($from = $availability?->shift($deadline)) !== null) {
-            // Missed while this worker could not see the monitor (not running yet, or during an outage): its
-            // heartbeats may have been lost on the way, so it gets a full period from then.
-            $deadline = $from->addSeconds($period);
-        }
+        $deadline = $anchor->addSeconds($this->pushPeriod($spec));
         if ($now->lte($deadline)) {
             return [null, $deadline->addSecond()];
         }
@@ -107,7 +194,7 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
     /**
      * @return array{0: ?CheckOutcome, 1: CarbonImmutable}
      */
-    private function cron(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now, ?Availability $availability): array
+    private function cron(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now): array
     {
         // A run can start at any time, so the monitor is looked at least once per interval for an overrun.
         $poll = $now->addSeconds($spec->intervalSeconds);
@@ -117,10 +204,6 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
         $maxRuntime = $this->int($spec->config['max_runtime_seconds'] ?? null, null);
         if ($state->runStartedAt !== null && $maxRuntime !== null) {
             $limit = $state->runStartedAt->addSeconds($maxRuntime);
-            if (! $state->reported($limit) && ($from = $availability?->shift($limit)) !== null) {
-                // The finish may have been lost while this worker could not see the monitor.
-                $limit = $from->addSeconds($maxRuntime);
-            }
             if ($now->lte($limit)) {
                 $next[] = $limit->addSecond();
             } elseif (! $state->reported($limit)) {
@@ -135,12 +218,6 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
         $schedule = CronSchedule::parse(is_string($spec->config['schedule'] ?? null) ? $spec->config['schedule'] : '', $this->timezone($spec));
         $grace = $this->int($spec->config['grace_seconds'] ?? null, 0);
         $expected = $schedule?->expectedAfter($anchor);
-        if ($schedule !== null && $expected !== null && ! $state->reported($expected->addSeconds($grace))
-            && ($from = $availability?->shift($expected->addSeconds($grace))) !== null) {
-            // A run due while this worker could not see the monitor is not reported, its ping may have been
-            // lost on the way; the first run from then on is expected. Runs due before an outage still are.
-            $expected = $schedule->nextAfter($from->subSecond());
-        }
         if ($expected !== null) {
             $due = $expected->addSeconds($grace);
             if ($now->lte($due)) {

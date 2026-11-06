@@ -10,7 +10,6 @@ use App\Models\Monitor;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
-use App\Monitoring\Engine\Availability;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\DatabaseDeadlineEvaluator;
 use App\Monitoring\Engine\DeadlineEvaluator;
@@ -293,29 +292,39 @@ class CronMonitorTest extends TestCase
         $this->assertSame(['Missed run expected at 2026-11-06T04:00:00+00:00'], CheckResult::where('monitor_id', $monitor->id)->pluck('message')->all());
     }
 
-    public function test_a_cron_run_missed_before_an_outage_is_still_reported(): void
+    public function test_only_cron_runs_due_inside_an_outage_are_reanchored(): void
     {
-        // Created at 00:30; the 01:00 run is due by 01:05. The database was out from 01:10 to 01:50.
-        $monitor = $this->cron('0 * * * *', grace: 300);
-        $outage = new Availability(
-            CarbonImmutable::parse('2026-11-06T00:00:00Z'),
-            CarbonImmutable::parse('2026-11-06T01:10:00Z'),
-            CarbonImmutable::parse('2026-11-06T01:50:00Z'),
-        );
+        // Created at 00:30; the 01:00 run is due by 01:05.
+        $before = $this->cron('0 * * * *', grace: 300);
+        $inside = $this->cron('0 * * * *', grace: 300);
+        $reported = $this->cron('0 * * * *', grace: 300);
+        $this->moveTo('2026-11-06T01:06:00Z');
+        [$outcome] = $this->evaluate($reported);
+        $this->assertNotNull($outcome);
+        $this->record($reported, $outcome);
 
+        // The database was out from 01:10 to 01:50: a run due before it is still reported.
         $this->moveTo('2026-11-06T01:51:00Z');
-        [$outcome] = $this->evaluate($monitor, $outage);
+        $from = CarbonImmutable::parse('2026-11-06T01:10:00Z');
+        $to = CarbonImmutable::parse('2026-11-06T01:50:00Z');
+        $this->assertSame(0, $this->reanchor($before, $from, $to));
+        [$outcome] = $this->evaluate($before);
         $this->assertSame('Missed run expected at 2026-11-06T01:00:00+00:00', $outcome?->message);
 
-        // A run due inside the outage is not reported; the first one after it is expected.
-        $inside = new Availability(
-            CarbonImmutable::parse('2026-11-06T00:00:00Z'),
-            CarbonImmutable::parse('2026-11-06T01:00:00Z'),
-            CarbonImmutable::parse('2026-11-06T01:50:00Z'),
-        );
-        [$outcome, $next] = $this->evaluate($monitor, $inside);
+        // Out from 01:00 instead: the run due inside is not reported, the first one after it is expected.
+        $from = CarbonImmutable::parse('2026-11-06T01:00:00Z');
+        $this->assertSame(1, $this->reanchor($inside, $from, $to));
+        [$outcome, $next] = $this->evaluate($inside);
         $this->assertNull($outcome);
         $this->assertSame('2026-11-06T01:52:00+00:00', $next->format(DATE_ATOM), 'polled every interval until 02:05:01');
+
+        // A run already reported down keeps its anchor.
+        $this->assertSame(0, $this->reanchor($reported, $from, $to));
+    }
+
+    private function reanchor(Monitor $monitor, CarbonImmutable $from, CarbonImmutable $to): int
+    {
+        return $this->app->make(DeadlineEvaluator::class)->reanchor([MonitorSpec::fromModel($monitor->fresh() ?? $monitor)], $from, $to);
     }
 
     private function moveTo(string $at): void
@@ -349,9 +358,9 @@ class CronMonitorTest extends TestCase
     /**
      * @return array{0: ?CheckOutcome, 1: CarbonImmutable}
      */
-    private function evaluate(Monitor $monitor, ?Availability $availability = null): array
+    private function evaluate(Monitor $monitor): array
     {
-        return $this->app->make(DeadlineEvaluator::class)->evaluate(MonitorSpec::fromModel($monitor->fresh() ?? $monitor), $this->clock->now(), $availability);
+        return $this->app->make(DeadlineEvaluator::class)->evaluate(MonitorSpec::fromModel($monitor->fresh() ?? $monitor), $this->clock->now());
     }
 
     private function record(Monitor $monitor, CheckOutcome $outcome): void

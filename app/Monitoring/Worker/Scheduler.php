@@ -12,8 +12,8 @@ use Amp\TimeoutCancellation;
 use App\Enums\MonitorStatus;
 use App\Enums\MonitorType;
 use App\Monitoring\Checks\CheckerRegistry;
-use App\Monitoring\Engine\Availability;
 use App\Monitoring\Engine\CheckOutcome;
+use App\Monitoring\Engine\Deadline;
 use App\Monitoring\Engine\DeadlineEvaluator;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\Transition;
@@ -34,10 +34,16 @@ use function Amp\async;
  * Nothing on the event loop may block on network I/O. The only blocking calls allowed are database calls
  * made by these collaborators:
  * - MonitorLoader: loading the shard and polling it for changes;
- * - OutcomeBuffer, through the ResultRecorder: writing outcomes;
+ * - OutcomeBuffer, through the ResultRecorder: writing outcomes, and the writes deferred to its flushes;
  * - Heartbeat: writing the worker's heartbeat row;
  * - DatabaseDeadlineEvaluator: reading the state rows of the push and cron monitors due in one tick, in
- *   one batched query (reads only).
+ *   one batched query; its re-anchoring writes run only as deferred writes of the OutcomeBuffer's flush.
+ *
+ * Push and cron deadlines that passed while this worker could not see reports, before it started or
+ * during a database outage (see OutageTracker), are re-anchored in the database: the anchor of each one
+ * without a recorded miss is moved to the end of that blind spot in one batched update at the next flush.
+ * Until that update has succeeded, outcomes for deadlines inside the window are held back and evaluated
+ * again later; afterwards evaluation reads the moved anchors, so no window has to be remembered.
  */
 final class Scheduler
 {
@@ -108,9 +114,13 @@ final class Scheduler
     private DeferredCancellation $abort;
 
     /**
-     * When this worker started evaluating. Deadlines that passed earlier count from this moment.
+     * Re-anchoring windows whose update has not succeeded yet, as [start or null, end] Unix timestamps.
+     *
+     * @var array<int, array{0: ?int, 1: int}>
      */
-    private ?CarbonImmutable $startedAt = null;
+    private array $pendingReanchors = [];
+
+    private int $reanchorSequence = 0;
 
     public function __construct(
         private readonly int $shard,
@@ -130,6 +140,14 @@ final class Scheduler
         $this->heap = new SplMinHeap;
         $this->wake = new DeferredCancellation;
         $this->abort = new DeferredCancellation;
+        $this->buffer->outages()->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to): void {
+            Log::warning('The database was unavailable; push and cron deadlines that fell due meanwhile are re-anchored.', [
+                'shard' => $this->shard,
+                'from' => $from->toIso8601ZuluString(),
+                'to' => $to->toIso8601ZuluString(),
+            ]);
+            $this->reanchor($from, $to);
+        });
     }
 
     /**
@@ -140,7 +158,8 @@ final class Scheduler
         if (! $this->load($stop)) {
             return;
         }
-        $this->startedAt = $this->clock->now();
+        // Reports that arrived before this worker started were never seen by it.
+        $this->reanchor(null, $this->clock->now());
 
         $flushStop = new DeferredCancellation;
         $flusher = async(fn () => $this->buffer->run($flushStop->getCancellation()));
@@ -203,6 +222,7 @@ final class Scheduler
     {
         while (! $stop->isRequested()) {
             $now = $this->timestamp();
+            /** @var array<int, float> $deadlines Due time per monitor. */
             $deadlines = [];
             while (! $this->heap->isEmpty()) {
                 [$due, $entry, $id] = $this->heap->top();
@@ -218,7 +238,7 @@ final class Scheduler
                 unset($this->entries[$id], $this->dueAt[$id]);
                 $spec = $this->specs[$id] ?? null;
                 if ($spec !== null && $this->mode($spec) === 'deadline') {
-                    $deadlines[] = $id;
+                    $deadlines[$id] = $due;
                 } else {
                     $this->launch($id, $due);
                 }
@@ -255,6 +275,9 @@ final class Scheduler
             try {
                 $this->apply($this->loader->changesSince($this->shard, $this->shards));
             } catch (Throwable $e) {
+                if (OutageTracker::isDatabaseError($e)) {
+                    $this->buffer->outages()->failed($this->clock->now());
+                }
                 Log::warning('Polling monitor changes failed; retrying on the next poll.', [
                     'shard' => $this->shard,
                     'exception' => $e::class,
@@ -265,14 +288,87 @@ final class Scheduler
 
     private function heartbeatLoop(Cancellation $stop): void
     {
+        $outages = $this->buffer->outages();
+
         while (true) {
-            $this->heartbeat->beat(count($this->specs), $this->buffer->count());
+            $error = $this->heartbeat->beat(count($this->specs), $this->buffer->count());
+            if ($error === null) {
+                $outages->writeSucceeded($this->clock->now());
+            } elseif (OutageTracker::isDatabaseError($error)) {
+                $outages->failed($this->clock->now());
+            }
+            if ($outages->failingSince() !== null) {
+                $this->expediteDeadlines();
+            }
             try {
                 $this->clock->sleep($this->heartbeatSeconds, $stop);
             } catch (CancelledException) {
                 return;
             }
         }
+    }
+
+    /**
+     * While the database is failing, evaluates every push and cron deadline within the retry delay, so a
+     * successful read that ends the failure follows soon even on a shard whose deadlines are far apart.
+     */
+    private function expediteDeadlines(): void
+    {
+        $soon = $this->timestamp() + self::DEADLINE_RETRY_SECONDS;
+        foreach ($this->specs as $id => $spec) {
+            if (! isset($this->busy[$id]) && ($this->dueAt[$id] ?? 0.0) > $soon && $this->mode($spec) === 'deadline') {
+                $this->schedule($id, $soon);
+            }
+        }
+    }
+
+    /**
+     * Re-anchors the deadlines of the shard that fell due in [$from, $to) at the next flush, retried with
+     * every flush until it succeeds. Outcomes for deadlines inside the window are held back until then.
+     */
+    private function reanchor(?CarbonImmutable $from, CarbonImmutable $to): void
+    {
+        $key = ++$this->reanchorSequence;
+        $this->pendingReanchors[$key] = [$from?->getTimestamp(), $to->getTimestamp()];
+
+        $this->buffer->defer(function () use ($key, $from, $to): void {
+            $specs = [];
+            foreach ($this->specs as $spec) {
+                if ($spec->type === MonitorType::Push || $spec->type === MonitorType::Cron) {
+                    $specs[] = $spec;
+                }
+            }
+            $moved = $specs === [] ? 0 : $this->deadlines->reanchor($specs, $from, $to);
+            unset($this->pendingReanchors[$key]);
+            if ($moved > 0) {
+                Log::info('Re-anchored push and cron deadlines the worker could not see.', [
+                    'shard' => $this->shard,
+                    'monitors' => $moved,
+                    'from' => $from?->toIso8601ZuluString(),
+                    'to' => $to->toIso8601ZuluString(),
+                ]);
+            }
+        });
+    }
+
+    /**
+     * Whether an outcome for this deadline must wait: the database is failing since before it, or it lies
+     * in a window whose re-anchoring has not been written yet.
+     */
+    private function withheld(Deadline $deadline): bool
+    {
+        $at = $deadline->at->getTimestamp();
+        $failingSince = $this->buffer->outages()->failingSince();
+        if ($failingSince !== null && $at >= $failingSince->getTimestamp()) {
+            return true;
+        }
+        foreach ($this->pendingReanchors as [$from, $to]) {
+            if ($at < $to && ($from === null || $at >= $from)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function apply(ShardChanges $changes): void
@@ -431,18 +527,18 @@ final class Scheduler
      * Evaluates the push and cron monitors that fell due in the same tick together, so their state is read
      * in one batch.
      *
-     * @param  list<int>  $ids
+     * @param  array<int, float>  $due  Due time per monitor.
      */
-    private function launchDeadlines(array $ids): void
+    private function launchDeadlines(array $due): void
     {
-        /** @var array<int, array{0: MonitorSpec, 1: int}> $batch */
+        /** @var array<int, array{0: MonitorSpec, 1: int, 2: float}> $batch */
         $batch = [];
-        foreach ($ids as $id) {
+        foreach ($due as $id => $at) {
             $spec = $this->specs[$id] ?? null;
             $generation = $this->generations[$id] ?? null;
             if ($spec !== null && $generation !== null) {
                 $this->busy[$id] = true;
-                $batch[$id] = [$spec, $generation];
+                $batch[$id] = [$spec, $generation, $at];
             }
         }
         if ($batch === []) {
@@ -468,26 +564,28 @@ final class Scheduler
     }
 
     /**
-     * @param  array<int, array{0: MonitorSpec, 1: int}>  $batch
+     * @param  array<int, array{0: MonitorSpec, 1: int, 2: float}>  $batch
      */
     private function evaluateDeadlines(array $batch): void
     {
         $now = $this->clock->now();
         $nowAt = $this->timestampOf($now);
         $specs = [];
-        foreach ($batch as [$spec]) {
+        $earliest = INF;
+        foreach ($batch as [$spec, , $due]) {
             $specs[] = $spec;
+            $earliest = min($earliest, $due);
         }
 
-        // Reads and writes share one outage tracker. An outage still going on counts up to now, so the first
-        // successful read after it already moves the deadlines that fell inside.
         $outages = $this->buffer->outages();
-        $window = $outages->windowAt($now);
-        $availability = new Availability($this->startedAt, $window[0] ?? null, $window[1] ?? null);
         try {
-            $results = $this->deadlines->evaluateMany($specs, $now, $availability);
+            $results = $this->deadlines->evaluateMany($specs, $now);
         } catch (Throwable $e) {
-            $outages->failed($now);
+            if (OutageTracker::isDatabaseError($e)) {
+                // A deadline is evaluated one second after it passed, so the failure covers the deadlines
+                // whose own read failed.
+                $outages->failed($now, CarbonImmutable::createFromTimestamp((int) floor($earliest) - 1, 'UTC'));
+            }
             // Without the state rows nothing is known, so nothing is recorded: a database outage never turns
             // into a missed heartbeat.
             Log::warning('Reading push and cron deadlines failed; retrying.', [
@@ -501,7 +599,7 @@ final class Scheduler
 
             return;
         }
-        $outages->succeeded($now);
+        $outages->readSucceeded($now);
 
         foreach ($batch as $id => [$spec, $generation]) {
             [$outcome, $next] = $results[$id] ?? [null, $now->addSeconds($spec->intervalSeconds)];
@@ -509,6 +607,12 @@ final class Scheduler
 
             if ($outcome === null || ! $this->isCurrent($id, $generation)) {
                 $this->release($id, $generation, $nextAt);
+
+                continue;
+            }
+            if ($outcome->deadline !== null && $this->withheld($outcome->deadline)) {
+                // Its reports may have been lost; it is evaluated again once the anchor has been moved.
+                $this->release($id, $generation, $nowAt + min($spec->intervalSeconds, self::DEADLINE_RETRY_SECONDS));
 
                 continue;
             }
