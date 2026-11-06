@@ -37,9 +37,9 @@ class ResolveWorkspace
             abort(404);
         }
 
-        $token = $user->authenticatedByToken() ? $user->currentAccessToken() : null;
+        $scoped = $user->scopedWorkspaceId();
 
-        if ($token !== null && $token->getAttribute('workspace_id') !== $workspace->id) {
+        if ($scoped !== null && $scoped !== (int) $workspace->id) {
             abort(404);
         }
 

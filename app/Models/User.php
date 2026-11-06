@@ -77,4 +77,18 @@ class User extends Authenticatable
     {
         return $this->accessToken !== null && ! $this->accessToken instanceof TransientToken;
     }
+
+    /**
+     * The workspace the current token is bound to: null for session requests, 0 for an unbound token.
+     */
+    public function scopedWorkspaceId(): ?int
+    {
+        if (! $this->accessToken instanceof PersonalAccessToken) {
+            return null;
+        }
+
+        $id = $this->accessToken->getAttribute('workspace_id');
+
+        return is_numeric($id) ? (int) $id : 0;
+    }
 }

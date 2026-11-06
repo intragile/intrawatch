@@ -20,7 +20,14 @@ class WorkspaceController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $data = $user->workspaces()->orderBy('workspaces.name')->get()
+        $scoped = $user->scopedWorkspaceId();
+        $query = $user->workspaces()->orderBy('workspaces.name');
+
+        if ($scoped !== null) {
+            $query->where('workspaces.id', $scoped);
+        }
+
+        $data = $query->get()
             ->map(function (Workspace $workspace): array {
                 /** @var Membership $pivot */
                 $pivot = $workspace->getRelation('pivot');
@@ -36,6 +43,7 @@ class WorkspaceController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+        abort_if($user->authenticatedByToken(), 403, 'API tokens cannot create workspaces.');
         $request->validate(['name' => ['required', 'string', 'max:120']]);
         $name = $request->string('name')->toString();
 

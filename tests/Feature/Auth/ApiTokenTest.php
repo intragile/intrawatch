@@ -109,7 +109,7 @@ class ApiTokenTest extends TestCase
     public function test_token_dies_with_membership(): void
     {
         $workspace = Workspace::factory()->create();
-        $owner = User::factory()->memberOf($workspace, WorkspaceRole::Owner)->create();
+        User::factory()->memberOf($workspace, WorkspaceRole::Owner)->create();
         $admin = User::factory()->memberOf($workspace, WorkspaceRole::Admin)->create();
         $token = $this->mint($admin, $workspace, ['workspace:read']);
 
@@ -118,7 +118,6 @@ class ApiTokenTest extends TestCase
         Membership::where('user_id', $admin->id)->delete();
 
         $this->asToken($token)->getJson($this->url($workspace, '/members'))->assertNotFound();
-        $this->assertTrue($owner->exists);
     }
 
     public function test_token_cannot_exceed_creators_current_role(): void
@@ -233,6 +232,74 @@ class ApiTokenTest extends TestCase
         $this->asToken($manager)
             ->postJson($this->url($workspace, '/members'), ['email' => $other->email, 'role' => 'viewer'])
             ->assertCreated();
+    }
+
+    public function test_token_cannot_create_workspaces(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $owner = User::factory()->memberOf($workspace, WorkspaceRole::Owner)->create();
+        $token = $this->mint($owner, $workspace, ['workspace:read', 'workspace:manage']);
+
+        $this->asToken($token)->postJson('/api/v1/workspaces', ['name' => 'Sneaky'])->assertForbidden();
+        $this->assertSame(1, Workspace::count());
+    }
+
+    public function test_token_lists_only_its_own_workspace(): void
+    {
+        $a = Workspace::factory()->create();
+        $b = Workspace::factory()->create();
+        $owner = User::factory()->memberOf($a, WorkspaceRole::Owner)->create();
+        $owner->workspaces()->attach($b, ['role' => 'owner']);
+        $token = $this->mint($owner, $a, ['workspace:read']);
+
+        $response = $this->asToken($token)->getJson('/api/v1/workspaces')->assertOk()->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.slug', $a->slug)->assertJsonPath('data.0.role', 'owner');
+
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($owner, 'sanctum')->withoutToken()->getJson('/api/v1/workspaces')->assertJsonCount(2, 'data');
+    }
+
+    public function test_token_me_is_reduced(): void
+    {
+        $a = Workspace::factory()->create();
+        $b = Workspace::factory()->create();
+        $owner = User::factory()->memberOf($a, WorkspaceRole::Owner)->create();
+        $owner->workspaces()->attach($b, ['role' => 'owner']);
+        $token = $this->mint($owner, $a, ['workspace:read']);
+
+        $response = $this->asToken($token)->getJson('/api/v1/me')->assertOk();
+
+        $response->assertJsonPath('data.id', $owner->id)
+            ->assertJsonCount(1, 'data.workspaces')
+            ->assertJsonPath('data.workspaces.0.slug', $a->slug)
+            ->assertJsonPath('data.token.name', 'ci')
+            ->assertJsonPath('data.token.abilities', ['workspace:read'])
+            ->assertJsonPath('data.token.expires_at', null)
+            ->assertJsonMissingPath('data.email')
+            ->assertJsonMissingPath('data.two_factor_enabled');
+        $this->assertStringNotContainsString($owner->email, (string) $response->getContent());
+    }
+
+    public function test_default_user_route_is_gone(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $owner = User::factory()->memberOf($workspace, WorkspaceRole::Owner)->create();
+        $token = $this->mint($owner, $workspace, ['workspace:read']);
+
+        $this->asToken($token)->getJson('/api/user')->assertNotFound();
+    }
+
+    public function test_only_a_hash_of_the_token_is_stored(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $owner = User::factory()->memberOf($workspace, WorkspaceRole::Owner)->create();
+        $plain = $this->mint($owner, $workspace, ['workspace:read']);
+        $secret = explode('|', $plain, 2)[1];
+
+        $stored = PersonalAccessToken::query()->value('token');
+        $this->assertIsString($stored);
+        $this->assertNotSame($secret, $stored);
+        $this->assertSame(hash('sha256', $secret), $stored);
     }
 
     public function test_every_ability_declares_a_minimum_role(): void
