@@ -42,8 +42,12 @@ use function Amp\async;
  * Push and cron deadlines that passed while this worker could not see reports, before it started or
  * during a database outage (see OutageTracker), are re-anchored in the database: the anchor of each one
  * without a recorded miss is moved to the end of that blind spot in one batched update at the next flush.
- * Until that update has succeeded, outcomes for deadlines inside the window are held back and evaluated
- * again later; afterwards evaluation reads the moved anchors, so no window has to be remembered.
+ * Until that update has succeeded or been dropped, outcomes for deadlines inside the window are held back
+ * and evaluated again later; afterwards evaluation reads the moved anchors, so no window has to be remembered.
+ * While a failure goes on, deadlines due since it started are held back too, for at most
+ * OutageTracker::MAX_HOLD_SECONDS; after that they are evaluated and recorded as usual. Only deadline reads and
+ * outcome writes count as failures; heartbeat and poll errors are logged, so a query that keeps failing there
+ * never holds back a down.
  */
 final class Scheduler
 {
@@ -140,11 +144,12 @@ final class Scheduler
         $this->heap = new SplMinHeap;
         $this->wake = new DeferredCancellation;
         $this->abort = new DeferredCancellation;
-        $this->buffer->outages()->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to): void {
+        $this->buffer->outages()->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $end): void {
             Log::warning('The database was unavailable; push and cron deadlines that fell due meanwhile are re-anchored.', [
                 'shard' => $this->shard,
                 'from' => $from->toIso8601ZuluString(),
                 'to' => $to->toIso8601ZuluString(),
+                'ended' => $end->toIso8601ZuluString(),
             ]);
             $this->reanchor($from, $to);
         });
@@ -275,9 +280,6 @@ final class Scheduler
             try {
                 $this->apply($this->loader->changesSince($this->shard, $this->shards));
             } catch (Throwable $e) {
-                if (OutageTracker::isDatabaseError($e)) {
-                    $this->buffer->outages()->failed($this->clock->now());
-                }
                 Log::warning('Polling monitor changes failed; retrying on the next poll.', [
                     'shard' => $this->shard,
                     'exception' => $e::class,
@@ -291,11 +293,10 @@ final class Scheduler
         $outages = $this->buffer->outages();
 
         while (true) {
-            $error = $this->heartbeat->beat(count($this->specs), $this->buffer->count());
-            if ($error === null) {
+            // A heartbeat that was written proves writes work, which can end a failure on a shard whose outcomes
+            // are all held back. A failed one is logged by the heartbeat and holds nothing back.
+            if ($this->heartbeat->beat(count($this->specs), $this->buffer->count()) === null) {
                 $outages->writeSucceeded($this->clock->now());
-            } elseif (OutageTracker::isDatabaseError($error)) {
-                $outages->failed($this->clock->now());
             }
             if ($outages->failingSince() !== null) {
                 $this->expediteDeadlines();
@@ -324,7 +325,8 @@ final class Scheduler
 
     /**
      * Re-anchors the deadlines of the shard that fell due in [$from, $to) at the next flush, retried with
-     * every flush until it succeeds. Outcomes for deadlines inside the window are held back until then.
+     * every flush until it succeeds or is dropped. Outcomes for deadlines inside the window are held back until
+     * then.
      */
     private function reanchor(?CarbonImmutable $from, CarbonImmutable $to): void
     {
@@ -348,18 +350,20 @@ final class Scheduler
                     'to' => $to->toIso8601ZuluString(),
                 ]);
             }
+        }, function () use ($key): void {
+            unset($this->pendingReanchors[$key]);
         });
     }
 
     /**
-     * Whether an outcome for this deadline must wait: the database is failing since before it, or it lies
-     * in a window whose re-anchoring has not been written yet.
+     * Whether an outcome for this deadline must wait: the database is failing since before it, for less than
+     * OutageTracker::MAX_HOLD_SECONDS so far, or it lies in a window whose re-anchoring is still pending.
      */
-    private function withheld(Deadline $deadline): bool
+    private function withheld(Deadline $deadline, CarbonImmutable $now): bool
     {
         $at = $deadline->at->getTimestamp();
-        $failingSince = $this->buffer->outages()->failingSince();
-        if ($failingSince !== null && $at >= $failingSince->getTimestamp()) {
+        $holdingSince = $this->buffer->outages()->holdingSince($now);
+        if ($holdingSince !== null && $at >= $holdingSince->getTimestamp()) {
             return true;
         }
         foreach ($this->pendingReanchors as [$from, $to]) {
@@ -584,7 +588,7 @@ final class Scheduler
             if (OutageTracker::isDatabaseError($e)) {
                 // A deadline is evaluated one second after it passed, so the failure covers the deadlines
                 // whose own read failed.
-                $outages->failed($now, CarbonImmutable::createFromTimestamp((int) floor($earliest) - 1, 'UTC'));
+                $outages->readFailed($now, CarbonImmutable::createFromTimestamp((int) floor($earliest) - 1, 'UTC'));
             }
             // Without the state rows nothing is known, so nothing is recorded: a database outage never turns
             // into a missed heartbeat.
@@ -610,7 +614,7 @@ final class Scheduler
 
                 continue;
             }
-            if ($outcome->deadline !== null && $this->withheld($outcome->deadline)) {
+            if ($outcome->deadline !== null && $this->withheld($outcome->deadline, $now)) {
                 // Its reports may have been lost; it is evaluated again once the anchor has been moved.
                 $this->release($id, $generation, $nowAt + min($spec->intervalSeconds, self::DEADLINE_RETRY_SECONDS));
 

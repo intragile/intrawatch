@@ -30,9 +30,13 @@ use Throwable;
  * (or it is dropped), with a null transition. The early call lets the scheduler keep checking during an
  * outage while the outcome itself stays queued.
  *
- * Writes deferred with defer() run at the start of each flush, before any outcome, and stay pending until
- * they succeed. The scheduler uses them to re-anchor deadlines after an outage, so the outcomes buffered
- * meanwhile are recorded against the moved deadlines.
+ * While deadlines are held back during a database failure (see OutageTracker::holdingSince()), queued outcomes
+ * for deadlines due since the failure started are not written but handed back to the scheduler, which
+ * evaluates them again: the reports they rely on may have been lost.
+ *
+ * Writes deferred with defer() run after the outcomes of each successful flush, so they never block them. A
+ * failed one is retried with the next flush; after MAX_DEFERRED_ATTEMPTS failed attempts it is dropped and
+ * logged. The scheduler uses them to re-anchor deadlines after an outage.
  *
  * ChecksRecorded is broadcast from here rather than by the recorder, at most once per workspace per
  * broadcast interval, carrying the latest check of each monitor since the previous broadcast.
@@ -50,6 +54,12 @@ final class OutcomeBuffer
     private const ISOLATE_AFTER_FAILURES = 3;
 
     /**
+     * Failed attempts after which a deferred write is dropped, so a write that cannot succeed does not stay
+     * pending forever.
+     */
+    private const MAX_DEFERRED_ATTEMPTS = 10;
+
+    /**
      * Queued outcomes in arrival order, with the callback that learns the monitor's transition.
      *
      * @var array<int, array{item: array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}, done: Closure(?Transition): void, notified: bool}>
@@ -63,7 +73,11 @@ final class OutcomeBuffer
 
     private readonly OutageTracker $outages;
 
-    /** @var array<int, Closure(): void> Writes waiting for the next flush, in the order they were deferred. */
+    /**
+     * Writes waiting for the next flush, in the order they were deferred.
+     *
+     * @var array<int, array{write: Closure(): void, dropped: ?Closure(): void, attempts: int}>
+     */
     private array $deferred = [];
 
     private int $deferredSequence = 0;
@@ -139,19 +153,22 @@ final class OutcomeBuffer
     }
 
     /**
-     * Runs $write at the start of the next flush, and again at each flush after that until it succeeds. It
-     * must be idempotent: a write whose commit was lost on the way may run twice.
+     * Runs $write after the outcomes of the next successful flush, and again with each flush after that until
+     * it succeeds or has failed MAX_DEFERRED_ATTEMPTS times; then it is dropped and $dropped is called. It must
+     * be idempotent: a write whose commit was lost on the way may run twice.
      *
      * @param  Closure(): void  $write
+     * @param  ?Closure(): void  $dropped
      */
-    public function defer(Closure $write): void
+    public function defer(Closure $write, ?Closure $dropped = null): void
     {
-        $this->deferred[++$this->deferredSequence] = $write;
+        $this->deferred[++$this->deferredSequence] = ['write' => $write, 'dropped' => $dropped, 'attempts' => 0];
         $this->wake->cancel();
     }
 
     /**
-     * Failures and successes of the writes, which tell an outage of the database from a transient error.
+     * The tracker of database failures, shared with the scheduler: this buffer reports its outcome writes, the
+     * scheduler its deadline reads and heartbeat writes.
      */
     public function outages(): OutageTracker
     {
@@ -206,11 +223,8 @@ final class OutcomeBuffer
     public function flush(): bool
     {
         $this->logDropped();
-        $wrote = $this->queue !== [] || $this->deferred !== [];
-
-        if (! $this->runDeferred()) {
-            return $this->markFailing();
-        }
+        $this->handBackHeld();
+        $wrote = $this->queue !== [];
 
         while ($this->queue !== []) {
             $keys = array_slice(array_keys($this->queue), 0, $this->batchSize);
@@ -220,7 +234,7 @@ final class OutcomeBuffer
             } catch (Throwable $e) {
                 $this->failed($e, count($keys));
                 if (OutageTracker::isDatabaseError($e)) {
-                    $this->outages->failed($this->clock->now(), $this->earliestDeadline($keys));
+                    $this->outages->writeFailed($this->clock->now(), $this->earliestDeadline($keys));
                 }
                 if (OutageTracker::isDatabaseError($e) || ! $this->countBatchFailure($keys[0])) {
                     return $this->markFailing();
@@ -242,6 +256,7 @@ final class OutcomeBuffer
         $this->failing = false;
         $this->failingBatch = null;
         $this->batchFailures = 0;
+        $this->runDeferred();
 
         return true;
     }
@@ -359,7 +374,7 @@ final class OutcomeBuffer
             } catch (Throwable $e) {
                 if (OutageTracker::isDatabaseError($e)) {
                     $this->failed($e, 1);
-                    $this->outages->failed($this->clock->now(), $this->earliestDeadline([$key]));
+                    $this->outages->writeFailed($this->clock->now(), $this->earliestDeadline([$key]));
 
                     return false;
                 }
@@ -398,27 +413,72 @@ final class OutcomeBuffer
     }
 
     /**
-     * Runs the deferred writes in order and drops each one that succeeded.
-     *
-     * @return bool False when one failed; it and the ones after it stay pending.
+     * Hands the queued outcomes of deadlines due since the start of a database failure back to the scheduler
+     * instead of writing them, while deadlines are held back.
      */
-    private function runDeferred(): bool
+    private function handBackHeld(): void
     {
-        foreach ($this->deferred as $key => $write) {
+        $since = $this->outages->holdingSince($this->clock->now());
+        if ($since === null) {
+            return;
+        }
+
+        foreach ($this->queue as $key => $entry) {
+            $deadline = $entry['item'][1]->deadline?->at;
+            if ($deadline !== null && $deadline->getTimestamp() >= $since->getTimestamp()) {
+                $this->release($key, null);
+                unset($this->queue[$key]);
+            }
+        }
+    }
+
+    /**
+     * Runs the deferred writes in order and drops each one that succeeded. The first one that fails stops
+     * the run: it and the ones after it are tried again with the next flush, unless it has now failed
+     * MAX_DEFERRED_ATTEMPTS times, in which case it is dropped.
+     */
+    private function runDeferred(): void
+    {
+        foreach ($this->deferred as $key => $deferred) {
             try {
-                $write();
+                ($deferred['write'])();
             } catch (Throwable $e) {
-                $this->failed($e, 0);
-                if (OutageTracker::isDatabaseError($e)) {
-                    $this->outages->failed($this->clock->now());
+                $attempts = $deferred['attempts'] + 1;
+                $this->deferred[$key]['attempts'] = $attempts;
+                $this->deferredFailed($e, $attempts);
+                if ($attempts < self::MAX_DEFERRED_ATTEMPTS) {
+                    return;
                 }
 
-                return false;
+                unset($this->deferred[$key]);
+                Log::error('Dropped a deferred database write after '.self::MAX_DEFERRED_ATTEMPTS.' failed attempts.', [
+                    'exception' => $e::class,
+                ]);
+                try {
+                    ($deferred['dropped'] ?? static fn () => null)();
+                } catch (Throwable $callbackError) {
+                    Log::error('A dropped deferred write callback failed.', ['exception' => $callbackError::class]);
+                }
+
+                continue;
             }
             unset($this->deferred[$key]);
         }
+    }
 
-        return true;
+    private function deferredFailed(Throwable $e, int $attempts): void
+    {
+        $database = OutageTracker::isDatabaseError($e);
+
+        Log::log($database ? 'warning' : 'error', 'A deferred database write failed; it is retried with the next flush.', [
+            'exception' => $e::class,
+            'message' => $database ? mb_substr($e->getMessage(), 0, self::MESSAGE_LOG_LENGTH) : null,
+            'attempt' => $attempts,
+        ]);
+
+        if ($database) {
+            $this->reconnectQuietly();
+        }
     }
 
     /**
@@ -451,10 +511,13 @@ final class OutcomeBuffer
             'buffered' => count($this->queue),
         ]);
 
-        if (! $database) {
-            return;
+        if ($database) {
+            $this->reconnectQuietly();
         }
+    }
 
+    private function reconnectQuietly(): void
+    {
         try {
             ($this->reconnect)();
         } catch (Throwable $reconnectError) {
