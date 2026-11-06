@@ -121,7 +121,8 @@ class MonitorHistoryApiTest extends TestCase
             ->assertJsonPath('data.1.status', 'down');
         $this->actingAs($this->viewer)->getJson($this->url('results?status=down'))
             ->assertOk()->assertJsonCount(1, 'data');
-        $this->actingAs($this->viewer)->getJson($this->url('results?status=bogus'))->assertUnprocessable();
+        $this->actingAs($this->viewer)->getJson($this->url('results?status=bogus'))
+            ->assertUnprocessable()->assertHeader('Content-Type', 'application/problem+json');
         $this->actingAs($this->viewer)->getJson($this->url('results?from=yesterday-ish'))->assertUnprocessable();
 
         // Rollups: oldest first, with availability.
@@ -143,12 +144,15 @@ class MonitorHistoryApiTest extends TestCase
         $this->actingAs($this->viewer)
             ->getJson($this->url('rollups?bucket=minute&from='.urlencode($this->base->addMinutes(3)->toIso8601String())))
             ->assertOk()->assertJsonCount(2, 'data');
-        $this->actingAs($this->viewer)->getJson($this->url('rollups?bucket=week'))->assertUnprocessable();
+        $this->actingAs($this->viewer)->getJson($this->url('rollups?bucket=week'))
+            ->assertUnprocessable()->assertHeader('Content-Type', 'application/problem+json');
         $this->actingAs($this->viewer)->getJson($this->url('rollups'))->assertUnprocessable();
 
         // Events: newest first, filterable by kind.
         $events = $this->allPages($this->url('events'));
         $this->assertSame(['Event 4', 'Event 3', 'Event 2', 'Event 1', 'Event 0'], array_column($events, 'message'));
+        $this->actingAs($this->viewer)->getJson($this->url('events?kind=bogus'))
+            ->assertUnprocessable()->assertHeader('Content-Type', 'application/problem+json');
         $this->actingAs($this->viewer)->getJson($this->url('events?kind=changed'))
             ->assertOk()->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.message', 'Event 3');
@@ -161,6 +165,37 @@ class MonitorHistoryApiTest extends TestCase
             $this->assertCrossWorkspaceNotFound($actor, 'GET', $this->url($path, $foreignMonitor, $own));
             $this->assertCrossWorkspaceNotFound($actor, 'GET', $this->url($path, $foreignMonitor, $foreign));
         }
+    }
+
+    public function test_time_windows_must_be_iso_8601_and_ordered(): void
+    {
+        $from = urlencode($this->base->toIso8601String());
+        $to = urlencode($this->base->subHour()->toIso8601String());
+        foreach (['results?', 'rollups?bucket=hour&'] as $path) {
+            foreach (['from=yesterday', 'to=%2B1%20week', 'from=now', "from={$from}&to={$to}", "from={$from}&to={$from}"] as $query) {
+                $this->actingAs($this->viewer)->getJson($this->url($path.$query))
+                    ->assertUnprocessable()
+                    ->assertHeader('Content-Type', 'application/problem+json');
+            }
+            foreach (['from=2026-03-10T10:00:00Z', 'from=2026-03-10T10:00:00%2B01:00', 'from=2026-03-10T10:00:00.123Z', 'from=2026-03-10'] as $query) {
+                $this->actingAs($this->viewer)->getJson($this->url($path.$query))->assertOk();
+            }
+        }
+    }
+
+    public function test_results_with_equal_timestamps_page_without_gaps_or_repeats(): void
+    {
+        $ids = [];
+        for ($i = 0; $i < 5; $i++) {
+            $ids[] = DB::table('check_results')->insertGetId([
+                'monitor_id' => $this->monitor->id, 'status' => 'up', 'latency_ms' => 1,
+                'checked_at' => $this->base->format('Y-m-d H:i:s'), 'bucket_minute' => $this->base->getTimestamp(),
+            ]);
+        }
+
+        $results = $this->allPages($this->url('results'));
+
+        $this->assertSame(array_reverse($ids), array_column($results, 'id'));
     }
 
     public function test_history_needs_monitors_read_ability(): void

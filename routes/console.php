@@ -14,5 +14,6 @@ Schedule::command('intrawatch:rdap:refresh')->weekly();
 // The lock expires after ten minutes, so a crashed run cannot block rollups for long.
 Schedule::command('intrawatch:rollup')->everyMinute()->withoutOverlapping(10)->onOneServer();
 
-// Hourly pruning keeps each run small; deletes are chunked and paced.
-Schedule::command('intrawatch:prune')->hourlyAt(30)->withoutOverlapping(60)->onOneServer();
+// Hourly pruning keeps each run small; deletes are chunked and paced. The first prune of a large backlog can
+// take longer than an hour, so its lock outlives the next two slots.
+Schedule::command('intrawatch:prune')->hourlyAt(30)->withoutOverlapping(180)->onOneServer();

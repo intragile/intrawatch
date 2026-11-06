@@ -5,87 +5,220 @@ namespace App\Monitoring\Engine;
 use App\Models\CheckRollup;
 use App\Models\Workspace;
 use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Cache\Repository as Cache;
+use Closure;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Aggregates raw check results into minute rollups, minute rollups into hour rollups, and both into day rollups
- * per workspace-local day. Every level is recomputed from the level below and upserted, so a run is idempotent
- * and late results are absorbed by the next run that covers their minute.
+ * per workspace-local day. Every level is recomputed from the level below, and only rows whose values changed
+ * are written, so a run is idempotent and cheap when nothing changed.
  *
- * Load profile: a run touches about six minutes of raw rows (one minute per query), the hours those minutes
- * belong to, and the local days of the workspaces involved. All aggregation happens in SQL; PHP only sees one
- * aggregated row per monitor and bucket.
+ * Two cursors decide what is recomputed:
+ * - a time watermark: every run re-aggregates the minutes in [watermark - LOOKBACK, now - 1 min);
+ * - a result id watermark: results inserted since the last run whose minute lies before that window (outcomes a
+ *   worker buffered during a database outage and flushed later) mark their minutes for recomputation.
+ *
+ * Load profile: a run touches about six minutes of raw rows (one minute per query), the minutes of at most
+ * `monitoring.rollups.late_id_batch` newly inserted results, the hours those minutes belong to, and the local
+ * days of the workspaces involved. All aggregation happens in SQL; PHP only sees one aggregated row per monitor
+ * and bucket.
  */
 final class RollupBuilder
 {
     public const WATERMARK_KEY = 'rollup:watermark';
 
-    /** Seconds before the watermark that every run re-aggregates, to absorb late results. */
+    public const LAST_ID_KEY = 'rollup:last_id';
+
+    /** Held by every rollup run and by day rebuilds, so a run never writes days of a timezone being replaced. */
+    public const LOCK_KEY = 'rollup:build';
+
+    /** Seconds before the watermark that every run re-aggregates, to absorb results committed slightly late. */
     public const LOOKBACK = 300;
 
     /** Most seconds of minute buckets a single run aggregates; a longer backlog is worked off over several runs. */
     public const MAX_CATCH_UP = 3600;
 
+    /** Seconds a rebuild waits for a running rollup to finish before it gives up. */
+    private const REBUILD_WAIT = 600;
+
+    /** The longest possible local day (a day that ends daylight saving time). */
+    private const LONGEST_DAY = 90000;
+
     private const UPSERT_CHUNK = 500;
 
     private const COUNTERS = ['total', 'up', 'down', 'degraded', 'pending', 'maintenance'];
 
-    public function __construct(private readonly Cache $cache) {}
+    private const VALUES = [...self::COUNTERS, 'latency_min', 'latency_max', 'latency_avg', 'latency_sum', 'latency_count'];
+
+    public function __construct(private readonly CacheRepository $cache) {}
 
     /**
-     * Aggregate the minute buckets in [watermark - LOOKBACK, now - 1 min), the hours they belong to and the
-     * workspace-local days those hours touch, then advance the watermark.
+     * Aggregate the minute buckets in [watermark - LOOKBACK, now - 1 min) and the minutes of late results, the
+     * hours they belong to and the workspace-local days those hours touch, then advance both watermarks. A run is
+     * skipped while a day rebuild holds the lock; the next run catches up.
      */
     public function run(CarbonImmutable $now): void
     {
+        $lock = Cache::lock(self::LOCK_KEY, 600);
+        if (! $lock->get()) {
+            return;
+        }
+
+        try {
+            $this->build($now);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Rebuild the day rollups of a workspace for its current timezone from the rollups still retained. Days whose
+     * minute rows are retained are exact; older days are summed from hour rows, which is exact for whole-hour
+     * offsets and approximate (shifted by the sub-hour part of the offset) for offsets such as +05:30.
+     *
+     * Each local day is replaced in its own transaction: the new row is written and the old-timezone rows that
+     * start inside that day are deleted together, so an interrupted rebuild never leaves overlapping day rows.
+     * Day rows older than the retained hour rows keep the boundaries of the timezone they were built in; the one
+     * old row that would overlap the first rebuilt day is dropped.
+     */
+    public function rebuildDays(Workspace $workspace): void
+    {
+        Cache::lock(self::LOCK_KEY, self::REBUILD_WAIT + 360)->block(self::REBUILD_WAIT, function () use ($workspace): void {
+            $this->rebuild($workspace);
+        });
+    }
+
+    private function build(CarbonImmutable $now): void
+    {
         // Minute buckets that start before now - 60 s.
         $end = intdiv($now->getTimestamp() - 60 + 59, 60) * 60;
+        $maxId = self::nullableInt(DB::table('check_results')->max('id')) ?? 0;
 
         $oldestRaw = self::nullableInt(DB::table('check_results')->min('bucket_minute'));
         if ($oldestRaw === null) {
             $this->cache->forever(self::WATERMARK_KEY, $end);
+            $this->cache->forever(self::LAST_ID_KEY, $maxId);
 
             return;
         }
 
         $start = max($this->resumePoint($oldestRaw), $oldestRaw);
         $end = min($end, $start + self::MAX_CATCH_UP);
-        if ($start >= $end) {
-            return;
-        }
 
-        $monitorIds = [];
+        /** @var array<int, array<int, true>> $touched hour => monitor ids */
+        $touched = [];
+        /** @var array<int, true> $fullHours hours that are rebuilt for every monitor */
+        $fullHours = [];
+
         for ($minute = $start; $minute < $end; $minute += 60) {
+            $hour = $minute - $minute % 3600;
             foreach ($this->buildMinute($minute) as $monitorId) {
-                $monitorIds[$monitorId] = true;
+                $touched[$hour][$monitorId] = true;
+                $fullHours[$hour] = true;
             }
         }
 
-        $firstHour = $start - $start % 3600;
-        $lastHourEnd = ($end - 1) - ($end - 1) % 3600 + 3600;
-        for ($hour = $firstHour; $hour < $lastHourEnd; $hour += 3600) {
-            $this->buildHour($hour);
-        }
-
-        $minuteCutoff = $now->getTimestamp() - $this->minuteRetentionSeconds();
-        foreach ($this->workspacesOf(array_keys($monitorIds)) as $workspaceId => $timezone) {
-            foreach ($this->localDays($timezone, $firstHour, $lastHourEnd) as [$dayStart, $dayEnd]) {
-                $this->buildDay($workspaceId, $dayStart, $dayEnd, $dayStart >= $minuteCutoff);
+        $lastId = $this->lateMinutes($now, $start, $maxId, function (int $minute, array $monitorIds) use (&$touched): void {
+            $hour = $minute - $minute % 3600;
+            foreach ($this->buildMinute($minute, $monitorIds) as $monitorId) {
+                $touched[$hour][$monitorId] = true;
             }
+        });
+
+        ksort($touched);
+        foreach ($touched as $hour => $monitorIds) {
+            $this->buildHour($hour, isset($fullHours[$hour]) ? null : array_keys($monitorIds));
         }
 
-        $this->cache->forever(self::WATERMARK_KEY, $end);
+        $this->buildTouchedDays($now, $touched);
+
+        if ($start < $end) {
+            $this->cache->forever(self::WATERMARK_KEY, $end);
+        }
+        $this->cache->forever(self::LAST_ID_KEY, $lastId);
     }
 
     /**
-     * Rebuild the day rollups of a workspace for its current timezone from the rollups still retained. Days whose
-     * minute rows are retained are exact; older days are summed from hour rows, which is exact for whole-hour
-     * offsets and approximate (shifted by the sub-hour part of the offset) for offsets such as +05:30. Day rows
-     * older than the retained hour rows keep the boundaries of the timezone they were built in.
+     * Feed the minutes of results inserted since the last run that lie before the regular window to $build, at
+     * most `monitoring.rollups.late_id_batch` result ids per run. Minutes old enough to be partly pruned are
+     * skipped. When the id watermark is missing it starts at the newest result.
+     *
+     * @param  Closure(int, list<int>): void  $build  Receives a minute and the monitors to recompute in it.
+     * @return int The new id watermark.
      */
-    public function rebuildDays(Workspace $workspace): void
+    private function lateMinutes(CarbonImmutable $now, int $windowStart, int $maxId, Closure $build): int
+    {
+        $lastId = $this->cache->get(self::LAST_ID_KEY);
+        if (! is_numeric($lastId)) {
+            return $maxId;
+        }
+
+        $upTo = min($maxId, (int) $lastId + max(1, config()->integer('monitoring.rollups.late_id_batch', 50000)));
+        if ($upTo <= (int) $lastId) {
+            return max((int) $lastId, $maxId);
+        }
+
+        $rawCutoff = $now->getTimestamp() - config()->integer('monitoring.retention.raw_hours', 24) * 3600;
+        $pairs = DB::table('check_results')
+            ->where('id', '>', (int) $lastId)
+            ->where('id', '<=', $upTo)
+            ->where('bucket_minute', '<', $windowStart)
+            ->where('bucket_minute', '>', $rawCutoff - $rawCutoff % 60)
+            ->distinct()
+            ->get(['monitor_id', 'bucket_minute']);
+
+        $minutes = [];
+        foreach ($pairs as $pair) {
+            $minutes[self::int($pair->bucket_minute)][self::int($pair->monitor_id)] = true;
+        }
+        ksort($minutes);
+        foreach ($minutes as $minute => $monitorIds) {
+            $build($minute, array_keys($monitorIds));
+        }
+
+        return $upTo;
+    }
+
+    /**
+     * @param  array<int, array<int, true>>  $touched  hour => monitor ids
+     */
+    private function buildTouchedDays(CarbonImmutable $now, array $touched): void
+    {
+        $monitorIds = [];
+        foreach ($touched as $ids) {
+            $monitorIds += $ids;
+        }
+        $workspaceOf = $this->workspacesOfMonitors(array_keys($monitorIds));
+
+        /** @var array<int, array<int, true>> $workspaceHours */
+        $workspaceHours = [];
+        foreach ($touched as $hour => $ids) {
+            foreach (array_keys($ids) as $monitorId) {
+                if (isset($workspaceOf[$monitorId])) {
+                    $workspaceHours[$workspaceOf[$monitorId]][$hour] = true;
+                }
+            }
+        }
+
+        $minuteCutoff = $now->getTimestamp() - $this->minuteRetentionSeconds();
+        foreach ($this->timezones(array_keys($workspaceHours)) as $workspaceId => $timezone) {
+            $days = [];
+            foreach (array_keys($workspaceHours[$workspaceId]) as $hour) {
+                foreach ($this->localDays($timezone, $hour, $hour + 3600) as [$dayStart, $dayEnd]) {
+                    $days[$dayStart] = $dayEnd;
+                }
+            }
+            ksort($days);
+            foreach ($days as $dayStart => $dayEnd) {
+                $this->buildDay($workspaceId, $dayStart, $dayEnd, $dayStart >= $minuteCutoff);
+            }
+        }
+    }
+
+    private function rebuild(Workspace $workspace): void
     {
         $now = CarbonImmutable::now();
         $timezone = $workspace->timezone;
@@ -105,27 +238,57 @@ final class RollupBuilder
         }
 
         $minuteCutoff = $now->getTimestamp() - $this->minuteRetentionSeconds();
-        $starts = [];
         foreach ($this->localDays($timezone, $firstDay, $now->getTimestamp()) as [$dayStart, $dayEnd]) {
-            $this->buildDay($workspace->id, $dayStart, $dayEnd, $dayStart >= $minuteCutoff);
-            $starts[] = $dayStart;
-        }
-
-        // Day rows of the old timezone inside the rebuilt range no longer match a local day.
-        $monitorIds = DB::table('monitors')->where('workspace_id', $workspace->id)->orderBy('id')->pluck('id');
-        foreach ($monitorIds->chunk(self::UPSERT_CHUNK) as $chunk) {
-            DB::table('check_rollups')
-                ->whereIn('monitor_id', $chunk->values()->all())
-                ->where('bucket', CheckRollup::BUCKET_DAY)
-                ->where('bucket_start', '>=', $firstDay)
-                ->when($starts !== [], fn (Builder $q) => $q->whereNotIn('bucket_start', $starts))
-                ->delete();
+            DB::transaction(function () use ($workspace, $timezone, $firstDay, $dayStart, $dayEnd, $minuteCutoff): void {
+                $this->buildDay($workspace->id, $dayStart, $dayEnd, $dayStart >= $minuteCutoff);
+                if ($dayStart === $firstDay) {
+                    $this->dropStraddlingDays($workspace->id, $timezone, $firstDay);
+                }
+                $this->dayRows($workspace->id)
+                    ->where('bucket_start', '>', $dayStart)
+                    ->where('bucket_start', '<', $dayEnd)
+                    ->delete();
+            });
         }
     }
 
     /**
-     * Where the next run starts: shortly before the stored watermark, or, when the watermark was lost, at the
-     * newest minute rollup, or at the oldest raw result when no minute rollup exists.
+     * Delete old-timezone day rows that start before the first rebuilt day but may reach into it. Rows that start
+     * on a local midnight of the current timezone are current and stay.
+     */
+    private function dropStraddlingDays(int $workspaceId, string $timezone, int $firstDay): void
+    {
+        $starts = $this->dayRows($workspaceId)
+            ->where('bucket_start', '>', $firstDay - self::LONGEST_DAY)
+            ->where('bucket_start', '<', $firstDay)
+            ->distinct()
+            ->pluck('bucket_start');
+
+        $stale = [];
+        foreach ($starts as $start) {
+            $start = self::int($start);
+            if ($this->dayStart($timezone, $start) !== $start) {
+                $stale[] = $start;
+            }
+        }
+        if ($stale !== []) {
+            $this->dayRows($workspaceId)->whereIn('bucket_start', $stale)->delete();
+        }
+    }
+
+    /**
+     * Day rollups of the monitors of one workspace.
+     */
+    private function dayRows(int $workspaceId): Builder
+    {
+        return DB::table('check_rollups')
+            ->where('bucket', CheckRollup::BUCKET_DAY)
+            ->whereIn('monitor_id', fn (Builder $q) => $q->select('id')->from('monitors')->where('workspace_id', $workspaceId));
+    }
+
+    /**
+     * Where the next run starts: shortly before the stored watermark, or, when the watermark was lost, shortly
+     * before the newest minute rollup, or at the oldest raw result when no minute rollup exists.
      */
     private function resumePoint(int $oldestRaw): int
     {
@@ -134,65 +297,81 @@ final class RollupBuilder
             return (int) $watermark - self::LOOKBACK;
         }
 
-        return self::nullableInt(DB::table('check_rollups')->where('bucket', CheckRollup::BUCKET_MINUTE)->max('bucket_start'))
-            ?? $oldestRaw;
+        $newest = self::nullableInt(DB::table('check_rollups')->where('bucket', CheckRollup::BUCKET_MINUTE)->max('bucket_start'));
+
+        return $newest !== null ? $newest - self::LOOKBACK : $oldestRaw;
     }
 
     /**
+     * Recompute one minute, for every monitor or for the given ones. Results of monitors that no longer exist
+     * are ignored, so a purge running concurrently cannot leave orphan rollups behind.
+     *
+     * @param  list<int>|null  $monitorIds
      * @return list<int> The monitors that have results in this minute.
      */
-    private function buildMinute(int $minute): array
+    private function buildMinute(int $minute, ?array $monitorIds = null): array
     {
-        $rows = DB::table('check_results')
-            ->where('bucket_minute', $minute)
-            ->groupBy('monitor_id')
-            ->select('monitor_id')
-            ->selectRaw('count(*) as total')
-            ->selectRaw("sum(case when status = 'up' then 1 else 0 end) as up")
-            ->selectRaw("sum(case when status = 'down' then 1 else 0 end) as down")
-            ->selectRaw("sum(case when status = 'degraded' then 1 else 0 end) as degraded")
-            ->selectRaw("sum(case when status = 'pending' then 1 else 0 end) as pending")
-            ->selectRaw("sum(case when status = 'maintenance' then 1 else 0 end) as maintenance")
-            ->selectRaw('min(latency_ms) as latency_min')
-            ->selectRaw('max(latency_ms) as latency_max')
-            ->selectRaw('coalesce(sum(latency_ms), 0) as latency_sum')
-            ->selectRaw('count(latency_ms) as latency_count')
-            ->get();
+        $found = [];
+        foreach ($monitorIds === null ? [null] : array_chunk($monitorIds, self::UPSERT_CHUNK) as $chunk) {
+            $rows = DB::table('check_results')
+                ->join('monitors', 'monitors.id', '=', 'check_results.monitor_id')
+                ->where('check_results.bucket_minute', $minute)
+                ->when($chunk !== null, fn (Builder $q) => $q->whereIn('check_results.monitor_id', $chunk ?? []))
+                ->groupBy('check_results.monitor_id')
+                ->select('check_results.monitor_id')
+                ->selectRaw('count(*) as total')
+                ->selectRaw("sum(case when check_results.status = 'up' then 1 else 0 end) as up")
+                ->selectRaw("sum(case when check_results.status = 'down' then 1 else 0 end) as down")
+                ->selectRaw("sum(case when check_results.status = 'degraded' then 1 else 0 end) as degraded")
+                ->selectRaw("sum(case when check_results.status = 'pending' then 1 else 0 end) as pending")
+                ->selectRaw("sum(case when check_results.status = 'maintenance' then 1 else 0 end) as maintenance")
+                ->selectRaw('min(check_results.latency_ms) as latency_min')
+                ->selectRaw('max(check_results.latency_ms) as latency_max')
+                ->selectRaw('coalesce(sum(check_results.latency_ms), 0) as latency_sum')
+                ->selectRaw('count(check_results.latency_ms) as latency_count')
+                ->get();
 
-        $records = [];
-        $monitorIds = [];
-        foreach ($rows as $row) {
-            $monitorId = self::int($row->monitor_id);
-            $records[] = $this->record($monitorId, CheckRollup::BUCKET_MINUTE, $minute, (array) $row);
-            $monitorIds[] = $monitorId;
+            $records = [];
+            foreach ($rows as $row) {
+                $monitorId = self::int($row->monitor_id);
+                $records[] = $this->record($monitorId, CheckRollup::BUCKET_MINUTE, $minute, (array) $row);
+                $found[] = $monitorId;
+            }
+            $this->upsertChanged($records);
         }
-        $this->upsert($records);
 
-        return $monitorIds;
+        return $found;
     }
 
-    private function buildHour(int $hour): void
+    /**
+     * @param  list<int>|null  $monitorIds  Null recomputes the hour for every monitor.
+     */
+    private function buildHour(int $hour, ?array $monitorIds = null): void
     {
-        $rows = $this->summed(DB::table('check_rollups'))
-            ->where('bucket', CheckRollup::BUCKET_MINUTE)
-            ->where('bucket_start', '>=', $hour)
-            ->where('bucket_start', '<', $hour + 3600)
-            ->groupBy('monitor_id')
-            ->addSelect('monitor_id')
-            ->get();
+        foreach ($monitorIds === null ? [null] : array_chunk($monitorIds, self::UPSERT_CHUNK) as $chunk) {
+            $rows = $this->summed(DB::table('check_rollups'))
+                ->join('monitors', 'monitors.id', '=', 'check_rollups.monitor_id')
+                ->where('check_rollups.bucket', CheckRollup::BUCKET_MINUTE)
+                ->where('check_rollups.bucket_start', '>=', $hour)
+                ->where('check_rollups.bucket_start', '<', $hour + 3600)
+                ->when($chunk !== null, fn (Builder $q) => $q->whereIn('check_rollups.monitor_id', $chunk ?? []))
+                ->groupBy('check_rollups.monitor_id')
+                ->addSelect('check_rollups.monitor_id')
+                ->get();
 
-        $records = [];
-        foreach ($rows as $row) {
-            $records[] = $this->record(self::int($row->monitor_id), CheckRollup::BUCKET_HOUR, $hour, (array) $row);
+            $records = [];
+            foreach ($rows as $row) {
+                $records[] = $this->record(self::int($row->monitor_id), CheckRollup::BUCKET_HOUR, $hour, (array) $row);
+            }
+            $this->upsertChanged($records);
         }
-        $this->upsert($records);
     }
 
     /**
      * Aggregate one local day of a workspace. Whole hours inside the day come from hour rows; when the day does
      * not start on a whole hour (offsets such as +05:30), the partial hours at either end come from minute rows.
      * Because hour rows are exact sums of minute rows, this equals summing the day's minute rows while reading
-     * at most 25 hour rows and 60 minute rows per monitor.
+     * at most 25 hour rows and 60 minute rows per monitor. Days of 23 and 25 hours are handled the same way.
      *
      * Without minute rows ($exact false), the day is summed from the hour rows that start inside it, which is
      * approximate for sub-hour offsets.
@@ -240,7 +419,9 @@ final class RollupBuilder
         foreach ($merged as $monitorId => $totals) {
             $records[] = $this->record($monitorId, CheckRollup::BUCKET_DAY, $dayStart, $totals);
         }
-        $this->upsert($records);
+        foreach (array_chunk($records, self::UPSERT_CHUNK) as $chunk) {
+            $this->upsertChanged($chunk);
+        }
     }
 
     /**
@@ -308,34 +489,76 @@ final class RollupBuilder
     }
 
     /**
+     * Write the records whose values differ from the stored rows. All records share one bucket and start, and
+     * there are at most UPSERT_CHUNK of them.
+     *
      * @param  list<array<string, int|string|null>>  $records
      */
-    private function upsert(array $records): void
+    private function upsertChanged(array $records): void
     {
-        $update = [...self::COUNTERS, 'latency_min', 'latency_max', 'latency_avg', 'latency_sum', 'latency_count'];
-        foreach (array_chunk($records, self::UPSERT_CHUNK) as $chunk) {
-            DB::table('check_rollups')->upsert($chunk, ['monitor_id', 'bucket', 'bucket_start'], $update);
+        if ($records === []) {
+            return;
+        }
+
+        $existing = DB::table('check_rollups')
+            ->where('bucket', $records[0]['bucket'])
+            ->where('bucket_start', $records[0]['bucket_start'])
+            ->whereIn('monitor_id', array_column($records, 'monitor_id'))
+            ->get(['monitor_id', ...self::VALUES])
+            ->keyBy(fn (object $row): int => self::int($row->monitor_id));
+
+        $changed = [];
+        foreach ($records as $record) {
+            $stored = $existing->get(self::int($record['monitor_id']));
+            if (! is_object($stored) || $this->differs($record, (array) $stored)) {
+                $changed[] = $record;
+            }
+        }
+
+        if ($changed !== []) {
+            DB::table('check_rollups')->upsert($changed, ['monitor_id', 'bucket', 'bucket_start'], self::VALUES);
         }
     }
 
     /**
-     * @param  list<int>  $monitorIds
-     * @return array<int, string> Workspace id => timezone.
+     * @param  array<string, int|string|null>  $record
+     * @param  array<mixed>  $stored
      */
-    private function workspacesOf(array $monitorIds): array
+    private function differs(array $record, array $stored): bool
     {
-        $workspaceIds = [];
-        foreach (array_chunk($monitorIds, 1000) as $chunk) {
-            foreach (DB::table('monitors')->whereIn('id', $chunk)->distinct()->pluck('workspace_id') as $id) {
-                $workspaceIds[self::int($id)] = true;
+        foreach (self::VALUES as $column) {
+            if ($record[$column] !== self::nullableInt($stored[$column] ?? null)) {
+                return true;
             }
         }
-        if ($workspaceIds === []) {
-            return [];
+
+        return false;
+    }
+
+    /**
+     * @param  list<int>  $monitorIds
+     * @return array<int, int> Monitor id => workspace id, for monitors that still exist.
+     */
+    private function workspacesOfMonitors(array $monitorIds): array
+    {
+        $map = [];
+        foreach (array_chunk($monitorIds, 1000) as $chunk) {
+            foreach (DB::table('monitors')->whereIn('id', $chunk)->get(['id', 'workspace_id']) as $monitor) {
+                $map[self::int($monitor->id)] = self::int($monitor->workspace_id);
+            }
         }
 
+        return $map;
+    }
+
+    /**
+     * @param  list<int>  $workspaceIds
+     * @return array<int, string> Workspace id => timezone.
+     */
+    private function timezones(array $workspaceIds): array
+    {
         $timezones = [];
-        foreach (array_chunk(array_keys($workspaceIds), 1000) as $chunk) {
+        foreach (array_chunk($workspaceIds, 1000) as $chunk) {
             foreach (DB::table('workspaces')->whereIn('id', $chunk)->get(['id', 'timezone']) as $workspace) {
                 $timezones[self::int($workspace->id)] = is_string($workspace->timezone) ? $workspace->timezone : 'UTC';
             }

@@ -86,9 +86,13 @@ class RetentionTest extends TestCase
         }
         $this->insertResult($m, $rawCutoff);
         $this->insertResult($m, $rawCutoff->addSecond());
+        // Flushed late from a worker buffer: an old checked_at with the highest id.
+        $this->insertResult($m, $rawCutoff->subHour());
 
         // Each bucket is pruned by its own retention only: a minute row older than 48 h goes, an hour row of
         // the same age stays.
+        $this->insertRollup($m, 'minute', $minuteCutoff - 3);
+        $this->insertRollup($m, 'minute', $minuteCutoff - 2);
         $this->insertRollup($m, 'minute', $minuteCutoff - 1);
         $this->insertRollup($m, 'minute', $minuteCutoff);
         $this->insertRollup($m, 'hour', $minuteCutoff - 1);
@@ -104,11 +108,10 @@ class RetentionTest extends TestCase
         $this->insertLookup('old.example', $this->now->subDays(30)->subSecond());
         $this->insertLookup('fresh.example', $this->now->subDays(30));
 
-        $deletes = 0;
+        $deletes = ['check_results' => 0, 'check_rollups' => 0, 'monitor_events' => 0];
         DB::listen(function (QueryExecuted $query) use (&$deletes): void {
-            if (str_starts_with(strtolower($query->sql), 'delete from "check_results"')
-                || str_starts_with(strtolower($query->sql), 'delete from `check_results`')) {
-                $deletes++;
+            if (preg_match('/^delete from ["`](\w+)["`]/i', $query->sql, $match) === 1 && isset($deletes[$match[1]])) {
+                $deletes[$match[1]]++;
             }
         });
 
@@ -118,7 +121,9 @@ class RetentionTest extends TestCase
             [$rawCutoff->format('Y-m-d H:i:s'), $rawCutoff->addSecond()->format('Y-m-d H:i:s')],
             DB::table('check_results')->orderBy('id')->pluck('checked_at')->map(fn (mixed $v): string => is_string($v) ? substr($v, 0, 19) : '')->all(),
         );
-        $this->assertGreaterThanOrEqual(2, $deletes, 'Three expired rows with a chunk size of 2 need at least two deletes');
+        // Ids 1-6 with a chunk size of 2: windows [1,2], [3,4] and [5,6], the last one holding the late row.
+        // Rollups: three expired minute rows in two windows, one hour row, one day row. Events: one row.
+        $this->assertSame(['check_results' => 3, 'check_rollups' => 4, 'monitor_events' => 1], $deletes);
 
         $remaining = DB::table('check_rollups')->orderBy('id')->get(['bucket', 'bucket_start'])
             ->map(fn (object $r): string => (is_string($r->bucket) ? $r->bucket : '').'@'.(is_numeric($r->bucket_start) ? (int) $r->bucket_start : ''))->all();
@@ -210,5 +215,11 @@ class RetentionTest extends TestCase
 
         $this->assertSame(0, DB::table('check_results')->count());
         $this->assertSame(3, $deletes);
+
+        // A second run (a retried job) finds nothing to delete and does not fail.
+        $before = $deletes;
+        (new PurgeMonitorData($monitor->id))->handle();
+        $this->assertSame(0, DB::table('check_results')->count());
+        $this->assertSame($before, $deletes, 'A purge with nothing left issues no delete');
     }
 }

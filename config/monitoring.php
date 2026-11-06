@@ -8,9 +8,11 @@ return [
     |--------------------------------------------------------------------------
     */
     'retention' => [
-        'raw_hours' => (int) env('RETENTION_RAW_HOURS', 24),
-        'minute_hours' => (int) env('RETENTION_MINUTE_HOURS', 48),
-        'hour_days' => (int) env('RETENTION_HOUR_DAYS', 90),
+        // Raw rows must outlive the minute they belong to, and minute rows must cover a whole local day (up to
+        // 25 hours) so that day rollups stay exact; smaller values are raised to these minimums.
+        'raw_hours' => max(1, (int) env('RETENTION_RAW_HOURS', 24)),
+        'minute_hours' => max(25, (int) env('RETENTION_MINUTE_HOURS', 48)),
+        'hour_days' => max(1, (int) env('RETENTION_HOUR_DAYS', 90)),
         'day_days' => (int) env('RETENTION_DAY_DAYS', 730),
         // Cached registration lookups no check has refreshed for this long are dropped.
         'domain_lookup_days' => 30,
@@ -18,6 +20,16 @@ return [
         // tables are never locked for long.
         'chunk_size' => (int) env('RETENTION_CHUNK_SIZE', 5000),
         'chunk_sleep_ms' => (int) env('RETENTION_CHUNK_SLEEP_MS', 50),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rollups
+    |--------------------------------------------------------------------------
+    */
+    'rollups' => [
+        // Newly inserted results scanned per run for minutes before the regular window (late, buffered outcomes).
+        'late_id_batch' => 50000,
     ],
 
     /*

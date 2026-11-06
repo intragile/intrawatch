@@ -12,11 +12,14 @@ use App\Monitoring\Engine\RollupBuilder;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use RuntimeException;
 use Tests\TestCase;
 
 class RollupTest extends TestCase
@@ -261,8 +264,9 @@ class RollupTest extends TestCase
         $this->builder()->run($base->addMinutes(42));
 
         $minutes = CheckRollup::query()->where('bucket', 'minute')->orderBy('bucket_start')->pluck('bucket_start')->all();
-        $this->assertSame($base->addMinutes(20)->getTimestamp(), $minutes[0]);
-        $this->assertCount(21, $minutes);
+        // The lookback applies here too, so late rows just before the newest minute rollup are not lost.
+        $this->assertSame($base->addMinutes(15)->getTimestamp(), $minutes[0]);
+        $this->assertCount(26, $minutes);
         $this->assertSame($base->addMinutes(41)->getTimestamp(), Cache::get(RollupBuilder::WATERMARK_KEY));
     }
 
@@ -341,6 +345,261 @@ class RollupTest extends TestCase
         $this->assertSame(1, $this->rollupRow($monitor, 'day', CarbonImmutable::parse('2026-01-14 18:30:00', 'UTC')->getTimestamp())['total']);
     }
 
+    public function test_a_result_twenty_minutes_late_is_counted_at_every_level(): void
+    {
+        $monitor = $this->monitor();
+        $base = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
+        for ($i = 0; $i <= 30; $i++) {
+            $this->insertResult($monitor, $base->addMinutes($i)->addSeconds(5));
+        }
+        $this->builder()->run($base->addMinutes(32));
+        $this->builder()->run($base->addMinutes(33));
+
+        // Flushed from a worker buffer after an outage: far outside the five-minute lookback.
+        $this->insertResult($monitor, $base->addMinutes(10)->addSeconds(30), 'down', null);
+        $this->builder()->run($base->addMinutes(34));
+
+        $minute = $this->rollupRow($monitor, 'minute', $base->addMinutes(10)->getTimestamp());
+        $this->assertSame([2, 1], [$minute['total'], $minute['down']]);
+        $this->assertSame(32, $this->rollupRow($monitor, 'hour', $base->getTimestamp())['total']);
+        $this->assertSame(32, $this->rollupRow($monitor, 'day', $base->startOfDay()->getTimestamp())['total']);
+    }
+
+    public function test_a_missing_result_id_watermark_starts_at_the_newest_row_instead_of_reprocessing_the_table(): void
+    {
+        $monitor = $this->monitor();
+        $base = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
+        for ($i = 0; $i <= 30; $i++) {
+            $this->insertResult($monitor, $base->addMinutes($i));
+        }
+        $this->builder()->run($base->addMinutes(32));
+
+        // Marker: an old minute row that a full reprocessing would overwrite.
+        DB::table('check_rollups')->where(['bucket' => 'minute', 'bucket_start' => $base->addMinutes(5)->getTimestamp()])->update(['total' => 99]);
+        Cache::forget(RollupBuilder::LAST_ID_KEY);
+
+        $this->builder()->run($base->addMinutes(33));
+
+        $this->assertSame(99, $this->rollupRow($monitor, 'minute', $base->addMinutes(5)->getTimestamp())['total']);
+        $this->assertEquals(DB::table('check_results')->max('id'), Cache::get(RollupBuilder::LAST_ID_KEY));
+    }
+
+    public function test_late_results_are_worked_off_in_bounded_id_batches(): void
+    {
+        config(['monitoring.rollups.late_id_batch' => 1]);
+        $monitor = $this->monitor();
+        $base = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
+        for ($i = 0; $i <= 30; $i++) {
+            $this->insertResult($monitor, $base->addMinutes($i));
+        }
+        $now = $base->addMinutes(32);
+        $this->builder()->run($now);
+
+        $this->insertResult($monitor, $base->addMinutes(3)->addSeconds(30));
+        $this->insertResult($monitor, $base->addMinutes(4)->addSeconds(30));
+
+        $this->builder()->run($now);
+        $this->assertSame(2, $this->rollupRow($monitor, 'minute', $base->addMinutes(3)->getTimestamp())['total']);
+        $this->assertSame(1, $this->rollupRow($monitor, 'minute', $base->addMinutes(4)->getTimestamp())['total']);
+
+        $this->builder()->run($now);
+        $this->assertSame(2, $this->rollupRow($monitor, 'minute', $base->addMinutes(4)->getTimestamp())['total']);
+    }
+
+    public function test_unchanged_rollups_are_not_rewritten(): void
+    {
+        $monitor = $this->monitor();
+        $base = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
+        for ($i = 0; $i < 10; $i++) {
+            $this->insertResult($monitor, $base->addMinutes($i));
+        }
+        $now = $base->addMinutes(11);
+        $this->builder()->run($now);
+
+        $writes = 0;
+        DB::listen(function (QueryExecuted $query) use (&$writes): void {
+            if (preg_match('/^(insert into|update) ["`]check_rollups["`]/i', $query->sql) === 1) {
+                $writes++;
+            }
+        });
+        $this->builder()->run($now);
+
+        $this->assertSame(0, $writes);
+    }
+
+    public function test_results_of_a_deleted_monitor_produce_no_rollups(): void
+    {
+        $monitor = $this->monitor();
+        $base = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
+        $this->insertResult($monitor, $base);
+        // Deleted, but the purge job has not removed the raw rows yet.
+        DB::table('monitor_states')->where('monitor_id', $monitor->id)->delete();
+        DB::table('monitors')->where('id', $monitor->id)->delete();
+
+        $this->builder()->run($base->addMinutes(3));
+
+        $this->assertSame(0, CheckRollup::query()->count());
+    }
+
+    public function test_rollup_run_is_skipped_while_a_day_rebuild_holds_the_lock(): void
+    {
+        $monitor = $this->monitor();
+        $base = CarbonImmutable::parse('2026-03-10 10:00:00', 'UTC');
+        $this->insertResult($monitor, $base);
+
+        $lock = Cache::lock(RollupBuilder::LOCK_KEY, 60);
+        $this->assertTrue($lock->get());
+        $this->builder()->run($base->addMinutes(3));
+        $this->assertSame(0, CheckRollup::query()->count());
+        $this->assertNull(Cache::get(RollupBuilder::WATERMARK_KEY));
+
+        $lock->release();
+        $this->builder()->run($base->addMinutes(3));
+        $this->assertSame(1, CheckRollup::query()->where('bucket', 'minute')->count());
+    }
+
+    public function test_day_buckets_follow_dst_in_europe_budapest(): void
+    {
+        $monitor = $this->monitor('Europe/Budapest');
+        // 29 March 2026 has 23 hours: 2026-03-28T23:00Z to 2026-03-29T22:00Z.
+        $this->insertResult($monitor, CarbonImmutable::parse('2026-03-28 23:05:00', 'UTC'));
+        $this->insertResult($monitor, CarbonImmutable::parse('2026-03-29 21:55:00', 'UTC'));
+        $this->insertResult($monitor, CarbonImmutable::parse('2026-03-29 22:05:00', 'UTC'));
+        $this->runUntilCaughtUp(CarbonImmutable::parse('2026-03-29 22:30:00', 'UTC'), 40);
+
+        $this->assertSame(2, $this->rollupRow($monitor, 'day', CarbonImmutable::parse('2026-03-28 23:00:00', 'UTC')->getTimestamp())['total']);
+        $this->assertSame(1, $this->rollupRow($monitor, 'day', CarbonImmutable::parse('2026-03-29 22:00:00', 'UTC')->getTimestamp())['total']);
+
+        // 25 October 2026 has 25 hours: 2026-10-24T22:00Z to 2026-10-25T23:00Z.
+        $autumn = $this->monitor('Europe/Budapest');
+        Cache::flush();
+        $this->insertResult($autumn, CarbonImmutable::parse('2026-10-24 22:05:00', 'UTC'));
+        $this->insertResult($autumn, CarbonImmutable::parse('2026-10-25 22:55:00', 'UTC'));
+        $this->insertResult($autumn, CarbonImmutable::parse('2026-10-25 23:05:00', 'UTC'));
+        DB::table('check_results')->where('monitor_id', $monitor->id)->delete();
+        $this->runUntilCaughtUp(CarbonImmutable::parse('2026-10-25 23:30:00', 'UTC'), 40);
+
+        $this->assertSame(2, $this->rollupRow($autumn, 'day', CarbonImmutable::parse('2026-10-24 22:00:00', 'UTC')->getTimestamp())['total']);
+        $this->assertSame(1, $this->rollupRow($autumn, 'day', CarbonImmutable::parse('2026-10-25 23:00:00', 'UTC')->getTimestamp())['total']);
+    }
+
+    public function test_rebuild_job_is_unique_per_workspace_and_bounded(): void
+    {
+        $job = new RebuildDayRollups(42);
+        $this->assertInstanceOf(ShouldBeUnique::class, $job);
+        $this->assertSame('42', (string) $job->uniqueId());
+        $this->assertSame(900, $job->timeout);
+        $this->assertSame(1, $job->tries);
+
+        Queue::fake();
+        RebuildDayRollups::dispatch(42);
+        RebuildDayRollups::dispatch(42);
+        RebuildDayRollups::dispatch(43);
+        Queue::assertPushed(RebuildDayRollups::class, 2);
+    }
+
+    /**
+     * Five days of hour rows at 12:00 UTC, beyond the minute retention, with their UTC day rows.
+     */
+    private function seedOldDays(Monitor $monitor): void
+    {
+        for ($day = 1; $day <= 5; $day++) {
+            foreach (['hour' => "2026-03-0{$day} 12:00:00", 'day' => "2026-03-0{$day} 00:00:00"] as $bucket => $start) {
+                DB::table('check_rollups')->insert([
+                    'monitor_id' => $monitor->id, 'bucket' => $bucket,
+                    'bucket_start' => CarbonImmutable::parse($start, 'UTC')->getTimestamp(),
+                    'total' => 1, 'up' => 1, 'down' => 0, 'degraded' => 0, 'pending' => 0, 'maintenance' => 0,
+                    'latency_min' => 10, 'latency_max' => 10, 'latency_avg' => 10, 'latency_sum' => 10, 'latency_count' => 1,
+                ]);
+            }
+        }
+    }
+
+    private function assertNoOverlappingDays(Monitor $monitor): void
+    {
+        $starts = CheckRollup::query()->where(['monitor_id' => $monitor->id, 'bucket' => 'day'])->orderBy('bucket_start')->get()
+            ->map(fn (CheckRollup $row): int => $row->bucket_start)->all();
+        for ($i = 1; $i < count($starts); $i++) {
+            $this->assertGreaterThanOrEqual(23 * 3600, $starts[$i] - $starts[$i - 1], 'Overlapping day rows: '.gmdate('c', $starts[$i - 1]).' and '.gmdate('c', $starts[$i]));
+        }
+        $this->assertLessThanOrEqual(5, (int) CheckRollup::query()->where(['monitor_id' => $monitor->id, 'bucket' => 'day'])->sum('total'));
+    }
+
+    public function test_an_interrupted_rebuild_never_leaves_overlapping_day_rows(): void
+    {
+        $monitor = $this->monitor();
+        $this->seedOldDays($monitor);
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-03-10 12:00:00', 'UTC'));
+        $workspace = $this->workspaceOf($monitor);
+        $workspace->update(['timezone' => 'Asia/Kolkata']);
+
+        $dayWrites = 0;
+        DB::listen(function (QueryExecuted $query) use (&$dayWrites): void {
+            if (preg_match('/^delete from ["`]check_rollups["`]/i', $query->sql) === 1 && in_array('day', $query->bindings, true) && ++$dayWrites === 3) {
+                throw new RuntimeException('Simulated worker kill');
+            }
+        });
+
+        try {
+            $this->builder()->rebuildDays($workspace);
+            $this->fail('The simulated failure did not happen');
+        } catch (RuntimeException $e) {
+            $this->assertSame('Simulated worker kill', $e->getMessage());
+        }
+        $this->assertNoOverlappingDays($monitor);
+
+        $dayWrites = -1000;
+        $this->builder()->rebuildDays($workspace);
+        $this->assertNoOverlappingDays($monitor);
+        $this->assertSame(5, (int) CheckRollup::query()->where(['monitor_id' => $monitor->id, 'bucket' => 'day'])->sum('total'));
+        $this->assertSame(5, CheckRollup::query()->where(['monitor_id' => $monitor->id, 'bucket' => 'day'])->count());
+        $this->assertSame(
+            CarbonImmutable::parse('2026-03-01 12:00:00', 'UTC')->setTimezone('Asia/Kolkata')->startOfDay()->getTimestamp(),
+            CheckRollup::query()->where(['monitor_id' => $monitor->id, 'bucket' => 'day'])->min('bucket_start'),
+        );
+    }
+
+    public function test_rebuild_reruns_when_the_timezone_changes_meanwhile(): void
+    {
+        $monitor = $this->monitor();
+        $this->seedOldDays($monitor);
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-03-10 12:00:00', 'UTC'));
+        $workspace = $this->workspaceOf($monitor);
+        $workspace->update(['timezone' => 'Asia/Kolkata']);
+
+        $changed = false;
+        DB::listen(function (QueryExecuted $query) use (&$changed, $workspace): void {
+            if (! $changed && preg_match('/^delete from ["`]check_rollups["`]/i', $query->sql) === 1) {
+                $changed = true;
+                DB::table('workspaces')->where('id', $workspace->id)->update(['timezone' => 'America/New_York']);
+            }
+        });
+
+        (new RebuildDayRollups($workspace->id))->handle($this->builder());
+
+        $expected = CarbonImmutable::parse('2026-03-01 12:00:00', 'UTC')->setTimezone('America/New_York')->startOfDay()->getTimestamp();
+        $this->assertSame($expected, CheckRollup::query()->where(['monitor_id' => $monitor->id, 'bucket' => 'day'])->min('bucket_start'));
+        $this->assertNoOverlappingDays($monitor);
+    }
+
+    public function test_retention_config_is_clamped_to_safe_minimums(): void
+    {
+        putenv('RETENTION_MINUTE_HOURS=2');
+        putenv('RETENTION_RAW_HOURS=0');
+        try {
+            $config = require config_path('monitoring.php');
+        } finally {
+            putenv('RETENTION_MINUTE_HOURS');
+            putenv('RETENTION_RAW_HOURS');
+        }
+
+        $this->assertIsArray($config);
+        $this->assertSame(['raw_hours' => 1, 'minute_hours' => 25], array_intersect_key(
+            is_array($config['retention'] ?? null) ? $config['retention'] : [],
+            ['raw_hours' => true, 'minute_hours' => true],
+        ));
+    }
+
     public function test_rollup_and_prune_are_scheduled(): void
     {
         $events = collect(app(Schedule::class)->events());
@@ -355,6 +614,8 @@ class RollupTest extends TestCase
         $prune = $find('intrawatch:prune');
         $this->assertSame('30 * * * *', $prune->expression);
         $this->assertTrue($prune->onOneServer);
+        $this->assertTrue($prune->withoutOverlapping);
+        $this->assertSame(180, $prune->expiresAt);
 
         $this->assertSame('0 0 * * 0', $find('intrawatch:rdap:refresh')->expression);
     }

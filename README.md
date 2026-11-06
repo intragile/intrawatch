@@ -125,6 +125,18 @@ them, so it never locks the result tables for long.
 | `RETENTION_CHUNK_SLEEP_MS` | `50` | Pause between delete statements |
 
 Cached domain registration lookups are dropped after 30 days without a check.
+`RETENTION_RAW_HOURS` is at least 1 and `RETENTION_MINUTE_HOURS` at least 25
+(a whole local day, so day rollups stay exact); smaller values are raised to
+these minimums.
+
+Results that reach the database late, such as outcomes a worker buffered
+during a database outage, are still counted: each rollup run also recomputes
+the minutes, hours and days of every result inserted since the previous run
+(at most 50 000 results per run; a larger backlog is worked off over the next
+runs). Results older than the raw retention when they arrive are not counted.
+If the rollup state in the cache is lost, rollups resume five minutes before
+the newest minute rollup, and only results inserted from then on are treated
+as late.
 
 Day rollups start at midnight in the workspace timezone. Changing the timezone
 rebuilds the day rollups in the background from the data still retained:
@@ -134,7 +146,11 @@ rebuilds the day rollups in the background from the data still retained:
   whole-hour offset; for offsets such as +05:30 or +05:45 those days are shifted
   by the sub-hour part of the offset;
 - days older than the hour retention (90 days by default) keep the boundaries of
-  the timezone they were built in.
+  the timezone they were built in; the one old day that would overlap the first
+  rebuilt day is dropped.
+
+The rebuild replaces one day at a time, so day rollups never overlap, even if
+the rebuild is interrupted; rollups pause while it runs and catch up afterwards.
 
 Availability is `(up + degraded + pending) / (total - maintenance)`; it is
 empty when every check of the period fell into a maintenance window.

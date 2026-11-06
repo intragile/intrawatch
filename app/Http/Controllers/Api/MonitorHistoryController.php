@@ -30,8 +30,7 @@ class MonitorHistoryController extends Controller
     public function results(Request $request, Workspace $workspace, Monitor $monitor): JsonResponse
     {
         $request->validate([
-            'from' => ['sometimes', 'date'],
-            'to' => ['sometimes', 'date'],
+            ...self::windowRules($request),
             'status' => ['sometimes', Rule::enum(MonitorStatus::class)],
         ]);
 
@@ -75,8 +74,7 @@ class MonitorHistoryController extends Controller
     {
         $request->validate([
             'bucket' => ['required', Rule::in(CheckRollup::BUCKETS)],
-            'from' => ['sometimes', 'date'],
-            'to' => ['sometimes', 'date'],
+            ...self::windowRules($request),
         ]);
 
         $query = CheckRollup::query()
@@ -139,6 +137,22 @@ class MonitorHistoryController extends Controller
                 'created_at' => $event->created_at->toIso8601String(),
             ];
         });
+    }
+
+    /**
+     * An ISO 8601 date or date-time with an offset (`2026-03-10`, `2026-03-10T10:00:00Z`,
+     * `2026-03-10T10:00:00.123+01:00`); `to` must be after `from`.
+     *
+     * @return array<string, list<string>>
+     */
+    private static function windowRules(Request $request): array
+    {
+        $iso = 'regex:/^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[+-]\\d{2}:\\d{2}))?$/';
+
+        return [
+            'from' => ['sometimes', 'string', $iso, 'date'],
+            'to' => ['sometimes', 'string', $iso, 'date', ...($request->has('from') ? ['after:from'] : [])],
+        ];
     }
 
     private function dateTime(string $value): string
