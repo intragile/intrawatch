@@ -33,8 +33,12 @@ COPY --from=composer --chown=app:app /app /app
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chmod=0755 docker/supervisor-fatal-exit /usr/local/bin/supervisor-fatal-exit
 
 USER app
+# Fails the build when the runtime image lacks a PHP extension or version the lock file requires.
+RUN --mount=type=bind,from=composer,source=/usr/bin/composer,target=/usr/local/bin/composer \
+    composer check-platform-reqs --no-dev
 RUN php artisan package:discover --ansi \
     && rm -rf storage \
     && ln -s /data/storage storage
@@ -45,7 +49,7 @@ ENV APP_ENV=production \
     APP_URL=http://localhost:3000 \
     DB_CONNECTION=sqlite \
     LOG_CHANNEL=stack \
-    LOG_STACK=single,stderr \
+    LOG_STACK=stderr \
     LOG_LEVEL=info \
     SESSION_DRIVER=database \
     CACHE_STORE=database \

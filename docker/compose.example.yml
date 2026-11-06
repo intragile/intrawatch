@@ -7,8 +7,10 @@ services:
     volumes:
       - intrawatch-data:/data
     environment:
+      # Public URL; its host is accepted for cookie sessions by default.
       APP_URL: http://localhost:3000
       # TRUSTED_PROXIES: "*"            # set when running behind a reverse proxy
+      # SESSION_SECURE_COOKIE: "true"   # set when served over HTTPS
       # SANCTUM_STATEFUL_DOMAINS: status.example.com
       # --- PostgreSQL instead of SQLite ---
       # DB_CONNECTION: pgsql
@@ -24,6 +26,7 @@ services:
       # DB_DATABASE: intrawatch
       # DB_USERNAME: intrawatch
       # DB_PASSWORD: change-me
+    # Required: the container exits when an internal program fails permanently.
     restart: unless-stopped
     # depends_on:
     #   - postgres

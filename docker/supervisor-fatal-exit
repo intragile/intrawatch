@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""Supervisor event listener: when a program enters FATAL, record it and stop supervisord.
+
+The entrypoint sees the marker and exits non-zero, so Docker's restart policy can replace the container
+instead of leaving it running without one of its workers.
+"""
+import os
+import signal
+import sys
+
+MARKER = os.environ.get("INTRAWATCH_FATAL_MARKER", "/tmp/intrawatch-fatal")
+PIDFILE = "/tmp/supervisord.pid"
+
+
+def main() -> None:
+    while True:
+        sys.stdout.write("READY\n")
+        sys.stdout.flush()
+
+        header = dict(token.split(":", 1) for token in sys.stdin.readline().split())
+        payload = sys.stdin.read(int(header.get("len", "0")))
+        fields = dict(token.split(":", 1) for token in payload.split() if ":" in token)
+        name = fields.get("processname", "unknown")
+
+        sys.stderr.write(f"FATAL: program '{name}' could not be kept running; stopping the container\n")
+        sys.stderr.flush()
+        with open(MARKER, "w", encoding="utf-8") as marker:
+            marker.write(name + "\n")
+        with open(PIDFILE, encoding="utf-8") as pidfile:
+            os.kill(int(pidfile.read().strip()), signal.SIGTERM)
+
+        sys.stdout.write("RESULT 2\nOK")
+        sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()

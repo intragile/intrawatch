@@ -12,8 +12,9 @@
 	encode zstd gzip
 
 	route {
-		# Reverb runs inside the container; only port 3000 is exposed.
-		@reverb path /app /app/* /apps /apps/*
+		# Reverb listens on loopback only. Websocket clients connect through /app; the HTTP publishing
+		# API (/apps) is used by the application directly and is not exposed.
+		@reverb path /app /app/*
 		reverse_proxy @reverb 127.0.0.1:8080
 
 		php_server
