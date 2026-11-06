@@ -52,6 +52,8 @@ class FortifyServiceProvider extends ServiceProvider
 
         RateLimiter::for('setup', fn (Request $request) => Limit::perMinute(10)->by((string) $request->ip()));
 
+        RateLimiter::for('openapi', fn (Request $request) => Limit::perMinute(60)->by((string) $request->ip()));
+
         RateLimiter::for('password-email', function (Request $request) {
             return Limit::perMinute(5)->by(Str::lower($request->string('email')->toString()).'|'.$request->ip());
         });

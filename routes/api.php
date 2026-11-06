@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
     Route::get('/ping', PingController::class);
-    Route::get('/openapi.json', OpenApiController::class);
+    Route::get('/openapi.json', OpenApiController::class)->middleware('throttle:openapi');
     Route::get('/setup', [SetupController::class, 'show']);
     Route::post('/setup', [SetupController::class, 'store'])->middleware(['throttle:setup', 'session.required']);
 
