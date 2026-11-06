@@ -7,10 +7,15 @@ use Amp\Cancellation;
 use Amp\CancelledException;
 use Amp\Future;
 use Amp\Socket\ConnectException;
+use Amp\Sync\LocalKeyedSemaphore;
 use Amp\TimeoutCancellation;
+use App\Enums\MonitorType;
 use App\Models\DomainLookup;
+use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Net\BlockedTarget;
+use App\Monitoring\Types\Hostname;
 use App\Monitoring\Worker\Clock;
+use Closure;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -20,13 +25,15 @@ use function Amp\async;
  * Finds when a domain's registration expires: over RDAP when the TLD's registry offers it, over WHOIS
  * otherwise.
  *
- * Only the registrable domain of a host is ever queried, never a public suffix. Answers are cached in memory and
- * in `domain_lookups`: for a day, or for an hour after a failure. Concurrent lookups of one domain within a
- * process share a single registry query, and every query runs to its own deadline regardless of who waits for
- * it, so an answer that arrives after a caller gave up still fills the cache.
+ * Only the registrable domain of a host is ever queried, never a public suffix. Answers are kept in memory for
+ * a day, or for an hour after a failure, each with ±10 % jitter so retries spread out. Concurrent lookups of
+ * one domain within a process share a single registry query, at most two queries run against one registry
+ * server at a time, and every query runs to its own deadline regardless of who waits for it, so an answer that
+ * arrives after a caller gave up still fills the cache.
  *
- * The cache table is read once per domain and process and written once per registry query. A database that is
- * unavailable only costs the cache; lookups keep working from memory.
+ * Checks never touch the database. The monitor loader preloads the cached rows of the monitors it hands out
+ * with warm(), and new answers are written in one statement by flushPending(), which the outcome buffer calls
+ * after each successful flush. Rows whose write fails stay pending for the next one.
  */
 class DomainExpiryService
 {
@@ -34,18 +41,40 @@ class DomainExpiryService
 
     public const FAILURE_TTL_SECONDS = 3600;
 
-    private const WHOIS_REFERRAL_PREFIX = '_whois.';
+    /** Concurrent queries per registry server. */
+    public const REGISTRY_CONCURRENCY = 2;
+
+    /** Cache keys of WHOIS server discoveries; the colon keeps them apart from every possible domain name. */
+    public const WHOIS_KEY_PREFIX = 'whois:';
+
+    private const JITTER = 0.1;
+
+    private const MAX_PENDING_WRITES = 10_000;
+
+    private const QUERY_CHUNK = 500;
 
     /** @var array<string, DomainExpiry> */
     private array $memory = [];
 
+    /** @var array<string, float> TTL multiplier per cached entry. */
+    private array $ttlFactor = [];
+
+    /** @var array<string, array{domain: string, source: string, status: string, expires_at: ?string, registrar: ?string, error: ?string, checked_at: string}> */
+    private array $pending = [];
+
     /** @var array<string, Future<DomainExpiry>> */
     private array $inflight = [];
+
+    private readonly LocalKeyedSemaphore $registries;
+
+    /** @var Closure(): float */
+    private readonly Closure $jitter;
 
     /**
      * @param  array<string, string>  $whoisServers  TLD to WHOIS server (`host` or `host:port`), overriding discovery.
      * @param  string  $ianaWhois  The server asked for a TLD's WHOIS server.
-     * @param  float  $lookupTimeout  Seconds a registry query may take in total, WHOIS discovery included.
+     * @param  float  $lookupTimeout  Seconds one registry query may take once it is allowed to start.
+     * @param  ?Closure(): float  $jitter  TTL multiplier for a new cache entry; random within ±10 % by default.
      */
     public function __construct(
         private readonly RegistrableDomains $domains,
@@ -56,7 +85,11 @@ class DomainExpiryService
         private readonly array $whoisServers = [],
         private readonly string $ianaWhois = 'whois.iana.org',
         private readonly float $lookupTimeout = 30.0,
-    ) {}
+        ?Closure $jitter = null,
+    ) {
+        $this->registries = new LocalKeyedSemaphore(self::REGISTRY_CONCURRENCY);
+        $this->jitter = $jitter ?? static fn (): float => 1 - self::JITTER + 2 * self::JITTER * mt_rand() / mt_getrandmax();
+    }
 
     /**
      * The registrable domain that is queried for a host, or null when nothing would be queried.
@@ -67,7 +100,7 @@ class DomainExpiryService
     }
 
     /**
-     * Waits for the expiry of the host's registrable domain, from the cache or the registry.
+     * Waits for the expiry of the host's registrable domain, from memory or the registry.
      *
      * @throws NotRegistrableDomain
      * @throws CancelledException When the cancellation is requested first; the lookup itself continues.
@@ -76,12 +109,12 @@ class DomainExpiryService
     {
         $domain = $this->registrableDomain($host) ?? throw new NotRegistrableDomain;
 
-        return $this->fresh($domain) ?? $this->start($domain)->await($cancellation);
+        return $this->fresh($domain) ?? $this->startLookup($domain)->await($cancellation);
     }
 
     /**
-     * The cached expiry of the host's registrable domain, without waiting. On a miss or a stale entry this
-     * starts a lookup in the background and returns null; a later call returns its answer.
+     * The expiry of the host's registrable domain without waiting. On a miss or a stale entry this starts a
+     * lookup in the background. A stale answer with a date still ahead is returned meanwhile; otherwise null.
      */
     public function peek(string $host): ?DomainExpiry
     {
@@ -91,41 +124,158 @@ class DomainExpiryService
         }
 
         $fresh = $this->fresh($domain);
-        if ($fresh === null) {
-            $this->start($domain)->ignore();
+        if ($fresh !== null) {
+            return $fresh;
         }
 
-        return $fresh;
+        $this->startLookup($domain)->ignore();
+
+        $stale = $this->memory[$domain] ?? null;
+
+        return $stale !== null && $stale->status === DomainExpiry::STATUS_OK && ! $stale->isExpired($this->clock->now()) ? $stale : null;
     }
 
-    private function fresh(string $domain): ?DomainExpiry
+    /**
+     * The fresh cached expiry of the host's registrable domain, without starting a lookup.
+     */
+    public function cached(string $host): ?DomainExpiry
     {
-        if (isset($this->inflight[$domain])) {
+        $domain = $this->registrableDomain($host);
+
+        return $domain === null ? null : $this->fresh($domain);
+    }
+
+    /**
+     * Loads the cached rows the given monitors need into memory with one query, and picks up refreshed suffix
+     * and bootstrap lists. Called by the monitor loader, outside of any check.
+     *
+     * @param  iterable<MonitorSpec>  $specs
+     */
+    public function warm(iterable $specs): void
+    {
+        $this->domains->refresh();
+        $this->bootstrap->refresh();
+
+        $keys = [];
+        foreach ($specs as $spec) {
+            $host = self::hostOf($spec);
+            $domain = $host === null ? null : $this->registrableDomain($host);
+            if ($domain === null) {
+                continue;
+            }
+
+            $keys[$domain] = true;
+            $tld = self::tld($domain);
+            if ($this->bootstrap->baseFor($tld) === null) {
+                $keys[self::WHOIS_KEY_PREFIX.$tld] = true;
+            }
+        }
+
+        $missing = array_values(array_filter(array_keys($keys), fn (string $key): bool => ! isset($this->memory[$key])));
+        if ($missing === []) {
+            return;
+        }
+
+        try {
+            foreach (array_chunk($missing, self::QUERY_CHUNK) as $chunk) {
+                foreach (DomainLookup::query()->whereIn('domain', $chunk)->get() as $row) {
+                    if (! isset($this->memory[$row->domain])) {
+                        $this->keep(DomainExpiry::fromModel($row));
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('Cached domain lookups could not be loaded.', ['exception' => $e::class]);
+        }
+    }
+
+    /**
+     * Writes the answers gathered since the last call. Called after the outcome buffer flushed.
+     *
+     * @return bool False when the write failed; the rows stay pending.
+     */
+    public function flushPending(): bool
+    {
+        if ($this->pending === []) {
+            return true;
+        }
+
+        try {
+            foreach (array_chunk($this->pending, self::QUERY_CHUNK, true) as $chunk) {
+                DomainLookup::query()->upsert(array_values($chunk), ['domain'], ['source', 'status', 'expires_at', 'registrar', 'error', 'checked_at']);
+                $this->pending = array_diff_key($this->pending, $chunk);
+            }
+        } catch (Throwable $e) {
+            Log::warning('Domain lookups could not be cached.', ['pending' => count($this->pending), 'exception' => $e::class]);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    public function pendingWrites(): int
+    {
+        return count($this->pending);
+    }
+
+    /**
+     * The host whose registration a monitor reports on, if any.
+     */
+    public static function hostOf(MonitorSpec $spec): ?string
+    {
+        $config = $spec->config;
+
+        if ($spec->type === MonitorType::Domain) {
+            return is_string($config['domain'] ?? null) ? $config['domain'] : null;
+        }
+        if ($spec->type === MonitorType::Http && ($config['domain_expiry'] ?? true) === true && is_string($config['url'] ?? null)) {
+            $host = parse_url($config['url'], PHP_URL_HOST);
+
+            return is_string($host) ? trim($host, '[]') : null;
+        }
+
+        return null;
+    }
+
+    private function fresh(string $key): ?DomainExpiry
+    {
+        $cached = $this->memory[$key] ?? null;
+        if ($cached === null || isset($this->inflight[$key])) {
             return null;
         }
 
-        $cached = $this->memory[$domain] ?? $this->fromDatabase($domain);
-        if ($cached === null) {
-            return null;
-        }
-        $this->memory[$domain] = $cached;
+        $factor = $this->ttlFactor[$key] ?? 1.0;
 
-        return $cached->isFreshAt($this->clock->now(), self::TTL_SECONDS, self::FAILURE_TTL_SECONDS) ? $cached : null;
+        return $cached->isFreshAt($this->clock->now(), (int) round(self::TTL_SECONDS * $factor), (int) round(self::FAILURE_TTL_SECONDS * $factor))
+            ? $cached
+            : null;
     }
 
     /**
      * @return Future<DomainExpiry>
      */
-    private function start(string $domain): Future
+    private function startLookup(string $domain): Future
     {
-        return $this->inflight[$domain] ??= async(function () use ($domain): DomainExpiry {
-            try {
-                $expiry = $this->query($domain);
-                $this->remember($expiry);
+        return $this->singleFlight($domain, function () use ($domain): DomainExpiry {
+            $expiry = $this->query($domain);
+            $this->remember($expiry);
 
-                return $expiry;
+            return $expiry;
+        });
+    }
+
+    /**
+     * @param  Closure(): DomainExpiry  $work
+     * @return Future<DomainExpiry>
+     */
+    private function singleFlight(string $key, Closure $work): Future
+    {
+        return $this->inflight[$key] ??= async(function () use ($key, $work): DomainExpiry {
+            try {
+                return $work();
             } finally {
-                unset($this->inflight[$domain]);
+                unset($this->inflight[$key]);
             }
         });
     }
@@ -135,15 +285,12 @@ class DomainExpiryService
      */
     private function query(string $domain): DomainExpiry
     {
-        $tld = substr($domain, (int) strrpos($domain, '.') + 1);
+        $tld = self::tld($domain);
         $base = $this->bootstrap->baseFor($tld);
         $source = $base === null ? DomainExpiry::SOURCE_WHOIS : DomainExpiry::SOURCE_RDAP;
-        $deadline = new TimeoutCancellation($this->lookupTimeout);
 
         try {
-            return $base !== null
-                ? $this->rdap->lookup($domain, $base, $this->lookupTimeout, $deadline, $this->clock->now())
-                : $this->whoisLookup($domain, $tld, $deadline);
+            return $base !== null ? $this->rdapLookup($domain, $base) : $this->whoisLookup($domain, $tld);
         } catch (CancelledException) {
             return DomainExpiry::error($domain, $source, 'Timed out after '.RdapClient::seconds($this->lookupTimeout).' s', $this->clock->now());
         } catch (Throwable $e) {
@@ -156,10 +303,20 @@ class DomainExpiryService
         }
     }
 
-    private function whoisLookup(string $domain, string $tld, Cancellation $cancellation): DomainExpiry
+    private function rdapLookup(string $domain, string $base): DomainExpiry
     {
-        $server = $this->whoisServer($tld, $cancellation);
-        $answer = $this->whois->query($server, $domain, $cancellation);
+        $host = parse_url($base, PHP_URL_HOST);
+
+        return $this->limited(
+            is_string($host) ? $host : $base,
+            fn (Cancellation $deadline): DomainExpiry => $this->rdap->lookup($domain, $base, $this->lookupTimeout, $deadline, $this->clock->now()),
+        );
+    }
+
+    private function whoisLookup(string $domain, string $tld): DomainExpiry
+    {
+        [$server, $authoritative] = $this->whoisServer($tld);
+        $answer = $this->limited(self::serverHost($server), fn (Cancellation $deadline): string => $this->whois->query($server, $domain, $deadline));
         $now = $this->clock->now();
 
         if (trim($answer) === '') {
@@ -169,7 +326,8 @@ class DomainExpiryService
         $record = WhoisParser::parse($answer);
         $status = match (true) {
             $record->expiresAt !== null => DomainExpiry::STATUS_OK,
-            $record->notFound => DomainExpiry::STATUS_NOT_FOUND,
+            // Only a server known to serve the TLD can state that a domain does not exist.
+            $record->notFound && $authoritative => DomainExpiry::STATUS_NOT_FOUND,
             $record->throttled => DomainExpiry::STATUS_ERROR,
             default => DomainExpiry::STATUS_UNKNOWN,
         };
@@ -186,47 +344,86 @@ class DomainExpiryService
     }
 
     /**
-     * The configured server, else the one IANA refers to, else the registry's conventional `whois.nic.{tld}`.
-     * Discovered servers are cached like lookups.
+     * The configured server, else the one IANA refers to, else the registry's conventional `whois.nic.{tld}`,
+     * and whether the server is known to serve the TLD (configured or referred, not guessed). Discovery is
+     * shared by concurrent lookups and cached like them: a referred server as `ok`, a guess as `unknown`.
+     *
+     * @return array{0: string, 1: bool}
      */
-    private function whoisServer(string $tld, Cancellation $cancellation): string
+    private function whoisServer(string $tld): array
     {
         if (isset($this->whoisServers[$tld])) {
-            return $this->whoisServers[$tld];
+            return [$this->whoisServers[$tld], true];
         }
 
-        $key = self::WHOIS_REFERRAL_PREFIX.$tld;
-        $cached = $this->fresh($key);
-        if ($cached !== null && $cached->registrar !== null) {
-            return $cached->registrar;
+        $key = self::WHOIS_KEY_PREFIX.$tld;
+        $discovery = $this->fresh($key);
+        if ($discovery === null || $discovery->registrar === null || ! Hostname::isHostname($discovery->registrar, 2)) {
+            $discovery = $this->singleFlight($key, function () use ($key, $tld): DomainExpiry {
+                $answer = $this->limited($this->ianaWhois, fn (Cancellation $deadline): string => $this->whois->query($this->ianaWhois, $tld, $deadline));
+                $referred = WhoisParser::referral($answer);
+                $discovery = new DomainExpiry(
+                    $key,
+                    DomainExpiry::SOURCE_WHOIS,
+                    $referred === null ? DomainExpiry::STATUS_UNKNOWN : DomainExpiry::STATUS_OK,
+                    null,
+                    $referred ?? "whois.nic.{$tld}",
+                    null,
+                    $this->clock->now(),
+                );
+                $this->remember($discovery);
+
+                return $discovery;
+            })->await();
         }
 
-        $server = WhoisParser::referral($this->whois->query($this->ianaWhois, $tld, $cancellation)) ?? "whois.nic.{$tld}";
-        $this->remember(new DomainExpiry($key, DomainExpiry::SOURCE_WHOIS, DomainExpiry::STATUS_OK, null, $server, null, $this->clock->now()));
+        return [(string) $discovery->registrar, $discovery->status === DomainExpiry::STATUS_OK];
+    }
 
-        return $server;
+    /**
+     * Runs a registry query once one of the server's slots is free; its deadline starts with the query.
+     *
+     * @template T
+     *
+     * @param  Closure(Cancellation): T  $query
+     * @return T
+     */
+    private function limited(string $server, Closure $query): mixed
+    {
+        $lock = $this->registries->acquire(strtolower($server));
+
+        try {
+            return $query(new TimeoutCancellation($this->lookupTimeout));
+        } finally {
+            $lock->release();
+        }
     }
 
     private function remember(DomainExpiry $expiry): void
     {
-        $this->memory[$expiry->domain] = $expiry;
+        $this->keep($expiry);
 
-        try {
-            DomainLookup::query()->upsert([$expiry->toRow()], ['domain']);
-        } catch (Throwable $e) {
-            Log::warning('Domain lookup could not be cached.', ['domain' => $expiry->domain, 'exception' => $e::class]);
+        unset($this->pending[$expiry->domain]);
+        $this->pending[$expiry->domain] = $expiry->toRow();
+        if (count($this->pending) > self::MAX_PENDING_WRITES) {
+            array_shift($this->pending);
         }
     }
 
-    private function fromDatabase(string $domain): ?DomainExpiry
+    private function keep(DomainExpiry $expiry): void
     {
-        try {
-            $row = DomainLookup::query()->find($domain);
-        } catch (Throwable) {
-            return null;
-        }
+        $this->memory[$expiry->domain] = $expiry;
+        $this->ttlFactor[$expiry->domain] = ($this->jitter)();
+    }
 
-        return $row === null ? null : DomainExpiry::fromModel($row);
+    private static function tld(string $domain): string
+    {
+        return substr($domain, (int) strrpos($domain, '.') + 1);
+    }
+
+    private static function serverHost(string $server): string
+    {
+        return strtolower((string) preg_replace('/:\d+$/', '', $server));
     }
 
     /**

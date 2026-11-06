@@ -17,8 +17,10 @@ use Throwable;
 
 /**
  * Checks when a domain's registration expires: degraded when it expires soon, down only once it has expired or
- * the registry states that it does not exist. A registry that publishes no expiry date, or a lookup that fails,
- * never turns the monitor down.
+ * the registry states that it does not exist. A registry that publishes no expiry date, a lookup that fails or a
+ * name that is no longer registrable never turns the monitor down.
+ *
+ * The lookup is answered from the service's memory or the registry; the database is never queried here.
  */
 final class DomainChecker implements Checker
 {
@@ -37,7 +39,8 @@ final class DomainChecker implements Checker
         try {
             $expiry = $this->expiries->lookup($domain, new CompositeCancellation($cancellation, new TimeoutCancellation($timeout)));
         } catch (NotRegistrableDomain) {
-            return CheckOutcome::down('Not a registrable domain');
+            // Validation rejects such names, so this only follows a change of the Public Suffix List.
+            return CheckOutcome::up(null, 'Lookup failed: Not a registrable domain');
         } catch (CancelledException) {
             $cancellation->throwIfRequested();
 

@@ -7,8 +7,9 @@ use RuntimeException;
 /**
  * The IANA RDAP bootstrap registry for domain names (RFC 9224): which RDAP server answers for which TLD.
  *
- * The copy refreshed into storage takes precedence over the snapshot shipped with the application. A loaded
- * registry checks for a newer file at most once an hour, so long-running workers pick up a refresh.
+ * The copy refreshed into storage takes precedence over the snapshot shipped with the application. refresh(),
+ * called by the monitor loader, checks for a newer file at most once an hour, so long-running workers pick up a
+ * refresh.
  */
 final class RdapBootstrap
 {
@@ -87,8 +88,9 @@ final class RdapBootstrap
             }
         }
 
-        if ($bases === []) {
-            throw new RuntimeException('The RDAP bootstrap file lists no services.');
+        // A usable registry always lists the largest TLD.
+        if (! isset($bases['com'])) {
+            throw new RuntimeException('The RDAP bootstrap file has no service for com.');
         }
 
         return $bases;
@@ -99,12 +101,13 @@ final class RdapBootstrap
      */
     public function baseFor(string $tld): ?string
     {
-        $this->reloadIfChanged();
-
         return $this->bases[strtolower($tld)] ?? null;
     }
 
-    private function reloadIfChanged(): void
+    /**
+     * Reloads the registry when the copy in storage changed; checks at most once an hour.
+     */
+    public function refresh(): void
     {
         if (! $this->reloadable || time() < $this->recheckAt) {
             return;

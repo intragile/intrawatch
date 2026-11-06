@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Amp\DeferredCancellation;
 use App\Monitoring\Checks\CheckerRegistry;
+use App\Monitoring\Domain\DomainExpiryService;
 use App\Monitoring\Engine\DeadlineEvaluator;
 use App\Monitoring\Engine\ResultRecorder;
 use App\Monitoring\Worker\Clock;
@@ -25,7 +26,7 @@ class WorkerCommand extends Command
 
     private const SIGTERM = 15;
 
-    public function handle(ResultRecorder $recorder, CheckerRegistry $checkers, DeadlineEvaluator $deadlines, Clock $clock): int
+    public function handle(ResultRecorder $recorder, CheckerRegistry $checkers, DeadlineEvaluator $deadlines, Clock $clock, DomainExpiryService $domains): int
     {
         $shard = $this->integerOption('shard');
         $shards = $this->integerOption('shards');
@@ -46,8 +47,8 @@ class WorkerCommand extends Command
         $scheduler = new Scheduler(
             shard: $shard,
             shards: $shards,
-            loader: new MonitorLoader($clock),
-            buffer: new OutcomeBuffer($recorder, $clock),
+            loader: new MonitorLoader($clock, $domains),
+            buffer: new OutcomeBuffer($recorder, $clock, afterFlush: $domains->flushPending(...)),
             heartbeat: new Heartbeat($clock, $shard, $shards),
             checkers: $checkers,
             deadlines: $deadlines,

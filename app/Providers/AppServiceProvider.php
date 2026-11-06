@@ -74,16 +74,22 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(RegistrableDomains::class, fn (): RegistrableDomains => RegistrableDomains::load());
         $this->app->singleton(RdapBootstrap::class, fn (): RdapBootstrap => RdapBootstrap::load());
         // One instance per process, so concurrent lookups of a domain share one registry query and one cache.
-        $this->app->singleton(DomainExpiryService::class, fn (Application $app): DomainExpiryService => new DomainExpiryService(
-            $app->make(RegistrableDomains::class),
-            $app->make(RdapBootstrap::class),
-            new RdapClient($app->make(GuardedConnector::class)),
-            new WhoisClient($app->make(GuardedConnector::class)),
-            $app->make(Clock::class),
-            self::whoisServers(),
-            config()->string('monitoring.domain.iana_whois', 'whois.iana.org'),
-            (float) config()->integer('monitoring.domain.lookup_timeout', 30),
-        ));
+        $this->app->singleton(DomainExpiryService::class, function (Application $app): DomainExpiryService {
+            // Registries and IANA are public: their traffic, redirects and referrals included, never reaches a
+            // private or loopback address.
+            $registries = new GuardedConnector($app->make(DnsResolver::class), NetworkPolicy::forRegistries());
+
+            return new DomainExpiryService(
+                $app->make(RegistrableDomains::class),
+                $app->make(RdapBootstrap::class),
+                new RdapClient($registries),
+                new WhoisClient($registries),
+                $app->make(Clock::class),
+                self::whoisServers(),
+                config()->string('monitoring.domain.iana_whois', 'whois.iana.org'),
+                (float) config()->integer('monitoring.domain.lookup_timeout', 30),
+            );
+        });
         $this->app->bind(DomainFactsProvider::class, DomainFacts::class);
         $this->app->singleton(Clock::class, SystemClock::class);
     }

@@ -4,6 +4,7 @@ namespace App\Monitoring\Worker;
 
 use App\Models\Monitor;
 use App\Models\MonitorState;
+use App\Monitoring\Domain\DomainExpiryService;
 use App\Monitoring\Engine\MonitorSpec;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -40,7 +41,14 @@ final class MonitorLoader
 
     private ?CarbonImmutable $lastPoll = null;
 
-    public function __construct(private readonly Clock $clock) {}
+    /**
+     * @param  ?DomainExpiryService  $domains  Preloaded with the cached domain lookups of the monitors handed out,
+     *                                         so checks never read them from the database.
+     */
+    public function __construct(
+        private readonly Clock $clock,
+        private readonly ?DomainExpiryService $domains = null,
+    ) {}
 
     /**
      * @return array<int, MonitorSpec> Active monitors of the shard, keyed by id.
@@ -73,6 +81,8 @@ final class MonitorLoader
                     }
                 }
             });
+
+        $this->domains?->warm($specs);
 
         return $specs;
     }
@@ -151,6 +161,7 @@ final class MonitorLoader
         }
 
         $this->lastPoll = $pollStartedAt;
+        $this->domains?->warm([...array_values($added), ...array_values($changed)]);
 
         return new ShardChanges(
             $added,

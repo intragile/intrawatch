@@ -12,8 +12,9 @@ use RuntimeException;
  * Only the ICANN section is used because registries register names below ICANN suffixes: `foo.github.io`
  * resolves to `github.io`, the name a registry actually holds an expiry date for.
  *
- * The list refreshed into storage takes precedence over the snapshot shipped with the application. A loaded
- * list checks for a newer file at most once an hour, so long-running workers pick up a refresh.
+ * The list refreshed into storage takes precedence over the snapshot shipped with the application. refresh(),
+ * called by the monitor loader, checks for a newer file at most once an hour, so long-running workers pick up a
+ * refresh without parsing the list inside a check.
  */
 final class RegistrableDomains
 {
@@ -24,6 +25,16 @@ final class RegistrableDomains
     public const SNAPSHOT_PATH = 'resources/psl/public_suffix_list.dat';
 
     private const RECHECK_SECONDS = 3600;
+
+    /** Hosts a usable list must resolve, with the registrable domain it must resolve them to. */
+    private const CANARIES = [
+        'www.example.com' => 'example.com',
+        'example.co.uk' => 'example.co.uk',
+        'www.bbc.co.uk' => 'bbc.co.uk',
+        'shop.example.de' => 'example.de',
+        'intragile.hu' => 'intragile.hu',
+        'foo.github.io' => 'github.io',
+    ];
 
     private ?int $loadedMtime = null;
 
@@ -49,21 +60,30 @@ final class RegistrableDomains
     }
 
     /**
-     * Parses a list, rejecting content that is not a Public Suffix List.
+     * Parses a list, rejecting content that is not a complete Public Suffix List: both ICANN section markers
+     * must be present and well-known hosts must resolve as expected, so a truncated download is never used.
      *
      * @throws RuntimeException
      */
     public static function parse(string $list): Rules
     {
-        if (! str_contains($list, '===BEGIN ICANN DOMAINS===')) {
-            throw new RuntimeException('The content is not a Public Suffix List.');
+        if (! str_contains($list, '===BEGIN ICANN DOMAINS===') || ! str_contains($list, '===END ICANN DOMAINS===')) {
+            throw new RuntimeException('The content is not a complete Public Suffix List.');
         }
 
         try {
-            return Rules::fromString($list);
+            $rules = Rules::fromString($list);
         } catch (CannotProcessHost $e) {
             throw new RuntimeException('The Public Suffix List cannot be parsed.', previous: $e);
         }
+
+        foreach (self::CANARIES as $host => $expected) {
+            if (self::resolve($rules, $host) !== $expected) {
+                throw new RuntimeException("The Public Suffix List does not resolve {$host} to {$expected}.");
+            }
+        }
+
+        return $rules;
     }
 
     /**
@@ -73,14 +93,18 @@ final class RegistrableDomains
     public function registrable(string $host): ?string
     {
         $host = strtolower(rtrim(trim($host, '[]'), '.'));
-        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+        // Underscores are valid in DNS records but never in a registered name.
+        if ($host === '' || str_contains($host, '_') || filter_var($host, FILTER_VALIDATE_IP) !== false) {
             return null;
         }
 
-        $this->reloadIfChanged();
+        return self::resolve($this->rules, $host);
+    }
 
+    private static function resolve(Rules $rules, string $host): ?string
+    {
         try {
-            $domain = $this->rules->getICANNDomain($host)->registrableDomain()->toAscii()->value();
+            $domain = $rules->getICANNDomain($host)->registrableDomain()->toAscii()->value();
         } catch (CannotProcessHost) {
             return null;
         }
@@ -88,7 +112,10 @@ final class RegistrableDomains
         return $domain === null || $domain === '' ? null : $domain;
     }
 
-    private function reloadIfChanged(): void
+    /**
+     * Reloads the list when the copy in storage changed; checks at most once an hour.
+     */
+    public function refresh(): void
     {
         if (! $this->reloadable || time() < $this->recheckAt) {
             return;

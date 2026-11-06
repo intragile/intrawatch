@@ -9,9 +9,7 @@ use Amp\Http\Client\Connection\UnlimitedConnectionPool;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\HttpException;
-use Amp\Http\Client\Interceptor\FollowRedirects;
 use Amp\Http\Client\Interceptor\SetRequestHeaderIfUnset;
-use Amp\Http\Client\Interceptor\TooManyRedirectsException;
 use Amp\Http\Client\Request;
 use Amp\Http\Client\Response;
 use Amp\Http\Client\TimeoutException;
@@ -21,6 +19,7 @@ use Amp\Socket\ConnectException;
 use App\Monitoring\Net\BlockedTarget;
 use App\Monitoring\Net\GuardedConnector;
 use Carbon\CarbonImmutable;
+use League\Uri\BaseUri;
 use League\Uri\Http as HttpUri;
 use Psr\Http\Message\UriInterface;
 use Throwable;
@@ -50,8 +49,8 @@ final class RdapClient
         $this->http = (new HttpClientBuilder)
             ->usingPool(new UnlimitedConnectionPool(new DefaultConnectionFactory($connector, (new ConnectContext)->withTlsContext($tls))))
             ->retry(0)
+            // Redirects are followed by lookup(), which refuses to leave https.
             ->followRedirects(0)
-            ->intercept(new FollowRedirects(self::MAX_REDIRECTS, autoReferrer: false))
             ->skipDefaultUserAgent()
             ->intercept(new SetRequestHeaderIfUnset('user-agent', 'IntraWatch/'.config()->string('app.version', '1')))
             ->build();
@@ -65,19 +64,35 @@ final class RdapClient
      */
     public function lookup(string $domain, string $base, float $timeout, Cancellation $cancellation, CarbonImmutable $now): DomainExpiry
     {
-        $request = new Request(HttpUri::new($base.'domain/'.rawurlencode($domain)));
-        $request->setHeader('accept', 'application/rdap+json, application/json');
-        $request->setTcpConnectTimeout($timeout);
-        $request->setTlsHandshakeTimeout($timeout);
-        $request->setTransferTimeout($timeout);
-        $request->setInactivityTimeout($timeout);
-        $request->setBodySizeLimit(PHP_INT_MAX);
+        $uri = HttpUri::new($base.'domain/'.rawurlencode($domain));
 
         try {
-            $response = $this->http->request($request, $cancellation);
-            $status = $response->getStatus();
+            for ($redirects = 0; ; $redirects++) {
+                $response = $this->http->request($this->request($uri, $timeout), $cancellation);
+                $status = $response->getStatus();
+                $location = $response->getHeader('location');
+                if (! in_array($status, [301, 302, 303, 307, 308], true) || $location === null) {
+                    break;
+                }
 
-            if ($status === 404 && $this->sameOrigin($response->getRequest()->getUri(), HttpUri::new($base))) {
+                $response->getBody()->close();
+                if ($redirects >= self::MAX_REDIRECTS) {
+                    return DomainExpiry::error($domain, DomainExpiry::SOURCE_RDAP, 'Too many redirects', $now);
+                }
+
+                try {
+                    $next = HttpUri::new((string) BaseUri::from($uri)->resolve($location));
+                } catch (Throwable) {
+                    return DomainExpiry::error($domain, DomainExpiry::SOURCE_RDAP, 'Invalid redirect', $now);
+                }
+                $scheme = strtolower($next->getScheme());
+                if (! in_array($scheme, ['http', 'https'], true) || (strtolower($uri->getScheme()) === 'https' && $scheme !== 'https')) {
+                    return DomainExpiry::error($domain, DomainExpiry::SOURCE_RDAP, 'Insecure redirect', $now);
+                }
+                $uri = $next;
+            }
+
+            if ($status === 404 && $this->sameOrigin($uri, HttpUri::new($base))) {
                 return new DomainExpiry($domain, DomainExpiry::SOURCE_RDAP, DomainExpiry::STATUS_NOT_FOUND, null, null, null, $now);
             }
             if ($status !== 200) {
@@ -105,6 +120,19 @@ final class RdapClient
             null,
             $now,
         );
+    }
+
+    private function request(UriInterface $uri, float $timeout): Request
+    {
+        $request = new Request($uri);
+        $request->setHeader('accept', 'application/rdap+json, application/json');
+        $request->setTcpConnectTimeout($timeout);
+        $request->setTlsHandshakeTimeout($timeout);
+        $request->setTransferTimeout($timeout);
+        $request->setInactivityTimeout($timeout);
+        $request->setBodySizeLimit(PHP_INT_MAX);
+
+        return $request;
     }
 
     /**
@@ -193,9 +221,6 @@ final class RdapClient
 
     private function describe(HttpException $e, float $timeout): string
     {
-        if ($e instanceof TooManyRedirectsException) {
-            return 'Too many redirects';
-        }
         if ($e instanceof TimeoutException) {
             return 'Timed out after '.self::seconds($timeout).' s';
         }

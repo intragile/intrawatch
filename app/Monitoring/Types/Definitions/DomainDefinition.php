@@ -17,7 +17,11 @@ class DomainDefinition extends AbstractDefinition
     {
         return [
             'domain' => ['required', 'string', function (string $a, mixed $v, \Closure $fail): void {
-                if (! is_string($v) || Hostname::isIp($v) || ! Hostname::isHostname($v, 2)) {
+                // Internationalised names are checked in their ASCII (punycode) form.
+                $ascii = is_string($v) && preg_match('/[^\x00-\x7F]/', $v) === 1
+                    ? idn_to_ascii($v, IDNA_NONTRANSITIONAL_TO_ASCII, INTL_IDNA_VARIANT_UTS46)
+                    : $v;
+                if (! is_string($v) || ! is_string($ascii) || Hostname::isIp($ascii) || ! Hostname::isHostname($ascii, 2)) {
                     $fail('The :attribute must be a domain name with at least two labels.');
                 } elseif (app(RegistrableDomains::class)->registrable($v) === null) {
                     // Public suffixes such as co.uk, and names under an unknown suffix, have no registration.

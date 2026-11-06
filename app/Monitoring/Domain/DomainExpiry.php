@@ -14,8 +14,6 @@ final readonly class DomainExpiry
 
     public const SOURCE_WHOIS = 'whois';
 
-    public const SOURCE_NONE = 'none';
-
     public const STATUS_OK = 'ok';
 
     /** The registry answered but publishes no expiry date. */

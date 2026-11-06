@@ -7,7 +7,10 @@ use Amp\Http\Server\Request;
 use Amp\Http\Server\RequestHandler\ClosureRequestHandler;
 use Amp\Http\Server\Response;
 use Amp\Http\Server\SocketHttpServer;
+use Amp\Socket\BindContext;
+use Amp\Socket\Certificate;
 use Amp\Socket\InternetAddress;
+use Amp\Socket\ServerTlsContext;
 use Psr\Log\NullLogger;
 
 use function Amp\delay;
@@ -27,12 +30,19 @@ final class RdapFixtureServer
     /** @var list<string> */
     public array $requests = [];
 
+    /** Most requests that were being handled at the same time. */
+    public int $maxConcurrent = 0;
+
+    private int $active = 0;
+
     private bool $stopped = false;
 
-    public function __construct()
+    public function __construct(?TestCertificates $certificates = null)
     {
-        $this->server = SocketHttpServer::createForDirectAccess(new NullLogger, enableCompression: false);
-        $this->server->expose('127.0.0.1:0');
+        $this->server = SocketHttpServer::createForDirectAccess(new NullLogger, enableCompression: false, connectionLimitPerIp: 1000);
+        $this->server->expose('127.0.0.1:0', $certificates === null
+            ? null
+            : (new BindContext)->withTlsContext((new ServerTlsContext)->withDefaultCertificate(new Certificate($certificates->serverFile))));
         $this->server->start(new ClosureRequestHandler($this->handle(...)), new DefaultErrorHandler);
 
         $address = $this->server->getServers()[0]->getAddress();
@@ -100,10 +110,15 @@ final class RdapFixtureServer
             return new Response(404, ['content-type' => 'application/rdap+json'], '{"errorCode":404}');
         }
 
-        if ($route['delay'] > 0) {
-            delay($route['delay']);
-        }
+        $this->maxConcurrent = max($this->maxConcurrent, ++$this->active);
+        try {
+            if ($route['delay'] > 0) {
+                delay($route['delay']);
+            }
 
-        return new Response($route['status'], $route['headers'], $route['body']);
+            return new Response($route['status'], $route['headers'], $route['body']);
+        } finally {
+            $this->active--;
+        }
     }
 }

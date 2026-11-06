@@ -84,6 +84,8 @@ final class OutcomeBuffer
      * @param  int  $capacity  Most outcomes held; beyond that the oldest are dropped.
      * @param  int  $batchSize  Outcomes per record() call; a queue this long also triggers a flush early.
      * @param  ?Closure(): void  $reconnect  Re-establishes the database connection after a failed flush.
+     * @param  ?Closure(): mixed  $afterFlush  Further writes made right after each successful flush, such as cached
+     *                                         domain lookups; it must not throw.
      */
     public function __construct(
         private readonly ResultRecorder $recorder,
@@ -93,6 +95,7 @@ final class OutcomeBuffer
         private readonly float $flushSeconds = 1.0,
         private readonly float $broadcastSeconds = 5.0,
         ?Closure $reconnect = null,
+        private readonly ?Closure $afterFlush = null,
     ) {
         $this->reconnect = $reconnect ?? static function (): void {
             DB::reconnect();
@@ -154,7 +157,12 @@ final class OutcomeBuffer
                 break;
             }
 
-            $failures = $this->flush() ? 0 : $failures + 1;
+            if ($this->flush()) {
+                $failures = 0;
+                $this->afterFlush?->__invoke();
+            } else {
+                $failures++;
+            }
             $this->broadcast(false);
         }
     }
@@ -202,6 +210,7 @@ final class OutcomeBuffer
     {
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
             if ($this->flush()) {
+                $this->afterFlush?->__invoke();
                 break;
             }
             if ($attempt < $attempts) {

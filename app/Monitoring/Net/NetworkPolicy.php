@@ -13,13 +13,28 @@ final class NetworkPolicy
     private array $blocked = [];
 
     /**
-     * @param  list<string>  $blockedNetworks  IPv4 and IPv6 CIDRs; a bare address is treated as a single host.
+     * @param  list<string>  $networks  Blocked IPv4 and IPv6 CIDRs; a bare address is treated as a single host.
      */
-    public function __construct(array $blockedNetworks = [])
+    public function __construct(private readonly array $networks = [])
     {
-        foreach ($blockedNetworks as $cidr) {
+        foreach ($networks as $cidr) {
             $this->blocked[] = self::parse($cidr);
         }
+    }
+
+    /** Loopback, private, shared (CGNAT), link-local and unique-local networks; registries are never there. */
+    public const NON_PUBLIC_NETWORKS = [
+        '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12', '192.168.0.0/16',
+        '::/128', '::1/128', 'fc00::/7', 'fe80::/10',
+    ];
+
+    /**
+     * The configured policy plus every non-public network, for traffic to domain registries and IANA, whose
+     * servers are always public. A redirect or a referral can then never reach an internal host.
+     */
+    public static function forRegistries(): self
+    {
+        return new self([...self::fromConfig()->networks, ...self::NON_PUBLIC_NETWORKS]);
     }
 
     public static function fromConfig(): self
