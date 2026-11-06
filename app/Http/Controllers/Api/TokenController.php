@@ -11,6 +11,7 @@ use App\Support\CurrentWorkspace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -68,16 +69,20 @@ class TokenController extends Controller
             }
         }
 
-        $created = $this->user($request)->createToken(
-            $request->string('name')->toString(),
-            $abilities,
-            $request->date('expires_at'),
-        );
-        $created->accessToken->forceFill(['workspace_id' => $workspace->id])->save();
-        Audit::record('token.created', $created->accessToken, [
-            'name' => [null, $created->accessToken->name],
-            'abilities' => [null, $abilities],
-        ]);
+        $created = DB::transaction(function () use ($request, $workspace, $abilities) {
+            $created = $this->user($request)->createToken(
+                $request->string('name')->toString(),
+                $abilities,
+                $request->date('expires_at'),
+            );
+            $created->accessToken->forceFill(['workspace_id' => $workspace->id])->save();
+            Audit::record('token.created', $created->accessToken, [
+                'name' => [null, $created->accessToken->name],
+                'abilities' => [null, $abilities],
+            ]);
+
+            return $created;
+        });
 
         return response()->json([
             'id' => $created->accessToken->getKey(),
@@ -93,8 +98,10 @@ class TokenController extends Controller
             ->where('workspace_id', $workspace->id)
             ->whereKey($id)
             ->firstOrFail();
-        $token->delete();
-        Audit::record('token.revoked', $token, ['name' => [$token->name, null]]);
+        DB::transaction(function () use ($token): void {
+            $token->delete();
+            Audit::record('token.revoked', $token, ['name' => [$token->name, null]]);
+        });
 
         return response()->noContent();
     }

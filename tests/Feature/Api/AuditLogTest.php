@@ -362,4 +362,49 @@ class AuditLogTest extends TestCase
             ->postJson($this->url('/tokens'), ['name' => 'x', 'abilities' => ['audit:read']])
             ->assertStatus(422);
     }
+
+    private function failAuditInserts(): void
+    {
+        AuditEvent::creating(function (): never {
+            throw new LogicException('Audit insert failed.');
+        });
+    }
+
+    public function test_failed_audit_insert_rolls_back_role_change(): void
+    {
+        $owner = $this->member(WorkspaceRole::Owner);
+        $viewer = $this->member(WorkspaceRole::Viewer);
+        $this->failAuditInserts();
+
+        $this->actingAs($owner, 'sanctum')
+            ->patchJson($this->url("/members/{$viewer->id}"), ['role' => 'editor'])
+            ->assertStatus(500)
+            ->assertHeader('Content-Type', 'application/problem+json');
+
+        $this->assertSame(WorkspaceRole::Viewer, $this->workspace->memberships()->where('user_id', $viewer->id)->sole()->role);
+    }
+
+    public function test_failed_audit_insert_leaves_no_token(): void
+    {
+        $admin = $this->member(WorkspaceRole::Admin);
+        $this->failAuditInserts();
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson($this->url('/tokens'), ['name' => 'ci', 'abilities' => ['workspace:read']])
+            ->assertStatus(500);
+
+        $this->assertSame(0, $admin->tokens()->count());
+    }
+
+    public function test_failed_audit_insert_keeps_workspace(): void
+    {
+        $owner = $this->member(WorkspaceRole::Owner);
+        $this->failAuditInserts();
+
+        $this->actingAs($owner, 'sanctum')->deleteJson($this->url(''))->assertStatus(500);
+        $this->actingAs($owner, 'sanctum')->patchJson($this->url(''), ['name' => 'Changed'])->assertStatus(500);
+
+        $fresh = Workspace::findOrFail($this->workspace->id);
+        $this->assertSame($this->workspace->name, $fresh->name);
+    }
 }

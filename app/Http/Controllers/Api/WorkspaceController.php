@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class WorkspaceController extends Controller
@@ -59,11 +60,13 @@ class WorkspaceController extends Controller
         $name = $request->string('name')->toString();
 
         $previous = $workspace->name;
-        $workspace->update(['name' => $name]);
+        DB::transaction(function () use ($workspace, $name, $previous): void {
+            $workspace->update(['name' => $name]);
 
-        if ($previous !== $name) {
-            Audit::record('workspace.updated', $workspace, ['name' => [$previous, $name]]);
-        }
+            if ($previous !== $name) {
+                Audit::record('workspace.updated', $workspace, ['name' => [$previous, $name]]);
+            }
+        });
 
         /** @var User $user */
         $user = $request->user();
@@ -75,9 +78,10 @@ class WorkspaceController extends Controller
     {
         Gate::authorize('delete', $workspace);
 
-        $workspace->delete();
-
-        Audit::record('workspace.deleted', $workspace, ['name' => [$workspace->name, null]]);
+        DB::transaction(function () use ($workspace): void {
+            $workspace->delete();
+            Audit::record('workspace.deleted', $workspace, ['name' => [$workspace->name, null]]);
+        });
 
         return response()->noContent();
     }

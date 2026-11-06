@@ -12,6 +12,7 @@ use App\Support\CurrentWorkspace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -51,8 +52,12 @@ class MemberController extends Controller
             ]);
         }
 
-        $membership = $workspace->memberships()->create(['user_id' => $user->id, 'role' => $role]);
-        Audit::record('member.added', $user, ['role' => [null, $role->value]]);
+        $membership = DB::transaction(function () use ($workspace, $user, $role): Membership {
+            $membership = $workspace->memberships()->create(['user_id' => $user->id, 'role' => $role]);
+            Audit::record('member.added', $user, ['role' => [null, $role->value]]);
+
+            return $membership;
+        });
 
         return response()->json(['data' => $this->payload($membership->setRelation('user', $user))], 201);
     }
@@ -70,13 +75,13 @@ class MemberController extends Controller
 
         $previous = $membership->role;
 
-        $membership->guardLastOwner($role, function () use ($membership, $role): void {
+        $membership->guardLastOwner($role, function () use ($membership, $role, $previous, $user): void {
             $membership->update(['role' => $role]);
-        });
 
-        if ($previous !== $role) {
-            Audit::record('member.role_changed', $user, ['role' => [$previous->value, $role->value]]);
-        }
+            if ($previous !== $role) {
+                Audit::record('member.role_changed', $user, ['role' => [$previous->value, $role->value]]);
+            }
+        });
 
         return response()->json(['data' => $this->payload($membership->setRelation('user', $user))]);
     }
@@ -88,11 +93,10 @@ class MemberController extends Controller
         $membership = $this->membershipOf($workspace, $user);
         $this->authorizeTouching($membership);
 
-        $membership->guardLastOwner(null, function () use ($membership): void {
+        $membership->guardLastOwner(null, function () use ($membership, $user): void {
             $membership->delete();
+            Audit::record('member.removed', $user, ['role' => [$membership->role->value, null]]);
         });
-
-        Audit::record('member.removed', $user, ['role' => [$membership->role->value, null]]);
 
         return response()->noContent();
     }
