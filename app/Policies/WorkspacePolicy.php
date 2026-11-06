@@ -48,4 +48,14 @@ class WorkspacePolicy
     {
         return $this->atLeast($user, $workspace, WorkspaceRole::Admin);
     }
+
+    public function viewMonitors(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Viewer);
+    }
+
+    public function manageMonitors(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Editor);
+    }
 }

@@ -88,6 +88,22 @@ class Monitor extends Model
     }
 
     /**
+     * Ids of the assigned tags, ascending.
+     *
+     * @return list<int>
+     */
+    public function tagIds(): array
+    {
+        $ids = [];
+        foreach ($this->tags()->pluck('tags.id') as $id) {
+            $ids[] = is_numeric($id) ? (int) $id : 0;
+        }
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
      * @return HasOne<MonitorState, $this>
      */
     public function state(): HasOne

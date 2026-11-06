@@ -595,6 +595,30 @@
                 }
             }
         },
+        "/monitor-types": {
+            "get": {
+                "operationId": "monitorType",
+                "tags": [
+                    "MonitorType"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {}
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/openapi.json": {
             "get": {
                 "operationId": "openApi",
@@ -1469,6 +1493,1799 @@
                 }
             }
         },
+        "/workspaces/{workspace}/monitors": {
+            "get": {
+                "operationId": "monitor.index",
+                "tags": [
+                    "Monitor"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/MonitorType"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/MonitorStatus"
+                        }
+                    },
+                    {
+                        "name": "tag",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 120
+                        }
+                    },
+                    {
+                        "name": "parent_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^(null|\\d+)$"
+                        }
+                    },
+                    {
+                        "name": "active",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "true",
+                                "false",
+                                "1",
+                                "0"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "limit": {}
+                                            },
+                                            "required": [
+                                                "next_cursor",
+                                                "limit"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "monitor.store",
+                "tags": [
+                    "Monitor"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreMonitorRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "description": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "type": {
+                                            "type": "string",
+                                            "enum": [
+                                                "http",
+                                                "tcp",
+                                                "ping",
+                                                "dns",
+                                                "tls",
+                                                "domain",
+                                                "push",
+                                                "cron",
+                                                "group"
+                                            ]
+                                        },
+                                        "active": {
+                                            "type": "boolean"
+                                        },
+                                        "interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "timeout_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "retries": {
+                                            "type": "integer"
+                                        },
+                                        "retry_interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "degraded_threshold_ms": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "inverted": {
+                                            "type": "boolean"
+                                        },
+                                        "parent_id": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "config": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        },
+                                        "secret_keys": {
+                                            "type": "array",
+                                            "items": {}
+                                        },
+                                        "tags": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "color": {
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "color",
+                                                    "value"
+                                                ]
+                                            }
+                                        },
+                                        "push_url": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "state": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "up",
+                                                        "down",
+                                                        "degraded",
+                                                        "maintenance",
+                                                        "pending",
+                                                        "paused"
+                                                    ]
+                                                },
+                                                "since": {
+                                                    "type": "string"
+                                                },
+                                                "last_checked_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_latency_ms": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_message": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "since",
+                                                "last_checked_at",
+                                                "last_latency_ms",
+                                                "last_message"
+                                            ]
+                                        },
+                                        "created_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "updated_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "description",
+                                        "type",
+                                        "active",
+                                        "interval_seconds",
+                                        "timeout_seconds",
+                                        "retries",
+                                        "retry_interval_seconds",
+                                        "degraded_threshold_ms",
+                                        "inverted",
+                                        "parent_id",
+                                        "config",
+                                        "secret_keys",
+                                        "tags",
+                                        "push_url",
+                                        "state",
+                                        "created_at",
+                                        "updated_at"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/monitors/bulk": {
+            "post": {
+                "operationId": "monitorBulk",
+                "tags": [
+                    "MonitorBulk"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "action": {
+                                        "type": "string",
+                                        "enum": [
+                                            "pause",
+                                            "resume",
+                                            "delete",
+                                            "tag",
+                                            "untag"
+                                        ]
+                                    },
+                                    "ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        },
+                                        "minItems": 1,
+                                        "maxItems": 500,
+                                        "uniqueItems": true
+                                    },
+                                    "tag_id": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "required": [
+                                    "action",
+                                    "ids"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "affected": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                        }
+                                    },
+                                    "required": [
+                                        "affected"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/monitors/{monitor}": {
+            "get": {
+                "operationId": "monitor.show",
+                "tags": [
+                    "Monitor"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "monitor",
+                        "in": "path",
+                        "required": true,
+                        "description": "The monitor ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "description": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "type": {
+                                            "type": "string",
+                                            "enum": [
+                                                "http",
+                                                "tcp",
+                                                "ping",
+                                                "dns",
+                                                "tls",
+                                                "domain",
+                                                "push",
+                                                "cron",
+                                                "group"
+                                            ]
+                                        },
+                                        "active": {
+                                            "type": "boolean"
+                                        },
+                                        "interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "timeout_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "retries": {
+                                            "type": "integer"
+                                        },
+                                        "retry_interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "degraded_threshold_ms": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "inverted": {
+                                            "type": "boolean"
+                                        },
+                                        "parent_id": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "config": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        },
+                                        "secret_keys": {
+                                            "type": "array",
+                                            "items": {}
+                                        },
+                                        "tags": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "color": {
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "color",
+                                                    "value"
+                                                ]
+                                            }
+                                        },
+                                        "push_url": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "state": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "up",
+                                                        "down",
+                                                        "degraded",
+                                                        "maintenance",
+                                                        "pending",
+                                                        "paused"
+                                                    ]
+                                                },
+                                                "since": {
+                                                    "type": "string"
+                                                },
+                                                "last_checked_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_latency_ms": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_message": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "since",
+                                                "last_checked_at",
+                                                "last_latency_ms",
+                                                "last_message"
+                                            ]
+                                        },
+                                        "created_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "updated_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "description",
+                                        "type",
+                                        "active",
+                                        "interval_seconds",
+                                        "timeout_seconds",
+                                        "retries",
+                                        "retry_interval_seconds",
+                                        "degraded_threshold_ms",
+                                        "inverted",
+                                        "parent_id",
+                                        "config",
+                                        "secret_keys",
+                                        "tags",
+                                        "push_url",
+                                        "state",
+                                        "created_at",
+                                        "updated_at"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "monitor.update",
+                "tags": [
+                    "Monitor"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "monitor",
+                        "in": "path",
+                        "required": true,
+                        "description": "The monitor ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMonitorRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "description": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "type": {
+                                            "type": "string",
+                                            "enum": [
+                                                "http",
+                                                "tcp",
+                                                "ping",
+                                                "dns",
+                                                "tls",
+                                                "domain",
+                                                "push",
+                                                "cron",
+                                                "group"
+                                            ]
+                                        },
+                                        "active": {
+                                            "type": "boolean"
+                                        },
+                                        "interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "timeout_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "retries": {
+                                            "type": "integer"
+                                        },
+                                        "retry_interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "degraded_threshold_ms": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "inverted": {
+                                            "type": "boolean"
+                                        },
+                                        "parent_id": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "config": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        },
+                                        "secret_keys": {
+                                            "type": "array",
+                                            "items": {}
+                                        },
+                                        "tags": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "color": {
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "color",
+                                                    "value"
+                                                ]
+                                            }
+                                        },
+                                        "push_url": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "state": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "up",
+                                                        "down",
+                                                        "degraded",
+                                                        "maintenance",
+                                                        "pending",
+                                                        "paused"
+                                                    ]
+                                                },
+                                                "since": {
+                                                    "type": "string"
+                                                },
+                                                "last_checked_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_latency_ms": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_message": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "since",
+                                                "last_checked_at",
+                                                "last_latency_ms",
+                                                "last_message"
+                                            ]
+                                        },
+                                        "created_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "updated_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "description",
+                                        "type",
+                                        "active",
+                                        "interval_seconds",
+                                        "timeout_seconds",
+                                        "retries",
+                                        "retry_interval_seconds",
+                                        "degraded_threshold_ms",
+                                        "inverted",
+                                        "parent_id",
+                                        "config",
+                                        "secret_keys",
+                                        "tags",
+                                        "push_url",
+                                        "state",
+                                        "created_at",
+                                        "updated_at"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "monitor.destroy",
+                "tags": [
+                    "Monitor"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "monitor",
+                        "in": "path",
+                        "required": true,
+                        "description": "The monitor ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/monitors/{monitor}/check": {
+            "post": {
+                "operationId": "monitorAction.check",
+                "tags": [
+                    "MonitorAction"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "monitor",
+                        "in": "path",
+                        "required": true,
+                        "description": "The monitor ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "check_requested_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "check_requested_at"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/monitors/{monitor}/pause": {
+            "post": {
+                "operationId": "monitorAction.pause",
+                "tags": [
+                    "MonitorAction"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "monitor",
+                        "in": "path",
+                        "required": true,
+                        "description": "The monitor ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "description": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "type": {
+                                            "type": "string",
+                                            "enum": [
+                                                "http",
+                                                "tcp",
+                                                "ping",
+                                                "dns",
+                                                "tls",
+                                                "domain",
+                                                "push",
+                                                "cron",
+                                                "group"
+                                            ]
+                                        },
+                                        "active": {
+                                            "type": "boolean"
+                                        },
+                                        "interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "timeout_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "retries": {
+                                            "type": "integer"
+                                        },
+                                        "retry_interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "degraded_threshold_ms": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "inverted": {
+                                            "type": "boolean"
+                                        },
+                                        "parent_id": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "config": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        },
+                                        "secret_keys": {
+                                            "type": "array",
+                                            "items": {}
+                                        },
+                                        "tags": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "color": {
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "color",
+                                                    "value"
+                                                ]
+                                            }
+                                        },
+                                        "push_url": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "state": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "up",
+                                                        "down",
+                                                        "degraded",
+                                                        "maintenance",
+                                                        "pending",
+                                                        "paused"
+                                                    ]
+                                                },
+                                                "since": {
+                                                    "type": "string"
+                                                },
+                                                "last_checked_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_latency_ms": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_message": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "since",
+                                                "last_checked_at",
+                                                "last_latency_ms",
+                                                "last_message"
+                                            ]
+                                        },
+                                        "created_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "updated_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "description",
+                                        "type",
+                                        "active",
+                                        "interval_seconds",
+                                        "timeout_seconds",
+                                        "retries",
+                                        "retry_interval_seconds",
+                                        "degraded_threshold_ms",
+                                        "inverted",
+                                        "parent_id",
+                                        "config",
+                                        "secret_keys",
+                                        "tags",
+                                        "push_url",
+                                        "state",
+                                        "created_at",
+                                        "updated_at"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/monitors/{monitor}/push-token": {
+            "post": {
+                "operationId": "monitorAction.rotatePushToken",
+                "tags": [
+                    "MonitorAction"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "monitor",
+                        "in": "path",
+                        "required": true,
+                        "description": "The monitor ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "push_url": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "push_url"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/monitors/{monitor}/resume": {
+            "post": {
+                "operationId": "monitorAction.resume",
+                "tags": [
+                    "MonitorAction"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "monitor",
+                        "in": "path",
+                        "required": true,
+                        "description": "The monitor ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "description": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "type": {
+                                            "type": "string",
+                                            "enum": [
+                                                "http",
+                                                "tcp",
+                                                "ping",
+                                                "dns",
+                                                "tls",
+                                                "domain",
+                                                "push",
+                                                "cron",
+                                                "group"
+                                            ]
+                                        },
+                                        "active": {
+                                            "type": "boolean"
+                                        },
+                                        "interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "timeout_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "retries": {
+                                            "type": "integer"
+                                        },
+                                        "retry_interval_seconds": {
+                                            "type": "integer"
+                                        },
+                                        "degraded_threshold_ms": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "inverted": {
+                                            "type": "boolean"
+                                        },
+                                        "parent_id": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "config": {
+                                            "type": "object",
+                                            "additionalProperties": {}
+                                        },
+                                        "secret_keys": {
+                                            "type": "array",
+                                            "items": {}
+                                        },
+                                        "tags": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "color": {
+                                                        "type": "string"
+                                                    },
+                                                    "value": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "color",
+                                                    "value"
+                                                ]
+                                            }
+                                        },
+                                        "push_url": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "state": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "up",
+                                                        "down",
+                                                        "degraded",
+                                                        "maintenance",
+                                                        "pending",
+                                                        "paused"
+                                                    ]
+                                                },
+                                                "since": {
+                                                    "type": "string"
+                                                },
+                                                "last_checked_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_latency_ms": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_message": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "status",
+                                                "since",
+                                                "last_checked_at",
+                                                "last_latency_ms",
+                                                "last_message"
+                                            ]
+                                        },
+                                        "created_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "updated_at": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "description",
+                                        "type",
+                                        "active",
+                                        "interval_seconds",
+                                        "timeout_seconds",
+                                        "retries",
+                                        "retry_interval_seconds",
+                                        "degraded_threshold_ms",
+                                        "inverted",
+                                        "parent_id",
+                                        "config",
+                                        "secret_keys",
+                                        "tags",
+                                        "push_url",
+                                        "state",
+                                        "created_at",
+                                        "updated_at"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/tags": {
+            "get": {
+                "operationId": "tag.index",
+                "tags": [
+                    "Tag"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "limit": {}
+                                            },
+                                            "required": [
+                                                "next_cursor",
+                                                "limit"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "tag.store",
+                "tags": [
+                    "Tag"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                    },
+                                    "color": {
+                                        "type": "string",
+                                        "pattern": "^#[0-9a-fA-F]{6}$"
+                                    }
+                                },
+                                "required": [
+                                    "name"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "color": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "color"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/tags/{tag}": {
+            "patch": {
+                "operationId": "tag.update",
+                "tags": [
+                    "Tag"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "tag",
+                        "in": "path",
+                        "required": true,
+                        "description": "The tag ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                    },
+                                    "color": {
+                                        "type": "string",
+                                        "pattern": "^#[0-9a-fA-F]{6}$"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "color": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "name",
+                                        "color"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "tag.destroy",
+                "tags": [
+                    "Tag"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "tag",
+                        "in": "path",
+                        "required": true,
+                        "description": "The tag ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/tokens": {
             "get": {
                 "operationId": "token.index",
@@ -1679,6 +3496,33 @@
                 ],
                 "title": "LoginRequest"
             },
+            "MonitorStatus": {
+                "type": "string",
+                "enum": [
+                    "up",
+                    "down",
+                    "degraded",
+                    "maintenance",
+                    "pending",
+                    "paused"
+                ],
+                "title": "MonitorStatus"
+            },
+            "MonitorType": {
+                "type": "string",
+                "enum": [
+                    "http",
+                    "tcp",
+                    "ping",
+                    "dns",
+                    "tls",
+                    "domain",
+                    "push",
+                    "cron",
+                    "group"
+                ],
+                "title": "MonitorType"
+            },
             "SendPasswordResetLinkRequest": {
                 "type": "object",
                 "properties": {
@@ -1692,13 +3536,27 @@
                 ],
                 "title": "SendPasswordResetLinkRequest"
             },
+            "StoreMonitorRequest": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "$ref": "#/components/schemas/MonitorType"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "title": "StoreMonitorRequest"
+            },
             "TokenAbility": {
                 "type": "string",
                 "enum": [
                     "workspace:read",
                     "workspace:manage",
                     "members:manage",
-                    "audit:read"
+                    "audit:read",
+                    "monitors:read",
+                    "monitors:write"
                 ],
                 "title": "TokenAbility"
             },
@@ -1719,6 +3577,15 @@
                     }
                 },
                 "title": "TwoFactorLoginRequest"
+            },
+            "UpdateMonitorRequest": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "title": "UpdateMonitorRequest"
             },
             "WorkspaceRole": {
                 "type": "string",

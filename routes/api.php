@@ -3,8 +3,13 @@
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\MemberController;
+use App\Http\Controllers\Api\MonitorActionController;
+use App\Http\Controllers\Api\MonitorBulkController;
+use App\Http\Controllers\Api\MonitorController;
+use App\Http\Controllers\Api\MonitorTypeController;
 use App\Http\Controllers\Api\OpenApiController;
 use App\Http\Controllers\Api\SetupController;
+use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\PingController;
@@ -18,6 +23,8 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/me', MeController::class);
+
+        Route::get('/monitor-types', MonitorTypeController::class);
 
         Route::get('/workspaces', [WorkspaceController::class, 'index']);
         Route::post('/workspaces', [WorkspaceController::class, 'store']);
@@ -36,6 +43,27 @@ Route::prefix('v1')->group(function (): void {
             });
 
             Route::get('/audit', AuditController::class)->middleware('ability:audit:read');
+
+            Route::middleware(['ability:monitors:read', 'can:viewMonitors,workspace'])->group(function (): void {
+                Route::get('/monitors', [MonitorController::class, 'index']);
+                Route::get('/monitors/{monitor}', [MonitorController::class, 'show'])->whereNumber('monitor');
+                Route::get('/tags', [TagController::class, 'index']);
+            });
+
+            Route::middleware(['ability:monitors:write', 'can:manageMonitors,workspace'])->group(function (): void {
+                Route::post('/monitors', [MonitorController::class, 'store']);
+                Route::post('/monitors/bulk', MonitorBulkController::class);
+                Route::patch('/monitors/{monitor}', [MonitorController::class, 'update'])->whereNumber('monitor');
+                Route::delete('/monitors/{monitor}', [MonitorController::class, 'destroy'])->whereNumber('monitor');
+                Route::post('/monitors/{monitor}/pause', [MonitorActionController::class, 'pause'])->whereNumber('monitor');
+                Route::post('/monitors/{monitor}/resume', [MonitorActionController::class, 'resume'])->whereNumber('monitor');
+                Route::post('/monitors/{monitor}/check', [MonitorActionController::class, 'check'])->whereNumber('monitor');
+                Route::post('/monitors/{monitor}/push-token', [MonitorActionController::class, 'rotatePushToken'])->whereNumber('monitor');
+
+                Route::post('/tags', [TagController::class, 'store']);
+                Route::patch('/tags/{tag}', [TagController::class, 'update'])->whereNumber('tag');
+                Route::delete('/tags/{tag}', [TagController::class, 'destroy'])->whereNumber('tag');
+            });
 
             Route::get('/tokens', [TokenController::class, 'index']);
             Route::post('/tokens', [TokenController::class, 'store']);

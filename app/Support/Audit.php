@@ -19,6 +19,11 @@ final class Audit
     private const SENSITIVE = ['password', 'token', 'secret', 'two_factor', 'remember'];
 
     /**
+     * Fields that carry only credential names, never values, and so may be recorded.
+     */
+    private const SAFE_FIELDS = ['secret_keys'];
+
+    /**
      * Record an event for the current request: the actor comes from the authenticated caller (a user, an
      * API token or the system) and the workspace from the subject or the resolved workspace.
      *
@@ -108,7 +113,7 @@ final class Audit
     {
         $clean = [];
         foreach ($changes as $field => [$old, $new]) {
-            if (! self::isSensitive($field)) {
+            if (in_array($field, self::SAFE_FIELDS, true) || ! self::isSensitive($field)) {
                 $clean[$field] = [self::scrub($old), self::scrub($new)];
             }
         }
