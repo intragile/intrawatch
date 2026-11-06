@@ -81,6 +81,8 @@ class GroupEvaluatorTest extends TestCase
         $this->assertSame(MonitorStatus::Up, $this->evaluate('any', [MonitorStatus::Down, MonitorStatus::Up]));
         $this->assertSame(MonitorStatus::Degraded, $this->evaluate('any', [MonitorStatus::Down, MonitorStatus::Degraded]));
         $this->assertSame(MonitorStatus::Down, $this->evaluate('any', [MonitorStatus::Down, MonitorStatus::Down]));
+        $this->assertSame(MonitorStatus::Pending, $this->evaluate('any', [MonitorStatus::Pending]));
+        $this->assertSame(MonitorStatus::Pending, $this->evaluate('any', [MonitorStatus::Pending, MonitorStatus::Down]));
 
         $this->assertSame(MonitorStatus::Up, $this->evaluate('quorum', [MonitorStatus::Up, MonitorStatus::Up, MonitorStatus::Down], 2));
         $this->assertSame(MonitorStatus::Down, $this->evaluate('quorum', [MonitorStatus::Up, MonitorStatus::Down, MonitorStatus::Down], 2));
@@ -242,5 +244,23 @@ class GroupEvaluatorTest extends TestCase
             ->assertOk();
 
         $this->assertSame(MonitorStatus::Up, $this->statusOf($group));
+    }
+
+    public function test_creating_a_child_recomputes_the_parent(): void
+    {
+        Event::fake([MonitorStatusChanged::class]);
+        $workspace = Workspace::factory()->create();
+        $user = User::factory()->memberOf($workspace, WorkspaceRole::Editor)->create();
+        $group = Monitor::factory()->for($workspace)->group()->create();
+        $this->app->make(GroupEvaluator::class)->recompute([$group->id]);
+        $this->assertSame(MonitorStatus::Pending, $this->statusOf($group));
+
+        $this->actingAs($user)->postJson("/api/v1/workspaces/{$workspace->slug}/monitors", [
+            'name' => 'Child', 'type' => 'http', 'config' => ['url' => 'https://example.test'], 'parent_id' => $group->id,
+        ])->assertCreated();
+
+        $this->assertSame(MonitorStatus::Degraded, $this->statusOf($group));
+        Event::assertDispatched(MonitorStatusChanged::class, fn (MonitorStatusChanged $e): bool => $e->monitorId === $group->id
+            && $e->to === MonitorStatus::Degraded);
     }
 }

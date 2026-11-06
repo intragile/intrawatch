@@ -79,14 +79,19 @@ class MonitorController extends Controller
             $monitor->push_token = Str::random(48);
         }
 
-        DB::transaction(function () use ($monitor, $request): void {
+        $transitions = [];
+        DB::transaction(function () use ($monitor, $request, &$transitions): void {
             $monitor->save();
             $tags = $request->tagAssignments();
             if ($tags !== null) {
                 $monitor->tags()->sync($tags);
             }
             Audit::record('monitor.created', $monitor, $this->createdChanges($monitor, $tags ?? []));
+            if ($monitor->parent_id !== null) {
+                $transitions = $this->groups->recompute([$monitor->parent_id]);
+            }
         });
+        PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
 
         return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor))], 201);
     }

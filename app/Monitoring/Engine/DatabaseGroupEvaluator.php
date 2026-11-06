@@ -163,7 +163,8 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
         }
 
         $status = match ($mode) {
-            'any' => $up > 0 ? MonitorStatus::Up : ($degraded > 0 ? MonitorStatus::Degraded : MonitorStatus::Down),
+            // A pending child may still turn out up, so the group is never reported down while one is pending.
+            'any' => $up > 0 ? MonitorStatus::Up : ($degraded > 0 ? MonitorStatus::Degraded : ($pending > 0 ? MonitorStatus::Pending : MonitorStatus::Down)),
             'quorum' => $available >= $quorum ? MonitorStatus::Up : MonitorStatus::Down,
             default => $down > 0 ? MonitorStatus::Down : ($degraded > 0 || $pending > 0 ? MonitorStatus::Degraded : MonitorStatus::Up),
         };
