@@ -21,6 +21,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $last_ping_at
  * @property Carbon|null $run_started_at
  * @property Carbon|null $deadline_anchor_at
+ * @property Carbon|null $miss_deadline_at
+ * @property int|null $miss_number
  * @property Carbon|null $updated_at
  */
 class MonitorState extends Model
@@ -55,6 +57,8 @@ class MonitorState extends Model
             'last_ping_at' => 'datetime',
             'run_started_at' => 'datetime',
             'deadline_anchor_at' => 'datetime',
+            'miss_deadline_at' => 'datetime',
+            'miss_number' => 'integer',
         ];
     }
 

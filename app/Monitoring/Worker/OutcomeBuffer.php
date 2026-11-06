@@ -59,6 +59,9 @@ final class OutcomeBuffer
 
     private ?int $failingBatch = null;
 
+    /** When a flush last succeeded after failing, that is when the database was seen to come back. */
+    private ?CarbonImmutable $recoveredAt = null;
+
     private int $batchFailures = 0;
 
     private int $sequence = 0;
@@ -125,6 +128,14 @@ final class OutcomeBuffer
         if (count($this->queue) >= $this->batchSize) {
             $this->wake->cancel();
         }
+    }
+
+    /**
+     * The last time a flush succeeded after failing, or null when no flush has failed.
+     */
+    public function recoveredAt(): ?CarbonImmutable
+    {
+        return $this->recoveredAt;
     }
 
     public function count(): int
@@ -196,6 +207,9 @@ final class OutcomeBuffer
             $this->completed($keys, $batch);
         }
 
+        if ($this->failing) {
+            $this->recoveredAt = $this->clock->now();
+        }
         $this->failing = false;
         $this->failingBatch = null;
         $this->batchFailures = 0;

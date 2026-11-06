@@ -4,9 +4,7 @@ namespace App\Monitoring\Engine;
 
 use App\Enums\MonitorType;
 use Carbon\CarbonImmutable;
-use Cron\CronExpression;
 use Illuminate\Support\Facades\DB;
-use Throwable;
 
 /**
  * Evaluates push and cron deadlines against the monitor_states table.
@@ -16,18 +14,19 @@ use Throwable;
  * chunk of 500, never one query per monitor. Outcomes go through the ResultRecorder like any check outcome.
  *
  * A missed deadline is only ever reported as down when the state row says so; when it cannot be read, the
- * caller retries later and nothing is recorded.
+ * caller retries later and nothing is recorded. Deadlines that passed before $availableSince (the moment the
+ * worker started or saw the database come back) are moved to start from that moment instead.
  */
 final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
 {
     private const CHUNK = 500;
 
-    public function evaluate(MonitorSpec $spec, CarbonImmutable $now): array
+    public function evaluate(MonitorSpec $spec, CarbonImmutable $now, ?CarbonImmutable $availableSince = null): array
     {
-        return $this->evaluateMany([$spec], $now)[$spec->id];
+        return $this->evaluateMany([$spec], $now, $availableSince)[$spec->id];
     }
 
-    public function evaluateMany(array $specs, CarbonImmutable $now): array
+    public function evaluateMany(array $specs, CarbonImmutable $now, ?CarbonImmutable $availableSince = null): array
     {
         /** @var array<int, MonitorSpec> $byId */
         $byId = [];
@@ -50,8 +49,8 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
             $state = $states[$id] ?? null;
             $results[$id] = match (true) {
                 $state === null => [null, $now->addSeconds($spec->intervalSeconds)],
-                $spec->type === MonitorType::Push => $this->push($spec, $state, $now),
-                $spec->type === MonitorType::Cron => $this->cron($spec, $state, $now),
+                $spec->type === MonitorType::Push => $this->push($spec, $state, $now, $availableSince),
+                $spec->type === MonitorType::Cron => $this->cron($spec, $state, $now, $availableSince),
                 default => [null, $now->addSeconds($spec->intervalSeconds)],
             };
         }
@@ -60,64 +59,51 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
     }
 
     /**
-     * The first run of $schedule after $after, in $timezone, or null when the expression has no next run.
-     *
-     * Daylight saving time follows cron daemons such as cronie:
-     * - A run in the skipped hour (spring forward) is expected right after the jump, which is what
-     *   cron-expression returns: '0 2 * * *' in Europe/Budapest is expected at 03:00 CEST that day.
-     * - A wall-clock time that occurs twice (fall back) is expected once. Cron-expression would expect
-     *   '0 2 * * *' again at 02:00 CET after the run at 02:00 CEST; when the next run has the same local
-     *   date and time as the previous one, it is skipped and the one after it is expected instead. A job
-     *   that does run twice (for instance hourly) is then merely expected less often, never falsely missed.
+     * The run expected next after a report (or creation, resume or edit) at $after, in $timezone, or null
+     * when the expression has no next run. See CronSchedule for daylight saving time and early reports.
      */
     public static function expectedRun(string $schedule, string $timezone, CarbonImmutable $after): ?CarbonImmutable
     {
-        try {
-            $cron = new CronExpression($schedule);
-            $next = CarbonImmutable::instance($cron->getNextRunDate($after, 0, false, $timezone));
-        } catch (Throwable) {
-            return null;
-        }
-
-        try {
-            $previous = CarbonImmutable::instance($cron->getPreviousRunDate($after, 0, true, $timezone));
-            if ($previous->lt($next) && $previous->format('Y-m-d H:i') === $next->format('Y-m-d H:i')) {
-                $next = CarbonImmutable::instance($cron->getNextRunDate($next, 0, false, $timezone));
-            }
-        } catch (Throwable) {
-            // No previous run: nothing can repeat.
-        }
-
-        return $next->setTimezone($timezone);
+        return CronSchedule::parse($schedule, $timezone)?->expectedAfter($after);
     }
 
     /**
      * @return array{0: ?CheckOutcome, 1: CarbonImmutable}
      */
-    private function push(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now): array
+    private function push(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now, ?CarbonImmutable $availableSince): array
     {
         $anchor = $state->anchor(MonitorType::Push);
-        $deadline = $anchor->addSeconds($spec->intervalSeconds + $this->int($spec->config['grace_seconds'] ?? null, 0));
+        $period = $spec->intervalSeconds + $this->int($spec->config['grace_seconds'] ?? null, 0);
+        $deadline = $anchor->addSeconds($period);
+        if ($availableSince !== null && $deadline->lt($availableSince)) {
+            // Missed while this worker could not see the monitor (not running yet, or the database was
+            // unavailable): its heartbeats may have been lost on the way, so it gets a full period from then.
+            $deadline = $availableSince->addSeconds($period);
+        }
         if ($now->lte($deadline)) {
             return [null, $deadline->addSecond()];
         }
 
-        $later = $now->addSeconds($spec->intervalSeconds);
-        if ($state->reported($deadline)) {
-            return [null, $later];
+        // Miss k is due after deadline + k * retry interval: the retries are spent by time, not by how often
+        // the deadline happens to be evaluated.
+        $retry = max(1, $spec->retryIntervalSeconds);
+        $miss = intdiv(max(0, $now->getTimestamp() - $deadline->getTimestamp() - 1), $retry);
+        $next = $deadline->addSeconds(($miss + 1) * $retry + 1);
+        if ($state->reported($deadline) || $state->missRecorded($deadline, $miss)) {
+            return [null, $next];
         }
 
         $silent = $now->getTimestamp() - $anchor->getTimestamp();
         $outcome = CheckOutcome::down("No heartbeat for {$silent} s", facts: ['deadline' => $deadline->toIso8601ZuluString()])
-            ->forDeadline(new Deadline($deadline, $anchor));
+            ->forDeadline(new Deadline($deadline, $anchor, null, $miss));
 
-        return [$outcome, $later];
+        return [$outcome, $next];
     }
 
     /**
      * @return array{0: ?CheckOutcome, 1: CarbonImmutable}
      */
-    private function cron(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now): array
+    private function cron(MonitorSpec $spec, DeadlineState $state, CarbonImmutable $now, ?CarbonImmutable $availableSince): array
     {
         // A run can start at any time, so the monitor is looked at least once per interval for an overrun.
         $poll = $now->addSeconds($spec->intervalSeconds);
@@ -127,6 +113,10 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
         $maxRuntime = $this->int($spec->config['max_runtime_seconds'] ?? null, null);
         if ($state->runStartedAt !== null && $maxRuntime !== null) {
             $limit = $state->runStartedAt->addSeconds($maxRuntime);
+            if ($availableSince !== null && $limit->lt($availableSince)) {
+                // The finish may have been lost while this worker could not see the monitor.
+                $limit = $availableSince->addSeconds($maxRuntime);
+            }
             if ($now->lte($limit)) {
                 $next[] = $limit->addSecond();
             } elseif (! $state->reported($limit)) {
@@ -138,8 +128,13 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
             }
         }
 
-        $schedule = is_string($spec->config['schedule'] ?? null) ? $spec->config['schedule'] : '';
-        $expected = self::expectedRun($schedule, $this->timezone($spec), $anchor);
+        $schedule = CronSchedule::parse(is_string($spec->config['schedule'] ?? null) ? $spec->config['schedule'] : '', $this->timezone($spec));
+        $expected = $schedule?->expectedAfter($anchor);
+        if ($schedule !== null && $expected !== null && $availableSince !== null && $expected->lt($availableSince)) {
+            // Runs scheduled before this worker could see the monitor are not reported: their pings may
+            // have been lost on the way.
+            $expected = $schedule->nextAfter($availableSince->subSecond());
+        }
         if ($expected !== null) {
             $due = $expected->addSeconds($this->int($spec->config['grace_seconds'] ?? null, 0));
             if ($now->lte($due)) {

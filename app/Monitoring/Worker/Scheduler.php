@@ -106,6 +106,14 @@ final class Scheduler
 
     private DeferredCancellation $abort;
 
+    /**
+     * Since when this worker has been able to see push and cron reports: its start, or the moment it saw
+     * the database come back after an outage. Deadlines that passed earlier count from this moment.
+     */
+    private ?CarbonImmutable $availableSince = null;
+
+    private bool $deadlineReadsFailing = false;
+
     public function __construct(
         private readonly int $shard,
         private readonly int $shards,
@@ -134,6 +142,7 @@ final class Scheduler
         if (! $this->load($stop)) {
             return;
         }
+        $this->availableSince = $this->clock->now();
 
         $flushStop = new DeferredCancellation;
         $flusher = async(fn () => $this->buffer->run($flushStop->getCancellation()));
@@ -472,9 +481,12 @@ final class Scheduler
             $specs[] = $spec;
         }
 
+        // After failed reads, a successful one is the moment the database came back.
+        $since = $this->deadlineReadsFailing ? $now : $this->availableSince();
         try {
-            $results = $this->deadlines->evaluateMany($specs, $now);
+            $results = $this->deadlines->evaluateMany($specs, $now, $since);
         } catch (Throwable $e) {
+            $this->deadlineReadsFailing = true;
             // Without the state rows nothing is known, so nothing is recorded: a database outage never turns
             // into a missed heartbeat.
             Log::warning('Reading push and cron deadlines failed; retrying.', [
@@ -487,6 +499,10 @@ final class Scheduler
             }
 
             return;
+        }
+        if ($this->deadlineReadsFailing) {
+            $this->deadlineReadsFailing = false;
+            $this->availableSince = $now;
         }
 
         foreach ($batch as $id => [$spec, $generation]) {
@@ -501,6 +517,16 @@ final class Scheduler
 
             $this->buffer->push($spec, $outcome, $now, null, fn () => $this->release($id, $generation, $nextAt));
         }
+    }
+
+    private function availableSince(): ?CarbonImmutable
+    {
+        $recovered = $this->buffer->recoveredAt();
+        if ($recovered === null || ($this->availableSince !== null && $recovered->lt($this->availableSince))) {
+            return $this->availableSince;
+        }
+
+        return $recovered;
     }
 
     /**

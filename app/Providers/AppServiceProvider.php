@@ -49,7 +49,6 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Events\TwoFactorAuthenticationDisabled;
 use Laravel\Fortify\Events\TwoFactorAuthenticationEnabled;
-use Symfony\Component\HttpFoundation\Response;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -124,18 +123,12 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(Workspace::class, WorkspacePolicy::class);
 
-        // Heartbeats are limited per token. Misses (unknown token, inactive monitor, wrong type) also count per
-        // client address, and once that budget is spent every push request from the address is refused, so a
-        // token cannot be guessed by trying.
-        RateLimiter::for('push', function (Request $request): array {
+        // Heartbeats are limited per token. Misses (unknown token, inactive monitor, wrong type) are limited per
+        // client address in the controller, after the lookup, so they never block a valid token.
+        RateLimiter::for('push', function (Request $request): Limit {
             $token = $request->route('token');
 
-            return [
-                Limit::perMinute(120)->by('token:'.(is_string($token) ? $token : '')),
-                Limit::perMinute(60)->by('miss:'.$request->ip())->after(
-                    fn (mixed $response): bool => $response instanceof Response && $response->getStatusCode() === 404,
-                ),
-            ];
+            return Limit::perMinute(120)->by('token:'.(is_string($token) ? $token : ''));
         });
 
         Event::listen(Login::class, [RecordAuthEvent::class, 'handleLogin']);

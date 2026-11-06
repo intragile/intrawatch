@@ -9,12 +9,12 @@ use Carbon\CarbonImmutable;
  */
 final class NullDeadlineEvaluator implements DeadlineEvaluator
 {
-    public function evaluate(MonitorSpec $spec, CarbonImmutable $now): array
+    public function evaluate(MonitorSpec $spec, CarbonImmutable $now, ?CarbonImmutable $availableSince = null): array
     {
         return [null, $now->addSeconds($spec->intervalSeconds)];
     }
 
-    public function evaluateMany(array $specs, CarbonImmutable $now): array
+    public function evaluateMany(array $specs, CarbonImmutable $now, ?CarbonImmutable $availableSince = null): array
     {
         $results = [];
         foreach ($specs as $spec) {

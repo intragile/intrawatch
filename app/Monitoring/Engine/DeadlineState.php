@@ -15,7 +15,10 @@ final readonly class DeadlineState
     /**
      * Columns to select for fromRow().
      */
-    public const COLUMNS = ['status', 'status_since', 'last_checked_at', 'last_ping_at', 'run_started_at', 'deadline_anchor_at'];
+    public const COLUMNS = [
+        'status', 'status_since', 'last_checked_at', 'last_ping_at', 'run_started_at', 'deadline_anchor_at',
+        'miss_deadline_at', 'miss_number',
+    ];
 
     public function __construct(
         public MonitorStatus $status,
@@ -24,6 +27,8 @@ final readonly class DeadlineState
         public ?CarbonImmutable $lastPingAt,
         public ?CarbonImmutable $runStartedAt,
         public ?CarbonImmutable $deadlineAnchorAt,
+        public ?CarbonImmutable $missDeadlineAt = null,
+        public ?int $missNumber = null,
     ) {}
 
     public static function fromRow(object $row): self
@@ -35,6 +40,8 @@ final readonly class DeadlineState
             self::time($row->last_ping_at ?? null),
             self::time($row->run_started_at ?? null),
             self::time($row->deadline_anchor_at ?? null),
+            self::time($row->miss_deadline_at ?? null),
+            is_numeric($row->miss_number ?? null) ? (int) $row->miss_number : null,
         );
     }
 
@@ -66,11 +73,25 @@ final readonly class DeadlineState
     }
 
     /**
+     * Whether push miss $miss of $deadline has been recorded already.
+     */
+    public function missRecorded(CarbonImmutable $deadline, int $miss): bool
+    {
+        return $this->missDeadlineAt !== null && $this->missNumber !== null
+            && $this->missDeadlineAt->equalTo($deadline) && $this->missNumber >= $miss;
+    }
+
+    /**
      * The same state after a result with the given status was recorded at $checkedAt.
      */
-    public function withCheck(MonitorStatus $status, CarbonImmutable $checkedAt): self
+    public function withCheck(MonitorStatus $status, CarbonImmutable $checkedAt, ?Deadline $deadline): self
     {
-        return new self($status, $this->statusSince, $checkedAt, $this->lastPingAt, $this->runStartedAt, $this->deadlineAnchorAt);
+        $counted = $deadline !== null && $deadline->miss !== null;
+
+        return new self(
+            $status, $this->statusSince, $checkedAt, $this->lastPingAt, $this->runStartedAt, $this->deadlineAnchorAt,
+            $counted ? $deadline->at : null, $counted ? $deadline->miss : null,
+        );
     }
 
     private static function time(mixed $value): ?CarbonImmutable

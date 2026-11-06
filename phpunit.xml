@@ -18,7 +18,7 @@
         </include>
     </source>
     <php>
-        <!-- The suite peaks at about 125 MB, right at PHP's default 128 MB limit. -->
+        <!-- The suite peaks at about 123 MB, right at PHP's default 128 MB limit. -->
         <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <!-- Fixed, test-only key so the suite never depends on a local .env. -->

@@ -704,6 +704,13 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -855,9 +862,6 @@
                                 }
                             }
                         }
-                    },
-                    "404": {
-                        "$ref": "#/components/responses/NotFoundHttpException"
                     }
                 },
                 "security": []
@@ -3880,25 +3884,6 @@
                 }
             },
             "ModelNotFoundException": {
-                "description": "Not found",
-                "content": {
-                    "application/json": {
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "message": {
-                                    "type": "string",
-                                    "description": "Error overview."
-                                }
-                            },
-                            "required": [
-                                "message"
-                            ]
-                        }
-                    }
-                }
-            },
-            "NotFoundHttpException": {
                 "description": "Not found",
                 "content": {
                     "application/json": {

@@ -178,11 +178,14 @@ final class ResultRecorder
                 'last_latency_ms' => $outcome->latencyMs,
                 'last_message' => $transition->message === '' ? null : $transition->message,
                 'watch' => $watch === [] ? null : $this->json($watch),
+                // Any other result starts the miss count of a push monitor over.
+                'miss_deadline_at' => $outcome->deadline?->miss === null ? null : $outcome->deadline->at,
+                'miss_number' => $outcome->deadline?->miss,
                 'updated_at' => $now,
             ];
             $transitions[$spec->id] = $transition;
             if (isset($deadlineStates[$spec->id])) {
-                $deadlineStates[$spec->id] = $deadlineStates[$spec->id]->withCheck($transition->effective, $checkedAt);
+                $deadlineStates[$spec->id] = $deadlineStates[$spec->id]->withCheck($transition->effective, $checkedAt, $outcome->deadline);
             }
 
             if ($spec->parentId !== null) {
@@ -197,7 +200,7 @@ final class ResultRecorder
         foreach (array_chunk(array_values($stateUpdates), self::INSERT_CHUNK) as $chunk) {
             DB::table('monitor_states')->upsert($chunk, ['monitor_id'], [
                 'status', 'status_since', 'last_checked_at', 'consecutive_failures', 'last_latency_ms',
-                'last_message', 'watch', 'updated_at',
+                'last_message', 'watch', 'miss_deadline_at', 'miss_number', 'updated_at',
             ]);
         }
 
@@ -230,6 +233,10 @@ final class ResultRecorder
             return false;
         }
         if ($state->reported($deadline->at)) {
+            return true;
+        }
+        if ($deadline->miss !== null && $state->missRecorded($deadline->at, $deadline->miss)) {
+            // Evaluated again by a restarted worker, a re-added monitor or a second owner of the shard.
             return true;
         }
         if ($deadline->runStartedAt !== null) {

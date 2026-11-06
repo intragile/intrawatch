@@ -15,7 +15,9 @@ return new class extends Migration
             $table->timestamp('deadline_anchor_at')->nullable()->after('run_started_at');
         });
 
-        DB::table('monitor_states')->update(['deadline_anchor_at' => DB::raw('coalesce(last_ping_at, status_since)')]);
+        // No monitor could report in before this column existed, so existing deadlines start now. The time is
+        // bound from PHP, so the database session timezone cannot shift it.
+        DB::update('update monitor_states set deadline_anchor_at = coalesce(last_ping_at, ?)', [now()]);
     }
 
     public function down(): void
