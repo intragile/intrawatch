@@ -6,6 +6,7 @@ use App\Actions\CreateWorkspace;
 use App\Enums\WorkspaceRole;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
+use App\Jobs\RebuildDayRollups;
 use App\Models\Membership;
 use App\Models\User;
 use App\Models\Workspace;
@@ -80,6 +81,11 @@ class WorkspaceController extends Controller
                 Audit::record('workspace.updated', $workspace, $changes);
             }
         });
+
+        if ($previousTimezone !== $timezone) {
+            // Day rollups are bucketed by local midnight, so they move with the timezone.
+            RebuildDayRollups::dispatch($workspace->id);
+        }
 
         return response()->json(['data' => $this->payload($workspace, app(CurrentWorkspace::class)->role())]);
     }

@@ -108,6 +108,37 @@ websockets are proxied internally.
 A ready-made `docker/compose.example.yml` shows the SQLite default and
 commented-out PostgreSQL and MySQL services.
 
+### History, rollups and retention
+
+Every check result is stored raw and aggregated once a minute
+(`intrawatch:rollup`) into minute, hour and day rollups. Pruning runs hourly at
+minute 30 (`intrawatch:prune`) and deletes in chunks with a short pause between
+them, so it never locks the result tables for long.
+
+| Variable | Default | Kept data |
+| --- | --- | --- |
+| `RETENTION_RAW_HOURS` | `24` | Raw check results |
+| `RETENTION_MINUTE_HOURS` | `48` | Minute rollups |
+| `RETENTION_HOUR_DAYS` | `90` | Hour rollups |
+| `RETENTION_DAY_DAYS` | `730` | Day rollups and monitor events |
+| `RETENTION_CHUNK_SIZE` | `5000` | Rows deleted per statement while pruning |
+| `RETENTION_CHUNK_SLEEP_MS` | `50` | Pause between delete statements |
+
+Cached domain registration lookups are dropped after 30 days without a check.
+
+Day rollups start at midnight in the workspace timezone. Changing the timezone
+rebuilds the day rollups in the background from the data still retained:
+
+- days within the minute retention (48 hours by default) are rebuilt exactly;
+- older days are summed from hour rollups. That is exact for timezones with a
+  whole-hour offset; for offsets such as +05:30 or +05:45 those days are shifted
+  by the sub-hour part of the offset;
+- days older than the hour retention (90 days by default) keep the boundaries of
+  the timezone they were built in.
+
+Availability is `(up + degraded + pending) / (total - maintenance)`; it is
+empty when every check of the period fell into a maintenance window.
+
 ## Development
 
 ```bash

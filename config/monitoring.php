@@ -12,6 +12,12 @@ return [
         'minute_hours' => (int) env('RETENTION_MINUTE_HOURS', 48),
         'hour_days' => (int) env('RETENTION_HOUR_DAYS', 90),
         'day_days' => (int) env('RETENTION_DAY_DAYS', 730),
+        // Cached registration lookups no check has refreshed for this long are dropped.
+        'domain_lookup_days' => 30,
+        // Pruning deletes at most this many rows per statement and pauses between statements, so the hot
+        // tables are never locked for long.
+        'chunk_size' => (int) env('RETENTION_CHUNK_SIZE', 5000),
+        'chunk_sleep_ms' => (int) env('RETENTION_CHUNK_SLEEP_MS', 50),
     ],
 
     /*

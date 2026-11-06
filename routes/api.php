@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MonitorActionController;
 use App\Http\Controllers\Api\MonitorBulkController;
 use App\Http\Controllers\Api\MonitorController;
+use App\Http\Controllers\Api\MonitorHistoryController;
 use App\Http\Controllers\Api\MonitorTypeController;
 use App\Http\Controllers\Api\OpenApiController;
 use App\Http\Controllers\Api\PushController;
@@ -57,6 +58,9 @@ Route::prefix('v1')->group(function (): void {
             Route::middleware(['ability:monitors:read', 'can:viewMonitors,workspace'])->group(function (): void {
                 Route::get('/monitors', [MonitorController::class, 'index']);
                 Route::get('/monitors/{monitor}', [MonitorController::class, 'show'])->whereNumber('monitor');
+                Route::get('/monitors/{monitor}/results', [MonitorHistoryController::class, 'results'])->whereNumber('monitor');
+                Route::get('/monitors/{monitor}/rollups', [MonitorHistoryController::class, 'rollups'])->whereNumber('monitor');
+                Route::get('/monitors/{monitor}/events', [MonitorHistoryController::class, 'events'])->whereNumber('monitor');
                 Route::get('/tags', [TagController::class, 'index']);
             });
 
