@@ -6,6 +6,7 @@ use Amp\Dns\DnsResolver;
 use App\Enums\MonitorType;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
+use App\Monitoring\Checks\DnsChecker;
 use App\Monitoring\Checks\HttpChecker;
 use App\Monitoring\Checks\PingChecker;
 use App\Monitoring\Checks\TcpChecker;
@@ -50,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
             $registry->register(MonitorType::Http, HttpChecker::class);
             $registry->register(MonitorType::Tcp, TcpChecker::class);
             $registry->register(MonitorType::Ping, PingChecker::class);
+            $registry->register(MonitorType::Dns, DnsChecker::class);
         });
         $this->app->singleton(DnsResolver::class, fn (): DnsResolver => \Amp\Dns\dnsResolver());
         $this->app->singleton(NetworkPolicy::class, fn (): NetworkPolicy => NetworkPolicy::fromConfig());

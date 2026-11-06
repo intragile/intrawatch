@@ -1,0 +1,35 @@
+<?php
+
+namespace App\Monitoring\Checks\Dns;
+
+use Amp\Cache\NullCache;
+use Amp\Dns\DnsConfig;
+use Amp\Dns\DnsRecord;
+use Amp\Dns\DnsResolver;
+use Amp\Dns\Rfc1035StubDnsResolver;
+use Amp\Dns\StaticDnsConfigLoader;
+
+/**
+ * Builds the resolvers DNS checks query with.
+ *
+ * Caching is disabled so every check observes the name server's current answer. Resolvers are kept per
+ * address, which keeps the number of sockets and timers bounded by the number of distinct name servers.
+ */
+class ResolverFactory
+{
+    /** @var array<string, DnsResolver> */
+    private array $resolvers = [];
+
+    /**
+     * @param  ?string  $address  A name server as "ip", "ip:port" or "[ipv6]:port"; null selects the system resolver.
+     */
+    public function make(?string $address): DnsResolver
+    {
+        return $this->resolvers[$address ?? ''] ??= $address === null
+            ? new Rfc1035StubDnsResolver(new NullCache)
+            : new Rfc1035StubDnsResolver(new NullCache, new StaticDnsConfigLoader(
+                // The localhost entry is supplied so the config never falls back to a blocking lookup.
+                new DnsConfig([$address], [DnsRecord::A => ['localhost' => '127.0.0.1']]),
+            ));
+    }
+}
