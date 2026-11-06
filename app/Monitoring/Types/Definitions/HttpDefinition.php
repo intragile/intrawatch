@@ -8,6 +8,13 @@ use Illuminate\Validation\Validator;
 
 class HttpDefinition extends AbstractDefinition
 {
+    /**
+     * Whether keyword matching is case-sensitive when a keyword omits case_sensitive. Config defaults are merged
+     * one level deep and keyword defaults to null, so the nested default lives here and is applied when the
+     * check runs.
+     */
+    public const KEYWORD_CASE_SENSITIVE = true;
+
     private const HEADER_NAME = '/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/';
 
     public function type(): MonitorType
@@ -44,7 +51,7 @@ class HttpDefinition extends AbstractDefinition
             'mtls' => ['boolean'],
             'proxy' => ['nullable', 'array'],
             'proxy.url' => ['required_with:config.proxy', 'string', 'max:2048', fn (string $a, mixed $v, \Closure $fail) => is_string($v) && $this->isProxyUrl($v) ?: $fail('The :attribute must be an http:// or socks5:// URL with host and port.')],
-            'proxy.username' => ['nullable', 'string', 'max:255'],
+            'proxy.username' => ['nullable', 'string', fn (string $a, mixed $v, \Closure $fail) => ! is_string($v) || strlen($v) <= 255 ?: $fail('The :attribute may not be longer than 255 bytes.')],
             'tls_verify' => ['boolean'],
             'tls_checks' => ['boolean'],
             'tls_expiry_days' => ['array', 'max:10'],
@@ -60,7 +67,8 @@ class HttpDefinition extends AbstractDefinition
             'bearer_token' => ['nullable', 'string', 'max:4096'],
             'mtls_cert' => ['nullable', 'string', 'max:16384'],
             'mtls_key' => ['nullable', 'string', 'max:16384'],
-            'proxy_password' => ['nullable', 'string', 'max:1024'],
+            // RFC 1929 limits SOCKS5 usernames and passwords to 255 bytes.
+            'proxy_password' => ['nullable', 'string', fn (string $a, mixed $v, \Closure $fail) => ! is_string($v) || strlen($v) <= 255 ?: $fail('The :attribute may not be longer than 255 bytes.')],
             'secret_headers' => ['nullable', 'array', 'max:'.$this->limit('max_headers')],
             'secret_headers.*' => ['string', 'max:'.$this->limit('header_value_length')],
         ];

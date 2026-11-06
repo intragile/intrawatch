@@ -114,9 +114,9 @@ class HttpCheckerTest extends TestCase
         $this->assertSame($message, $outcome->message);
     }
 
-    private function assertUp(CheckOutcome $outcome): void
+    private function assertUp(CheckOutcome $outcome, string $context = ''): void
     {
-        $this->assertSame(MonitorStatus::Up, $outcome->status, $outcome->message);
+        $this->assertSame(MonitorStatus::Up, $outcome->status, trim($context.' '.$outcome->message));
     }
 
     public function test_status_ranges_keyword_and_json_query(): void
@@ -259,6 +259,33 @@ class HttpCheckerTest extends TestCase
         $this->assertSame($s->url('/redirect/0'), $followed->facts['http.final_url']);
     }
 
+    public function test_redirects_send_no_referer_and_drop_credentials_across_origins(): void
+    {
+        $s = $this->server();
+        $checker = $this->checker(['localhost' => ['127.0.0.1']]);
+        $secrets = [
+            'bearer_token' => 'tok-xyz',
+            'secret_headers' => ['X-Api-Key' => 'hdr-secret-789'],
+        ];
+        $auth = ['type' => 'bearer', 'username' => null];
+        $absent = static fn (string $needle): array => ['value' => $needle, 'mode' => 'not_contains'];
+
+        // Same origin: credentials are kept, which proves the echo route sees them, but no Referer is added.
+        $same = rawurlencode("http://127.0.0.1:{$s->port()}/headers");
+        $this->assertUp($this->probe(['url' => $s->url('/redirect-to?token=q-secret&target='.$same), 'auth' => $auth, 'keyword' => ['value' => '"authorization"', 'mode' => 'contains']], $secrets, checker: $checker));
+        foreach (['"referer"', 'q-secret', '"accept-encoding"'] as $needle) {
+            $this->assertUp($this->probe(['url' => $s->url('/redirect-to?token=q-secret&target='.$same), 'auth' => $auth, 'keyword' => $absent($needle)], $secrets, checker: $checker), $needle);
+        }
+
+        // Another origin (same port, other host name): no Referer, no Authorization, no secret header.
+        $other = rawurlencode("http://localhost:{$s->port()}/headers");
+        foreach (['"referer"', 'q-secret', '"authorization"', 'tok-xyz', '"x-api-key"', 'hdr-secret-789'] as $needle) {
+            $outcome = $this->probe(['url' => $s->url('/redirect-to?token=q-secret&target='.$other), 'auth' => $auth, 'keyword' => $absent($needle)], $secrets, checker: $checker);
+            $this->assertUp($outcome, $needle);
+            $this->assertSame("http://localhost:{$s->port()}/headers", $outcome->facts['http.final_url']);
+        }
+    }
+
     public function test_network_policy_applies_to_every_redirect_hop(): void
     {
         $s = $this->server();
@@ -345,6 +372,31 @@ class HttpCheckerTest extends TestCase
         }
 
         $this->assertSame(["127.0.0.1:{$s->port()}", "127.0.0.1:{$s->port()}"], $proxyServer->targets);
+    }
+
+    public function test_unusable_proxy_fails_closed_instead_of_connecting_directly(): void
+    {
+        $s = $this->server();
+        $closed = \Amp\Socket\listen('127.0.0.1:0');
+        $address = $closed->getAddress();
+        $this->assertInstanceOf(InternetAddress::class, $address);
+        $closed->close();
+
+        foreach (['http://127.0.0.1', 'ftp://127.0.0.1:21', 'not a url', "http://127.0.0.1:{$address->getPort()}", "socks5://127.0.0.1:{$address->getPort()}"] as $url) {
+            $this->assertDown('Proxy connection failed', $this->probe(['url' => $s->url('/fast'), 'proxy' => ['url' => $url, 'username' => null]]));
+        }
+        $this->assertDown('Proxy connection failed', $this->probe(['url' => $s->url('/fast'), 'proxy' => ['username' => 'x']]));
+    }
+
+    public function test_mtls_key_file_is_deleted_when_the_request_cannot_be_built(): void
+    {
+        $certs = $this->certificates();
+        $before = glob(sys_get_temp_dir().'/intrawatch-mtls-*') ?: [];
+
+        $outcome = $this->probe(['url' => 'http://[not-a-host/', 'mtls' => true], ['mtls_cert' => $certs->clientCert, 'mtls_key' => $certs->clientKey]);
+
+        $this->assertSame(MonitorStatus::Down, $outcome->status);
+        $this->assertSame($before, glob(sys_get_temp_dir().'/intrawatch-mtls-*') ?: []);
     }
 
     public function test_result_message_never_contains_credentials(): void

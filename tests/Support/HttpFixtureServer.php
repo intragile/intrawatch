@@ -37,6 +37,7 @@ use function Amp\Socket\listen;
  *  - /basic, /bearer, /header  401 unless the expected credential is sent
  *  - /mtls                     401 unless a client certificate was presented
  *  - /fast                     200 "ok"
+ *  - /headers                  the received request headers as a JSON object of lowercase name to values
  *
  * With certificates, the same routes are also served over TLS, once without and once with a mandatory client
  * certificate. A separate raw listener accepts connections and never answers.
@@ -191,6 +192,7 @@ final class HttpFixtureServer
             'header' => $this->guard($request->getHeader(self::SECRET_HEADER) === self::SECRET_HEADER_VALUE),
             'mtls' => $this->guard($this->hasClientCertificate($request)),
             'fast' => new Response(200, ['content-type' => 'text/plain'], 'ok'),
+            'headers' => new Response(200, ['content-type' => 'application/json'], json_encode($request->getHeaders(), JSON_THROW_ON_ERROR)),
             default => new Response(404),
         };
     }

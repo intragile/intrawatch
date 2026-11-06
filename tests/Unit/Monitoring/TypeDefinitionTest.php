@@ -129,6 +129,20 @@ class TypeDefinitionTest extends TestCase
         $this->assertTrue($v->errors()->has('config.method'));
     }
 
+    public function test_http_proxy_credentials_fit_the_socks5_limit(): void
+    {
+        $proxy = ['url' => 'socks5://proxy.test:1080', 'username' => str_repeat('u', 255)];
+        $config = ['url' => 'https://x.test', 'proxy' => $proxy];
+        $this->assertSame([], $this->validate(MonitorType::Http, $config, ['proxy_password' => str_repeat('p', 255)])->errors()->all());
+
+        $v = $this->validate(MonitorType::Http, $config, ['proxy_password' => str_repeat('p', 256)]);
+        $this->assertTrue($v->errors()->has('secrets.proxy_password'));
+
+        // The limit is in bytes: 128 two-byte characters are 256 bytes.
+        $config['proxy']['username'] = str_repeat('é', 128);
+        $this->assertTrue($this->validate(MonitorType::Http, $config)->errors()->has('config.proxy.username'));
+    }
+
     public function test_http_basic_auth_needs_a_password_on_create(): void
     {
         $config = ['url' => 'https://x.test', 'auth' => ['type' => 'basic', 'username' => 'bob']];

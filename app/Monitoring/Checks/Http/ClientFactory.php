@@ -5,6 +5,7 @@ namespace App\Monitoring\Checks\Http;
 use Amp\Http\Client\Connection\DefaultConnectionFactory;
 use Amp\Http\Client\Connection\UnlimitedConnectionPool;
 use Amp\Http\Client\HttpClientBuilder;
+use Amp\Http\Client\Interceptor\FollowRedirects;
 use Amp\Http\Client\Interceptor\SetRequestHeaderIfUnset;
 use Amp\Http\Client\Request;
 use Amp\Http\Tunnel\Http1TunnelConnector;
@@ -14,6 +15,7 @@ use Amp\Socket\ConnectContext;
 use Amp\Socket\SocketConnector;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Net\GuardedConnector;
+use App\Monitoring\Net\ProxyConnector;
 use App\Monitoring\Net\Socks5TunnelConnector;
 use League\Uri\Http as HttpUri;
 use RuntimeException;
@@ -61,12 +63,21 @@ final class ClientFactory
             $tracker = new ConnectionTracker(new DefaultConnectionFactory($this->connectorFor($config, $secrets), $context));
 
             $redirects = is_int($config['max_redirects'] ?? null) ? $config['max_redirects'] : 0;
-            $http = (new HttpClientBuilder)
+            $builder = (new HttpClientBuilder)
                 ->usingPool(new UnlimitedConnectionPool($tracker))
                 ->interceptNetwork($tracker)
                 ->retry(0)
-                ->followRedirects(max(0, $redirects))
+                // Redirects are followed by an interceptor configured below, without automatic Referer headers.
+                ->followRedirects(0)
                 ->skipDefaultUserAgent()
+                // Without decompression the body cap also bounds memory; a compressed body could inflate far beyond it.
+                ->skipAutomaticCompression();
+
+            // A Referer would carry the original URL, query string included, to the next hop, even across origins.
+            if ($redirects > 0) {
+                $builder = $builder->intercept(new FollowRedirects($redirects, autoReferrer: false));
+            }
+            $http = $builder
                 ->intercept(new SetRequestHeaderIfUnset('user-agent', 'IntraWatch/'.config()->string('app.version', '1')))
                 ->build();
 
@@ -138,13 +149,14 @@ final class ClientFactory
     private function connectorFor(array $config, array $secrets): SocketConnector
     {
         $proxy = $config['proxy'] ?? null;
-        if (! is_array($proxy) || ! is_string($proxy['url'] ?? null)) {
+        if ($proxy === null) {
             return $this->connector;
         }
 
-        $parts = parse_url($proxy['url']);
-        if (! is_array($parts) || ! isset($parts['host'], $parts['port'])) {
-            return $this->connector;
+        // A proxy that is configured but unusable fails every connection instead of connecting directly.
+        $parts = is_array($proxy) && is_string($proxy['url'] ?? null) ? parse_url($proxy['url']) : false;
+        if (! is_array($proxy) || ! is_array($parts) || ! isset($parts['host'], $parts['port']) || ! in_array($parts['scheme'] ?? '', ['http', 'socks5'], true)) {
+            return new ProxyConnector(null);
         }
 
         $host = str_contains($parts['host'], ':') && ! str_starts_with($parts['host'], '[') ? "[{$parts['host']}]" : $parts['host'];
@@ -152,13 +164,13 @@ final class ClientFactory
         $username = is_string($proxy['username'] ?? null) && $proxy['username'] !== '' ? $proxy['username'] : null;
         $password = is_string($secrets['proxy_password'] ?? null) ? $secrets['proxy_password'] : '';
 
-        if (($parts['scheme'] ?? '') === 'socks5') {
-            return new Socks5TunnelConnector($address, $this->connector, $username, $password);
+        if ($parts['scheme'] === 'socks5') {
+            return new ProxyConnector(new Socks5TunnelConnector($address, $this->connector, $username, $password));
         }
 
         $headers = $username === null ? [] : ['Proxy-Authorization' => 'Basic '.base64_encode($username.':'.$password)];
 
-        return new Http1TunnelConnector($address, $headers, $this->connector);
+        return new ProxyConnector(new Http1TunnelConnector($address, $headers, $this->connector));
     }
 
     /**

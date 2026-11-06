@@ -67,7 +67,7 @@ final class Socks5TunnelConnector implements SocketConnector
             $socket->close();
             $cancellation->throwIfRequested();
 
-            throw new ConnectException('Proxy handshake timed out', 0, $e);
+            throw new ProxyFailure('Proxy handshake timed out', 0, $e);
         } catch (ConnectException $e) {
             $socket->close();
 
@@ -75,7 +75,7 @@ final class Socks5TunnelConnector implements SocketConnector
         } catch (StreamException $e) {
             $socket->close();
 
-            throw new ConnectException('Failed to connect to proxy: connection closed', 0, $e);
+            throw new ProxyFailure('Failed to connect to proxy: connection closed', 0, $e);
         }
 
         return $socket;
@@ -90,7 +90,7 @@ final class Socks5TunnelConnector implements SocketConnector
         $method = $reply[1];
 
         if ($reply[0] !== self::VERSION || ($method !== self::NO_AUTH && ! ($withCredentials && $method === self::USER_PASS))) {
-            throw new ConnectException('Failed to connect to proxy: no acceptable authentication method');
+            throw new ProxyFailure('Failed to connect to proxy: no acceptable authentication method');
         }
 
         if ($method === self::NO_AUTH) {
@@ -101,8 +101,9 @@ final class Socks5TunnelConnector implements SocketConnector
         $password = substr((string) $this->password, 0, 255);
         $socket->write("\x01".chr(min(255, strlen($username))).$username.chr(min(255, strlen($password))).$password);
 
-        if ($this->readExactly($socket, 2, $cancellation)[1] !== "\x00") {
-            throw new ConnectException('Failed to connect to proxy: authentication rejected');
+        $status = $this->readExactly($socket, 2, $cancellation);
+        if ($status[0] !== "\x01" || $status[1] !== "\x00") {
+            throw new ProxyFailure('Failed to connect to proxy: authentication rejected');
         }
     }
 
@@ -120,14 +121,14 @@ final class Socks5TunnelConnector implements SocketConnector
         $reply = $this->readExactly($socket, 4, $cancellation);
         $code = ord($reply[1]);
         if ($reply[0] !== self::VERSION || $code !== 0) {
-            throw new ConnectException('Failed to connect to proxy: '.(self::REPLIES[$code] ?? 'invalid reply'));
+            throw new ProxyFailure('Failed to connect to proxy: '.(self::REPLIES[$code] ?? 'invalid reply'));
         }
 
         $length = match ($reply[3]) {
             "\x01" => 4,
             "\x04" => 16,
             "\x03" => ord($this->readExactly($socket, 1, $cancellation)),
-            default => throw new ConnectException('Failed to connect to proxy: invalid reply'),
+            default => throw new ProxyFailure('Failed to connect to proxy: invalid reply'),
         };
 
         // The bound address and port are not needed.
@@ -168,6 +169,6 @@ final class Socks5TunnelConnector implements SocketConnector
             }
         }
 
-        throw new ConnectException('Invalid connection target');
+        throw new ProxyFailure('Invalid connection target');
     }
 }

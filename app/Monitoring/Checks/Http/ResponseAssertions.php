@@ -2,6 +2,7 @@
 
 namespace App\Monitoring\Checks\Http;
 
+use App\Monitoring\Types\Definitions\HttpDefinition;
 use App\Monitoring\Types\JsonPath;
 use Throwable;
 
@@ -36,8 +37,8 @@ final class ResponseAssertions
         }
 
         $value = $keyword['value'];
-        $found = ($keyword['case_sensitive'] ?? true) === false
-            ? mb_stripos($body, $value) !== false
+        $found = ($keyword['case_sensitive'] ?? HttpDefinition::KEYWORD_CASE_SENSITIVE) === false
+            ? stripos($body, $value) !== false
             : str_contains($body, $value);
 
         if (($keyword['mode'] ?? 'contains') === 'not_contains') {

@@ -23,6 +23,7 @@ use App\Monitoring\Checks\Http\TlsFactsProvider;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Net\BlockedTarget;
+use App\Monitoring\Net\ProxyFailure;
 use Psr\Http\Message\UriInterface;
 use Throwable;
 
@@ -159,6 +160,9 @@ final class HttpChecker implements Checker
             if ($previous instanceof BlockedTarget) {
                 return 'Blocked target';
             }
+            if ($previous instanceof ProxyFailure) {
+                return 'Proxy connection failed';
+            }
             if ($previous instanceof ConnectException) {
                 return $this->connectFailure($previous, $timeout);
             }
@@ -176,7 +180,6 @@ final class HttpChecker implements Checker
         $message = $e->getMessage();
 
         return match (true) {
-            str_contains($message, 'proxy') => 'Proxy connection failed',
             in_array($e->getCode(), self::ECONNREFUSED, true) => 'Connection refused',
             $e->getCode() === 110 || str_contains($message, 'timed out') => "Timed out after {$timeout} s",
             $e->getPrevious() !== null && str_contains($message, 'DNS') => 'Connection failed: DNS resolution failed',
