@@ -30,7 +30,7 @@ class AuditController extends Controller
             'actor_type' => ['sometimes', Rule::in(['user', 'token', 'system'])],
         ]);
 
-        $query = AuditEvent::query()->where('workspace_id', $workspace->id)->orderByDesc('id');
+        $query = AuditEvent::query()->forWorkspace($workspace)->orderByDesc('id');
 
         if ($request->has('action')) {
             $query->where('action', $request->string('action')->toString());

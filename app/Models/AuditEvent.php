@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToWorkspace;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
@@ -22,6 +23,8 @@ use LogicException;
  */
 class AuditEvent extends Model
 {
+    use BelongsToWorkspace;
+
     public const UPDATED_AT = null;
 
     protected $guarded = [];

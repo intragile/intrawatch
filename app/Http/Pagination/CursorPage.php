@@ -22,6 +22,10 @@ final class CursorPage
 
     public const MAX_LIMIT = 200;
 
+    private const DATE_CASTS = [
+        'date', 'datetime', 'custom_datetime', 'immutable_date', 'immutable_datetime', 'immutable_custom_datetime', 'timestamp',
+    ];
+
     /**
      * @param  Builder<*>|Relation<*, *, *>  $query  Ordered by primary key unless it already has an order.
      * @param  (Closure(Model): mixed)|null  $map  Item serialiser; defaults to the model's array form.
@@ -36,9 +40,9 @@ final class CursorPage
         $limit = min(self::MAX_LIMIT, $request->integer('limit', self::DEFAULT_LIMIT));
 
         $base = $query instanceof Relation ? $query->getQuery() : $query;
-        $key = $base->getModel()->getQualifiedKeyName();
-        if (! self::orderedBy($base, $key)) {
-            $query->orderBy($key);
+        $model = $base->getModel();
+        if (! self::orderedBy($base, $model->getQualifiedKeyName()) && ! self::orderedBy($base, $model->getKeyName())) {
+            $query->orderBy($model->getQualifiedKeyName());
         }
 
         $cursor = null;
@@ -80,16 +84,19 @@ final class CursorPage
     }
 
     /**
-     * The cursor must carry a scalar for every ordered column, and an
-     * integer-like value for the integer primary key.
+     * The cursor must carry a scalar for every ordered column that fits the column's type: an integer for
+     * the integer primary key and integer casts, a number for decimal casts and a parseable timestamp for
+     * date casts. Malformed values would otherwise reach the database and fail there (or worse, compare
+     * loosely).
      *
      * @param  Builder<*>  $query
      */
     private static function isValidCursor(Builder $query, Cursor $cursor): bool
     {
         $parameters = $cursor->toArray();
-        $keyName = $query->getModel()->getKeyName();
-        $keyColumn = $query->getModel()->getQualifiedKeyName();
+        $model = $query->getModel();
+        $keyName = $model->getKeyName();
+        $keyColumn = $model->getQualifiedKeyName();
 
         foreach ($query->getQuery()->orders ?? [] as $order) {
             $column = is_array($order) ? ($order['column'] ?? null) : null;
@@ -102,12 +109,30 @@ final class CursorPage
             if (! is_scalar($value)) {
                 return false;
             }
-            if (($column === $keyColumn || $name === $keyName) && $query->getModel()->getKeyType() === 'int'
-                && filter_var($value, FILTER_VALIDATE_INT) === false) {
+
+            $isKey = ($column === $keyColumn || $name === $keyName) && $model->getKeyType() === 'int';
+            $valid = match (true) {
+                $isKey, $model->hasCast($name, ['int', 'integer']) => filter_var($value, FILTER_VALIDATE_INT) !== false,
+                $model->hasCast($name, ['float', 'double', 'real', 'decimal']) => is_numeric($value),
+                in_array($name, $model->getDates(), true) || $model->hasCast($name, self::DATE_CASTS) => self::isTimestamp($value),
+                default => true,
+            };
+            if (! $valid) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private static function isTimestamp(bool|float|int|string $value): bool
+    {
+        if (is_int($value)) {
+            return true;
+        }
+
+        return is_string($value)
+            && preg_match('/^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?(Z|[+-]\d{2}:?\d{2})?$/', $value) === 1
+            && strtotime($value) !== false;
     }
 }

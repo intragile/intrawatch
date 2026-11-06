@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\WorkspaceRole;
 use App\Http\Controllers\Controller;
+use App\Http\Pagination\CursorPage;
 use App\Models\Membership;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Support\Audit;
 use App\Support\CurrentWorkspace;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -22,15 +24,16 @@ class MemberController extends Controller
 {
     public function __construct(private readonly CurrentWorkspace $current) {}
 
-    public function index(Workspace $workspace): JsonResponse
+    public function index(Request $request, Workspace $workspace): JsonResponse
     {
         Gate::authorize('viewMembers', $workspace);
 
-        $data = $workspace->memberships()->with('user')->orderBy('id')->get()
-            ->map(fn (Membership $membership): array => $this->payload($membership))
-            ->all();
+        return CursorPage::from($workspace->memberships()->with('user'), $request, function (Model $model): array {
+            /** @var Membership $membership */
+            $membership = $model;
 
-        return response()->json(['data' => $data]);
+            return $this->payload($membership);
+        });
     }
 
     public function store(Request $request, Workspace $workspace): JsonResponse

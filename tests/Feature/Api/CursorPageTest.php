@@ -3,9 +3,15 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\WorkspaceRole;
+use App\Http\Pagination\CursorPage;
+use App\Models\AuditEvent;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Support\Audit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class CursorPageTest extends TestCase
@@ -85,5 +91,89 @@ class CursorPageTest extends TestCase
                 ->assertHeader('Content-Type', 'application/problem+json')
                 ->assertJsonStructure(['errors' => ['cursor']]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $parameters
+     */
+    private function encodeCursor(array $parameters): string
+    {
+        return rtrim(strtr(base64_encode((string) json_encode($parameters + ['_pointsToNextItems' => true])), '+/', '-_'), '=');
+    }
+
+    /**
+     * One audit event per page, newest first by timestamp.
+     *
+     * @return array{0: array<int, mixed>, 1: mixed}
+     */
+    private function timestampPage(?string $cursor): array
+    {
+        $request = Request::create('/', 'GET', $cursor === null ? ['limit' => 1] : ['limit' => 1, 'cursor' => $cursor]);
+        $payload = CursorPage::from(AuditEvent::query()->orderByDesc('created_at')->orderByDesc('id'), $request)->getData(true);
+        $this->assertIsArray($payload);
+        $data = $payload['data'] ?? null;
+        $meta = $payload['meta'] ?? null;
+        $this->assertIsArray($data);
+        $this->assertIsArray($meta);
+
+        return [collect($data)->pluck('action')->values()->all(), $meta['next_cursor'] ?? null];
+    }
+
+    public function test_timestamp_ordered_cursor_round_trips(): void
+    {
+        Audit::record('first');
+        $this->travel(1)->minutes();
+        Audit::record('second');
+
+        [$actions, $cursor] = $this->timestampPage(null);
+        $this->assertSame(['second'], $actions);
+        $this->assertIsString($cursor);
+
+        [$actions, $cursor] = $this->timestampPage($cursor);
+        $this->assertSame(['first'], $actions);
+        $this->assertNull($cursor);
+    }
+
+    /**
+     * @param  array<string, mixed>  $parameters
+     */
+    #[DataProvider('malformedTimestampCursors')]
+    public function test_malformed_timestamp_cursor_is_rejected(array $parameters): void
+    {
+        Audit::record('only');
+
+        try {
+            $this->timestampPage($this->encodeCursor($parameters));
+            $this->fail('A malformed timestamp cursor must be rejected.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('cursor', $e->errors());
+        }
+    }
+
+    /**
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function malformedTimestampCursors(): array
+    {
+        return [
+            'text' => [['created_at' => 'yesterday-ish', 'id' => 1]],
+            'sql' => [['created_at' => "2026-01-01' OR 1=1 --", 'id' => 1]],
+            'bad id' => [['created_at' => '2026-01-01 10:00:00', 'id' => 'x']],
+            'missing' => [['id' => 1]],
+        ];
+    }
+
+    public function test_malformed_timestamp_cursor_is_a_422_problem_over_http(): void
+    {
+        $owner = User::factory()->create();
+        $workspace = Workspace::factory()->create();
+        $owner->workspaces()->attach($workspace, ['role' => WorkspaceRole::Owner->value]);
+
+        // The audit list orders by id; a non-integer id in the cursor is rejected the same way.
+        $this->actingAs($owner, 'sanctum')
+            ->getJson("/api/v1/workspaces/{$workspace->slug}/audit?cursor=".$this->encodeCursor(['id' => '2026-01-01']))
+            ->assertStatus(422)
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertJsonStructure(['errors' => ['cursor']]);
     }
 }

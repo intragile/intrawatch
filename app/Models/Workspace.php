@@ -39,6 +39,16 @@ class Workspace extends Model
     }
 
     /**
+     * A `{user}` route parameter below a workspace resolves to one of its members.
+     *
+     * @param  string  $childType
+     */
+    protected function childRouteBindingRelationshipName($childType): string
+    {
+        return $childType === 'user' ? 'members' : parent::childRouteBindingRelationshipName($childType);
+    }
+
+    /**
      * @return BelongsToMany<User, $this, Membership>
      */
     public function members(): BelongsToMany

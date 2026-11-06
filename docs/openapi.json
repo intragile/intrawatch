@@ -957,13 +957,6 @@
                                                     "type": [
                                                         "string",
                                                         "null"
-                                                    ],
-                                                    "enum": [
-                                                        "owner",
-                                                        "admin",
-                                                        "editor",
-                                                        "viewer",
-                                                        null
                                                     ]
                                                 }
                                             },
@@ -1156,38 +1149,29 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "id": {
-                                                        "type": "integer"
-                                                    },
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "email": {
-                                                        "type": "string"
-                                                    },
-                                                    "role": {
-                                                        "type": "string",
-                                                        "enum": [
-                                                            "owner",
-                                                            "admin",
-                                                            "editor",
-                                                            "viewer"
-                                                        ]
-                                                    }
-                                                },
-                                                "required": [
-                                                    "id",
-                                                    "name",
-                                                    "email",
-                                                    "role"
-                                                ]
+                                                "type": "string"
                                             }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "limit": {}
+                                            },
+                                            "required": [
+                                                "next_cursor",
+                                                "limit"
+                                            ]
                                         }
                                     },
                                     "required": [
-                                        "data"
+                                        "data",
+                                        "meta"
                                     ]
                                 }
                             }
@@ -1478,53 +1462,29 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "id": {
-                                                        "type": "integer"
-                                                    },
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "abilities": {
-                                                        "type": [
-                                                            "array",
-                                                            "null"
-                                                        ],
-                                                        "items": {}
-                                                    },
-                                                    "last_used_at": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    },
-                                                    "expires_at": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    },
-                                                    "created_at": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    }
-                                                },
-                                                "required": [
-                                                    "id",
-                                                    "name",
-                                                    "abilities",
-                                                    "last_used_at",
-                                                    "expires_at",
-                                                    "created_at"
-                                                ]
+                                                "type": "string"
                                             }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "limit": {}
+                                            },
+                                            "required": [
+                                                "next_cursor",
+                                                "limit"
+                                            ]
                                         }
                                     },
                                     "required": [
-                                        "data"
+                                        "data",
+                                        "meta"
                                     ]
                                 }
                             }

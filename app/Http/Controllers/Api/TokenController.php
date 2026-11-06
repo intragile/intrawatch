@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\TokenAbility;
 use App\Http\Controllers\Controller;
+use App\Http\Pagination\CursorPage;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Support\Audit;
 use App\Support\CurrentWorkspace;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -29,21 +31,21 @@ class TokenController extends Controller
     {
         $this->authorizeSession($request);
 
-        $data = $this->user($request)->tokens()
-            ->where('workspace_id', $workspace->id)
-            ->orderBy('id')
-            ->get()
-            ->map(fn (PersonalAccessToken $token): array => [
+        $query = $this->user($request)->tokens()->where('workspace_id', $workspace->id);
+
+        return CursorPage::from($query, $request, function (Model $model): array {
+            /** @var PersonalAccessToken $token */
+            $token = $model;
+
+            return [
                 'id' => $token->id,
                 'name' => $token->name,
                 'abilities' => $token->abilities,
                 'last_used_at' => $token->last_used_at?->toIso8601String(),
                 'expires_at' => $token->expires_at?->toIso8601String(),
                 'created_at' => $token->created_at?->toIso8601String(),
-            ])
-            ->all();
-
-        return response()->json(['data' => $data]);
+            ];
+        });
     }
 
     public function store(Request $request, Workspace $workspace): JsonResponse

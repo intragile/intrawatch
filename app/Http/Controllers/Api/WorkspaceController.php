@@ -10,6 +10,7 @@ use App\Models\Membership;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Support\Audit;
+use App\Support\CurrentWorkspace;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -68,10 +69,7 @@ class WorkspaceController extends Controller
             }
         });
 
-        /** @var User $user */
-        $user = $request->user();
-
-        return response()->json(['data' => $this->payload($workspace, $user->roleIn($workspace))]);
+        return response()->json(['data' => $this->payload($workspace, app(CurrentWorkspace::class)->role())]);
     }
 
     public function destroy(Workspace $workspace): Response

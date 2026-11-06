@@ -22,22 +22,24 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/workspaces', [WorkspaceController::class, 'index']);
         Route::post('/workspaces', [WorkspaceController::class, 'store']);
 
-        Route::prefix('/workspaces/{workspace}')->middleware('workspace')->group(function (): void {
+        // Child models are resolved through the workspace (scoped bindings), so an id that belongs to
+        // another workspace is a 404. Every other route parameter is a numeric id.
+        Route::prefix('/workspaces/{workspace}')->middleware('workspace')->scopeBindings()->group(function (): void {
             Route::patch('/', [WorkspaceController::class, 'update'])->middleware('ability:workspace:manage');
             Route::delete('/', [WorkspaceController::class, 'destroy'])->middleware('ability:workspace:manage');
 
             Route::get('/members', [MemberController::class, 'index'])->middleware('ability:workspace:read');
             Route::middleware('ability:members:manage')->group(function (): void {
                 Route::post('/members', [MemberController::class, 'store']);
-                Route::patch('/members/{user}', [MemberController::class, 'update']);
-                Route::delete('/members/{user}', [MemberController::class, 'destroy']);
+                Route::patch('/members/{user}', [MemberController::class, 'update'])->whereNumber('user');
+                Route::delete('/members/{user}', [MemberController::class, 'destroy'])->whereNumber('user');
             });
 
             Route::get('/audit', AuditController::class)->middleware('ability:audit:read');
 
             Route::get('/tokens', [TokenController::class, 'index']);
             Route::post('/tokens', [TokenController::class, 'store']);
-            Route::delete('/tokens/{id}', [TokenController::class, 'destroy']);
+            Route::delete('/tokens/{id}', [TokenController::class, 'destroy'])->whereNumber('id');
         });
     });
 });

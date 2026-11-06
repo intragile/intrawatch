@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\WorkspaceRole;
+use App\Models\Concerns\BelongsToWorkspace;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,8 @@ use Illuminate\Validation\ValidationException;
  */
 class Membership extends Pivot
 {
+    use BelongsToWorkspace;
+
     protected $table = 'memberships';
 
     public $incrementing = true;
@@ -29,14 +32,6 @@ class Membership extends Pivot
     protected function casts(): array
     {
         return ['role' => WorkspaceRole::class];
-    }
-
-    /**
-     * @return BelongsTo<Workspace, $this>
-     */
-    public function workspace(): BelongsTo
-    {
-        return $this->belongsTo(Workspace::class);
     }
 
     /**
@@ -65,6 +60,7 @@ class Membership extends Pivot
                 $lockedOwners = static::query()
                     ->where('workspace_id', $this->workspace_id)
                     ->where('role', WorkspaceRole::Owner->value)
+                    ->orderBy('id')
                     ->lockForUpdate()
                     ->get(['id']);
 

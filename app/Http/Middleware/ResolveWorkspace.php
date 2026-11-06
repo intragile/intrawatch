@@ -44,7 +44,7 @@ class ResolveWorkspace
         }
 
         $route?->setParameter('workspace', $workspace);
-        $this->current->set($workspace, $role);
+        $this->current->set($workspace, $role, $user);
 
         return $next($request);
     }

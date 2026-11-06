@@ -39,7 +39,25 @@ class MemberManagementTest extends TestCase
         $this->actingAs($viewer, 'sanctum')->getJson($this->url())
             ->assertOk()
             ->assertJsonCount(2, 'data')
-            ->assertJsonStructure(['data' => [['id', 'name', 'email', 'role']]]);
+            ->assertJsonStructure(['data' => [['id', 'name', 'email', 'role']], 'meta' => ['next_cursor', 'limit']]);
+    }
+
+    public function test_member_list_is_cursor_paginated(): void
+    {
+        $viewer = $this->member(WorkspaceRole::Viewer);
+        $this->member(WorkspaceRole::Owner);
+        $this->member(WorkspaceRole::Editor);
+
+        $first = $this->actingAs($viewer, 'sanctum')->getJson($this->url().'?limit=2')
+            ->assertOk()->assertJsonCount(2, 'data')->assertJsonPath('meta.limit', 2);
+        $cursor = $first->json('meta.next_cursor');
+        $this->assertIsString($cursor);
+
+        $second = $this->actingAs($viewer, 'sanctum')->getJson($this->url().'?limit=2&cursor='.urlencode($cursor))
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('meta.next_cursor', null);
+
+        $ids = collect((array) $first->json('data'))->merge((array) $second->json('data'))->pluck('id');
+        $this->assertSame(3, $ids->unique()->count());
     }
 
     public function test_editor_cannot_add_members(): void

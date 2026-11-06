@@ -169,7 +169,25 @@ class ApiTokenTest extends TestCase
 
         $this->actingAs($me, 'sanctum')->getJson($this->url($workspace, '/tokens'))
             ->assertOk()
-            ->assertJsonCount(1, 'data');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonStructure(['data', 'meta' => ['next_cursor', 'limit']]);
+    }
+
+    public function test_token_list_is_cursor_paginated(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $owner = User::factory()->memberOf($workspace, WorkspaceRole::Owner)->create();
+        foreach (range(1, 3) as $ignored) {
+            $this->mint($owner, $workspace, ['workspace:read']);
+        }
+
+        $first = $this->actingAs($owner, 'sanctum')->getJson($this->url($workspace, '/tokens?limit=2'))
+            ->assertOk()->assertJsonCount(2, 'data')->assertJsonPath('meta.limit', 2);
+        $cursor = $first->json('meta.next_cursor');
+        $this->assertIsString($cursor);
+
+        $this->actingAs($owner, 'sanctum')->getJson($this->url($workspace, '/tokens?limit=2&cursor='.urlencode($cursor)))
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('meta.next_cursor', null);
     }
 
     public function test_token_can_be_revoked_only_by_its_owner(): void

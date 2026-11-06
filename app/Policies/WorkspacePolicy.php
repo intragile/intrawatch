@@ -5,12 +5,18 @@ namespace App\Policies;
 use App\Enums\WorkspaceRole;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Support\CurrentWorkspace;
 
+/**
+ * Role checks reuse the role that ResolveWorkspace already loaded for the request.
+ */
 class WorkspacePolicy
 {
+    public function __construct(private readonly CurrentWorkspace $current) {}
+
     private function atLeast(User $user, Workspace $workspace, WorkspaceRole $min): bool
     {
-        return $user->roleIn($workspace)?->atLeast($min) ?? false;
+        return $this->current->roleOf($user, $workspace)?->atLeast($min) ?? false;
     }
 
     public function view(User $user, Workspace $workspace): bool

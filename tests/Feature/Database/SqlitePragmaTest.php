@@ -34,18 +34,19 @@ class SqlitePragmaTest extends TestCase
         parent::tearDown();
     }
 
-    private function pragma(string $name): mixed
+    private function pragma(string $name): string
     {
-        $row = (array) DB::connection('sqlite_file')->selectOne("pragma {$name}");
+        $value = array_values((array) DB::connection('sqlite_file')->selectOne("pragma {$name}"))[0] ?? null;
+        $this->assertIsScalar($value);
 
-        return array_values($row)[0] ?? null;
+        return strtolower((string) $value);
     }
 
     public function test_file_database_uses_single_writer_friendly_pragmas(): void
     {
-        $this->assertSame('wal', strtolower((string) $this->pragma('journal_mode')));
-        $this->assertSame(1, (int) $this->pragma('synchronous'), 'synchronous must be NORMAL (1)');
-        $this->assertSame(5000, (int) $this->pragma('busy_timeout'));
+        $this->assertSame('wal', $this->pragma('journal_mode'));
+        $this->assertSame('1', $this->pragma('synchronous'), 'synchronous must be NORMAL (1)');
+        $this->assertSame('5000', $this->pragma('busy_timeout'));
     }
 
     public function test_transactions_take_the_write_lock_immediately(): void
