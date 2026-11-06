@@ -7,6 +7,7 @@ use App\Policies\WorkspacePolicy;
 use App\Support\CurrentWorkspace;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +24,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Password::defaults(fn (): Password => Password::min(10));
+
         Gate::policy(Workspace::class, WorkspacePolicy::class);
     }
 }

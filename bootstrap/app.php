@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\SetupAlreadyCompleted;
 use App\Http\Middleware\ResolveWorkspace;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -14,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->statefulApi();
         $middleware->alias([
             'workspace' => ResolveWorkspace::class,
         ]);
@@ -22,4 +24,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        $exceptions->render(fn (SetupAlreadyCompleted $e) => response()->json(['message' => $e->getMessage()], 409));
     })->create();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\CreateWorkspace;
 use App\Enums\WorkspaceRole;
 use App\Http\Controllers\Controller;
 use App\Models\Membership;
@@ -10,7 +11,6 @@ use App\Models\Workspace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class WorkspaceController extends Controller
@@ -32,22 +32,14 @@ class WorkspaceController extends Controller
         return response()->json(['data' => $data]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, CreateWorkspace $createWorkspace): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
         $request->validate(['name' => ['required', 'string', 'max:120']]);
         $name = $request->string('name')->toString();
 
-        $workspace = DB::transaction(function () use ($user, $name): Workspace {
-            $workspace = Workspace::create([
-                'name' => $name,
-                'slug' => Workspace::uniqueSlug($name),
-            ]);
-            $user->workspaces()->attach($workspace, ['role' => WorkspaceRole::Owner->value]);
-
-            return $workspace;
-        });
+        $workspace = $createWorkspace->handle($user, $name);
 
         return response()->json(['data' => $this->payload($workspace, WorkspaceRole::Owner)], 201);
     }
