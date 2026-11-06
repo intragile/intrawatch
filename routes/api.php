@@ -14,7 +14,7 @@ Route::prefix('v1')->group(function (): void {
     Route::get('/ping', PingController::class);
     Route::get('/openapi.json', OpenApiController::class);
     Route::get('/setup', [SetupController::class, 'show']);
-    Route::post('/setup', [SetupController::class, 'store'])->middleware('throttle:setup');
+    Route::post('/setup', [SetupController::class, 'store'])->middleware(['throttle:setup', 'session.required']);
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/me', MeController::class);

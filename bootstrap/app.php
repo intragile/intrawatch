@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureTokenAbility;
+use App\Http\Middleware\RequireSession;
 use App\Http\Middleware\ResolveWorkspace;
 use App\Http\Problem\ProblemRenderer;
 use Illuminate\Foundation\Application;
@@ -30,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'workspace' => ResolveWorkspace::class,
             'ability' => EnsureTokenAbility::class,
+            'session.required' => RequireSession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

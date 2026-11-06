@@ -40,6 +40,11 @@ class MemberController extends Controller
     {
         Gate::authorize('manageMembers', $workspace);
 
+        // Addresses are stored lowercase; normalising first keeps the lookup case-insensitive on every database.
+        if (is_string($email = $request->input('email'))) {
+            $request->merge(['email' => mb_strtolower(trim($email))]);
+        }
+
         $request->validate([
             'email' => ['required', 'email', 'exists:users,email'],
             'role' => ['required', Rule::enum(WorkspaceRole::class)],

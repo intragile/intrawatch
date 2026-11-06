@@ -5,7 +5,9 @@ namespace Tests\Feature\Workspaces;
 use App\Enums\WorkspaceRole;
 use App\Models\User;
 use App\Models\Workspace;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class MemberManagementTest extends TestCase
@@ -94,6 +96,38 @@ class MemberManagementTest extends TestCase
         $this->actingAs($admin, 'sanctum')
             ->postJson($this->url(), ['email' => $admin->email, 'role' => 'viewer'])
             ->assertUnprocessable();
+    }
+
+    public function test_member_email_lookup_is_case_insensitive(): void
+    {
+        $admin = $this->member(WorkspaceRole::Admin);
+        $other = User::factory()->create(['email' => 'mixed.case@example.com']);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson($this->url(), ['email' => '  Mixed.Case@EXAMPLE.com ', 'role' => 'viewer'])
+            ->assertCreated()
+            ->assertJsonPath('data.id', $other->id);
+    }
+
+    public function test_last_owner_guard_locks_owner_rows_in_id_order(): void
+    {
+        $owner = $this->member(WorkspaceRole::Owner);
+        $this->member(WorkspaceRole::Owner);
+
+        $statements = [];
+        DB::listen(function (QueryExecuted $query) use (&$statements): void {
+            $statements[] = $query->sql;
+        });
+
+        $this->actingAs($owner, 'sanctum')->patchJson($this->url("/{$owner->id}"), ['role' => 'admin'])->assertOk();
+
+        $lock = array_values(array_filter(
+            $statements,
+            fn (string $sql): bool => preg_match('/^select .* from [`"]memberships[`"] where .*[`"]role[`"] = \?/', $sql) === 1,
+        ));
+        $this->assertNotEmpty($lock, 'The owner rows were not queried.');
+        // A stable lock order prevents deadlocks between concurrent demotions.
+        $this->assertMatchesRegularExpression('/order by [`"]?id[`"]? asc/i', $lock[0]);
     }
 
     public function test_invalid_role_is_rejected(): void

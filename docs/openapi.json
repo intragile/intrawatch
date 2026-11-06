@@ -679,6 +679,7 @@
             },
             "post": {
                 "operationId": "setup.store",
+                "summary": "Complete the first-run setup. Must be called as a stateful (cookie) request: send an `Origin` that\nmatches `APP_URL` and the `X-XSRF-TOKEN` obtained from `GET /sanctum/csrf-cookie`",
                 "tags": [
                     "Setup"
                 ],

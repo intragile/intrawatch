@@ -18,7 +18,9 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'localhost:3000,127.0.0.1:3000')),
+    // The host (and port) of APP_URL is always included by default, so a deployment on its own domain
+    // gets working cookie sessions without extra configuration.
+    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'localhost:3000,127.0.0.1:3000'.Sanctum::currentApplicationUrlWithPort())),
 
     /*
     |--------------------------------------------------------------------------

@@ -16,6 +16,10 @@ class SetupController extends Controller
         return response()->json(['required' => ! User::query()->exists()]);
     }
 
+    /**
+     * Complete the first-run setup. Must be called as a stateful (cookie) request: send an `Origin` that
+     * matches `APP_URL` and the `X-XSRF-TOKEN` obtained from `GET /sanctum/csrf-cookie`.
+     */
     public function store(Request $request, CompleteSetup $completeSetup): JsonResponse
     {
         $user = $completeSetup->handle([
@@ -25,10 +29,9 @@ class SetupController extends Controller
             'workspace_name' => $request->input('workspace_name'),
         ]);
 
-        if ($request->hasSession()) {
-            Auth::guard('web')->login($user);
-            $request->session()->regenerate();
-        }
+        // The route requires a session, so the new owner is logged in right away.
+        Auth::guard('web')->login($user);
+        $request->session()->regenerate();
 
         return response()->json(['data' => MeController::payload($user)], 201);
     }

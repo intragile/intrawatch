@@ -2,6 +2,7 @@
 
 namespace App\Http\Problem;
 
+use App\Exceptions\SessionUnavailable;
 use App\Exceptions\SetupAlreadyCompleted;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -54,6 +55,10 @@ final class ProblemRenderer
         } elseif ($e instanceof SetupAlreadyCompleted) {
             $status = 409;
             $type = 'urn:problem:setup-already-completed';
+            $detail = $e->getMessage();
+        } elseif ($e instanceof SessionUnavailable) {
+            $status = 400;
+            $type = 'urn:problem:session-unavailable';
             $detail = $e->getMessage();
         } elseif ($e instanceof UniqueConstraintViolationException) {
             $status = 409;

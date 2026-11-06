@@ -108,12 +108,62 @@ class LoginTest extends TestCase
 
     public function test_forgot_password_is_rate_limited(): void
     {
-        // An unknown address is rejected by the broker without its own cooldown, so only the throttle can answer 429.
+        // An unknown address has no broker cooldown, so only the throttle can answer 429.
         for ($i = 0; $i < 5; $i++) {
             $this->postJson('/api/v1/auth/forgot-password', ['email' => $i % 2 ? 'Nobody@Example.com' : 'nobody@example.com'], $this->stateful)
-                ->assertStatus(422);
+                ->assertOk();
         }
 
         $this->postJson('/api/v1/auth/forgot-password', ['email' => 'nobody@example.com'], $this->stateful)->assertStatus(429);
+    }
+
+    public function test_forgot_password_does_not_reveal_whether_an_account_exists(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create();
+
+        $known = $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email], $this->stateful);
+        $unknown = $this->postJson('/api/v1/auth/forgot-password', ['email' => 'ghost@example.com'], $this->stateful);
+        // A second request for the known address hits the broker's cooldown, which must look the same too.
+        $throttled = $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email], $this->stateful);
+
+        foreach ([$known, $unknown, $throttled] as $response) {
+            $response->assertOk();
+            $this->assertSame($known->getContent(), $response->getContent());
+        }
+        Notification::assertSentToTimes($user, ResetPassword::class, 1);
+    }
+
+    public function test_login_without_a_session_is_a_problem_not_a_silent_success(): void
+    {
+        $user = User::factory()->create();
+
+        $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => 'password'])
+            ->assertStatus(400)
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertJsonPath('type', 'urn:problem:session-unavailable');
+
+        $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => 'password'], [
+            'Origin' => 'http://evil.test', 'Referer' => 'http://evil.test/',
+        ])->assertStatus(400);
+    }
+
+    public function test_app_url_host_is_a_stateful_domain_by_default(): void
+    {
+        $this->assertFalse(getenv('SANCTUM_STATEFUL_DOMAINS'), 'The default list is under test.');
+        config(['app.url' => 'http://intrawatch.test:3000']);
+        // Re-evaluate the shipped config file against the new APP_URL.
+        $sanctum = require config_path('sanctum.php');
+        $this->assertIsArray($sanctum);
+        config(['sanctum.stateful' => $sanctum['stateful']]);
+
+        $this->assertSame(['localhost:3000', '127.0.0.1:3000', 'intrawatch.test:3000'], config('sanctum.stateful'));
+
+        $user = User::factory()->create();
+        $origin = ['Origin' => 'http://intrawatch.test:3000', 'Referer' => 'http://intrawatch.test:3000/login'];
+
+        $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => 'password'], $origin)
+            ->assertSuccessful();
+        $this->getJson('/api/v1/me', $origin)->assertOk()->assertJsonPath('data.email', $user->email);
     }
 }
