@@ -9,6 +9,7 @@ use App\Http\Pagination\CursorPage;
 use App\Models\Membership;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Support\Audit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,7 +58,12 @@ class WorkspaceController extends Controller
         $request->validate(['name' => ['required', 'string', 'max:120']]);
         $name = $request->string('name')->toString();
 
+        $previous = $workspace->name;
         $workspace->update(['name' => $name]);
+
+        if ($previous !== $name) {
+            Audit::record('workspace.updated', $workspace, ['name' => [$previous, $name]]);
+        }
 
         /** @var User $user */
         $user = $request->user();
@@ -70,6 +76,8 @@ class WorkspaceController extends Controller
         Gate::authorize('delete', $workspace);
 
         $workspace->delete();
+
+        Audit::record('workspace.deleted', $workspace, ['name' => [$workspace->name, null]]);
 
         return response()->noContent();
     }

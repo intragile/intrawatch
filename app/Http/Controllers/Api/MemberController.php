@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Membership;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Support\Audit;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,6 +52,7 @@ class MemberController extends Controller
         }
 
         $membership = $workspace->memberships()->create(['user_id' => $user->id, 'role' => $role]);
+        Audit::record('member.added', $user, ['role' => [null, $role->value]]);
 
         return response()->json(['data' => $this->payload($membership->setRelation('user', $user))], 201);
     }
@@ -66,9 +68,15 @@ class MemberController extends Controller
         $this->authorizeGrant($role);
         $this->authorizeTouching($membership);
 
+        $previous = $membership->role;
+
         $membership->guardLastOwner($role, function () use ($membership, $role): void {
             $membership->update(['role' => $role]);
         });
+
+        if ($previous !== $role) {
+            Audit::record('member.role_changed', $user, ['role' => [$previous->value, $role->value]]);
+        }
 
         return response()->json(['data' => $this->payload($membership->setRelation('user', $user))]);
     }
@@ -83,6 +91,8 @@ class MemberController extends Controller
         $membership->guardLastOwner(null, function () use ($membership): void {
             $membership->delete();
         });
+
+        Audit::record('member.removed', $user, ['role' => [$membership->role->value, null]]);
 
         return response()->noContent();
     }

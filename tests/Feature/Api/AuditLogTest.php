@@ -1,0 +1,365 @@
+<?php
+
+namespace Tests\Feature\Api;
+
+use App\Enums\WorkspaceRole;
+use App\Models\AuditEvent;
+use App\Models\User;
+use App\Models\Workspace;
+use App\Support\Audit;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Testing\TestResponse;
+use LogicException;
+use Tests\TestCase;
+
+class AuditLogTest extends TestCase
+{
+    use RefreshDatabase;
+
+    /** @var array<string, string> */
+    private array $stateful = ['Origin' => 'http://localhost:3000', 'Referer' => 'http://localhost:3000/login'];
+
+    private Workspace $workspace;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->workspace = Workspace::factory()->create();
+    }
+
+    private function member(WorkspaceRole $role): User
+    {
+        return User::factory()->memberOf($this->workspace, $role)->create();
+    }
+
+    private function url(string $suffix): string
+    {
+        return "/api/v1/workspaces/{$this->workspace->slug}{$suffix}";
+    }
+
+    /**
+     * @param  TestResponse<JsonResponse>  $response
+     * @return list<mixed>
+     */
+    private function rows(TestResponse $response): array
+    {
+        $data = $response->json('data');
+        $this->assertIsArray($data);
+
+        return array_values($data);
+    }
+
+    private function asToken(string $token): static
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withToken($token);
+    }
+
+    /**
+     * @param  list<string>  $abilities
+     */
+    private function mint(User $user, array $abilities): string
+    {
+        $token = $this->actingAs($user, 'sanctum')
+            ->postJson($this->url('/tokens'), ['name' => 'ci', 'abilities' => $abilities])
+            ->assertCreated()->json('token');
+        $this->assertIsString($token);
+
+        return $token;
+    }
+
+    public function test_role_change_is_audited_with_diff(): void
+    {
+        $owner = $this->member(WorkspaceRole::Owner);
+        $viewer = $this->member(WorkspaceRole::Viewer);
+
+        $this->actingAs($owner, 'sanctum')
+            ->patchJson($this->url("/members/{$viewer->id}"), ['role' => 'editor'])
+            ->assertOk();
+
+        $event = AuditEvent::where('action', 'member.role_changed')->sole();
+        $this->assertSame(['role' => ['viewer', 'editor']], $event->changes);
+        $this->assertSame('user', $event->actor_type);
+        $this->assertSame($owner->id, $event->actor_id);
+        $this->assertSame($this->workspace->id, $event->workspace_id);
+        $this->assertSame('user', $event->subject_type);
+        $this->assertSame((string) $viewer->id, $event->subject_id);
+    }
+
+    public function test_member_add_and_remove_are_audited(): void
+    {
+        $owner = $this->member(WorkspaceRole::Owner);
+        $other = User::factory()->create();
+
+        $this->actingAs($owner, 'sanctum')
+            ->postJson($this->url('/members'), ['email' => $other->email, 'role' => 'viewer'])->assertCreated();
+        $this->actingAs($owner, 'sanctum')
+            ->deleteJson($this->url("/members/{$other->id}"))->assertNoContent();
+
+        $added = AuditEvent::where('action', 'member.added')->sole();
+        $this->assertSame(['role' => [null, 'viewer']], $added->changes);
+        $removed = AuditEvent::where('action', 'member.removed')->sole();
+        $this->assertSame(['role' => ['viewer', null]], $removed->changes);
+    }
+
+    public function test_workspace_lifecycle_is_audited(): void
+    {
+        $user = User::factory()->create();
+
+        $slug = $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/workspaces', ['name' => 'Acme'])->assertCreated()->json('data.id');
+        $this->assertNotNull($slug);
+        $created = AuditEvent::where('action', 'workspace.created')->sole();
+        $this->assertSame(['name' => [null, 'Acme']], $created->changes);
+        $this->assertSame($user->id, $created->actor_id);
+        $this->assertNotNull($created->workspace_id);
+
+        $acme = Workspace::findOrFail($created->workspace_id);
+        $this->actingAs($user, 'sanctum')
+            ->patchJson("/api/v1/workspaces/{$acme->slug}", ['name' => 'Acme 2'])->assertOk();
+        $updated = AuditEvent::where('action', 'workspace.updated')->sole();
+        $this->assertSame(['name' => ['Acme', 'Acme 2']], $updated->changes);
+
+        $this->actingAs($user, 'sanctum')->deleteJson("/api/v1/workspaces/{$acme->slug}")->assertNoContent();
+        $deleted = AuditEvent::where('action', 'workspace.deleted')->sole();
+        $this->assertSame($acme->id, $deleted->workspace_id);
+        $this->assertSame(3, AuditEvent::where('workspace_id', $acme->id)->count());
+    }
+
+    public function test_noop_updates_record_nothing(): void
+    {
+        $owner = $this->member(WorkspaceRole::Owner);
+        $viewer = $this->member(WorkspaceRole::Viewer);
+
+        $this->actingAs($owner, 'sanctum')
+            ->patchJson($this->url("/members/{$viewer->id}"), ['role' => 'viewer'])->assertOk();
+        $this->actingAs($owner, 'sanctum')
+            ->patchJson($this->url(''), ['name' => $this->workspace->name])->assertOk();
+
+        $this->assertSame(0, AuditEvent::count());
+    }
+
+    public function test_workspace_created_by_command_is_audited_once_as_system(): void
+    {
+        $this->assertSame(0, Artisan::call('intrawatch:user:create', [
+            'email' => 'ada@example.com', '--name' => 'Ada', '--password' => 'correct-horse-battery', '--owner-of' => 'Ada Co',
+        ]));
+
+        $event = AuditEvent::where('action', 'workspace.created')->sole();
+        $this->assertSame('system', $event->actor_type);
+        $this->assertNull($event->actor_id);
+    }
+
+    public function test_command_joining_existing_workspace_is_audited_as_member_added(): void
+    {
+        $this->assertSame(0, Artisan::call('intrawatch:user:create', [
+            'email' => 'ada@example.com', '--password' => 'correct-horse-battery', '--owner-of' => $this->workspace->slug,
+        ]));
+
+        $event = AuditEvent::where('action', 'member.added')->sole();
+        $this->assertSame('system', $event->actor_type);
+        $this->assertSame(['role' => [null, 'owner']], $event->changes);
+        $this->assertSame($this->workspace->id, $event->workspace_id);
+    }
+
+    public function test_token_actions_record_token_actor(): void
+    {
+        $admin = $this->member(WorkspaceRole::Admin);
+        $plain = $this->mint($admin, ['workspace:manage']);
+
+        $created = AuditEvent::where('action', 'token.created')->sole();
+        $this->assertSame('user', $created->actor_type);
+        $this->assertSame('ci', $created->changes['name'][1] ?? null);
+
+        $this->asToken($plain)->patchJson($this->url(''), ['name' => 'Renamed'])->assertOk();
+
+        $event = AuditEvent::where('action', 'workspace.updated')->sole();
+        $this->assertSame('token', $event->actor_type);
+        $this->assertSame((int) $created->subject_id, $event->actor_id);
+    }
+
+    public function test_token_revocation_is_audited(): void
+    {
+        $admin = $this->member(WorkspaceRole::Admin);
+        $this->mint($admin, ['workspace:read']);
+        $id = AuditEvent::where('action', 'token.created')->sole()->subject_id;
+
+        $this->actingAs($admin, 'sanctum')->deleteJson($this->url("/tokens/{$id}"))->assertNoContent();
+
+        $revoked = AuditEvent::where('action', 'token.revoked')->sole();
+        $this->assertSame($id, $revoked->subject_id);
+        $this->assertSame($admin->id, $revoked->actor_id);
+    }
+
+    public function test_login_and_failed_login_are_audited_without_workspace(): void
+    {
+        $user = User::factory()->create();
+
+        $this->postJson('/api/v1/auth/login', ['email' => 'Someone@Example.com', 'password' => 'hunter2-wrong'], $this->stateful)
+            ->assertStatus(422);
+        $failed = AuditEvent::where('action', 'auth.login_failed')->sole();
+        $this->assertSame(['email' => [null, 'someone@example.com']], $failed->changes);
+        $this->assertNull($failed->workspace_id);
+        $this->assertStringNotContainsString('hunter2', (string) json_encode($failed->toArray()));
+
+        $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => 'password'], $this->stateful)
+            ->assertSuccessful();
+        $login = AuditEvent::where('action', 'auth.login')->sole();
+        $this->assertSame('user', $login->actor_type);
+        $this->assertSame($user->id, $login->actor_id);
+        $this->assertNull($login->workspace_id);
+    }
+
+    public function test_two_factor_events_are_audited(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+        $this->postJson('/api/v1/auth/user/confirm-password', ['password' => 'password'], $this->stateful)->assertCreated();
+
+        $this->postJson('/api/v1/auth/user/two-factor-authentication', [], $this->stateful)->assertSuccessful();
+        $this->deleteJson('/api/v1/auth/user/two-factor-authentication', [], $this->stateful)->assertSuccessful();
+
+        $enabled = AuditEvent::where('action', 'auth.two_factor_enabled')->sole();
+        $this->assertSame($user->id, $enabled->actor_id);
+        $this->assertNull($enabled->workspace_id);
+        $this->assertSame(1, AuditEvent::where('action', 'auth.two_factor_disabled')->count());
+    }
+
+    public function test_audit_never_contains_secrets(): void
+    {
+        $user = User::factory()->memberOf($this->workspace, WorkspaceRole::Owner)->create();
+        $plain = $this->mint($user, ['workspace:read']);
+
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($user, 'web');
+        $this->postJson('/api/v1/auth/user/confirm-password', ['password' => 'password'], $this->stateful)->assertCreated();
+        $this->postJson('/api/v1/auth/user/two-factor-authentication', [], $this->stateful)->assertSuccessful();
+        $encrypted = $user->refresh()->two_factor_secret;
+        $this->assertIsString($encrypted);
+        $secret = decrypt($encrypted);
+        $this->assertIsString($secret);
+
+        $dump = (string) json_encode(AuditEvent::all()->toArray());
+        $this->assertGreaterThan(0, AuditEvent::count());
+        $this->assertStringNotContainsString($plain, $dump);
+        $this->assertStringNotContainsString(explode('|', $plain)[1] ?? $plain, $dump);
+        $this->assertStringNotContainsString($secret, $dump);
+        $this->assertStringNotContainsString('two_factor', str_replace('auth.two_factor_', '', $dump));
+    }
+
+    public function test_record_strips_sensitive_fields(): void
+    {
+        $event = Audit::record('thing.changed', null, [
+            'name' => ['a', 'b'],
+            'password' => ['x', 'y'],
+            'api_token' => [null, 'z'],
+            'TOTP_Secret' => [null, 's'],
+            'two_factor_secret' => [null, 's'],
+            'two_factor_recovery_codes' => [null, 's'],
+            'remember_token' => ['a', 'b'],
+        ]);
+
+        $this->assertSame(['name' => ['a', 'b']], $event->fresh()?->changes);
+    }
+
+    public function test_events_cannot_be_updated_or_deleted(): void
+    {
+        $event = Audit::record('thing.changed');
+
+        try {
+            $event->update(['action' => 'other']);
+            $this->fail('Update must be refused.');
+        } catch (LogicException) {
+        }
+        try {
+            $event->delete();
+            $this->fail('Delete must be refused.');
+        } catch (LogicException) {
+        }
+
+        $this->assertSame('thing.changed', $event->fresh()?->action);
+    }
+
+    public function test_no_mutating_audit_routes_exist(): void
+    {
+        $owner = $this->member(WorkspaceRole::Owner);
+        foreach (['post', 'put', 'patch', 'delete'] as $method) {
+            $this->actingAs($owner, 'sanctum')
+                ->json($method, $this->url('/audit'))->assertStatus(405);
+        }
+    }
+
+    public function test_editor_cannot_read_audit(): void
+    {
+        $this->actingAs($this->member(WorkspaceRole::Editor), 'sanctum')
+            ->getJson($this->url('/audit'))->assertForbidden();
+    }
+
+    public function test_admin_reads_newest_first_with_filters_and_pagination(): void
+    {
+        $owner = $this->member(WorkspaceRole::Owner);
+        $admin = $this->member(WorkspaceRole::Admin);
+        $viewer = $this->member(WorkspaceRole::Viewer);
+
+        $this->actingAs($owner, 'sanctum')->patchJson($this->url("/members/{$viewer->id}"), ['role' => 'editor'])->assertOk();
+        $this->actingAs($admin, 'sanctum')->patchJson($this->url("/members/{$viewer->id}"), ['role' => 'viewer'])->assertOk();
+        $this->actingAs($admin, 'sanctum')->patchJson($this->url(''), ['name' => 'New'])->assertOk();
+
+        $all = $this->actingAs($admin, 'sanctum')->getJson($this->url('/audit'))->assertOk();
+        $this->assertSame(
+            ['workspace.updated', 'member.role_changed', 'member.role_changed'],
+            array_column($this->rows($all), 'action'),
+        );
+        $all->assertJsonStructure(['data' => [['id', 'action', 'actor_type', 'actor_id', 'subject_type', 'subject_id', 'changes', 'ip', 'created_at']], 'meta' => ['next_cursor', 'limit']]);
+
+        $byAction = $this->actingAs($admin, 'sanctum')->getJson($this->url('/audit?action=member.role_changed'))->assertOk();
+        $this->assertCount(2, $this->rows($byAction));
+
+        $byActor = $this->actingAs($admin, 'sanctum')
+            ->getJson($this->url("/audit?actor_id={$owner->id}&actor_type=user"))->assertOk();
+        $this->assertCount(1, $this->rows($byActor));
+
+        $page = $this->actingAs($admin, 'sanctum')->getJson($this->url('/audit?limit=2'))->assertOk();
+        $this->assertCount(2, $this->rows($page));
+        $cursor = $page->json('meta.next_cursor');
+        $this->assertIsString($cursor);
+        $next = $this->actingAs($admin, 'sanctum')
+            ->getJson($this->url('/audit?limit=2&cursor='.$cursor))->assertOk();
+        $this->assertCount(1, $this->rows($next));
+        $this->assertNull($next->json('meta.next_cursor'));
+    }
+
+    public function test_audit_is_scoped_to_the_workspace(): void
+    {
+        $owner = $this->member(WorkspaceRole::Owner);
+        $other = Workspace::factory()->create();
+        $other->members()->attach($owner, ['role' => 'owner']);
+        Audit::record('workspace.updated', $other);
+
+        $this->actingAs($owner, 'sanctum')->getJson($this->url('/audit'))
+            ->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_token_needs_audit_read_ability(): void
+    {
+        $admin = $this->member(WorkspaceRole::Admin);
+        $withAbility = $this->mint($admin, ['audit:read']);
+        $without = $this->mint($admin, ['workspace:read']);
+
+        $this->asToken($withAbility)->getJson($this->url('/audit'))->assertOk();
+        $this->asToken($without)->getJson($this->url('/audit'))->assertForbidden();
+    }
+
+    public function test_editor_cannot_mint_audit_read_token(): void
+    {
+        $editor = $this->member(WorkspaceRole::Editor);
+
+        $this->actingAs($editor, 'sanctum')
+            ->postJson($this->url('/tokens'), ['name' => 'x', 'abilities' => ['audit:read']])
+            ->assertStatus(422);
+    }
+}

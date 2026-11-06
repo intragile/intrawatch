@@ -5,12 +5,18 @@ namespace App\Providers;
 use App\Models\Workspace;
 use App\Policies\WorkspacePolicy;
 use App\Support\CurrentWorkspace;
+use App\Support\RecordAuthEvent;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\Server;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Fortify\Events\TwoFactorAuthenticationDisabled;
+use Laravel\Fortify\Events\TwoFactorAuthenticationEnabled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -30,6 +36,11 @@ class AppServiceProvider extends ServiceProvider
         Password::defaults(fn (): Password => Password::min(10));
 
         Gate::policy(Workspace::class, WorkspacePolicy::class);
+
+        Event::listen(Login::class, [RecordAuthEvent::class, 'handleLogin']);
+        Event::listen(Failed::class, [RecordAuthEvent::class, 'handleFailed']);
+        Event::listen(TwoFactorAuthenticationEnabled::class, [RecordAuthEvent::class, 'handleTwoFactorEnabled']);
+        Event::listen(TwoFactorAuthenticationDisabled::class, [RecordAuthEvent::class, 'handleTwoFactorDisabled']);
 
         // The spec is served from the API itself; Scramble's own UI and JSON routes stay off.
         Scramble::configure()

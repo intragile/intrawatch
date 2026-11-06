@@ -33,6 +33,11 @@ class WorkspacePolicy
         return $this->atLeast($user, $workspace, WorkspaceRole::Viewer);
     }
 
+    public function viewAudit(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Admin);
+    }
+
     public function manageMembers(User $user, Workspace $workspace): bool
     {
         return $this->atLeast($user, $workspace, WorkspaceRole::Admin);

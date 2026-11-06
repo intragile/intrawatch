@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Enums\WorkspaceRole;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Support\Audit;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +33,8 @@ class CreateWorkspace
         return DB::transaction(function () use ($owner, $name, $slug): Workspace {
             $workspace = Workspace::create(['name' => $name, 'slug' => $slug]);
             $owner->workspaces()->attach($workspace, ['role' => WorkspaceRole::Owner->value]);
+
+            Audit::record('workspace.created', $workspace, ['name' => [null, $workspace->name]]);
 
             return $workspace;
         });

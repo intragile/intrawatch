@@ -6,6 +6,7 @@ use App\Enums\TokenAbility;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Support\Audit;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -73,6 +74,10 @@ class TokenController extends Controller
             $request->date('expires_at'),
         );
         $created->accessToken->forceFill(['workspace_id' => $workspace->id])->save();
+        Audit::record('token.created', $created->accessToken, [
+            'name' => [null, $created->accessToken->name],
+            'abilities' => [null, $abilities],
+        ]);
 
         return response()->json([
             'id' => $created->accessToken->getKey(),
@@ -89,6 +94,7 @@ class TokenController extends Controller
             ->whereKey($id)
             ->firstOrFail();
         $token->delete();
+        Audit::record('token.revoked', $token, ['name' => [$token->name, null]]);
 
         return response()->noContent();
     }

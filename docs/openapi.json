@@ -1028,6 +1028,106 @@
                 }
             }
         },
+        "/workspaces/{workspace}/audit": {
+            "get": {
+                "operationId": "audit",
+                "summary": "List audit events of the workspace, newest first. Filters: `action`, `actor_id`, `actor_type`",
+                "tags": [
+                    "Audit"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "action",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 64
+                        }
+                    },
+                    {
+                        "name": "actor_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "actor_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "user",
+                                "token",
+                                "system"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "limit": {}
+                                            },
+                                            "required": [
+                                                "next_cursor",
+                                                "limit"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/members": {
             "get": {
                 "operationId": "member.index",
@@ -1602,7 +1702,8 @@
                 "enum": [
                     "workspace:read",
                     "workspace:manage",
-                    "members:manage"
+                    "members:manage",
+                    "audit:read"
                 ],
                 "title": "TokenAbility"
             },

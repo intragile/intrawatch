@@ -6,6 +6,7 @@ use App\Actions\CreateWorkspace;
 use App\Enums\WorkspaceRole;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Support\Audit;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -55,6 +56,7 @@ class CreateUserCommand extends Command
                 $createWorkspace->handle($user, $ownerOf);
             } else {
                 $user->workspaces()->attach($workspace, ['role' => WorkspaceRole::Owner->value]);
+                Audit::record('member.added', $user, ['role' => [null, WorkspaceRole::Owner->value]], workspace: $workspace);
             }
         }
 

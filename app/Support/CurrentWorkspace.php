@@ -21,6 +21,11 @@ class CurrentWorkspace
         $this->role = $role;
     }
 
+    public function isResolved(): bool
+    {
+        return $this->workspace !== null;
+    }
+
     public function get(): Workspace
     {
         return $this->workspace ?? throw new LogicException('No workspace has been resolved for this request.');

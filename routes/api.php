@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\OpenApiController;
@@ -31,6 +32,8 @@ Route::prefix('v1')->group(function (): void {
                 Route::patch('/members/{user}', [MemberController::class, 'update']);
                 Route::delete('/members/{user}', [MemberController::class, 'destroy']);
             });
+
+            Route::get('/audit', AuditController::class)->middleware('ability:audit:read');
 
             Route::get('/tokens', [TokenController::class, 'index']);
             Route::post('/tokens', [TokenController::class, 'store']);
