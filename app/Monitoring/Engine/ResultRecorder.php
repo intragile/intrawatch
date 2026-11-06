@@ -22,7 +22,7 @@ final class ResultRecorder
     /**
      * Checks per ChecksRecorded event, which keeps each broadcast below the WebSocket message size limit.
      */
-    private const BROADCAST_CHUNK = 200;
+    public const BROADCAST_CHUNK = 200;
 
     public function __construct(
         private readonly StatusMachine $machine,
@@ -34,8 +34,9 @@ final class ResultRecorder
      * Items of the same monitor are applied in the order given.
      *
      * @param  list<array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}>  $items  Spec, outcome, checked-at, schedule drift in ms.
+     * @param  bool  $broadcastChecks  Whether to dispatch ChecksRecorded; callers that throttle the broadcast pass false.
      */
-    public function record(array $items): RecordedBatch
+    public function record(array $items, bool $broadcastChecks = true): RecordedBatch
     {
         if ($items === []) {
             return new RecordedBatch;
@@ -43,8 +44,8 @@ final class ResultRecorder
 
         /** @var list<object> $events */
         $events = [];
-        $batch = DB::transaction(function () use ($items, &$events): RecordedBatch {
-            return $this->persist($items, $events);
+        $batch = DB::transaction(function () use ($items, $broadcastChecks, &$events): RecordedBatch {
+            return $this->persist($items, $broadcastChecks, $events);
         });
 
         // The results are committed at this point; see PostCommit for why a failing dispatch is swallowed.
@@ -57,15 +58,24 @@ final class ResultRecorder
      * @param  list<array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}>  $items
      * @param  list<object>  $events  Receives the events to dispatch after commit.
      */
-    private function persist(array $items, array &$events): RecordedBatch
+    private function persist(array $items, bool $broadcastChecks, array &$events): RecordedBatch
     {
         $ids = array_values(array_unique(array_map(fn (array $item): int => $item[0]->id, $items)));
         sort($ids);
 
-        // Locking the state rows in monitor order serializes concurrent recorders without deadlocks. The
-        // monitor rows are read afterwards without a lock: a pause or delete that commits before this point
-        // is seen, and one still in flight waits for this transaction on the state row it has to rewrite.
-        // On SQLite the lock clause compiles to nothing and the IMMEDIATE transaction serializes writers.
+        // Lock order: monitor rows (shared) before state rows (exclusive), each in id order. The API takes
+        // the same order when it pauses, edits or deletes a monitor (monitor row first, then its state row),
+        // so the two paths queue behind each other instead of deadlocking. The shared lock also means a
+        // pause or delete that is still in flight is waited for and then seen, so no result is recorded
+        // after it commits. On SQLite both lock clauses compile to nothing and the IMMEDIATE transaction
+        // serializes writers.
+        $active = [];
+        foreach (DB::table('monitors')->whereIn('id', $ids)->orderBy('id')->sharedLock()->get(['id', 'active']) as $row) {
+            if ((bool) $row->active) {
+                $active[$this->int($row->id)] = true;
+            }
+        }
+
         /** @var array<int, StateSnapshot> $states */
         $states = [];
         $stateRows = DB::table('monitor_states')
@@ -80,11 +90,6 @@ final class ResultRecorder
                 CarbonImmutable::parse($this->string($row->status_since)),
                 StateSnapshot::normalizeWatch(json_decode($this->string($row->watch ?? ''), true)),
             );
-        }
-
-        $active = [];
-        foreach (DB::table('monitors')->whereIn('id', $ids)->where('active', true)->pluck('id') as $id) {
-            $active[$this->int($id)] = true;
         }
 
         $maintenance = $this->maintenanceByItem($items, $active);
@@ -185,9 +190,11 @@ final class ResultRecorder
         $groupTransitions = $parentIds === [] ? [] : $this->groups->recompute(array_keys($parentIds));
         array_push($events, ...PostCommit::statusEvents($groupTransitions, $now));
 
-        foreach ($checks as $workspaceId => $list) {
-            foreach (array_chunk($list, self::BROADCAST_CHUNK) as $chunk) {
-                $events[] = new ChecksRecorded($workspaceId, $chunk);
+        if ($broadcastChecks) {
+            foreach ($checks as $workspaceId => $list) {
+                foreach (array_chunk($list, self::BROADCAST_CHUNK) as $chunk) {
+                    $events[] = new ChecksRecorded($workspaceId, $chunk);
+                }
             }
         }
 

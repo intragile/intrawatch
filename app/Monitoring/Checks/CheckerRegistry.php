@@ -23,6 +23,15 @@ final class CheckerRegistry
 
     public function __construct(private readonly Container $container) {}
 
+    /**
+     * @param  class-string<Checker>  $class
+     */
+    public function register(MonitorType $type, string $class): void
+    {
+        $this->checkers[$type->value] = $class;
+        unset($this->resolved[$type->value]);
+    }
+
     public function supports(MonitorType $type): bool
     {
         return isset($this->checkers[$type->value]);

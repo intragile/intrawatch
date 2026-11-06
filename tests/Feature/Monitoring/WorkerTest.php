@@ -1,0 +1,367 @@
+<?php
+
+namespace Tests\Feature\Monitoring;
+
+use Amp\DeferredCancellation;
+use Amp\Future;
+use App\Enums\MonitorType;
+use App\Enums\WorkspaceRole;
+use App\Events\ChecksRecorded;
+use App\Models\CheckResult;
+use App\Models\Monitor;
+use App\Models\User;
+use App\Models\Workspace;
+use App\Monitoring\Checks\CheckerRegistry;
+use App\Monitoring\Engine\CheckOutcome;
+use App\Monitoring\Engine\MonitorSpec;
+use App\Monitoring\Engine\NullDeadlineEvaluator;
+use App\Monitoring\Engine\ResultRecorder;
+use App\Monitoring\Engine\Transition;
+use App\Monitoring\Worker\Heartbeat;
+use App\Monitoring\Worker\MonitorLoader;
+use App\Monitoring\Worker\OutcomeBuffer;
+use App\Monitoring\Worker\Scheduler;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use PDOException;
+use Tests\Support\FailureBudget;
+use Tests\Support\FakeChecker;
+use Tests\Support\FakeClock;
+use Tests\TestCase;
+
+use function Amp\async;
+
+class WorkerTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private FakeClock $clock;
+
+    private FakeChecker $checker;
+
+    private Workspace $ws;
+
+    private int $reconnects = 0;
+
+    /** @var list<MessageLogged> */
+    private array $logs = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->clock = new FakeClock;
+        $this->checker = new FakeChecker($this->clock);
+        $this->app->instance(FakeChecker::class, $this->checker);
+        $this->app->make(CheckerRegistry::class)->register(MonitorType::Tcp, FakeChecker::class);
+        $this->ws = Workspace::factory()->create();
+        Event::listen(MessageLogged::class, function (MessageLogged $e): void {
+            $this->logs[] = $e;
+        });
+    }
+
+    public function test_due_monitors_run_and_reschedule_on_interval(): void
+    {
+        $monitors = $this->tcpMonitors(3, ['interval_seconds' => 20, 'retry_interval_seconds' => 20]);
+
+        [$stop, $run] = $this->start($this->scheduler());
+        $this->clock->advance(65);
+        $this->stop($stop, $run);
+
+        foreach ($monitors as $monitor) {
+            $times = $this->resultTimes($monitor);
+            $this->assertContains(count($times), [3, 4], "monitor {$monitor->id}");
+            for ($i = 1; $i < count($times); $i++) {
+                $this->assertGreaterThanOrEqual(20, $times[$i - 1]->diffInSeconds($times[$i]));
+            }
+            $this->assertCount(count($times), $this->checker->callsFor($monitor->id));
+        }
+    }
+
+    public function test_only_own_shard_is_checked(): void
+    {
+        $monitors = $this->tcpMonitors(10, ['interval_seconds' => 20, 'retry_interval_seconds' => 20]);
+
+        [$stop, $run] = $this->start($this->scheduler(shard: 1, shards: 3));
+        $this->clock->advance(25);
+        $this->stop($stop, $run);
+
+        foreach ($monitors as $monitor) {
+            $count = CheckResult::where('monitor_id', $monitor->id)->count();
+            if ($monitor->id % 3 === 1) {
+                $this->assertGreaterThan(0, $count, "monitor {$monitor->id} belongs to the shard");
+            } else {
+                $this->assertSame(0, $count, "monitor {$monitor->id} belongs to another shard");
+                $this->assertSame([], $this->checker->callsFor($monitor->id));
+            }
+        }
+    }
+
+    public function test_monitor_changes_apply_without_restart(): void
+    {
+        $editor = User::factory()->memberOf($this->ws, WorkspaceRole::Editor)->create();
+        [$faster, $paused, $deleted, $requested, $inFlight] = $this->tcpMonitors(5, ['interval_seconds' => 60, 'retry_interval_seconds' => 60]);
+        $this->checker->hold($inFlight->id);
+
+        [$stop, $run] = $this->start($this->scheduler());
+        $this->clock->advance(61);
+        $this->assertCount(1, $this->checker->callsFor($inFlight->id));
+        $editedAt = $this->clock->now();
+
+        $url = "/api/v1/workspaces/{$this->ws->slug}/monitors";
+        $this->actingAs($editor)->patchJson("{$url}/{$faster->id}", ['interval_seconds' => 20, 'retry_interval_seconds' => 20])->assertOk();
+        $this->actingAs($editor)->patchJson("{$url}/{$paused->id}", ['active' => false])->assertOk();
+        $this->actingAs($editor)->deleteJson("{$url}/{$deleted->id}")->assertNoContent();
+        $this->actingAs($editor)->postJson("{$url}/{$requested->id}/check")->assertStatus(202);
+        $this->actingAs($editor)->deleteJson("{$url}/{$inFlight->id}")->assertNoContent();
+
+        // One poll interval later the worker has seen every change.
+        $this->clock->advance(5);
+        $polledAt = $this->clock->now();
+        $this->checker->release($inFlight->id);
+        $this->clock->advance(45);
+        $this->stop($stop, $run);
+
+        $fasterTimes = array_values(array_filter($this->resultTimes($faster), fn (CarbonImmutable $t): bool => $t->gt($editedAt)));
+        $this->assertGreaterThanOrEqual(2, count($fasterTimes), 'the new 20 s interval is used');
+        for ($i = 1; $i < count($fasterTimes); $i++) {
+            $this->assertGreaterThanOrEqual(20, $fasterTimes[$i - 1]->diffInSeconds($fasterTimes[$i]));
+            $this->assertLessThan(60, $fasterTimes[$i - 1]->diffInSeconds($fasterTimes[$i]));
+        }
+
+        foreach ([$paused, $deleted] as $gone) {
+            $this->assertSame([], array_filter($this->resultTimes($gone), fn (CarbonImmutable $t): bool => $t->gte($editedAt)));
+            $this->assertSame([], array_filter($this->checker->callsFor($gone->id), fn (CarbonImmutable $t): bool => $t->gt($polledAt)));
+        }
+
+        $this->assertSame(0, CheckResult::where('monitor_id', $inFlight->id)->count(), 'the released in-flight check is discarded');
+        $this->assertCount(1, $this->checker->callsFor($inFlight->id));
+
+        $requestedRuns = array_filter($this->resultTimes($requested), fn (CarbonImmutable $t): bool => $t->gte($editedAt) && $t->lte($polledAt->addSecond()));
+        $this->assertNotEmpty($requestedRuns, 'a requested check runs right after the poll');
+    }
+
+    public function test_flush_failure_keeps_buffer_and_retries(): void
+    {
+        $monitors = $this->tcpMonitors(2, ['interval_seconds' => 20, 'retry_interval_seconds' => 20]);
+        $this->failResultInserts(2);
+
+        [$stop, $run] = $this->start($this->scheduler());
+        $this->clock->advance(45);
+        $this->stop($stop, $run);
+
+        foreach ($monitors as $monitor) {
+            $calls = count($this->checker->callsFor($monitor->id));
+            $this->assertGreaterThan(0, $calls);
+            $this->assertSame($calls, CheckResult::where('monitor_id', $monitor->id)->count(), 'every outcome is recorded exactly once');
+        }
+        $this->assertSame(2, $this->reconnects);
+        $this->assertCount(2, array_filter($this->logs, fn (MessageLogged $e): bool => $e->level === 'warning' && str_contains($e->message, 'Flushing check outcomes failed')));
+    }
+
+    public function test_buffer_cap_drops_oldest(): void
+    {
+        $monitor = $this->tcpMonitors(1)[0];
+        $spec = MonitorSpec::fromModel($monitor);
+        $buffer = $this->buffer(capacity: 3);
+        $failing = $this->failResultInserts(PHP_INT_MAX);
+
+        /** @var list<array{0: int, 1: ?Transition}> $done */
+        $done = [];
+        $start = $this->clock->now();
+        for ($i = 0; $i < 5; $i++) {
+            $buffer->push($spec, CheckOutcome::up(5), $start->addSeconds($i * 20), 0, function (?Transition $t) use (&$done, $i): void {
+                $done[] = [$i, $t];
+            });
+        }
+
+        $this->assertSame(3, $buffer->count());
+        $this->assertSame([[0, null], [1, null]], array_slice($done, 0), 'the two oldest outcomes are dropped');
+        $this->assertFalse($buffer->flush());
+        $this->assertNotEmpty(array_filter($this->logs, fn (MessageLogged $e): bool => str_contains($e->message, 'dropped 2 outcomes')));
+
+        $failing->remaining = 0;
+        $this->assertTrue($buffer->flush());
+        $this->assertSame(0, $buffer->count());
+
+        $recorded = array_map(fn (CarbonImmutable $t): int => (int) $start->diffInSeconds($t), $this->resultTimes($monitor));
+        $this->assertSame([40, 60, 80], $recorded);
+        $this->assertSame([2, 3, 4], array_map(fn (array $d): int => $d[0], array_slice($done, 2)));
+        $this->assertInstanceOf(Transition::class, $done[4][1]);
+    }
+
+    public function test_check_broadcasts_are_throttled_per_workspace(): void
+    {
+        $dispatched = [];
+        Event::listen(ChecksRecorded::class, function (ChecksRecorded $e) use (&$dispatched): void {
+            $dispatched[] = $e;
+        });
+        [$first, $second] = $this->tcpMonitors(2);
+        $buffer = $this->buffer();
+        $push = fn (Monitor $m, CheckOutcome $o) => $buffer->push(MonitorSpec::fromModel($m), $o, $this->clock->now(), 0, function (): void {});
+
+        $push($first, CheckOutcome::up(5));
+        $buffer->flush();
+        $buffer->broadcast(false);
+        $this->assertCount(1, $dispatched, 'the first broadcast of a workspace goes out right away');
+
+        $this->clock->advance(1);
+        $push($first, CheckOutcome::up(7));
+        $push($second, CheckOutcome::up(9));
+        $buffer->flush();
+        $buffer->broadcast(false);
+        $this->clock->advance(1);
+        $push($first, CheckOutcome::up(11));
+        $buffer->flush();
+        $buffer->broadcast(false);
+        $this->assertCount(1, $dispatched, 'nothing more within five seconds');
+
+        $this->clock->advance(3);
+        $buffer->broadcast(false);
+        $this->assertCount(2, $dispatched);
+        $checks = array_column(array_slice($dispatched, 0)[1]->checks, 'latency_ms', 'monitor_id');
+        $this->assertSame([$first->id => 11, $second->id => 9], $checks, 'only the latest check per monitor');
+    }
+
+    public function test_status_command_reports_stale_shard(): void
+    {
+        config(['monitoring.worker.shards_total' => 2]);
+        $now = CarbonImmutable::now();
+        $row = fn (int $shard, CarbonImmutable $seen): array => [
+            'shard' => $shard, 'shards' => 2, 'hostname' => 'worker-a', 'pid' => 100 + $shard, 'started_at' => $now->subHour(),
+            'last_seen_at' => $seen, 'monitors' => 10, 'checks_last_minute' => 10, 'max_drift_ms_last_minute' => 5, 'buffered' => 0,
+        ];
+        DB::table('check_workers')->insert([$row(0, $now->subSeconds(5)), $row(1, $now->subSeconds(90))]);
+
+        $this->assertSame(1, Artisan::call('intrawatch:worker:status'));
+        $this->assertStringContainsString('Shard 1: last seen 90 s ago', Artisan::output());
+        $this->assertStringNotContainsString('Shard 0', Artisan::output());
+
+        DB::table('check_workers')->where('shard', 1)->update(['last_seen_at' => $now->subSeconds(2)]);
+        $this->assertSame(0, Artisan::call('intrawatch:worker:status'));
+
+        DB::table('check_workers')->where('shard', 1)->delete();
+        $this->assertSame(1, Artisan::call('intrawatch:worker:status'));
+        $this->assertStringContainsString('Shard 1: never reported', Artisan::output());
+    }
+
+    public function test_sigterm_flushes_and_exits_cleanly(): void
+    {
+        [$steady, $held] = $this->tcpMonitors(2, ['interval_seconds' => 20, 'retry_interval_seconds' => 20]);
+        $this->checker->hold($held->id);
+
+        // A buffer that never flushes on its own: everything recorded below is written by the shutdown.
+        [$stop, $run] = $this->start($this->scheduler(buffer: $this->buffer(flushSeconds: 3600)));
+        $this->clock->advance(25);
+        $this->assertSame(0, CheckResult::count());
+        $this->assertCount(1, $this->checker->callsFor($held->id));
+
+        $stop->cancel();
+        $this->clock->advance(3);
+        $this->checker->release($held->id);
+        $this->clock->advance(10);
+        $run->await();
+
+        $this->assertSame(count($this->checker->callsFor($steady->id)), CheckResult::where('monitor_id', $steady->id)->count());
+        $this->assertGreaterThan(0, CheckResult::where('monitor_id', $steady->id)->count());
+        $this->assertSame(1, CheckResult::where('monitor_id', $held->id)->count(), 'the check in flight at shutdown is recorded');
+        $this->assertSame(1, DB::table('check_workers')->where('shard', 0)->count());
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return list<Monitor>
+     */
+    private function tcpMonitors(int $count, array $attributes = []): array
+    {
+        $monitors = [];
+        for ($i = 0; $i < $count; $i++) {
+            $monitors[] = Monitor::factory()->for($this->ws)->tcp('example.test', 443)->create($attributes);
+        }
+
+        return $monitors;
+    }
+
+    /**
+     * @return list<CarbonImmutable>
+     */
+    private function resultTimes(Monitor $monitor): array
+    {
+        $times = [];
+        foreach (CheckResult::where('monitor_id', $monitor->id)->orderBy('checked_at')->get() as $result) {
+            $times[] = CarbonImmutable::instance($result->checked_at);
+        }
+
+        return $times;
+    }
+
+    private function scheduler(int $shard = 0, int $shards = 1, ?OutcomeBuffer $buffer = null): Scheduler
+    {
+        return new Scheduler(
+            shard: $shard,
+            shards: $shards,
+            loader: new MonitorLoader,
+            buffer: $buffer ?? $this->buffer(),
+            heartbeat: new Heartbeat($this->clock, $shard, $shards),
+            checkers: $this->app->make(CheckerRegistry::class),
+            deadlines: new NullDeadlineEvaluator,
+            clock: $this->clock,
+        );
+    }
+
+    private function buffer(int $capacity = 10_000, float $flushSeconds = 1.0): OutcomeBuffer
+    {
+        return new OutcomeBuffer(
+            recorder: $this->app->make(ResultRecorder::class),
+            clock: $this->clock,
+            capacity: $capacity,
+            flushSeconds: $flushSeconds,
+            reconnect: function (): void {
+                $this->reconnects++;
+            },
+        );
+    }
+
+    /**
+     * Makes the next inserts into check_results fail the way a lost database does.
+     */
+    private function failResultInserts(int $times): FailureBudget
+    {
+        $failures = new FailureBudget($times);
+
+        DB::connection()->beforeExecuting(function (string $query) use ($failures): void {
+            if ($failures->remaining > 0 && str_starts_with($query, 'insert into') && str_contains($query, 'check_results')) {
+                $failures->remaining--;
+                throw new QueryException(DB::connection()->getName() ?? 'default', $query, [], new PDOException('SQLSTATE[HY000]: General error: 2006 MySQL server has gone away'));
+            }
+        });
+
+        return $failures;
+    }
+
+    /**
+     * @return array{0: DeferredCancellation, 1: Future<void>}
+     */
+    private function start(Scheduler $scheduler): array
+    {
+        $stop = new DeferredCancellation;
+        $run = async(fn () => $scheduler->run($stop->getCancellation()));
+        $this->clock->settle();
+
+        return [$stop, $run];
+    }
+
+    /**
+     * @param  Future<void>  $run
+     */
+    private function stop(DeferredCancellation $stop, Future $run): void
+    {
+        $stop->cancel();
+        $this->clock->advance(12);
+        $run->await();
+    }
+}

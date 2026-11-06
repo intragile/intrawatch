@@ -3,10 +3,15 @@
 namespace App\Providers;
 
 use App\Models\Workspace;
+use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Engine\DatabaseGroupEvaluator;
+use App\Monitoring\Engine\DeadlineEvaluator;
 use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Engine\NoMaintenance;
+use App\Monitoring\Engine\NullDeadlineEvaluator;
+use App\Monitoring\Worker\Clock;
+use App\Monitoring\Worker\SystemClock;
 use App\Policies\WorkspacePolicy;
 use App\Support\CurrentWorkspace;
 use App\Support\RecordAuthEvent;
@@ -32,6 +37,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(CurrentWorkspace::class);
         $this->app->bind(MaintenanceOracle::class, NoMaintenance::class);
         $this->app->bind(GroupEvaluator::class, DatabaseGroupEvaluator::class);
+        $this->app->bind(DeadlineEvaluator::class, NullDeadlineEvaluator::class);
+        $this->app->singleton(CheckerRegistry::class);
+        $this->app->singleton(Clock::class, SystemClock::class);
     }
 
     /**

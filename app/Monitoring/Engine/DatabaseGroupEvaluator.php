@@ -45,20 +45,22 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
      */
     private function evaluateLevel(array $ids): iterable
     {
-        // Locking the state rows in monitor order serializes concurrent recomputes without deadlocks. On
-        // SQLite the lock clause compiles to nothing and the IMMEDIATE transaction serializes writers.
-        $states = [];
-        foreach (DB::table('monitor_states')->whereIn('monitor_id', $ids)->orderBy('monitor_id')->lockForUpdate()
-            ->get(['monitor_id', 'status', 'status_since']) as $row) {
-            $states[$this->int($row->monitor_id)] = $row;
-        }
-
+        // Lock order: group rows (shared) before their state rows (exclusive), each in id order, the same order
+        // the API and the result recorder use, so concurrent writers queue instead of deadlocking. On SQLite
+        // the lock clauses compile to nothing and the IMMEDIATE transaction serializes writers.
         $groups = DB::table('monitors')
             ->whereIn('id', $ids)
             ->where('type', MonitorType::Group->value)
             ->where('active', true)
             ->orderBy('id')
+            ->sharedLock()
             ->get(['id', 'workspace_id', 'parent_id', 'interval_seconds', 'config']);
+
+        $states = [];
+        foreach (DB::table('monitor_states')->whereIn('monitor_id', $ids)->orderBy('monitor_id')->lockForUpdate()
+            ->get(['monitor_id', 'status', 'status_since']) as $row) {
+            $states[$this->int($row->monitor_id)] = $row;
+        }
 
         $counts = $this->childCounts($ids);
         $lastResult = $this->lastResultAt($ids);
