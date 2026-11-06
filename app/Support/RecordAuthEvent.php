@@ -15,6 +15,11 @@ use Laravel\Fortify\Events\TwoFactorAuthenticationEnabled;
  */
 class RecordAuthEvent
 {
+    /**
+     * The longest address SMTP can deliver to (RFC 5321 path limit minus the angle brackets).
+     */
+    private const MAX_EMAIL_LENGTH = 254;
+
     public function handleLogin(Login $event): void
     {
         if ($event->user instanceof User) {
@@ -24,11 +29,21 @@ class RecordAuthEvent
 
     public function handleFailed(Failed $event): void
     {
-        // Only the attempted address is kept; the password never leaves the guard.
+        // Only the attempted address is kept; the password never leaves the guard. Anything that is not a
+        // plausible address (arbitrary or oversized input) is stored as null.
         $email = $event->credentials['email'] ?? null;
-        $changes = is_string($email) && $email !== '' ? ['email' => [null, mb_strtolower($email)]] : [];
+        $changes = is_string($email) && $email !== '' ? ['email' => [null, self::plausibleEmail($email)]] : [];
 
         Audit::recordGlobal('auth.login_failed', null, $changes);
+    }
+
+    private static function plausibleEmail(string $email): ?string
+    {
+        $email = mb_strtolower(trim($email));
+
+        return mb_strlen($email) <= self::MAX_EMAIL_LENGTH && filter_var($email, FILTER_VALIDATE_EMAIL) !== false
+            ? $email
+            : null;
     }
 
     public function handleTwoFactorEnabled(TwoFactorAuthenticationEnabled $event): void

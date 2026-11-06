@@ -85,6 +85,7 @@ class AuditLogTest extends TestCase
         $this->assertSame(['role' => ['viewer', 'editor']], $event->changes);
         $this->assertSame('user', $event->actor_type);
         $this->assertSame($owner->id, $event->actor_id);
+        $this->assertSame($owner->id, $event->actor_user_id);
         $this->assertSame($this->workspace->id, $event->workspace_id);
         $this->assertSame('user', $event->subject_type);
         $this->assertSame((string) $viewer->id, $event->subject_id);
@@ -152,6 +153,7 @@ class AuditLogTest extends TestCase
         $event = AuditEvent::where('action', 'workspace.created')->sole();
         $this->assertSame('system', $event->actor_type);
         $this->assertNull($event->actor_id);
+        $this->assertNull($event->actor_user_id);
     }
 
     public function test_command_joining_existing_workspace_is_audited_as_member_added(): void
@@ -180,6 +182,15 @@ class AuditLogTest extends TestCase
         $event = AuditEvent::where('action', 'workspace.updated')->sole();
         $this->assertSame('token', $event->actor_type);
         $this->assertSame((int) $created->subject_id, $event->actor_id);
+        $this->assertSame($admin->id, $event->actor_user_id, 'Token actions keep their human author.');
+
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($admin, 'sanctum')->withoutToken()
+            ->getJson($this->url("/audit?actor_user_id={$admin->id}&actor_type=token"))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.actor_user_id', $admin->id)
+            ->assertJsonPath('data.0.actor_type', 'token');
     }
 
     public function test_token_revocation_is_audited(): void
@@ -203,6 +214,7 @@ class AuditLogTest extends TestCase
             ->assertStatus(422);
         $failed = AuditEvent::where('action', 'auth.login_failed')->sole();
         $this->assertSame(['email' => [null, 'someone@example.com']], $failed->changes);
+        $this->assertNull($failed->actor_user_id);
         $this->assertNull($failed->workspace_id);
         $this->assertStringNotContainsString('hunter2', (string) json_encode($failed->toArray()));
 
@@ -211,7 +223,21 @@ class AuditLogTest extends TestCase
         $login = AuditEvent::where('action', 'auth.login')->sole();
         $this->assertSame('user', $login->actor_type);
         $this->assertSame($user->id, $login->actor_id);
+        $this->assertSame($user->id, $login->actor_user_id);
         $this->assertNull($login->workspace_id);
+    }
+
+    public function test_failed_login_keeps_only_a_plausible_email(): void
+    {
+        $long = str_repeat('a', 250).'@example.com';
+
+        foreach (['not an email', $long, "x@example.com\nInjected: header"] as $attempt) {
+            $this->postJson('/api/v1/auth/login', ['email' => $attempt, 'password' => 'whatever-wrong'], $this->stateful);
+        }
+
+        $stored = AuditEvent::where('action', 'auth.login_failed')->orderBy('id')->get()
+            ->map(fn (AuditEvent $event): mixed => $event->changes)->all();
+        $this->assertSame(array_fill(0, 3, ['email' => [null, null]]), $stored);
     }
 
     public function test_two_factor_events_are_audited(): void
@@ -243,12 +269,27 @@ class AuditLogTest extends TestCase
         $secret = decrypt($encrypted);
         $this->assertIsString($secret);
 
+        // A careless caller handing whole attribute sets to the trail must not leak credentials either.
+        $user->refresh();
+        $token = $user->tokens()->firstOrFail();
+        Audit::record('user.snapshot', $user, ['profile' => [null, ['user' => $user->getAttributes(), 'token' => $token->getAttributes()]]]);
+        Audit::record('user.snapshot', $user, ['attributes' => [$user->getAttributes(), null]]);
+
         $dump = (string) json_encode(AuditEvent::all()->toArray());
         $this->assertGreaterThan(0, AuditEvent::count());
+        $this->assertStringContainsString($user->email, $dump, 'Harmless nested fields are kept.');
         $this->assertStringNotContainsString($plain, $dump);
         $this->assertStringNotContainsString(explode('|', $plain)[1] ?? $plain, $dump);
         $this->assertStringNotContainsString($secret, $dump);
+        $this->assertStringNotContainsString($encrypted, $dump);
+        $passwordHash = $user->getAttributes()['password'];
+        $tokenHash = $token->getAttributes()['token'];
+        $this->assertIsString($passwordHash);
+        $this->assertIsString($tokenHash);
+        $this->assertStringNotContainsString($passwordHash, $dump);
+        $this->assertStringNotContainsString($tokenHash, $dump);
         $this->assertStringNotContainsString('two_factor', str_replace('auth.two_factor_', '', $dump));
+        $this->assertStringNotContainsString('remember_token', $dump);
     }
 
     public function test_record_strips_sensitive_fields(): void
@@ -261,9 +302,13 @@ class AuditLogTest extends TestCase
             'two_factor_secret' => [null, 's'],
             'two_factor_recovery_codes' => [null, 's'],
             'remember_token' => ['a', 'b'],
+            'settings' => [['theme' => 'dark', 'smtp' => ['host' => 'mx', 'Password' => 'p']], ['list' => [['api_token' => 't', 'id' => 1]]]],
         ]);
 
-        $this->assertSame(['name' => ['a', 'b']], $event->fresh()?->changes);
+        $this->assertSame([
+            'name' => ['a', 'b'],
+            'settings' => [['theme' => 'dark', 'smtp' => ['host' => 'mx']], ['list' => [['id' => 1]]]],
+        ], $event->fresh()?->changes);
     }
 
     public function test_events_cannot_be_updated_or_deleted(): void
@@ -314,7 +359,7 @@ class AuditLogTest extends TestCase
             ['workspace.updated', 'member.role_changed', 'member.role_changed'],
             array_column($this->rows($all), 'action'),
         );
-        $all->assertJsonStructure(['data' => [['id', 'action', 'actor_type', 'actor_id', 'subject_type', 'subject_id', 'changes', 'ip', 'created_at']], 'meta' => ['next_cursor', 'limit']]);
+        $all->assertJsonStructure(['data' => [['id', 'action', 'actor_type', 'actor_id', 'actor_user_id', 'subject_type', 'subject_id', 'changes', 'ip', 'created_at']], 'meta' => ['next_cursor', 'limit']]);
 
         $byAction = $this->actingAs($admin, 'sanctum')->getJson($this->url('/audit?action=member.role_changed'))->assertOk();
         $this->assertCount(2, $this->rows($byAction));

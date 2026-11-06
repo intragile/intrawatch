@@ -48,13 +48,14 @@ final class Audit
      */
     private static function write(string $action, ?int $workspaceId, ?Model $subject, array $changes, ?User $actor): AuditEvent
     {
-        [$actorType, $actorId] = self::actor($actor);
+        [$actorType, $actorId, $actorUserId] = self::actor($actor);
         $changes = self::sanitize($changes);
 
         return AuditEvent::create([
             'workspace_id' => $workspaceId,
             'actor_type' => $actorType,
             'actor_id' => $actorId,
+            'actor_user_id' => $actorUserId,
             'action' => $action,
             'subject_type' => $subject !== null ? Str::snake(class_basename($subject)) : null,
             'subject_id' => $subject !== null && is_scalar($subject->getKey()) ? (string) $subject->getKey() : null,
@@ -75,37 +76,64 @@ final class Audit
     }
 
     /**
-     * @return array{0: string, 1: int|null}
+     * The actor type, the actor id (user or token id) and the id of the human behind it.
+     *
+     * @return array{0: string, 1: int|null, 2: int|null}
      */
     private static function actor(?User $override): array
     {
         $user = $override ?? request()->user();
 
         if (! $user instanceof User) {
-            return ['system', null];
+            return ['system', null, null];
         }
 
         if ($override === null && $user->authenticatedByToken()) {
             $token = $user->currentAccessToken();
 
-            return ['token', is_numeric($token->getKey()) ? (int) $token->getKey() : null];
+            return ['token', is_numeric($token->getKey()) ? (int) $token->getKey() : null, $user->id];
         }
 
-        return ['user', $user->id];
+        return ['user', $user->id, $user->id];
     }
 
     /**
-     * Defence in depth: drop every field whose name suggests a credential.
+     * Defence in depth: drop every field whose name suggests a credential, and every such key at any depth
+     * inside the old and new values.
      *
      * @param  array<string, array{0: mixed, 1: mixed}>  $changes
      * @return array<string, array{0: mixed, 1: mixed}>
      */
     private static function sanitize(array $changes): array
     {
-        return array_filter(
-            $changes,
-            static fn (string $field): bool => ! Str::contains(Str::lower($field), self::SENSITIVE),
-            ARRAY_FILTER_USE_KEY,
-        );
+        $clean = [];
+        foreach ($changes as $field => [$old, $new]) {
+            if (! self::isSensitive($field)) {
+                $clean[$field] = [self::scrub($old), self::scrub($new)];
+            }
+        }
+
+        return $clean;
+    }
+
+    private static function scrub(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        $clean = [];
+        foreach ($value as $key => $item) {
+            if (is_int($key) || ! self::isSensitive($key)) {
+                $clean[$key] = self::scrub($item);
+            }
+        }
+
+        return $clean;
+    }
+
+    private static function isSensitive(string $key): bool
+    {
+        return Str::contains(Str::lower($key), self::SENSITIVE);
     }
 }

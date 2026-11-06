@@ -14,6 +14,7 @@ use LogicException;
  * @property int|null $workspace_id
  * @property string $actor_type
  * @property int|null $actor_id
+ * @property int|null $actor_user_id
  * @property string $action
  * @property string|null $subject_type
  * @property string|null $subject_id
