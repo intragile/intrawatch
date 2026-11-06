@@ -174,6 +174,27 @@ class TypeDefinitionTest extends TestCase
         return [$cert, $pem];
     }
 
+    public function test_http_proxy_url_rejects_credentials_query_and_fragment(): void
+    {
+        $base = ['url' => 'https://x.test'];
+        foreach (['http://user:pw@proxy:3128', 'http://user@proxy:3128', 'http://proxy:3128?a=1', 'http://proxy:3128#f', 'ftp://proxy:21', 'http://proxy'] as $url) {
+            $v = $this->validate(MonitorType::Http, $base + ['proxy' => ['url' => $url]]);
+            $this->assertTrue($v->errors()->has('config.proxy.url'), $url);
+        }
+        foreach (['http://proxy:3128', 'socks5://proxy.internal:1080'] as $url) {
+            $this->assertSame([], $this->validate(MonitorType::Http, $base + ['proxy' => ['url' => $url, 'username' => 'u']])->errors()->all(), $url);
+        }
+    }
+
+    public function test_dns_names_may_use_underscore_labels_but_hosts_may_not(): void
+    {
+        foreach (['_dmarc.example.com', 'selector._domainkey.example.com', '_sip._tcp.example.com'] as $name) {
+            $this->assertSame([], $this->validate(MonitorType::Dns, ['name' => $name, 'record_type' => 'TXT'])->errors()->all(), $name);
+        }
+        $this->assertTrue($this->validate(MonitorType::Tcp, ['host' => '_x.example.com', 'port' => 80])->errors()->has('config.host'));
+        $this->assertTrue($this->validate(MonitorType::Dns, ['name' => '-bad.example.com', 'record_type' => 'A'])->errors()->has('config.name'));
+    }
+
     public function test_tcp_ping_and_dns_rules(): void
     {
         $this->assertSame([], $this->validate(MonitorType::Tcp, ['host' => 'db.internal', 'port' => 5432])->errors()->all());

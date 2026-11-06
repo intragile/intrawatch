@@ -22,14 +22,23 @@ final class Hostname
         return self::isIp($value) || self::isHostname($value);
     }
 
-    public static function isHostname(string $value, int $minLabels = 1): bool
+    /**
+     * A DNS record name. Unlike a host, its labels may start with an underscore (`_dmarc`, `_sip._tcp`).
+     */
+    public static function isDnsName(string $value): bool
+    {
+        return self::isHostname($value, 1, true);
+    }
+
+    public static function isHostname(string $value, int $minLabels = 1, bool $allowUnderscore = false): bool
     {
         $value = rtrim($value, '.');
         if ($value === '' || strlen($value) > 253) {
             return false;
         }
 
-        if (preg_match('/^'.self::LABEL.'(\.'.self::LABEL.')*$/', $value) !== 1) {
+        $label = $allowUnderscore ? '(?!-)[A-Za-z0-9_-]{1,63}(?<!-)' : self::LABEL;
+        if (preg_match('/^'.$label.'(\.'.$label.')*$/', $value) !== 1) {
             return false;
         }
 

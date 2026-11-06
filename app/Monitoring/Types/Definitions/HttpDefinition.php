@@ -163,7 +163,7 @@ class HttpDefinition extends AbstractDefinition
         return is_array($parts)
             && in_array($parts['scheme'] ?? '', ['http', 'socks5'], true)
             && isset($parts['host'], $parts['port'])
-            && ! isset($parts['user'], $parts['pass'], $parts['query'], $parts['fragment'])
+            && ! isset($parts['user']) && ! isset($parts['pass']) && ! isset($parts['query']) && ! isset($parts['fragment'])
             && ($parts['path'] ?? '') === '';
     }
 }
