@@ -127,8 +127,10 @@ final class HttpChecker implements Checker
                 $degrade = $extra['degrade'];
             }
 
-            if ($this->domainFacts !== null && ($spec->config['domain_expiry'] ?? true) === true) {
-                $extra = $this->domainFacts->inspect($spec, $host, $cancellation);
+            // Registration facts belong to the monitored URL, not to wherever its redirects lead.
+            $configured = is_string($spec->config['url'] ?? null) ? parse_url($spec->config['url'], PHP_URL_HOST) : null;
+            if ($this->domainFacts !== null && is_string($configured) && ($spec->config['domain_expiry'] ?? true) === true) {
+                $extra = $this->domainFacts->inspect($spec, trim($configured, '[]'), $cancellation);
                 $facts += $extra['facts'];
                 $watch += $extra['watch'];
             }

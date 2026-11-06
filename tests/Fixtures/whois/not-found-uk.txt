@@ -1,0 +1,13 @@
+
+    No match for "nonexistent-zzq81.co.uk".
+
+    This domain name has not been registered.
+
+    WHOIS lookup made at 19:25:49 06-Nov-2026
+
+    ********************************************************************************
+    * WHOIS service for .UK will cease on 9th of February 2027                     *
+    * For more information on the replacement RDAP services please see:            *
+    * https://theukdomain.uk/rdap                                                  *
+    ********************************************************************************
+

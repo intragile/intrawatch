@@ -1,0 +1,3 @@
+No match for domain "NONEXISTENT-ZZQ81.COM".
+>>> Last update of whois database: 2026-11-06T19:25:33Z <<<
+

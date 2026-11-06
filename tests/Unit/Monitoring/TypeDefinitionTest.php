@@ -241,6 +241,11 @@ class TypeDefinitionTest extends TestCase
 
         $this->assertSame([], $this->validate(MonitorType::Domain, ['domain' => 'example.com'])->errors()->all());
         $this->assertTrue($this->validate(MonitorType::Domain, ['domain' => 'localhost'])->errors()->has('config.domain'));
+        $this->assertSame([], $this->validate(MonitorType::Domain, ['domain' => 'www.example.co.uk'])->errors()->all());
+        foreach (['co.uk', 'uk', '192.0.2.1', 'example.invalid'] as $domain) {
+            $this->assertTrue($this->validate(MonitorType::Domain, ['domain' => $domain])->errors()->has('config.domain'), $domain);
+        }
+        $this->assertStringContainsString('registrable domain', (string) $this->validate(MonitorType::Domain, ['domain' => 'co.uk'])->errors()->first('config.domain'));
     }
 
     public function test_push_rules(): void

@@ -79,4 +79,18 @@ return [
         'degraded_below_days' => 7,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Domain expiry lookups
+    |--------------------------------------------------------------------------
+    */
+    'domain' => [
+        // Seconds one registry lookup may take, WHOIS server discovery included.
+        'lookup_timeout' => 30,
+        // The server asked for the WHOIS server of a TLD without RDAP.
+        'iana_whois' => 'whois.iana.org',
+        // TLD => WHOIS server ("host" or "host:port"), for registries IANA does not refer to correctly.
+        'whois_servers' => [],
+    ],
+
 ];

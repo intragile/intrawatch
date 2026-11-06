@@ -1,0 +1,6 @@
+% Example registry
+
+Domain: example.zz
+Owner: Example Holder
+State: active
+Last change: around spring

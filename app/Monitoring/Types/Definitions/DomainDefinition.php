@@ -3,6 +3,7 @@
 namespace App\Monitoring\Types\Definitions;
 
 use App\Enums\MonitorType;
+use App\Monitoring\Domain\RegistrableDomains;
 use App\Monitoring\Types\Hostname;
 
 class DomainDefinition extends AbstractDefinition
@@ -15,7 +16,14 @@ class DomainDefinition extends AbstractDefinition
     public function configRules(): array
     {
         return [
-            'domain' => ['required', 'string', fn (string $a, mixed $v, \Closure $fail) => is_string($v) && ! Hostname::isIp($v) && Hostname::isHostname($v, 2) ?: $fail('The :attribute must be a domain name with at least two labels.')],
+            'domain' => ['required', 'string', function (string $a, mixed $v, \Closure $fail): void {
+                if (! is_string($v) || Hostname::isIp($v) || ! Hostname::isHostname($v, 2)) {
+                    $fail('The :attribute must be a domain name with at least two labels.');
+                } elseif (app(RegistrableDomains::class)->registrable($v) === null) {
+                    // Public suffixes such as co.uk, and names under an unknown suffix, have no registration.
+                    $fail('The :attribute must be a registrable domain name.');
+                }
+            }],
             'expiry_days' => ['required', 'array', 'min:1', 'max:10'],
             'expiry_days.*' => ['integer', 'between:1,3650'],
             'degraded_below_days' => ['required', 'integer', 'between:0,3650'],
