@@ -77,6 +77,10 @@ vendor/bin/pint --test
 bash tests/docker/smoke.sh          # image smoke test (add --pgsql for PostgreSQL)
 ```
 
+Guzzle is pinned to 7.x (`guzzlehttp/guzzle ^7.9`): Laravel Reverb requires
+`guzzlehttp/psr7 ^2.6`, while Guzzle 8 needs psr7 3.x. Lift the pin once a
+Reverb release allows psr7 3.
+
 Licensed under the MIT license. Contact: info@intragile.eu
 
 Developed and maintained by [IntrAgile Kft.](https://intragile.eu)

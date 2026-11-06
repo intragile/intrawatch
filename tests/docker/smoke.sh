@@ -21,13 +21,13 @@ cleanup() {
   local code=$?
   if [[ $code -ne 0 ]]; then
     echo "--- container logs (last 60 lines) ---" >&2
-    docker logs --tail 60 "$NAME" >&2 2>&1 || true
+    timeout 60 docker logs --tail 60 "$NAME" >&2 2>&1 || true
   fi
-  docker rm -f "$NAME" >/dev/null 2>&1 || true
-  docker rm -f "$PG_NAME" >/dev/null 2>&1 || true
-  docker volume rm -f "$VOLUME" >/dev/null 2>&1 || true
-  docker network rm "$NETWORK" >/dev/null 2>&1 || true
-  [[ "${SMOKE_KEEP_IMAGE:-0}" == "1" ]] || docker rmi "$IMAGE" >/dev/null 2>&1 || true
+  timeout 60 docker rm -f "$NAME" >/dev/null 2>&1 || true
+  timeout 60 docker rm -f "$PG_NAME" >/dev/null 2>&1 || true
+  timeout 60 docker volume rm -f "$VOLUME" >/dev/null 2>&1 || true
+  timeout 60 docker network rm "$NETWORK" >/dev/null 2>&1 || true
+  [[ "${SMOKE_KEEP_IMAGE:-0}" == "1" ]] || timeout 60 docker rmi "$IMAGE" >/dev/null 2>&1 || true
   rm -f "$JAR"
   [[ $code -eq 0 ]] || echo "SMOKE FAILED" >&2
 }
@@ -49,11 +49,20 @@ wait_for_up() {
   fail "/up did not return 200 within 60s"
 }
 
-xsrf_token() {
+# Sets XSRF to the URL-decoded XSRF-TOKEN cookie. Not run in a subshell so a
+# failure aborts the script.
+load_xsrf() {
   local raw
   raw="$(awk '$6 == "XSRF-TOKEN" { print $7 }' "$JAR" | tail -n 1)"
   [[ -n "$raw" ]] || fail "no XSRF-TOKEN cookie in jar"
-  printf '%b' "${raw//%/\\x}"
+  XSRF="$(printf '%b' "${raw//%/\\x}")"
+}
+
+# Bounded docker invocation: run_docker <seconds> <description> <docker args...>
+run_docker() {
+  local seconds="$1" what="$2"
+  shift 2
+  timeout "$seconds" docker "$@" || fail "$what failed or exceeded ${seconds}s"
 }
 
 echo "== build $IMAGE"
@@ -63,11 +72,11 @@ ENV_ARGS=()
 NET_ARGS=()
 if [[ $USE_PGSQL -eq 1 ]]; then
   echo "== start postgres"
-  docker network create "$NETWORK" >/dev/null
-  docker run -d --name "$PG_NAME" --network "$NETWORK" \
+  run_docker 30 "network create" network create "$NETWORK" >/dev/null
+  run_docker 300 "postgres start (pull included)" run -d --name "$PG_NAME" --network "$NETWORK" \
     -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=intrawatch postgres:16 >/dev/null
   for i in $(seq 1 60); do
-    docker exec "$PG_NAME" pg_isready -U postgres -d intrawatch >/dev/null 2>&1 && break
+    timeout 30 docker exec "$PG_NAME" pg_isready -U postgres -d intrawatch >/dev/null 2>&1 && break
     [[ $i -eq 60 ]] && fail "postgres not ready within 60s"
     sleep 1
   done
@@ -77,7 +86,7 @@ if [[ $USE_PGSQL -eq 1 ]]; then
 fi
 
 start_container() {
-  docker run -d --name "$NAME" ${NET_ARGS[@]+"${NET_ARGS[@]}"} ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} \
+  run_docker 300 "app container start" run -d --name "$NAME" ${NET_ARGS[@]+"${NET_ARGS[@]}"} ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} \
     -p "127.0.0.1:${PORT}:3000" -v "${VOLUME}:/data" "$IMAGE" >/dev/null
 }
 
@@ -90,7 +99,8 @@ ok "/up returns 200"
 ok "setup required"
 
 curl -fsS --max-time 10 -c "$JAR" -b "$JAR" "${STATEFUL[@]}" "$BASE/sanctum/csrf-cookie" -o /dev/null
-code="$(http_code -c "$JAR" -b "$JAR" "${STATEFUL[@]}" -H "X-XSRF-TOKEN: $(xsrf_token)" \
+load_xsrf
+code="$(http_code -c "$JAR" -b "$JAR" "${STATEFUL[@]}" -H "X-XSRF-TOKEN: $XSRF" \
   -H 'Content-Type: application/json' -X POST "$BASE/api/v1/setup" \
   -d '{"name":"Smoke Owner","email":"smoke@example.com","password":"smoke-test-password","workspace_name":"Smoke Ops"}')"
 [[ "$code" == "201" ]] || fail "setup returned $code, expected 201"
@@ -101,7 +111,7 @@ ok "/me returns 200"
 
 [[ "$(curl -fsS --max-time 10 "$BASE/api/v1/setup")" == *'"required":false'* ]] || fail "setup still required after completion"
 
-KEY="$(docker exec "$NAME" sh -c 'grep ^REVERB_APP_KEY= /data/reverb.env | cut -d= -f2')"
+KEY="$(timeout 30 docker exec "$NAME" sh -c 'grep ^REVERB_APP_KEY= /data/reverb.env | cut -d= -f2')"
 [[ -n "$KEY" ]] || fail "no reverb key persisted"
 ws="$(curl -s -i --max-time 3 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
   -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
@@ -110,24 +120,24 @@ ws="$(curl -s -i --max-time 3 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
 ok "reverb reachable through /app"
 
 echo "== restart"
-docker restart "$NAME" >/dev/null
+run_docker 90 "container restart" restart "$NAME" >/dev/null
 wait_for_up
 ok "/up returns 200 after restart"
 [[ "$(http_code -c "$JAR" -b "$JAR" "${STATEFUL[@]}" "$BASE/api/v1/me")" == "200" ]] || fail "login did not survive restart"
 ok "restart keeps login"
 
-uid="$(docker exec "$NAME" id -u)"
+uid="$(timeout 30 docker exec "$NAME" id -u)" || fail "docker exec id failed"
 [[ "$uid" != "0" ]] || fail "container user is root"
-owners="$(docker top "$NAME" | tail -n +2 | awk '{ print $1 }' | sort -u)"
+owners="$(timeout 30 docker top "$NAME" | tail -n +2 | awk '{ print $1 }' | sort -u)"
 [[ -n "$owners" ]] || fail "could not list container processes"
 if grep -qxE 'root|0' <<<"$owners"; then fail "a container process runs as root"; fi
 ok "runs as non-root (uid $uid)"
 
-docker exec "$NAME" test -s /data/app.key || fail "/data/app.key missing"
+timeout 30 docker exec "$NAME" test -s /data/app.key || fail "/data/app.key missing"
 if [[ $USE_PGSQL -eq 0 ]]; then
-  docker exec "$NAME" test -f /data/database.sqlite || fail "/data/database.sqlite missing"
+  timeout 30 docker exec "$NAME" test -f /data/database.sqlite || fail "/data/database.sqlite missing"
 fi
-docker exec "$NAME" test -d /data/storage/logs || fail "/data/storage missing"
+timeout 30 docker exec "$NAME" test -d /data/storage/logs || fail "/data/storage missing"
 ok "state lives in /data"
 
 echo "SMOKE OK"

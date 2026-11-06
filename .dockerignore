@@ -1,6 +1,6 @@
 .git
 .github
-.superpowers
+.superpowers/
 .env
 .env.*
 !.env.example
@@ -18,3 +18,7 @@ docs
 docker/compose.example.yml
 *.md
 !README.md
+database/*.sqlite*
+storage/app/*
+storage/logs/*
+storage/framework/*
