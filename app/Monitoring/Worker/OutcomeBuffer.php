@@ -10,6 +10,7 @@ use App\Events\ChecksRecorded;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\PostCommit;
+use App\Monitoring\Engine\RecordedBatch;
 use App\Monitoring\Engine\ResultRecorder;
 use App\Monitoring\Engine\Transition;
 use Carbon\CarbonImmutable;
@@ -27,6 +28,10 @@ use Throwable;
  * locked or restarting) loses nothing and a committed one is never written again. While the database is
  * unavailable the buffer keeps accepting outcomes up to its capacity and then drops the oldest.
  *
+ * Each outcome's callback runs exactly once: after it is recorded, or as soon as recording it has failed
+ * (or it is dropped), with a null transition. The early call lets the scheduler keep checking during an
+ * outage while the outcome itself stays queued.
+ *
  * ChecksRecorded is broadcast from here rather than by the recorder, at most once per workspace per
  * broadcast interval, carrying the latest check of each monitor since the previous broadcast.
  */
@@ -37,11 +42,24 @@ final class OutcomeBuffer
     private const MESSAGE_LOG_LENGTH = 500;
 
     /**
+     * Consecutive non-database failures of the same batch before its outcomes are recorded one at a time,
+     * so a single outcome the recorder cannot store does not block the rest.
+     */
+    private const ISOLATE_AFTER_FAILURES = 3;
+
+    /**
      * Queued outcomes in arrival order, with the callback that learns the monitor's transition.
      *
-     * @var array<int, array{item: array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}, done: Closure(?Transition): void}>
+     * @var array<int, array{item: array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}, done: Closure(?Transition): void, notified: bool}>
      */
     private array $queue = [];
+
+    /** Whether the last flush attempt failed; outcomes pushed meanwhile are released to the scheduler at once. */
+    private bool $failing = false;
+
+    private ?int $failingBatch = null;
+
+    private int $batchFailures = 0;
 
     private int $sequence = 0;
 
@@ -83,18 +101,22 @@ final class OutcomeBuffer
     }
 
     /**
-     * @param  Closure(?Transition): void  $done  Called once the outcome is recorded, with the monitor's transition
-     *                                            (null when the recorder skipped it), or with null when it is dropped.
+     * @param  Closure(?Transition): void  $done  Called once: with the monitor's transition when the outcome is recorded
+     *                                            (null when the recorder skipped it), or with null as soon as recording
+     *                                            it failed or it was dropped.
      */
     public function push(MonitorSpec $spec, CheckOutcome $outcome, CarbonImmutable $checkedAt, ?int $driftMs, Closure $done): void
     {
-        $this->queue[++$this->sequence] = ['item' => [$spec, $outcome, $checkedAt, $driftMs], 'done' => $done];
+        $key = ++$this->sequence;
+        $this->queue[$key] = ['item' => [$spec, $outcome, $checkedAt, $driftMs], 'done' => $done, 'notified' => false];
+        if ($this->failing) {
+            $this->release($key, null);
+        }
 
-        while (count($this->queue) > $this->capacity && ($key = array_key_first($this->queue)) !== null) {
-            $dropped = $this->queue[$key];
-            unset($this->queue[$key]);
+        while (count($this->queue) > $this->capacity && ($oldest = array_key_first($this->queue)) !== null) {
+            $this->release($oldest, null);
+            unset($this->queue[$oldest]);
             $this->droppedSinceLog++;
-            $this->notify($dropped['done'], null);
         }
 
         if (count($this->queue) >= $this->batchSize) {
@@ -148,38 +170,27 @@ final class OutcomeBuffer
 
         while ($this->queue !== []) {
             $keys = array_slice(array_keys($this->queue), 0, $this->batchSize);
-            $items = [];
-            foreach ($keys as $key) {
-                $items[] = $this->queue[$key]['item'];
-            }
 
             try {
-                $batch = $this->recorder->record($items, false);
+                $batch = $this->recorder->record($this->items($keys), false);
             } catch (Throwable $e) {
-                $this->failed($e, count($items));
-
-                return false;
-            }
-
-            $entries = [];
-            foreach ($keys as $key) {
-                $entries[] = $this->queue[$key];
-                unset($this->queue[$key]);
-            }
-
-            foreach ($entries as ['item' => [$spec, $outcome, $checkedAt], 'done' => $done]) {
-                $transition = $batch->transitions[$spec->id] ?? null;
-                if ($transition !== null) {
-                    $this->unbroadcast[$spec->workspaceId][$spec->id] = [
-                        'monitor_id' => $spec->id,
-                        'status' => $transition->effective->value,
-                        'latency_ms' => $outcome->latencyMs,
-                        'checked_at' => $checkedAt->toIso8601ZuluString(),
-                    ];
+                $this->failed($e, count($keys));
+                if ($this->isDatabaseError($e) || ! $this->countBatchFailure($keys[0])) {
+                    return $this->markFailing();
                 }
-                $this->notify($done, $transition);
+                if (! $this->recordOneByOne($keys)) {
+                    return $this->markFailing();
+                }
+
+                continue;
             }
+
+            $this->completed($keys, $batch);
         }
+
+        $this->failing = false;
+        $this->failingBatch = null;
+        $this->batchFailures = 0;
 
         return true;
     }
@@ -232,13 +243,120 @@ final class OutcomeBuffer
         }
     }
 
+    /**
+     * @param  list<int>  $keys
+     * @return list<array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}>
+     */
+    private function items(array $keys): array
+    {
+        $items = [];
+        foreach ($keys as $key) {
+            $items[] = $this->queue[$key]['item'];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param  list<int>  $keys
+     */
+    private function completed(array $keys, RecordedBatch $batch): void
+    {
+        foreach ($keys as $key) {
+            [$spec, $outcome, $checkedAt] = $this->queue[$key]['item'];
+            $transition = $batch->transitions[$spec->id] ?? null;
+            if ($transition !== null) {
+                $this->unbroadcast[$spec->workspaceId][$spec->id] = [
+                    'monitor_id' => $spec->id,
+                    'status' => $transition->effective->value,
+                    'latency_ms' => $outcome->latencyMs,
+                    'checked_at' => $checkedAt->toIso8601ZuluString(),
+                ];
+            }
+            $this->release($key, $transition);
+            unset($this->queue[$key]);
+        }
+    }
+
+    /**
+     * @return bool Whether the batch has now failed often enough to be recorded one outcome at a time.
+     */
+    private function countBatchFailure(int $firstKey): bool
+    {
+        if ($this->failingBatch === $firstKey) {
+            $this->batchFailures++;
+        } else {
+            $this->failingBatch = $firstKey;
+            $this->batchFailures = 1;
+        }
+
+        return $this->batchFailures >= self::ISOLATE_AFTER_FAILURES;
+    }
+
+    /**
+     * Records the outcomes of a failing batch one by one and drops the ones that still fail.
+     *
+     * @param  list<int>  $keys
+     * @return bool False when the database failed meanwhile; the remaining outcomes stay queued.
+     */
+    private function recordOneByOne(array $keys): bool
+    {
+        foreach ($keys as $key) {
+            try {
+                $batch = $this->recorder->record($this->items([$key]), false);
+            } catch (Throwable $e) {
+                if ($this->isDatabaseError($e)) {
+                    $this->failed($e, 1);
+
+                    return false;
+                }
+
+                // No message or payload: both can carry data from the checked target.
+                Log::error('Dropped a check outcome the recorder cannot store.', [
+                    'monitor_id' => $this->queue[$key]['item'][0]->id,
+                    'exception' => $e::class,
+                ]);
+                $this->release($key, null);
+                unset($this->queue[$key]);
+
+                continue;
+            }
+
+            $this->completed([$key], $batch);
+        }
+
+        $this->failingBatch = null;
+        $this->batchFailures = 0;
+
+        return true;
+    }
+
+    /**
+     * Releases every queued outcome to the scheduler so checks go on while the outcomes wait for a retry.
+     */
+    private function markFailing(): bool
+    {
+        $this->failing = true;
+        foreach (array_keys($this->queue) as $key) {
+            $this->release($key, null);
+        }
+
+        return false;
+    }
+
+    private function isDatabaseError(Throwable $e): bool
+    {
+        return $e instanceof QueryException || $e instanceof PDOException;
+    }
+
     private function failed(Throwable $e, int $count): void
     {
-        $database = $e instanceof QueryException || $e instanceof PDOException;
+        $database = $this->isDatabaseError($e);
 
         Log::log($database ? 'warning' : 'error', 'Flushing check outcomes failed; they stay buffered for a retry.', [
             'exception' => $e::class,
-            'message' => mb_substr($e->getMessage(), 0, self::MESSAGE_LOG_LENGTH),
+            // Only database errors carry a message worth logging; others may echo outcome data.
+            'message' => $database ? mb_substr($e->getMessage(), 0, self::MESSAGE_LOG_LENGTH) : null,
             'batch' => $count,
             'buffered' => count($this->queue),
         ]);
@@ -271,12 +389,18 @@ final class OutcomeBuffer
     }
 
     /**
-     * @param  Closure(?Transition): void  $done
+     * Runs the outcome's callback unless it already ran.
      */
-    private function notify(Closure $done, ?Transition $transition): void
+    private function release(int $key, ?Transition $transition): void
     {
+        $entry = $this->queue[$key] ?? null;
+        if ($entry === null || $entry['notified']) {
+            return;
+        }
+        $this->queue[$key]['notified'] = true;
+
         try {
-            $done($transition);
+            ($entry['done'])($transition);
         } catch (Throwable $e) {
             Log::error('A recorded outcome callback failed.', ['exception' => $e::class]);
         }

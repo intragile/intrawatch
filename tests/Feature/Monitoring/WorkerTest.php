@@ -15,7 +15,9 @@ use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\NullDeadlineEvaluator;
+use App\Monitoring\Engine\NullGroupEvaluator;
 use App\Monitoring\Engine\ResultRecorder;
+use App\Monitoring\Engine\StatusMachine;
 use App\Monitoring\Engine\Transition;
 use App\Monitoring\Worker\Heartbeat;
 use App\Monitoring\Worker\MonitorLoader;
@@ -32,6 +34,7 @@ use PDOException;
 use Tests\Support\FailureBudget;
 use Tests\Support\FakeChecker;
 use Tests\Support\FakeClock;
+use Tests\Support\PoisonMaintenance;
 use Tests\TestCase;
 
 use function Amp\async;
@@ -163,6 +166,101 @@ class WorkerTest extends TestCase
         $this->assertCount(2, array_filter($this->logs, fn (MessageLogged $e): bool => $e->level === 'warning' && str_contains($e->message, 'Flushing check outcomes failed')));
     }
 
+    public function test_checks_continue_during_database_outage(): void
+    {
+        $monitors = $this->tcpMonitors(2, ['interval_seconds' => 20, 'retry_interval_seconds' => 20]);
+        $outage = $this->failResultInserts(PHP_INT_MAX);
+
+        [$stop, $run] = $this->start($this->scheduler());
+        $this->clock->advance(180);
+        $this->assertSame(0, CheckResult::count());
+        foreach ($monitors as $monitor) {
+            $this->assertGreaterThanOrEqual(8, count($this->checker->callsFor($monitor->id)), 'checks keep their schedule while nothing can be recorded');
+        }
+
+        $outage->remaining = 0;
+        $this->clock->advance(35);
+        $this->stop($stop, $run);
+
+        foreach ($monitors as $monitor) {
+            $times = $this->resultTimes($monitor);
+            $this->assertCount(count($this->checker->callsFor($monitor->id)), $times, 'every outcome is recorded exactly once');
+            for ($i = 1; $i < count($times); $i++) {
+                $this->assertGreaterThanOrEqual(20, $times[$i - 1]->diffInSeconds($times[$i]));
+            }
+        }
+    }
+
+    public function test_outage_beyond_capacity_drops_oldest_and_keeps_checking(): void
+    {
+        $monitors = $this->tcpMonitors(2, ['interval_seconds' => 20, 'retry_interval_seconds' => 20]);
+        $outage = $this->failResultInserts(PHP_INT_MAX);
+
+        [$stop, $run] = $this->start($this->scheduler(buffer: $this->buffer(capacity: 10)));
+        $this->clock->advance(180);
+        $outage->remaining = 0;
+        $this->clock->advance(35);
+        $this->stop($stop, $run);
+
+        $calls = count($this->checker->calls);
+        $this->assertGreaterThanOrEqual(16, $calls);
+        $dropped = 0;
+        foreach ($this->logs as $log) {
+            if (preg_match('/dropped (\d+) outcomes/', $log->message, $m) === 1) {
+                $dropped += (int) $m[1];
+            }
+        }
+        $this->assertGreaterThan(0, $dropped);
+        $this->assertSame($calls - $dropped, CheckResult::count(), 'everything not dropped is recorded once');
+
+        // The newest outcomes survive: each monitor's last check is among the recorded ones.
+        foreach ($monitors as $monitor) {
+            $calls = $this->checker->callsFor($monitor->id);
+            $times = $this->resultTimes($monitor);
+            $this->assertNotEmpty($times);
+            $this->assertSame($calls[count($calls) - 1]->getTimestamp(), $times[count($times) - 1]->getTimestamp());
+        }
+    }
+
+    public function test_an_outcome_the_recorder_rejects_is_isolated_and_dropped(): void
+    {
+        [$good, $poison, $other] = $this->tcpMonitors(3);
+        $recorder = new ResultRecorder(new StatusMachine, new PoisonMaintenance($poison->id), new NullGroupEvaluator);
+        $buffer = new OutcomeBuffer($recorder, $this->clock);
+
+        $released = [];
+        foreach ([$good, $poison, $other] as $monitor) {
+            $buffer->push(MonitorSpec::fromModel($monitor), CheckOutcome::up(5), $this->clock->now(), 0, function (?Transition $t) use (&$released, $monitor): void {
+                $released[$monitor->id] = $t;
+            });
+        }
+
+        $this->assertFalse($buffer->flush());
+        $this->assertFalse($buffer->flush());
+        $this->assertSame(0, CheckResult::count(), 'non-database failures are retried a few times first');
+        $this->assertTrue($buffer->flush(), 'the third failure isolates the bad outcome');
+
+        $this->assertSame(0, $buffer->count());
+        $this->assertSame(1, CheckResult::where('monitor_id', $good->id)->count());
+        $this->assertSame(1, CheckResult::where('monitor_id', $other->id)->count());
+        $this->assertSame(0, CheckResult::where('monitor_id', $poison->id)->count());
+        $this->assertCount(3, $released);
+        $this->assertNull($released[$poison->id]);
+
+        $drops = array_values(array_filter($this->logs, fn (MessageLogged $e): bool => str_contains($e->message, 'Dropped a check outcome')));
+        $this->assertCount(1, $drops);
+        $this->assertSame('error', $drops[0]->level);
+        $this->assertSame(['monitor_id' => $poison->id, 'exception' => \RuntimeException::class], $drops[0]->context);
+    }
+
+    public function test_worker_refuses_the_sync_queue(): void
+    {
+        config(['queue.default' => 'sync']);
+
+        $this->assertSame(1, Artisan::call('intrawatch:worker'));
+        $this->assertStringContainsString('QUEUE_CONNECTION is sync', Artisan::output());
+    }
+
     public function test_buffer_cap_drops_oldest(): void
     {
         $monitor = $this->tcpMonitors(1)[0];
@@ -190,8 +288,9 @@ class WorkerTest extends TestCase
 
         $recorded = array_map(fn (CarbonImmutable $t): int => (int) $start->diffInSeconds($t), $this->resultTimes($monitor));
         $this->assertSame([40, 60, 80], $recorded);
-        $this->assertSame([2, 3, 4], array_map(fn (array $d): int => $d[0], array_slice($done, 2)));
-        $this->assertInstanceOf(Transition::class, $done[4][1]);
+        // The failed flush already released the kept outcomes to the scheduler; recording them later does not
+        // call back a second time.
+        $this->assertSame([[0, null], [1, null], [2, null], [3, null], [4, null]], array_slice($done, 0));
     }
 
     public function test_check_broadcasts_are_throttled_per_workspace(): void
@@ -243,6 +342,10 @@ class WorkerTest extends TestCase
 
         DB::table('check_workers')->where('shard', 1)->update(['last_seen_at' => $now->subSeconds(2)]);
         $this->assertSame(0, Artisan::call('intrawatch:worker:status'));
+
+        DB::table('check_workers')->where('shard', 1)->update(['shards' => 3]);
+        $this->assertSame(1, Artisan::call('intrawatch:worker:status'));
+        $this->assertStringContainsString('Shard 1: runs with 3 shards, expected 2', Artisan::output());
 
         DB::table('check_workers')->where('shard', 1)->delete();
         $this->assertSame(1, Artisan::call('intrawatch:worker:status'));
@@ -304,7 +407,7 @@ class WorkerTest extends TestCase
         return new Scheduler(
             shard: $shard,
             shards: $shards,
-            loader: new MonitorLoader,
+            loader: new MonitorLoader($this->clock),
             buffer: $buffer ?? $this->buffer(),
             heartbeat: new Heartbeat($this->clock, $shard, $shards),
             checkers: $this->app->make(CheckerRegistry::class),

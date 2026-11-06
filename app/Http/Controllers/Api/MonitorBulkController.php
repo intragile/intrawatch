@@ -11,6 +11,7 @@ use App\Models\Workspace;
 use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\MonitorActivation;
+use App\Monitoring\Types\GroupHierarchy;
 use App\Support\Audit;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -89,6 +90,7 @@ class MonitorBulkController extends Controller
      */
     private function delete(Monitor $monitor, array &$deleted): void
     {
+        GroupHierarchy::detachChildren($monitor);
         $monitor->delete();
         Audit::record('monitor.deleted', $monitor, ['name' => [$monitor->name, null]]);
         $deleted[] = $monitor->id;

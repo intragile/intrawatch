@@ -175,6 +175,7 @@ class MonitorController extends Controller
     {
         $transitions = [];
         DB::transaction(function () use ($monitor, &$transitions): void {
+            GroupHierarchy::detachChildren($monitor);
             $monitor->delete();
             Audit::record('monitor.deleted', $monitor, ['name' => [$monitor->name, null]]);
             if ($monitor->parent_id !== null) {

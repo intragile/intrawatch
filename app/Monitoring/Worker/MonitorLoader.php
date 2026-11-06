@@ -40,6 +40,8 @@ final class MonitorLoader
 
     private ?CarbonImmutable $lastPoll = null;
 
+    public function __construct(private readonly Clock $clock) {}
+
     /**
      * @return array<int, MonitorSpec> Active monitors of the shard, keyed by id.
      */
@@ -47,7 +49,7 @@ final class MonitorLoader
     {
         $this->known = [];
         $this->requestedOnLoad = [];
-        $this->lastPoll = CarbonImmutable::now();
+        $this->lastPoll = $this->clock->now();
 
         $specs = [];
         $this->shardQuery($shard, $shards)
@@ -87,7 +89,7 @@ final class MonitorLoader
 
     public function changesSince(int $shard, int $shards): ShardChanges
     {
-        $pollStartedAt = CarbonImmutable::now();
+        $pollStartedAt = $this->clock->now();
         $recentSince = ($this->lastPoll ?? $pollStartedAt)->subSeconds(self::SAME_SECOND_WINDOW);
 
         $seen = [];

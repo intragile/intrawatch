@@ -349,7 +349,7 @@ final class Scheduler
                     : $this->runCheck($spec, $generation, $due);
             } catch (Throwable $e) {
                 Log::error('A scheduled check crashed.', ['monitor_id' => $spec->id, 'exception' => $e::class]);
-                $this->finish($spec->id, $generation, $this->timestamp(), $spec, null);
+                $this->finish($spec->id, $generation, $this->timestamp(), $spec, null, null);
             } finally {
                 unset($this->running[$key]);
             }
@@ -394,7 +394,7 @@ final class Scheduler
         }
 
         $this->buffer->push($spec, $outcome, $startedAt, $driftMs,
-            fn (?Transition $transition) => $this->finish($spec->id, $generation, $started, $spec, $transition));
+            fn (?Transition $transition) => $this->finish($spec->id, $generation, $started, $spec, $outcome, $transition));
     }
 
     private function evaluateDeadline(MonitorSpec $spec, int $generation): void
@@ -421,9 +421,11 @@ final class Scheduler
     }
 
     /**
-     * Reschedules a monitor once its outcome was recorded (or dropped, with a null transition).
+     * Reschedules a monitor once its outcome was recorded. A null transition means the outcome was not
+     * recorded (yet): recording failed, it was dropped or skipped. The delay then follows the raw outcome,
+     * the retry interval after a failure and the regular interval otherwise.
      */
-    private function finish(int $id, int $generation, float $started, MonitorSpec $spec, ?Transition $transition): void
+    private function finish(int $id, int $generation, float $started, MonitorSpec $spec, ?CheckOutcome $outcome, ?Transition $transition): void
     {
         unset($this->busy[$id]);
 
@@ -434,7 +436,9 @@ final class Scheduler
         }
 
         $current = $this->specs[$id];
-        $retrying = $transition?->effective === MonitorStatus::Pending;
+        $retrying = $transition !== null
+            ? $transition->effective === MonitorStatus::Pending
+            : $outcome?->status === MonitorStatus::Down;
         $delay = $transition !== null && $current === $spec
             ? $transition->nextDelaySeconds
             : ($retrying ? $current->retryIntervalSeconds : $current->intervalSeconds);

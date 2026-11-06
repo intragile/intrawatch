@@ -26,9 +26,11 @@ class WorkerStatusCommand extends Command
         $cutoff = $now->subSeconds((int) $maxAge);
 
         $seen = [];
-        foreach (DB::table('check_workers')->where('shard', '<', $total)->get(['shard', 'last_seen_at']) as $row) {
+        $partitions = [];
+        foreach (DB::table('check_workers')->where('shard', '<', $total)->get(['shard', 'shards', 'last_seen_at']) as $row) {
             $shard = is_numeric($row->shard) ? (int) $row->shard : -1;
             $seen[$shard] = is_string($row->last_seen_at) ? CarbonImmutable::parse($row->last_seen_at) : null;
+            $partitions[$shard] = is_numeric($row->shards) ? (int) $row->shards : 0;
         }
 
         $stale = [];
@@ -36,6 +38,9 @@ class WorkerStatusCommand extends Command
             $lastSeen = $seen[$shard] ?? null;
             if ($lastSeen === null) {
                 $stale[] = "Shard {$shard}: never reported";
+            } elseif ($partitions[$shard] !== $total) {
+                // A worker started with another shard count checks a different set of monitors.
+                $stale[] = "Shard {$shard}: runs with {$partitions[$shard]} shards, expected {$total}";
             } elseif ($lastSeen->lt($cutoff)) {
                 $stale[] = "Shard {$shard}: last seen ".(int) $lastSeen->diffInSeconds($now).' s ago';
             }

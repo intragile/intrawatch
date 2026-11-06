@@ -21,9 +21,4 @@ final readonly class ShardChanges
         public array $removed = [],
         public array $requested = [],
     ) {}
-
-    public function isEmpty(): bool
-    {
-        return $this->added === [] && $this->changed === [] && $this->removed === [] && $this->requested === [];
-    }
 }

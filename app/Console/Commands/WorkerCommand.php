@@ -35,10 +35,18 @@ class WorkerCommand extends Command
             return self::INVALID;
         }
 
+        // Broadcast events go through the queue. The sync driver would run them inline, with blocking HTTP
+        // calls to the broadcaster inside the event loop.
+        if (config()->string('queue.default') === 'sync') {
+            $this->error('The check worker needs a real queue connection: QUEUE_CONNECTION is sync.');
+
+            return self::FAILURE;
+        }
+
         $scheduler = new Scheduler(
             shard: $shard,
             shards: $shards,
-            loader: new MonitorLoader,
+            loader: new MonitorLoader($clock),
             buffer: new OutcomeBuffer($recorder, $clock),
             heartbeat: new Heartbeat($clock, $shard, $shards),
             checkers: $checkers,

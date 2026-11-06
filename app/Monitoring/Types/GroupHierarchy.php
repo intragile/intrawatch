@@ -15,6 +15,25 @@ final class GroupHierarchy
     public const MAX_DEPTH = 5;
 
     /**
+     * Detaches the children of a group that is about to be deleted, one row at a time in id order.
+     *
+     * Leaving this to the ON DELETE SET NULL cascade would lock the children after the group row, the
+     * reverse of the child-before-parent order the result recorder uses. Bumping updated_at also lets the
+     * check worker notice the new parent.
+     */
+    public static function detachChildren(Monitor $group): void
+    {
+        if ($group->type !== MonitorType::Group) {
+            return;
+        }
+
+        $now = now();
+        foreach (Monitor::query()->where('parent_id', $group->id)->orderBy('id')->pluck('id') as $childId) {
+            Monitor::query()->whereKey($childId)->toBase()->update(['parent_id' => null, 'updated_at' => $now]);
+        }
+    }
+
+    /**
      * @throws ValidationException
      */
     public static function assertValidParent(Monitor $child, ?Monitor $parent): void

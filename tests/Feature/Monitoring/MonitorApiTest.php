@@ -316,11 +316,15 @@ class MonitorApiTest extends TestCase
         Queue::fake();
         $group = Monitor::factory()->for($this->ws)->group()->create();
         $child = Monitor::factory()->for($this->ws)->http()->create(['parent_id' => $group->id]);
+        $createdAt = $child->updated_at ?? now();
+        $this->travel(10)->seconds();
 
         $this->actingAs($this->editor)->deleteJson($this->url("/{$group->id}"))->assertNoContent();
 
         $this->assertDatabaseMissing('monitors', ['id' => $group->id]);
         $this->assertNull($child->fresh()?->parent_id);
+        // The bumped timestamp is what tells the check worker that the parent changed.
+        $this->assertTrue($child->fresh()?->updated_at?->gt($createdAt));
         Queue::assertPushed(PurgeMonitorData::class, fn (PurgeMonitorData $job) => $job->monitorId === $group->id);
         $this->assertDatabaseHas('audit_events', ['action' => 'monitor.deleted']);
     }
