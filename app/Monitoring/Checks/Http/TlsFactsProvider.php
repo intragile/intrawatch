@@ -13,10 +13,11 @@ interface TlsFactsProvider
 {
     /**
      * Called after a response was received over TLS. Implementations must not block and must not throw for
-     * expected failures; the checker ignores anything they throw.
+     * expected failures; the checker ignores anything they throw. A degrade reason turns an outcome that is
+     * otherwise up into a degraded one; it never changes a failing outcome.
      *
      * @param  TlsInfo  $tls  The negotiated session of the final hop, with the peer certificate chain captured.
-     * @return array{facts: array<string, scalar|list<scalar>|null>, watch: array<string, string>}
+     * @return array{facts: array<string, scalar|list<scalar>|null>, watch: array<string, string>, degrade: ?string}
      */
     public function inspect(MonitorSpec $spec, string $host, TlsInfo $tls, Cancellation $cancellation): array;
 }

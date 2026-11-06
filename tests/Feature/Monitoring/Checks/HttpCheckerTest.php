@@ -2,17 +2,26 @@
 
 namespace Tests\Feature\Monitoring\Checks;
 
+use Amp\Cancellation;
 use Amp\Future;
 use Amp\NullCancellation;
+use Amp\Socket\ConnectContext;
+use Amp\Socket\DnsSocketConnector;
 use Amp\Socket\InternetAddress;
+use Amp\Socket\Socket;
+use Amp\Socket\SocketAddress;
+use Amp\Socket\SocketConnector;
 use App\Enums\MonitorStatus;
 use App\Enums\MonitorType;
+use App\Monitoring\Checks\CheckerRegistry;
+use App\Monitoring\Checks\Http\CertificateFacts;
 use App\Monitoring\Checks\Http\ClientFactory;
 use App\Monitoring\Checks\HttpChecker;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Net\GuardedConnector;
 use App\Monitoring\Net\NetworkPolicy;
+use App\Monitoring\Worker\SystemClock;
 use Tests\Support\HttpFixtureServer;
 use Tests\Support\ProxyFixtureServer;
 use Tests\Support\StubDnsResolver;
@@ -452,5 +461,109 @@ class HttpCheckerTest extends TestCase
 
         $this->assertDown('Keyword not found', $outcome);
         $this->assertLessThan(4 * 1048576, memory_get_peak_usage() - $baseline);
+    }
+
+    /**
+     * An https checker with certificate facts, counting the connections it opens.
+     *
+     * @param  array<string, non-empty-list<string>>  $hosts
+     * @return array{0: HttpChecker, 1: object{count: int}}
+     */
+    private function certificateChecker(TestCertificates $certs, array $hosts = ['secure.test' => ['127.0.0.1'], 'other.test' => ['127.0.0.1']]): array
+    {
+        $resolver = new StubDnsResolver($hosts);
+        $counter = new class(new DnsSocketConnector($resolver)) implements SocketConnector
+        {
+            public int $count = 0;
+
+            public function __construct(private readonly SocketConnector $inner) {}
+
+            public function connect(SocketAddress|string $uri, ?ConnectContext $context = null, ?Cancellation $cancellation = null): Socket
+            {
+                $this->count++;
+
+                return $this->inner->connect($uri, $context, $cancellation);
+            }
+        };
+        $connector = new GuardedConnector($resolver, new NetworkPolicy, $counter);
+
+        return [new HttpChecker(new ClientFactory($connector, caFile: $certs->caFile), new CertificateFacts(new SystemClock)), $counter];
+    }
+
+    public function test_https_monitor_gets_tls_facts_from_the_same_connection(): void
+    {
+        $this->certificates = new TestCertificates(['secure.test'], days: 20);
+        $s = $this->server();
+        [$checker, $connections] = $this->certificateChecker($this->certificates);
+
+        $outcome = $this->probe(['url' => "https://secure.test:{$s->tlsPort()}/fast"], checker: $checker);
+
+        $this->assertUp($outcome);
+        $this->assertSame(1, $connections->count, 'The certificate is read from the request connection.');
+        $this->assertContains($outcome->facts['tls.days_left'], [19, 20]);
+        $this->assertIsString($outcome->facts['tls.not_after']);
+        $this->assertSame('CN=IntraWatch Test CA', $outcome->facts['tls.issuer']);
+        $this->assertSame('TLSv1.3', $outcome->facts['tls.protocol']);
+        $this->assertIsString($outcome->facts['tls.cipher']);
+        $this->assertArrayNotHasKey('tls.deprecated_protocols', $outcome->facts);
+        $this->assertSame('30', $outcome->watch['tls.expiry_band']);
+        $this->assertSame('CN=IntraWatch Test CA', $outcome->watch['tls.issuer']);
+        $this->assertSame(64, strlen($outcome->watch['tls.fingerprint']));
+
+        $plain = $this->probe(['url' => $s->url('/fast')], checker: $checker);
+        $this->assertUp($plain);
+        $this->assertArrayNotHasKey('tls.days_left', $plain->facts);
+        $this->assertSame([], $plain->watch);
+
+        $off = $this->probe(['url' => "https://secure.test:{$s->tlsPort()}/fast", 'tls_checks' => false], checker: $checker);
+        $this->assertArrayNotHasKey('tls.days_left', $off->facts);
+        $this->assertSame([], $off->watch);
+    }
+
+    public function test_certificate_expiring_within_seven_days_degrades_an_up_https_check(): void
+    {
+        $this->certificates = new TestCertificates(['secure.test'], days: 3);
+        $s = $this->server();
+        [$checker] = $this->certificateChecker($this->certificates);
+
+        $outcome = $this->probe(['url' => "https://secure.test:{$s->tlsPort()}/fast"], checker: $checker);
+        $this->assertSame(MonitorStatus::Degraded, $outcome->status, $outcome->message);
+        // Three days from issue, so two or three whole days left depending on the second the check runs.
+        $this->assertContains($outcome->message, ['Certificate expires in 2 days', 'Certificate expires in 3 days']);
+        $this->assertSame('7', $outcome->watch['tls.expiry_band']);
+        $this->assertSame(200, $outcome->facts['http.status']);
+
+        // A failing request stays down; the certificate only ever degrades an otherwise healthy check.
+        $this->assertDown('HTTP 503', $this->probe(['url' => "https://secure.test:{$s->tlsPort()}/status/503"], checker: $checker));
+
+        // The band follows the monitor's own thresholds; the degrade threshold stays at seven days.
+        $custom = $this->probe(['url' => "https://secure.test:{$s->tlsPort()}/fast", 'tls_expiry_days' => [60, 10]], checker: $checker);
+        $this->assertSame('10', $custom->watch['tls.expiry_band']);
+        $this->assertSame(MonitorStatus::Degraded, $custom->status);
+    }
+
+    public function test_certificate_facts_without_verification(): void
+    {
+        $this->certificates = new TestCertificates(['secure.test'], days: 20);
+        $s = $this->server();
+        [$checker] = $this->certificateChecker($this->certificates);
+
+        $outcome = $this->probe(['url' => "https://other.test:{$s->tlsPort()}/fast", 'tls_verify' => false], checker: $checker);
+
+        $this->assertUp($outcome);
+        $this->assertContains($outcome->facts['tls.days_left'], [19, 20]);
+        $this->assertArrayHasKey('tls.fingerprint', $outcome->watch);
+    }
+
+    public function test_container_wires_certificate_facts_into_the_http_checker(): void
+    {
+        $this->certificates = new TestCertificates(['secure.test'], days: 20);
+        $s = $this->server();
+
+        $checker = $this->app->make(CheckerRegistry::class)->for(MonitorType::Http);
+        $outcome = $checker->check($this->spec(['url' => "https://127.0.0.1:{$s->tlsPort()}/fast", 'tls_verify' => false]), new NullCancellation);
+
+        $this->assertUp($outcome);
+        $this->assertContains($outcome->facts['tls.days_left'], [19, 20]);
     }
 }

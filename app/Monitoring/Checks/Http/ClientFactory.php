@@ -54,6 +54,9 @@ final class ClientFactory
             if (($config['tls_verify'] ?? true) === false) {
                 $tls = $tls->withoutPeerVerification();
             }
+            if (self::capturesCertificates($spec)) {
+                $tls = $tls->withPeerCapturing();
+            }
             if (($config['mtls'] ?? false) === true) {
                 $temporaryFiles[] = $keyFile = $this->writeKeyMaterial($secrets);
                 $tls = $tls->withCertificate(new Certificate($keyFile));
@@ -89,6 +92,14 @@ final class ClientFactory
 
             throw $e;
         }
+    }
+
+    /**
+     * Whether the peer certificate chain is kept for certificate facts: only when the monitor has TLS checks on.
+     */
+    public static function capturesCertificates(MonitorSpec $spec): bool
+    {
+        return ($spec->config['tls_checks'] ?? true) === true;
     }
 
     /**

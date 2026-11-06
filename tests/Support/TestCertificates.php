@@ -24,8 +24,9 @@ final class TestCertificates
 
     /**
      * @param  list<string>  $serverNames  DNS names the server certificate is issued for.
+     * @param  int  $days  Validity of the server certificate.
      */
-    public function __construct(array $serverNames = ['secure.test'])
+    public function __construct(array $serverNames = ['secure.test'], int $days = 2)
     {
         $directory = sys_get_temp_dir().'/intrawatch-certs-'.bin2hex(random_bytes(6));
         if (! mkdir($directory, 0700) && ! is_dir($directory)) {
@@ -54,9 +55,9 @@ final class TestCertificates
             extendedKeyUsage = clientAuth
             CNF);
 
-        [$caCert, $caKey] = $this->issue(['commonName' => 'IntraWatch Test CA'], $config, 'ca_ext', null, null);
-        [$serverCert, $serverKey] = $this->issue(['commonName' => $serverNames[0]], $config, 'server_ext', $caCert, $caKey);
-        [$clientCert, $clientKey] = $this->issue(['commonName' => 'intrawatch-client'], $config, 'client_ext', $caCert, $caKey);
+        [$caCert, $caKey] = $this->issue(['commonName' => 'IntraWatch Test CA'], $config, 'ca_ext', null, null, 2);
+        [$serverCert, $serverKey] = $this->issue(['commonName' => $serverNames[0]], $config, 'server_ext', $caCert, $caKey, $days);
+        [$clientCert, $clientKey] = $this->issue(['commonName' => 'intrawatch-client'], $config, 'client_ext', $caCert, $caKey, 2);
 
         $this->caFile = $this->write('ca.pem', $this->exportCert($caCert));
         $this->serverFile = $this->write('server.pem', $this->exportCert($serverCert).$this->exportKey($serverKey));
@@ -76,7 +77,7 @@ final class TestCertificates
      * @param  array<string, string>  $subject
      * @return array{0: \OpenSSLCertificate, 1: \OpenSSLAsymmetricKey}
      */
-    private function issue(array $subject, string $config, string $extensions, ?\OpenSSLCertificate $caCert, ?\OpenSSLAsymmetricKey $caKey): array
+    private function issue(array $subject, string $config, string $extensions, ?\OpenSSLCertificate $caCert, ?\OpenSSLAsymmetricKey $caKey, int $days): array
     {
         $options = ['config' => $config, 'digest_alg' => 'sha256', 'x509_extensions' => $extensions];
 
@@ -92,7 +93,7 @@ final class TestCertificates
             throw new RuntimeException('Cannot create a signing request.');
         }
 
-        $cert = openssl_csr_sign($csr, $caCert, $caKey ?? $key, 2, $options, random_int(1, PHP_INT_MAX));
+        $cert = openssl_csr_sign($csr, $caCert, $caKey ?? $key, $days, $options, random_int(1, PHP_INT_MAX));
         if ($cert === false) {
             throw new RuntimeException('Cannot sign the certificate.');
         }

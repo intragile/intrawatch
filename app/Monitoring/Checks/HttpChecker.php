@@ -93,32 +93,38 @@ final class HttpChecker implements Checker
 
         $facts = ['http.status' => $status, 'http.final_url' => $this->publicUrl($uri)];
         $watch = [];
-        $this->addProviderFacts($spec, $client, $uri, $facts, $watch, $cancellation);
+        $degrade = $this->addProviderFacts($spec, $client, $uri, $facts, $watch, $cancellation);
 
         $accepted = StatusRanges::parse(is_array($config['accepted_status'] ?? null) ? $config['accepted_status'] : []);
         $failure = $accepted->accepts($status)
             ? ResponseAssertions::failure($config, $body, $response->getHeaders())
             : "HTTP {$status}";
 
-        return $failure === null
-            ? CheckOutcome::up($latencyMs, '', $facts, $watch)
-            : CheckOutcome::down($failure, $latencyMs, $facts, $watch);
+        return match (true) {
+            $failure !== null => CheckOutcome::down($failure, $latencyMs, $facts, $watch),
+            $degrade !== null => CheckOutcome::degraded($degrade, $latencyMs, $facts, $watch),
+            default => CheckOutcome::up($latencyMs, '', $facts, $watch),
+        };
     }
 
     /**
+     * Merges the facts of the TLS and domain providers and returns the TLS provider's degrade reason.
+     *
      * @param  array<string, scalar|list<scalar>|null>  $facts
      * @param  array<string, string>  $watch
      */
-    private function addProviderFacts(MonitorSpec $spec, CheckClient $client, UriInterface $uri, array &$facts, array &$watch, Cancellation $cancellation): void
+    private function addProviderFacts(MonitorSpec $spec, CheckClient $client, UriInterface $uri, array &$facts, array &$watch, Cancellation $cancellation): ?string
     {
         $host = trim($uri->getHost(), '[]');
         $tls = $client->tlsInfo();
+        $degrade = null;
 
         try {
-            if ($this->tlsFacts !== null && $tls !== null && ($spec->config['tls_checks'] ?? true) === true) {
+            if ($this->tlsFacts !== null && $tls !== null && $uri->getScheme() === 'https' && ClientFactory::capturesCertificates($spec)) {
                 $extra = $this->tlsFacts->inspect($spec, $host, $tls, $cancellation);
                 $facts += $extra['facts'];
                 $watch += $extra['watch'];
+                $degrade = $extra['degrade'];
             }
 
             if ($this->domainFacts !== null && ($spec->config['domain_expiry'] ?? true) === true) {
@@ -131,6 +137,8 @@ final class HttpChecker implements Checker
         } catch (Throwable) {
             // Supplementary facts never decide the outcome of the request itself.
         }
+
+        return $degrade;
     }
 
     /**

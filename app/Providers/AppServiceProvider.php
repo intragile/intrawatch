@@ -7,9 +7,12 @@ use App\Enums\MonitorType;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Checks\DnsChecker;
+use App\Monitoring\Checks\Http\CertificateFacts;
+use App\Monitoring\Checks\Http\TlsFactsProvider;
 use App\Monitoring\Checks\HttpChecker;
 use App\Monitoring\Checks\PingChecker;
 use App\Monitoring\Checks\TcpChecker;
+use App\Monitoring\Checks\TlsChecker;
 use App\Monitoring\Engine\DatabaseGroupEvaluator;
 use App\Monitoring\Engine\DeadlineEvaluator;
 use App\Monitoring\Engine\GroupEvaluator;
@@ -52,10 +55,12 @@ class AppServiceProvider extends ServiceProvider
             $registry->register(MonitorType::Tcp, TcpChecker::class);
             $registry->register(MonitorType::Ping, PingChecker::class);
             $registry->register(MonitorType::Dns, DnsChecker::class);
+            $registry->register(MonitorType::Tls, TlsChecker::class);
         });
         $this->app->singleton(DnsResolver::class, fn (): DnsResolver => \Amp\Dns\dnsResolver());
         $this->app->singleton(NetworkPolicy::class, fn (): NetworkPolicy => NetworkPolicy::fromConfig());
         $this->app->singleton(GuardedConnector::class);
+        $this->app->bind(TlsFactsProvider::class, CertificateFacts::class);
         $this->app->singleton(Clock::class, SystemClock::class);
     }
 
