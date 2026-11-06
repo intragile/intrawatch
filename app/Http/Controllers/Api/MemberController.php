@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use LogicException;
 
 class MemberController extends Controller
@@ -44,10 +45,9 @@ class MemberController extends Controller
         $user = User::where('email', $request->string('email')->toString())->firstOrFail();
 
         if ($user->roleIn($workspace) !== null) {
-            return response()->json([
-                'message' => 'The user is already a member of this workspace.',
-                'errors' => ['email' => ['The user is already a member of this workspace.']],
-            ], 422);
+            throw ValidationException::withMessages([
+                'email' => ['The user is already a member of this workspace.'],
+            ]);
         }
 
         $membership = $workspace->memberships()->create(['user_id' => $user->id, 'role' => $role]);

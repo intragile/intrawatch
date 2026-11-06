@@ -101,3 +101,10 @@ jobs:
 
       - name: Test (${{ matrix.db }})
         run: php artisan test
+
+      - name: OpenAPI spec is current
+        if: matrix.db == 'sqlite'
+        run: |
+          php artisan migrate --force
+          php artisan scramble:export --path=/tmp/o.json
+          diff -q /tmp/o.json docs/openapi.json

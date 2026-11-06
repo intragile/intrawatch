@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Actions\CreateWorkspace;
 use App\Enums\WorkspaceRole;
 use App\Http\Controllers\Controller;
+use App\Http\Pagination\CursorPage;
 use App\Models\Membership;
 use App\Models\User;
 use App\Models\Workspace;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -21,22 +23,19 @@ class WorkspaceController extends Controller
         $user = $request->user();
 
         $scoped = $user->scopedWorkspaceId();
-        $query = $user->workspaces()->orderBy('workspaces.name');
+        $query = $user->workspaces()->orderBy('workspaces.id');
 
         if ($scoped !== null) {
             $query->where('workspaces.id', $scoped);
         }
 
-        $data = $query->get()
-            ->map(function (Workspace $workspace): array {
-                /** @var Membership $pivot */
-                $pivot = $workspace->getRelation('pivot');
+        return CursorPage::from($query, $request, function (Model $workspace): array {
+            /** @var Workspace $workspace */
+            /** @var Membership $pivot */
+            $pivot = $workspace->getRelation('pivot');
 
-                return $this->payload($workspace, $pivot->role);
-            })
-            ->all();
-
-        return response()->json(['data' => $data]);
+            return $this->payload($workspace, $pivot->role);
+        });
     }
 
     public function store(Request $request, CreateWorkspace $createWorkspace): JsonResponse

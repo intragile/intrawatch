@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\MemberController;
+use App\Http\Controllers\Api\OpenApiController;
 use App\Http\Controllers\Api\SetupController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\WorkspaceController;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
     Route::get('/ping', PingController::class);
+    Route::get('/openapi.json', OpenApiController::class);
     Route::get('/setup', [SetupController::class, 'show']);
     Route::post('/setup', [SetupController::class, 'store'])->middleware('throttle:setup');
 

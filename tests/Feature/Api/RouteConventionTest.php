@@ -1,0 +1,25 @@
+<?php
+
+namespace Tests\Feature\Api;
+
+use Illuminate\Support\Facades\Route;
+use Tests\TestCase;
+
+class RouteConventionTest extends TestCase
+{
+    public function test_all_api_routes_are_versioned(): void
+    {
+        $allowed = ['up', 'sanctum/csrf-cookie'];
+        $unversioned = [];
+
+        foreach (Route::getRoutes()->getRoutes() as $route) {
+            $uri = $route->uri();
+            if (in_array($uri, $allowed, true) || str_starts_with($uri, 'broadcasting/') || str_starts_with($uri, 'api/v1/')) {
+                continue;
+            }
+            $unversioned[] = $uri;
+        }
+
+        $this->assertSame([], $unversioned, 'Routes outside the api/v1/ prefix.');
+    }
+}
