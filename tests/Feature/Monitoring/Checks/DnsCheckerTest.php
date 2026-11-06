@@ -19,6 +19,7 @@ use App\Monitoring\Checks\DnsChecker;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\ResultRecorder;
+use App\Monitoring\Net\NetworkPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Revolt\EventLoop;
@@ -65,7 +66,7 @@ class DnsCheckerTest extends TestCase
             }
         };
 
-        return (new DnsChecker($factory))->check($this->spec($config, $timeout), new NullCancellation);
+        return (new DnsChecker($factory, new NetworkPolicy))->check($this->spec($config, $timeout), new NullCancellation);
     }
 
     public function test_match_modes(): void
@@ -199,7 +200,7 @@ class DnsCheckerTest extends TestCase
         // Timeout timers are unreferenced, so a referenced watcher keeps the loop alive in the test.
         $keepAlive = EventLoop::repeat(1, static fn () => null);
         $started = microtime(true);
-        $outcome = (new DnsChecker($factory))->check($this->spec(timeout: 1), new NullCancellation);
+        $outcome = (new DnsChecker($factory, new NetworkPolicy))->check($this->spec(timeout: 1), new NullCancellation);
         EventLoop::cancel($keepAlive);
 
         $this->assertSame('Timed out after 1 s', $outcome->message);
@@ -240,7 +241,7 @@ class DnsCheckerTest extends TestCase
         $this->expectException(CancelledException::class);
 
         try {
-            (new DnsChecker($factory))->check($this->spec(timeout: 30), new TimeoutCancellation(0.2));
+            (new DnsChecker($factory, new NetworkPolicy))->check($this->spec(timeout: 30), new TimeoutCancellation(0.2));
         } finally {
             EventLoop::cancel($keepAlive);
         }
@@ -251,7 +252,7 @@ class DnsCheckerTest extends TestCase
         $server = new DnsFixtureServer('9.9.9.9');
 
         try {
-            $outcome = (new DnsChecker(new ResolverFactory))->check(
+            $outcome = (new DnsChecker(new ResolverFactory, new NetworkPolicy))->check(
                 $this->spec(['resolver' => "127.0.0.1:{$server->port()}", 'expected' => ['9.9.9.9'], 'match' => 'exact']),
                 new NullCancellation,
             );
@@ -260,8 +261,60 @@ class DnsCheckerTest extends TestCase
             $this->assertSame(1, $server->received);
 
             // Results are not cached between checks.
-            (new DnsChecker(new ResolverFactory))->check($this->spec(['resolver' => "127.0.0.1:{$server->port()}"]), new NullCancellation);
+            (new DnsChecker(new ResolverFactory, new NetworkPolicy))->check($this->spec(['resolver' => "127.0.0.1:{$server->port()}"]), new NullCancellation);
             $this->assertSame(2, $server->received);
+        } finally {
+            $server->close();
+        }
+    }
+
+    public function test_chunked_txt_matches_concatenated_expectation(): void
+    {
+        $dkim = 'v=DKIM1; k=rsa; p='.str_repeat('MIIBIjANBgkq', 40);
+        $this->resolver->set('example.test', DnsRecord::TXT, [substr($dkim, 0, 255).','.substr($dkim, 255)]);
+
+        $this->assertSame(MonitorStatus::Up, $this->probe(['record_type' => 'TXT', 'expected' => [$dkim], 'match' => 'exact'])->status);
+
+        $this->resolver->set('example.test', DnsRecord::TXT, ['a, b']);
+        $this->assertSame(MonitorStatus::Up, $this->probe(['record_type' => 'TXT', 'expected' => ['a, b'], 'match' => 'all'])->status);
+        $this->assertSame(MonitorStatus::Down, $this->probe(['record_type' => 'TXT', 'expected' => ['ab'], 'match' => 'all'])->status);
+    }
+
+    public function test_ipv6_notation_is_canonicalised(): void
+    {
+        $this->resolver->set('example.test', DnsRecord::AAAA, ['2001:DB8::1']);
+
+        $outcome = $this->probe(['record_type' => 'AAAA', 'expected' => ['2001:db8:0:0::1'], 'match' => 'exact']);
+
+        $this->assertSame(MonitorStatus::Up, $outcome->status, $outcome->message);
+    }
+
+    public function test_all_and_exact_with_mx_and_txt(): void
+    {
+        $this->resolver->set('example.test', DnsRecord::MX, ['10,mx1.example.test.', '20,MX2.example.test.']);
+        $this->assertSame(MonitorStatus::Up, $this->probe(['record_type' => 'MX', 'expected' => ['20 mx2.example.test', '10 mx1.example.test.'], 'match' => 'exact'])->status);
+        $this->assertSame(MonitorStatus::Down, $this->probe(['record_type' => 'MX', 'expected' => ['10 mx1.example.test'], 'match' => 'exact'])->status);
+        $this->assertSame(MonitorStatus::Up, $this->probe(['record_type' => 'MX', 'expected' => ['10 mx1.example.test'], 'match' => 'all'])->status);
+        $this->assertSame(MonitorStatus::Down, $this->probe(['record_type' => 'MX', 'expected' => ['10 mx1.example.test', '30 mx3.example.test'], 'match' => 'all'])->status);
+
+        $this->resolver->set('example.test', DnsRecord::TXT, ['v=spf1 -all', 'token=1']);
+        $this->assertSame(MonitorStatus::Up, $this->probe(['record_type' => 'TXT', 'expected' => ['token=1', 'v=spf1 -all'], 'match' => 'exact'])->status);
+        $this->assertSame(MonitorStatus::Down, $this->probe(['record_type' => 'TXT', 'expected' => ['token=1'], 'match' => 'exact'])->status);
+        $this->assertSame(MonitorStatus::Up, $this->probe(['record_type' => 'TXT', 'expected' => ['token=1'], 'match' => 'all'])->status);
+    }
+
+    public function test_blocked_or_non_ip_custom_resolver_is_refused_without_a_query(): void
+    {
+        $server = new DnsFixtureServer('9.9.9.9');
+
+        try {
+            foreach (["127.0.0.1:{$server->port()}", '127.0.0.1', 'dns.example.test', '[::1]:53'] as $address) {
+                $outcome = (new DnsChecker(new ResolverFactory, new NetworkPolicy(['127.0.0.0/8', '::1/128'])))
+                    ->check($this->spec(['resolver' => $address]), new NullCancellation);
+
+                $this->assertSame('Blocked target', $outcome->message, $address);
+            }
+            $this->assertSame(0, $server->received);
         } finally {
             $server->close();
         }

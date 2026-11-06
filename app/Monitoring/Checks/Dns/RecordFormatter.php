@@ -22,7 +22,7 @@ final class RecordFormatter
             DnsRecord::SOA => self::fields($value, 7, [0, 1]),
             DnsRecord::CAA => self::fields($value, 3, []),
             DnsRecord::CNAME, DnsRecord::NS, DnsRecord::PTR => self::hostname($value),
-            DnsRecord::A, DnsRecord::AAAA => strtolower(trim($value)),
+            DnsRecord::A, DnsRecord::AAAA => self::address($value),
             default => $value,
         };
     }
@@ -65,6 +65,13 @@ final class RecordFormatter
         }
 
         return implode(' ', $parts);
+    }
+
+    private static function address(string $value): string
+    {
+        $packed = @inet_pton(trim($value));
+
+        return $packed === false ? strtolower(trim($value)) : (string) inet_ntop($packed);
     }
 
     private static function hostname(string $value): string
