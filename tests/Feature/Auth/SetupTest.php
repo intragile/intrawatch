@@ -83,4 +83,13 @@ class SetupTest extends TestCase
             $this->assertSame(1, User::count());
         }
     }
+
+    public function test_setup_is_rate_limited(): void
+    {
+        for ($i = 0; $i < 10; $i++) {
+            $this->postJson('/api/v1/setup', [])->assertStatus(422);
+        }
+
+        $this->postJson('/api/v1/setup', [])->assertStatus(429);
+    }
 }

@@ -74,10 +74,27 @@ class TwoFactorTest extends TestCase
         $this->getJson('/api/v1/me', $this->stateful)->assertOk();
     }
 
+    public function test_two_factor_management_requires_recent_password_confirmation(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $this->postJson('/api/v1/auth/user/two-factor-authentication', [], $this->stateful)->assertStatus(423);
+        $this->getJson('/api/v1/auth/user/two-factor-recovery-codes', $this->stateful)->assertStatus(423);
+        $this->assertNull($user->refresh()->two_factor_secret);
+
+        $this->postJson('/api/v1/auth/user/confirm-password', ['password' => 'wrong'], $this->stateful)->assertStatus(422);
+        $this->postJson('/api/v1/auth/user/confirm-password', ['password' => 'password'], $this->stateful)->assertCreated();
+
+        $this->postJson('/api/v1/auth/user/two-factor-authentication', [], $this->stateful)->assertSuccessful();
+        $this->assertNotNull($user->refresh()->two_factor_secret);
+    }
+
     public function test_user_can_enable_and_confirm_two_factor(): void
     {
         $user = User::factory()->create();
         $this->actingAs($user);
+        $this->postJson('/api/v1/auth/user/confirm-password', ['password' => 'password'], $this->stateful)->assertCreated();
 
         $this->postJson('/api/v1/auth/user/two-factor-authentication', [], $this->stateful)->assertSuccessful();
         $user->refresh();

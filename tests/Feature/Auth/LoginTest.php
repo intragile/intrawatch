@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
@@ -85,5 +86,34 @@ class LoginTest extends TestCase
             'password' => 'short',
             'password_confirmation' => 'short',
         ], $this->stateful)->assertStatus(422);
+    }
+
+    public function test_reset_link_ignores_forged_host_header(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create();
+
+        $this->withServerVariables(['HTTP_HOST' => 'evil.test'])
+            ->postJson('/api/v1/auth/forgot-password', ['email' => $user->email], $this->stateful)
+            ->assertSuccessful();
+
+        Notification::assertSentTo($user, ResetPassword::class, function (ResetPassword $notification) use ($user): bool {
+            $mail = $notification->toMail($user);
+            $url = $mail instanceof MailMessage ? (string) $mail->actionUrl : '';
+
+            return str_starts_with($url, rtrim(config()->string('app.url'), '/').'/reset-password/')
+                && ! str_contains($url, 'evil.test');
+        });
+    }
+
+    public function test_forgot_password_is_rate_limited(): void
+    {
+        // An unknown address is rejected by the broker without its own cooldown, so only the throttle can answer 429.
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/v1/auth/forgot-password', ['email' => $i % 2 ? 'Nobody@Example.com' : 'nobody@example.com'], $this->stateful)
+                ->assertStatus(422);
+        }
+
+        $this->postJson('/api/v1/auth/forgot-password', ['email' => 'nobody@example.com'], $this->stateful)->assertStatus(429);
     }
 }

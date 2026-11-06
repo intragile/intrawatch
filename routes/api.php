@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function (): void {
     Route::get('/ping', PingController::class);
     Route::get('/setup', [SetupController::class, 'show']);
-    Route::post('/setup', [SetupController::class, 'store']);
+    Route::post('/setup', [SetupController::class, 'store'])->middleware('throttle:setup');
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/me', MeController::class);
