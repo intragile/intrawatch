@@ -36,14 +36,15 @@ final class CursorPage
         $limit = min(self::MAX_LIMIT, $request->integer('limit', self::DEFAULT_LIMIT));
 
         $base = $query instanceof Relation ? $query->getQuery() : $query;
-        if (($base->getQuery()->orders ?? []) === []) {
-            $query->orderBy($base->getModel()->getQualifiedKeyName());
+        $key = $base->getModel()->getQualifiedKeyName();
+        if (! self::orderedBy($base, $key)) {
+            $query->orderBy($key);
         }
 
         $cursor = null;
         if ($request->has('cursor')) {
             $cursor = Cursor::fromEncoded($request->string('cursor')->toString());
-            if ($cursor === null || ! self::matchesOrder($base, $cursor)) {
+            if ($cursor === null || ! self::isValidCursor($base, $cursor)) {
                 throw ValidationException::withMessages(['cursor' => ['The cursor is invalid.']]);
             }
         }
@@ -67,20 +68,42 @@ final class CursorPage
     /**
      * @param  Builder<*>  $query
      */
-    private static function matchesOrder(Builder $query, Cursor $cursor): bool
+    private static function orderedBy(Builder $query, string $column): bool
     {
-        $columns = [];
+        foreach ($query->getQuery()->orders ?? [] as $order) {
+            if (is_array($order) && ($order['column'] ?? null) === $column) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The cursor must carry a scalar for every ordered column, and an
+     * integer-like value for the integer primary key.
+     *
+     * @param  Builder<*>  $query
+     */
+    private static function isValidCursor(Builder $query, Cursor $cursor): bool
+    {
+        $parameters = $cursor->toArray();
+        $keyName = $query->getModel()->getKeyName();
+        $keyColumn = $query->getModel()->getQualifiedKeyName();
+
         foreach ($query->getQuery()->orders ?? [] as $order) {
             $column = is_array($order) ? ($order['column'] ?? null) : null;
             if (! is_string($column)) {
                 return false;
             }
-            $columns[] = $column;
-        }
-
-        foreach ($columns as $column) {
             $name = str_contains($column, '.') ? substr($column, (int) strrpos($column, '.') + 1) : $column;
-            if (! array_key_exists($column, $cursor->toArray()) && ! array_key_exists($name, $cursor->toArray())) {
+            $value = $parameters[$column] ?? $parameters[$name] ?? null;
+
+            if (! is_scalar($value)) {
+                return false;
+            }
+            if (($column === $keyColumn || $name === $keyName) && $query->getModel()->getKeyType() === 'int'
+                && filter_var($value, FILTER_VALIDATE_INT) === false) {
                 return false;
             }
         }

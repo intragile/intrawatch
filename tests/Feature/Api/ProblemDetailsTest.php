@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -46,6 +47,25 @@ class ProblemDetailsTest extends TestCase
             ->assertHeader('Content-Type', 'application/problem+json')
             ->assertJsonPath('status', 422)
             ->assertJsonStructure(['type', 'title', 'status', 'errors' => ['name']]);
+    }
+
+    public function test_validation_exception_keeps_its_status(): void
+    {
+        Route::middleware('api')->get('api/v1/_probe/lockout', fn () => throw ValidationException::withMessages(['email' => ['Too many.']])->status(429));
+
+        $this->assertProblem($this->getJson('/api/v1/_probe/lockout'), 429, 'Too Many Requests');
+    }
+
+    public function test_login_lockout_is_429_problem(): void
+    {
+        $user = User::factory()->create();
+        $credentials = ['email' => $user->email, 'password' => 'wrong-password'];
+        for ($i = 0; $i < 6; $i++) {
+            $this->postJson('/api/v1/auth/login', $credentials);
+        }
+        $last = $this->postJson('/api/v1/auth/login', $credentials);
+
+        $this->assertProblem($last, 429, 'Too Many Requests');
     }
 
     public function test_unauthenticated_is_401_problem(): void

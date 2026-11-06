@@ -36,7 +36,7 @@ final class ProblemRenderer
         $type = 'about:blank';
 
         if ($e instanceof ValidationException) {
-            $status = 422;
+            $status = $e->status;
             $detail = $e->getMessage();
             $errors = $e->errors();
         } elseif ($e instanceof AuthenticationException) {

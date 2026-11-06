@@ -104,7 +104,11 @@ jobs:
 
       - name: OpenAPI spec is current
         if: matrix.db == 'sqlite'
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ${{ runner.temp }}/spec.sqlite
         run: |
+          touch "$DB_DATABASE"
           php artisan migrate --force
           php artisan scramble:export --path=/tmp/o.json
           diff -q /tmp/o.json docs/openapi.json

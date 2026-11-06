@@ -72,4 +72,18 @@ class CursorPageTest extends TestCase
         $this->actingAs($user, 'sanctum')->getJson('/api/v1/workspaces?cursor='.$tampered)
             ->assertStatus(422)->assertJsonStructure(['errors' => ['cursor']]);
     }
+
+    public function test_cursor_with_bad_values_is_422_problem(): void
+    {
+        $user = $this->userWithWorkspaces(2);
+        $encode = fn (array $p): string => rtrim(strtr(base64_encode((string) json_encode($p)), '+/', '-_'), '=');
+
+        foreach ([['workspaces.id' => 'abc'], ['workspaces.id' => [1]], ['workspaces.id' => null]] as $params) {
+            $this->actingAs($user, 'sanctum')
+                ->getJson('/api/v1/workspaces?cursor='.$encode($params + ['_pointsToNextItems' => true]))
+                ->assertStatus(422)
+                ->assertHeader('Content-Type', 'application/problem+json')
+                ->assertJsonStructure(['errors' => ['cursor']]);
+        }
+    }
 }
