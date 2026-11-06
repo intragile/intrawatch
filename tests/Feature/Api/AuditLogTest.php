@@ -305,7 +305,8 @@ class AuditLogTest extends TestCase
             'settings' => [['theme' => 'dark', 'smtp' => ['host' => 'mx', 'Password' => 'p']], ['list' => [['api_token' => 't', 'id' => 1]]]],
         ]);
 
-        $this->assertSame([
+        // Equality, not identity: MySQL's JSON type does not preserve key order.
+        $this->assertEquals([
             'name' => ['a', 'b'],
             'settings' => [['theme' => 'dark', 'smtp' => ['host' => 'mx']], ['list' => [['id' => 1]]]],
         ], $event->fresh()?->changes);

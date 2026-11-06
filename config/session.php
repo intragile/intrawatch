@@ -127,9 +127,10 @@ return [
     |
     */
 
+    // Derived from the application name (config/app.php is loaded first), never the framework default.
     'cookie' => env(
         'SESSION_COOKIE',
-        Str::slug((string) env('APP_NAME', 'laravel')).'-session'
+        Str::slug((string) config('app.name')).'-session'
     ),
 
     /*
