@@ -23,6 +23,7 @@ class ResolveWorkspace
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+        abort_unless($user instanceof User, 401);
         $route = $request->route();
         $parameter = $route?->parameter('workspace');
 
@@ -30,9 +31,15 @@ class ResolveWorkspace
             ? $parameter
             : (is_string($parameter) ? Workspace::where('slug', $parameter)->first() : null);
 
-        $role = $user instanceof User && $workspace !== null ? $user->roleIn($workspace) : null;
+        $role = $workspace !== null ? $user->roleIn($workspace) : null;
 
         if ($workspace === null || $role === null) {
+            abort(404);
+        }
+
+        $token = $user->authenticatedByToken() ? $user->currentAccessToken() : null;
+
+        if ($token !== null && $token->getAttribute('workspace_id') !== $workspace->id) {
             abort(404);
         }
 

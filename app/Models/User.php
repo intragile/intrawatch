@@ -13,6 +13,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Laravel\Sanctum\HasApiTokens;
+use Laravel\Sanctum\PersonalAccessToken;
+use Laravel\Sanctum\TransientToken;
 
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
@@ -25,7 +28,14 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, TwoFactorAuthenticatable;
+    use HasApiTokens, HasFactory, Notifiable, TwoFactorAuthenticatable;
+
+    /**
+     * The token of the current request: a personal access token, or a transient one for session requests.
+     *
+     * @var PersonalAccessToken|TransientToken|null
+     */
+    protected $accessToken;
 
     /**
      * Get the attributes that should be cast.
@@ -58,5 +68,13 @@ class User extends Authenticatable
             ->where('workspace_id', $workspace->id)
             ->where('user_id', $this->id)
             ->first()?->role;
+    }
+
+    /**
+     * Whether the current request was authenticated by a personal access token rather than a session.
+     */
+    public function authenticatedByToken(): bool
+    {
+        return $this->accessToken !== null && ! $this->accessToken instanceof TransientToken;
     }
 }

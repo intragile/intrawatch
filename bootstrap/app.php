@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\SetupAlreadyCompleted;
+use App\Http\Middleware\EnsureTokenAbility;
 use App\Http\Middleware\ResolveWorkspace;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
         $middleware->alias([
             'workspace' => ResolveWorkspace::class,
+            'ability' => EnsureTokenAbility::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
