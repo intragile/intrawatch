@@ -24,6 +24,7 @@ final readonly class PeerCertificate
         public int $notAfter,
         public string $fingerprint,
         public bool $isCa,
+        public bool $hasCaIssuersUrl,
     ) {}
 
     public static function fromPem(string $pem): ?self
@@ -59,6 +60,7 @@ final readonly class PeerCertificate
             notAfter: is_int($info['validTo_time_t'] ?? null) ? $info['validTo_time_t'] : 0,
             fingerprint: strtolower($fingerprint),
             isCa: stripos($constraints, 'CA:TRUE') !== false,
+            hasCaIssuersUrl: is_string($extensions['authorityInfoAccess'] ?? null) && stripos($extensions['authorityInfoAccess'], 'CA Issuers') !== false,
         );
     }
 
@@ -78,6 +80,11 @@ final readonly class PeerCertificate
     public function isExpiredAt(CarbonImmutable $now): bool
     {
         return $now->getTimestamp() > $this->notAfter;
+    }
+
+    public function isNotYetValidAt(CarbonImmutable $now): bool
+    {
+        return $now->getTimestamp() < $this->notBefore;
     }
 
     /**

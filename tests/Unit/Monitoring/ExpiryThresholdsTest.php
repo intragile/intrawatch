@@ -27,4 +27,12 @@ class ExpiryThresholdsTest extends TestCase
         $this->assertSame('ok', ExpiryThresholds::band(5, []));
         $this->assertSame('expired', ExpiryThresholds::band(-30, []));
     }
+
+    public function test_expiry_messages(): void
+    {
+        $this->assertSame('Certificate expires in 3 days', ExpiryThresholds::expiresIn('Certificate', 3));
+        $this->assertSame('Certificate expires in 1 day', ExpiryThresholds::expiresIn('Certificate', 1));
+        $this->assertSame('Certificate expires today', ExpiryThresholds::expiresIn('Certificate', 0));
+        $this->assertSame('Certificate expired', ExpiryThresholds::expiresIn('Certificate', -40));
+    }
 }

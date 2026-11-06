@@ -43,12 +43,13 @@ final class ExpiryThresholds
     }
 
     /**
-     * A short message such as "Certificate expires in 3 days".
+     * A short message such as "Certificate expires in 3 days", or "Certificate expired" once past.
      */
     public static function expiresIn(string $subject, int $daysLeft): string
     {
         return match (true) {
-            $daysLeft <= 0 => "{$subject} expires today",
+            $daysLeft < 0 => "{$subject} expired",
+            $daysLeft === 0 => "{$subject} expires today",
             $daysLeft === 1 => "{$subject} expires in 1 day",
             default => "{$subject} expires in {$daysLeft} days",
         };

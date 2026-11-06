@@ -33,7 +33,7 @@ final class TlsFixtures
     /** *.wild.test, issued by the root. */
     public readonly string $wildcard;
 
-    /** secure.test, issued by the intermediate and served without it. */
+    /** secure.test, issued by the intermediate with a CA Issuers URL, and served without the intermediate. */
     public readonly string $missingIntermediate;
 
     /** The same leaf as $missingIntermediate, served together with the intermediate. */
@@ -90,6 +90,12 @@ final class TlsFixtures
             keyUsage = critical,digitalSignature,keyEncipherment
             extendedKeyUsage = serverAuth
             subjectAltName = DNS:other.test
+            [aia_ext]
+            basicConstraints = CA:FALSE
+            keyUsage = critical,digitalSignature,keyEncipherment
+            extendedKeyUsage = serverAuth
+            subjectAltName = DNS:secure.test
+            authorityInfoAccess = caIssuers;URI:http://ca.invalid/intermediate.crt
             [wild_ext]
             basicConstraints = CA:FALSE
             keyUsage = critical,digitalSignature,keyEncipherment
@@ -109,7 +115,7 @@ final class TlsFixtures
             [$expiring, $expiringKey] = $this->issue('secure.test', 'secure_ext', 3, $root, $rootKey);
             [$wrongHost, $wrongHostKey] = $this->issue('other.test', 'other_ext', 90, $root, $rootKey);
             [$wildcard, $wildcardKey] = $this->issue('*.wild.test', 'wild_ext', 90, $root, $rootKey);
-            [$chained, $chainedKey] = $this->issue('secure.test', 'secure_ext', 90, $intermediate, $intermediateKey);
+            [$chained, $chainedKey] = $this->issue('secure.test', 'aia_ext', 90, $intermediate, $intermediateKey);
             [$selfSigned, $selfSignedKey] = $this->issue('secure.test', 'secure_ext', 90, null, null);
 
             $this->validCertificate = $this->pem($valid);

@@ -4,9 +4,7 @@ namespace App\Monitoring\Checks;
 
 use Amp\Cancellation;
 use Amp\CancelledException;
-use Amp\CompositeCancellation;
 use Amp\Socket\ConnectException;
-use Amp\TimeoutCancellation;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Net\BlockedTarget;
@@ -39,7 +37,8 @@ final class TlsChecker implements Checker
                 is_string($config['starttls'] ?? null) ? $config['starttls'] : 'none',
                 is_string($servername) ? $servername : null,
                 $checkProtocols,
-                new CompositeCancellation($cancellation, new TimeoutCancellation($timeout)),
+                $cancellation,
+                (float) $timeout,
             );
         } catch (CancelledException) {
             $cancellation->throwIfRequested();
@@ -84,7 +83,7 @@ final class TlsChecker implements Checker
         if ($report->daysLeft < $degradedBelow) {
             $reasons[] = ExpiryThresholds::expiresIn('Certificate', $report->daysLeft);
         }
-        if ($report->deprecatedProtocols !== []) {
+        if ($report->deprecatedProtocols !== null && $report->deprecatedProtocols !== []) {
             $reasons[] = 'Deprecated protocols accepted: '.implode(', ', $report->deprecatedProtocols);
         }
         if (($config['check_ciphers'] ?? true) === true && $report->hasWeakCipher()) {

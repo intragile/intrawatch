@@ -30,8 +30,13 @@ final class TlsFixtureServer
 
     private string $certificate;
 
+    /** Connections accepted so far. */
+    public int $connections = 0;
+
     /**
-     * @param  string  $mode  none, smtp, imap, pop3, smtp-without-starttls, flood or hang
+     * @param  string  $mode  none, smtp, imap, imap-untagged, pop3, smtp-without-starttls, flood, hang,
+     *                        hang-after-first (serves the first connection, never answers later ones) or
+     *                        reset-first (closes the first connection at once, serves later ones)
      * @param  array<string, mixed>  $sslOptions  Extra ssl stream context options applied to every connection.
      */
     public function __construct(string $certificate, private readonly string $mode = 'none', private readonly array $sslOptions = [])
@@ -44,8 +49,18 @@ final class TlsFixtureServer
         async(function () use ($server): void {
             while ($client = $server->accept()) {
                 $this->sockets[] = $client;
-                async(function () use ($client): void {
+                $number = ++$this->connections;
+                async(function () use ($client, $number): void {
                     try {
+                        if ($this->mode === 'reset-first' && $number === 1) {
+                            return;
+                        }
+                        if ($this->mode === 'hang-after-first' && $number > 1) {
+                            // Swallow the ClientHello and anything after it without answering.
+                            while ($client->read() !== null);
+
+                            return;
+                        }
                         $this->serve($client);
                     } catch (Throwable) {
                         // The client went away or the handshake failed; both are expected in tests.
@@ -88,6 +103,7 @@ final class TlsFixtureServer
             'flood' => $this->flood($client),
             'smtp' => $this->dialog($client, "220 fixture ESMTP\r\n", [['EHLO', "250-fixture\r\n250-PIPELINING\r\n250 STARTTLS\r\n"], ['STARTTLS', "220 Ready to start TLS\r\n"]]),
             'smtp-without-starttls' => $this->dialog($client, "220 fixture ESMTP\r\n", [['EHLO', "250-fixture\r\n250 PIPELINING\r\n"], ['STARTTLS', "502 Not implemented\r\n"]]),
+            'imap-untagged' => $this->dialog($client, "* OK fixture ready\r\n", [['CAPABILITY', "* CAPABILITY IMAP4rev1 STARTTLS\r\n%s OK done\r\n"], ['STARTTLS', "* OK [ALERT] Upgrading\r\n%s OK Begin TLS\r\n"]]),
             'imap' => $this->dialog($client, "* OK fixture ready\r\n", [['CAPABILITY', "* CAPABILITY IMAP4rev1 STARTTLS LOGINDISABLED\r\n%s OK done\r\n"], ['STARTTLS', "%s OK Begin TLS\r\n"]]),
             'pop3' => $this->dialog($client, "+OK fixture ready\r\n", [['CAPA', "+OK\r\nUSER\r\nSTLS\r\n.\r\n"], ['STLS', "+OK Begin TLS\r\n"]]),
             default => null,
@@ -132,7 +148,7 @@ final class TlsFixtureServer
             }
             [$line, $buffer] = explode("\r\n", $buffer, 2);
             $parts = explode(' ', $line);
-            $tag = $this->mode === 'imap' ? array_shift($parts) : '';
+            $tag = str_starts_with($this->mode, 'imap') ? array_shift($parts) : '';
             if (strtoupper($parts[0]) !== $command) {
                 $client->write("500 Unexpected command\r\n");
 

@@ -25,7 +25,8 @@ final readonly class TlsReport
      * @param  string|null  $error  Why verification failed: one of the error constants; null when valid.
      * @param  string  $notAfter  ISO 8601 expiry of the leaf certificate.
      * @param  list<string>  $names  DNS names and the common name the leaf certificate presents.
-     * @param  list<string>  $deprecatedProtocols  Deprecated protocol versions the server accepted, such as TLSv1.0.
+     * @param  list<string>|null  $deprecatedProtocols  Deprecated protocol versions the server accepted, such as
+     *                                                  TLSv1.0; null when the probes were skipped or ran out of time.
      * @param  int  $latencyMs  Duration of the first connection, from connect to the end of the handshake.
      */
     public function __construct(
@@ -39,7 +40,7 @@ final readonly class TlsReport
         public string $fingerprint,
         public string $protocol,
         public string $cipher,
-        public array $deprecatedProtocols,
+        public ?array $deprecatedProtocols,
         public int $latencyMs,
     ) {}
 

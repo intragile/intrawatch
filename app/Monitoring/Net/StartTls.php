@@ -104,7 +104,13 @@ final class StartTls
         }
 
         $this->send("a2 STARTTLS\r\n");
-        if (! str_starts_with(strtoupper($this->line()), 'A2 OK')) {
+        // Untagged responses may arrive at any time before the tagged one (RFC 3501, section 2.2.2).
+        for ($i = 0; ! str_starts_with($upper = strtoupper($this->line()), 'A2 '); $i++) {
+            if ($i >= self::MAX_LINES || ! str_starts_with($upper, '* ')) {
+                throw TlsFailure::startTlsFailed();
+            }
+        }
+        if (! str_starts_with($upper, 'A2 OK')) {
             throw TlsFailure::startTlsFailed();
         }
     }

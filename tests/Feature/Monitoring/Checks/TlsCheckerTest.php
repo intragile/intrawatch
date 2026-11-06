@@ -3,6 +3,9 @@
 namespace Tests\Feature\Monitoring\Checks;
 
 use Amp\NullCancellation;
+use Amp\Socket\ClientTlsContext;
+use Amp\Socket\ConnectContext;
+use Amp\Socket\ResourceSocket;
 use App\Enums\MonitorStatus;
 use App\Enums\MonitorType;
 use App\Models\Monitor;
@@ -15,13 +18,19 @@ use App\Monitoring\Engine\ResultRecorder;
 use App\Monitoring\Net\GuardedConnector;
 use App\Monitoring\Net\NetworkPolicy;
 use App\Monitoring\Net\TlsInspector;
+use App\Monitoring\Worker\Clock;
 use App\Monitoring\Worker\SystemClock;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Tests\Support\FakeClock;
 use Tests\Support\StubDnsResolver;
 use Tests\Support\TlsFixtures;
 use Tests\Support\TlsFixtureServer;
 use Tests\TestCase;
+use Throwable;
+
+use function Amp\Socket\connect;
 
 class TlsCheckerTest extends TestCase
 {
@@ -70,11 +79,11 @@ class TlsCheckerTest extends TestCase
     /**
      * @param  list<string>  $blocked
      */
-    private function checker(array $blocked = []): TlsChecker
+    private function checker(array $blocked = [], ?Clock $clock = null, bool $trustTestCa = true): TlsChecker
     {
         $connector = new GuardedConnector(new StubDnsResolver(self::HOSTS), new NetworkPolicy($blocked));
 
-        return new TlsChecker(new TlsInspector($connector, new SystemClock, $this->fixtures()->caFile));
+        return new TlsChecker(new TlsInspector($connector, $clock ?? new SystemClock, $trustTestCa ? $this->fixtures()->caFile : null));
     }
 
     /**
@@ -252,7 +261,8 @@ class TlsCheckerTest extends TestCase
         // A server that speaks TLS right away is not an SMTP server.
         $plain = $this->probe(['port' => $this->serve($this->fixtures()->valid)->port(), 'starttls' => 'imap'], timeout: 2);
         $this->assertSame(MonitorStatus::Down, $plain->status);
-        $this->assertContains($plain->message, ['STARTTLS failed', 'Timed out after 2 s']);
+        // The server waits for a ClientHello and the client for a greeting, so nothing happens until the timeout.
+        $this->assertSame('Timed out after 2 s', $plain->message);
     }
 
     public function test_server_that_never_answers_times_out(): void
@@ -302,12 +312,12 @@ class TlsCheckerTest extends TestCase
             'security_level' => 0,
         ])->port();
 
-        $outcome = $this->probe(['port' => $port]);
-        $deprecated = $outcome->facts['tls.deprecated_protocols'];
-        if ($deprecated === []) {
-            $this->markTestSkipped('The local OpenSSL refuses TLS 1.0 and 1.1 on both ends.');
+        if (! $this->acceptsTls10($port)) {
+            $this->markTestSkipped('The local OpenSSL refuses a TLS 1.0 handshake on both ends.');
         }
 
+        $outcome = $this->probe(['port' => $port]);
+        $deprecated = $outcome->facts['tls.deprecated_protocols'];
         $this->assertSame(['TLSv1.0', 'TLSv1.1'], $deprecated);
         $this->assertSame(MonitorStatus::Degraded, $outcome->status);
         $this->assertSame('Deprecated protocols accepted: TLSv1.0, TLSv1.1', $outcome->message);
@@ -315,6 +325,100 @@ class TlsCheckerTest extends TestCase
         $unchecked = $this->probe(['port' => $port, 'check_protocols' => false]);
         $this->assertSame(MonitorStatus::Up, $unchecked->status);
         $this->assertSame([], $unchecked->facts['tls.deprecated_protocols']);
+    }
+
+    /**
+     * A direct TLS 1.0 handshake outside the inspector, to learn whether this OpenSSL can speak it at all.
+     */
+    private function acceptsTls10(int $port): bool
+    {
+        $context = (new ClientTlsContext('secure.test'))->withoutPeerVerification()->withSecurityLevel(0)->withCiphers('DEFAULT:@SECLEVEL=0');
+
+        try {
+            $socket = connect("127.0.0.1:{$port}", new ConnectContext);
+            $resource = $socket instanceof ResourceSocket ? $socket->getResource() : null;
+            $options = $context->toStreamContextArray()['ssl'];
+            if (! is_resource($resource) || ! is_array($options)) {
+                return false;
+            }
+            $options['crypto_method'] = STREAM_CRYPTO_METHOD_TLSv1_0_CLIENT;
+            stream_context_set_options($resource, ['ssl' => $options]);
+            $socket->setupTls();
+            $version = $socket->getTlsInfo()?->getVersion();
+            $socket->close();
+
+            return $version === 'TLSv1';
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    public function test_unanswered_protocol_probes_never_turn_a_valid_certificate_down(): void
+    {
+        $server = $this->serve($this->fixtures()->valid, 'hang-after-first');
+        $started = microtime(true);
+
+        $outcome = $this->probe(['port' => $server->port()], timeout: 2);
+
+        $this->assertSame(MonitorStatus::Up, $outcome->status, $outcome->message);
+        $this->assertContains($outcome->facts['tls.days_left'], [89, 90]);
+        // The probes ran out of time, so whether old protocols are offered is unknown.
+        $this->assertNull($outcome->facts['tls.deprecated_protocols']);
+        $this->assertLessThan(2.5, microtime(true) - $started);
+    }
+
+    public function test_probes_are_skipped_for_an_invalid_certificate(): void
+    {
+        $server = $this->serve($this->fixtures()->wrongHost);
+
+        $outcome = $this->probe(['port' => $server->port()]);
+
+        $this->assertSame('Certificate hostname_mismatch', $outcome->message);
+        $this->assertSame(3, $server->connections, 'Verified, unverified and confirming handshakes only.');
+        $this->assertNull($outcome->facts['tls.deprecated_protocols']);
+    }
+
+    public function test_starttls_probes_stop_after_tls11_is_refused(): void
+    {
+        $server = $this->serve($this->fixtures()->valid, 'smtp');
+
+        $outcome = $this->probe(['port' => $server->port(), 'starttls' => 'smtp']);
+
+        $this->assertSame(MonitorStatus::Up, $outcome->status, $outcome->message);
+        $this->assertSame(2, $server->connections, 'The main handshake and the TLS 1.1 probe.');
+    }
+
+    public function test_a_reset_first_handshake_is_confirmed_before_reporting_a_certificate_error(): void
+    {
+        $server = $this->serve($this->fixtures()->valid, 'reset-first');
+
+        $outcome = $this->probe(['port' => $server->port(), 'check_protocols' => false]);
+
+        $this->assertSame(MonitorStatus::Up, $outcome->status, $outcome->message);
+        $this->assertSame(3, $server->connections);
+    }
+
+    public function test_leaf_only_chains_from_an_unknown_ca_and_not_yet_valid_certificates_are_untrusted(): void
+    {
+        // Without the test CA, a leaf without a CA Issuers URL is an unknown CA, not a missing intermediate.
+        $untrusted = $this->probe(['port' => $this->serve($this->fixtures()->valid)->port()], checker: $this->checker(trustTestCa: false));
+        $this->assertSame('Certificate untrusted_chain', $untrusted->message);
+
+        // A day before issue, the leaf is not valid yet; that is not reported as a missing intermediate.
+        try {
+            $early = $this->probe(['port' => $this->serve($this->fixtures()->missingIntermediate)->port()], checker: $this->checker(clock: new FakeClock(CarbonImmutable::now()->subDay())));
+        } finally {
+            CarbonImmutable::setTestNow();
+            Carbon::setTestNow();
+        }
+        $this->assertSame('Certificate untrusted_chain', $early->message);
+    }
+
+    public function test_starttls_imap_accepts_untagged_lines_before_the_tagged_reply(): void
+    {
+        $outcome = $this->probe(['port' => $this->serve($this->fixtures()->valid, 'imap-untagged')->port(), 'starttls' => 'imap']);
+
+        $this->assertSame(MonitorStatus::Up, $outcome->status, $outcome->message);
     }
 
     public function test_tls_type_is_registered(): void

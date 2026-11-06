@@ -31,6 +31,12 @@ final class TlsInspector
     /** Each deprecated-protocol probe gives up after this many seconds and counts as "not offered". */
     private const PROBE_TIMEOUT = 3.0;
 
+    /** Time kept back from the check's deadline for the checker to finish after the probes. */
+    private const PROBE_MARGIN = 0.1;
+
+    /** Probes are not started with less time than this left. */
+    private const MIN_PROBE_TIME = 0.2;
+
     /** The connect phase is bounded by the caller's cancellation; this only keeps amphp's own limit out of the way. */
     private const CONNECT_TIMEOUT = 120.0;
 
@@ -47,6 +53,11 @@ final class TlsInspector
     ) {}
 
     /**
+     * With $timeoutSeconds, the certificate handshakes end at that deadline while the deprecated-protocol probes
+     * only use the time left: a probe that runs out of time is reported as unknown and never fails the
+     * inspection. $cancellation then stands for the caller's own cancellation, such as a worker shutdown, and is
+     * the only thing that aborts the probes. Without $timeoutSeconds, $cancellation bounds everything.
+     *
      * @param  string  $starttls  none, smtp, imap or pop3
      *
      * @throws TlsFailure When no certificate could be read: a failed handshake or STARTTLS dialog.
@@ -54,12 +65,16 @@ final class TlsInspector
      * @throws BlockedTarget
      * @throws ConnectException
      */
-    public function inspect(string $host, int $port, string $starttls, ?string $servername, bool $checkProtocols, Cancellation $cancellation): TlsReport
+    public function inspect(string $host, int $port, string $starttls, ?string $servername, bool $checkProtocols, Cancellation $cancellation, ?float $timeoutSeconds = null): TlsReport
     {
         $peerName = $servername !== null && $servername !== '' ? $servername : trim($host, '[]');
         $verified = $this->context($peerName, verify: true);
         $started = hrtime(true);
         $error = null;
+        $caller = $cancellation;
+        if ($timeoutSeconds !== null) {
+            $cancellation = new CompositeCancellation($caller, new TimeoutCancellation($timeoutSeconds));
+        }
 
         try {
             $session = $this->handshake($host, $port, $starttls, $verified, null, $cancellation);
@@ -105,7 +120,12 @@ final class TlsInspector
             fingerprint: $leaf->fingerprint,
             protocol: $session->getVersion(),
             cipher: $session->getCipherName(),
-            deprecatedProtocols: $checkProtocols ? $this->deprecatedProtocols($host, $port, $starttls, $peerName, $cancellation) : [],
+            deprecatedProtocols: match (true) {
+                ! $checkProtocols => [],
+                // The check is down for the certificate anyway; spare the server further connections.
+                $error !== null => null,
+                default => $this->deprecatedProtocols($host, $port, $starttls, $peerName, $caller, $this->probeBudget($timeoutSeconds, $started)),
+            },
             latencyMs: $latencyMs,
         );
     }
@@ -132,6 +152,10 @@ final class TlsInspector
         if ($leaf->isSelfIssued()) {
             return TlsReport::SELF_SIGNED;
         }
+        if ($leaf->isNotYetValidAt($this->clock->now())) {
+            // There is no code of its own for this; it is closest to a chain that does not verify.
+            return TlsReport::UNTRUSTED_CHAIN;
+        }
 
         // Follow issuer links through the certificates that were sent.
         $bySubject = [];
@@ -145,8 +169,9 @@ final class TlsInspector
             $top = $issuer;
         }
 
-        if ($top === $leaf) {
-            // The server sent no issuer for its certificate: the intermediate is missing.
+        if ($top === $leaf && $leaf->hasCaIssuersUrl) {
+            // The server sent no issuer for a certificate that names where its issuer is published, as public
+            // CA leaves do: the intermediate is missing. Without such a URL an unknown CA is far more likely.
             return TlsReport::INCOMPLETE_CHAIN;
         }
 
@@ -154,38 +179,87 @@ final class TlsInspector
     }
 
     /**
-     * @return list<string>
+     * Seconds each probe may take: at most PROBE_TIMEOUT and never beyond the check's deadline; null when too
+     * little time is left to probe at all.
      */
-    private function deprecatedProtocols(string $host, int $port, string $starttls, string $peerName, Cancellation $cancellation): array
+    private function probeBudget(?float $timeoutSeconds, int $started): ?float
     {
+        if ($timeoutSeconds === null) {
+            return self::PROBE_TIMEOUT;
+        }
+
+        $remaining = $timeoutSeconds - (hrtime(true) - $started) / 1e9 - self::PROBE_MARGIN;
+
+        return $remaining < self::MIN_PROBE_TIME ? null : min(self::PROBE_TIMEOUT, $remaining);
+    }
+
+    /**
+     * The deprecated protocols the server accepted, or null when that could not be determined in time.
+     *
+     * Behind STARTTLS every probe repeats the whole mail dialog, so TLS 1.0 is only tried once TLS 1.1 was
+     * accepted; a server that refuses TLS 1.1 is not expected to accept TLS 1.0.
+     *
+     * @return list<string>|null
+     *
+     * @throws CancelledException When $cancellation is requested.
+     */
+    private function deprecatedProtocols(string $host, int $port, string $starttls, string $peerName, Cancellation $cancellation, ?float $budget): ?array
+    {
+        if ($budget === null) {
+            return null;
+        }
+
+        if ($starttls === 'none') {
+            [$errors, $results] = Future\awaitAll([
+                'TLSv1.0' => async(fn (): ?bool => $this->probe('TLSv1.0', $host, $port, $starttls, $peerName, $cancellation, $budget)),
+                'TLSv1.1' => async(fn (): ?bool => $this->probe('TLSv1.1', $host, $port, $starttls, $peerName, $cancellation, $budget)),
+            ]);
+            foreach ($errors as $error) {
+                throw $error;
+            }
+        } else {
+            $results = ['TLSv1.1' => $this->probe('TLSv1.1', $host, $port, $starttls, $peerName, $cancellation, $budget)];
+            $results['TLSv1.0'] = $results['TLSv1.1'] === true
+                ? $this->probe('TLSv1.0', $host, $port, $starttls, $peerName, $cancellation, $budget)
+                : false;
+        }
+
+        $accepted = [];
+        $unknown = false;
+        foreach (array_keys(self::DEPRECATED_PROTOCOLS) as $name) {
+            $result = $results[$name] ?? null;
+            if ($result === true) {
+                $accepted[] = $name;
+            }
+            $unknown = $unknown || $result === null;
+        }
+
+        return $accepted === [] && $unknown ? null : $accepted;
+    }
+
+    /**
+     * One handshake restricted to a deprecated protocol: true when accepted, false when refused, null when it
+     * ran out of time.
+     */
+    private function probe(string $name, string $host, int $port, string $starttls, string $peerName, Cancellation $cancellation, float $budget): ?bool
+    {
+        [$method, $reported] = self::DEPRECATED_PROTOCOLS[$name];
         $context = $this->context($peerName, verify: false)
             ->withSecurityLevel(0)
             ->withCiphers('DEFAULT:@SECLEVEL=0');
 
-        $probes = [];
-        foreach (self::DEPRECATED_PROTOCOLS as $name => [$method, $reported]) {
-            $probes[$name] = async(function () use ($host, $port, $starttls, $context, $method, $reported, $cancellation): bool {
-                $probe = new CompositeCancellation($cancellation, new TimeoutCancellation(self::PROBE_TIMEOUT));
+        try {
+            $session = $this->handshake($host, $port, $starttls, $context, $method, new CompositeCancellation($cancellation, new TimeoutCancellation($budget)));
 
-                try {
-                    return $this->handshake($host, $port, $starttls, $context, $method, $probe)->getVersion() === $reported;
-                } catch (CancelledException $e) {
-                    $cancellation->throwIfRequested();
+            return $session->getVersion() === $reported;
+        } catch (CancelledException) {
+            $cancellation->throwIfRequested();
 
-                    return false;
-                } catch (Throwable) {
-                    // A refusal by either side, including the local OpenSSL, means the protocol is not offered.
-                    return false;
-                }
-            });
+            return null;
+        } catch (Throwable) {
+            // A refusal by either side, including the local OpenSSL, means the protocol is not offered.
+            return false;
         }
-
-        [$errors, $accepted] = Future\awaitAll($probes);
-        foreach ($errors as $error) {
-            throw $error;
-        }
-
-        return array_keys(array_filter($accepted));
     }
 
     private function handshake(string $host, int $port, string $starttls, ClientTlsContext $tls, ?int $cryptoMethod, Cancellation $cancellation): TlsInfo
