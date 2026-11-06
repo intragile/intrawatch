@@ -23,10 +23,19 @@ use Throwable;
  * A single deadlock, busy or lock-timeout error, or any burst shorter than that, is not one: reports kept
  * arriving meanwhile.
  *
- * Deadlines are held back for at most MAX_HOLD_SECONDS after the start of a failure (see holdingSince()), and
- * the window reported to the listeners never extends past that cap: a dead monitor is never hidden longer
- * because some database call keeps failing. All moments are kept at whole seconds, the precision at which
- * deadlines are stored.
+ * Deadlines due since the start of a failure are held back (see holdingSince()) and re-anchored when it ends.
+ * How long depends on what fails:
+ * - Full failure: the last deadline read and the last write (outcome or worker heartbeat) both failed. Reports
+ *   may be lost and nothing can be recorded, so there is no cap: the whole span is held back and re-anchored.
+ * - Partial failure: one kind still works. Only MAX_HOLD_SECONDS spent in this state are allowed per failure,
+ *   so a call that keeps failing never hides a dead monitor for longer. When they are used up, holding stops,
+ *   and the window re-anchored for this failure ends at the moment the cap was reached.
+ * - A failure that switches between the two counts only its partial time against the cap. A full failure
+ *   that starts after the cap was used up opens a new window from that moment, again held back and
+ *   re-anchored as a whole, with a fresh cap for the partial time after it.
+ * A failed heartbeat only marks writes as failing for this distinction; it never starts a failure.
+ *
+ * All moments are kept at whole seconds, the precision at which deadlines are stored.
  */
 final class OutageTracker
 {
@@ -40,6 +49,26 @@ final class OutageTracker
 
     private ?CarbonImmutable $writtenAt = null;
 
+    /** Whether the last deadline read failed. */
+    private bool $readFailing = false;
+
+    /** Whether the last write, an outcome write or a heartbeat, failed. */
+    private bool $writeFailing = false;
+
+    /** The start of the whole failure, which decides whether it was an outage. */
+    private ?CarbonImmutable $firstFailure = null;
+
+    /** Seconds spent in a partial failure since failingSince, up to accountedAt. */
+    private int $partialSeconds = 0;
+
+    private int $accountedAt = 0;
+
+    /** When the partial-failure cap of the current window was reached, if it was. */
+    private ?CarbonImmutable $capReachedAt = null;
+
+    /** @var list<array{0: CarbonImmutable, 1: CarbonImmutable}> Earlier windows of this failure, closed at their cap. */
+    private array $windows = [];
+
     /** @var list<Closure(CarbonImmutable, CarbonImmutable, CarbonImmutable): void> */
     private array $listeners = [];
 
@@ -49,8 +78,8 @@ final class OutageTracker
     }
 
     /**
-     * Each listener is called with the start of an outage, the end of its window to re-anchor (at most
-     * MAX_HOLD_SECONDS after the start) and the end of the outage.
+     * Each listener is called, once per window to re-anchor, with the start and the end of the window and the
+     * end of the outage. A window ends at the end of the outage, or where its partial-failure cap was reached.
      *
      * @param  Closure(CarbonImmutable, CarbonImmutable, CarbonImmutable): void  $listener
      */
@@ -66,8 +95,11 @@ final class OutageTracker
      */
     public function readFailed(CarbonImmutable $at, ?CarbonImmutable $earliestDue = null): void
     {
+        $this->account($at);
         $this->start($at, $earliestDue);
         $this->readAt = null;
+        $this->readFailing = true;
+        $this->reopen($at);
     }
 
     /**
@@ -77,12 +109,28 @@ final class OutageTracker
      */
     public function writeFailed(CarbonImmutable $at, ?CarbonImmutable $earliestDue = null): void
     {
+        $this->account($at);
         $this->start($at, $earliestDue);
         $this->writtenAt = null;
+        $this->writeFailing = true;
+        $this->reopen($at);
+    }
+
+    /**
+     * Writing the worker heartbeat failed at $at. It tells a full failure from a partial one, but neither
+     * starts a failure nor keeps one from ending.
+     */
+    public function heartbeatFailed(CarbonImmutable $at): void
+    {
+        $this->account($at);
+        $this->writeFailing = true;
+        $this->reopen($at);
     }
 
     public function readSucceeded(CarbonImmutable $at): void
     {
+        $this->account($at);
+        $this->readFailing = false;
         if ($this->failingSince !== null) {
             $this->readAt = $at->startOfSecond();
             $this->settle();
@@ -91,6 +139,8 @@ final class OutageTracker
 
     public function writeSucceeded(CarbonImmutable $at): void
     {
+        $this->account($at);
+        $this->writeFailing = false;
         if ($this->failingSince !== null) {
             $this->writtenAt = $at->startOfSecond();
             $this->settle();
@@ -106,16 +156,41 @@ final class OutageTracker
     }
 
     /**
-     * The start of the failure going on while deadlines due since then are still held back at $now: null while
-     * the database works, and from MAX_HOLD_SECONDS after the start of the failure on.
+     * The start of the current window while deadlines due since then are held back at $now: null while the
+     * database works, and once the window has spent MAX_HOLD_SECONDS in a partial failure.
      */
     public function holdingSince(CarbonImmutable $now): ?CarbonImmutable
     {
-        if ($this->failingSince === null || $now->getTimestamp() >= $this->failingSince->getTimestamp() + self::MAX_HOLD_SECONDS) {
+        if ($this->failingSince === null || $this->capReachedAt !== null) {
             return null;
         }
+        $partial = $this->partialSeconds + ($this->full() ? 0 : max(0, $now->getTimestamp() - $this->accountedAt));
 
-        return $this->failingSince;
+        return $partial < self::MAX_HOLD_SECONDS ? $this->failingSince : null;
+    }
+
+    private function full(): bool
+    {
+        return $this->readFailing && $this->writeFailing;
+    }
+
+    /**
+     * Adds the time since the last report to the partial-failure time if the failure was partial meanwhile,
+     * and records when the cap was reached. Must run before a report changes the state.
+     */
+    private function account(CarbonImmutable $at): void
+    {
+        $now = $at->getTimestamp();
+        if ($this->failingSince !== null && $this->capReachedAt === null && ! $this->full() && $now > $this->accountedAt) {
+            $partial = $this->partialSeconds + $now - $this->accountedAt;
+            if ($partial >= self::MAX_HOLD_SECONDS) {
+                $this->capReachedAt = CarbonImmutable::createFromTimestamp(
+                    $this->accountedAt + self::MAX_HOLD_SECONDS - $this->partialSeconds, 'UTC');
+                $partial = self::MAX_HOLD_SECONDS;
+            }
+            $this->partialSeconds = $partial;
+        }
+        $this->accountedAt = max($this->accountedAt, $now);
     }
 
     private function start(CarbonImmutable $at, ?CarbonImmutable $earliestDue): void
@@ -123,11 +198,35 @@ final class OutageTracker
         $since = ($earliestDue !== null && $earliestDue->lt($at) ? $earliestDue : $at)->startOfSecond();
         if ($this->failingSince === null) {
             $this->failingSince = $since;
+            $this->firstFailure = $since;
             $this->readAt = null;
             $this->writtenAt = null;
-        } elseif ($since->lt($this->failingSince)) {
+            $this->partialSeconds = 0;
+            $this->capReachedAt = null;
+            $this->windows = [];
+            $this->accountedAt = $at->getTimestamp();
+        } elseif ($since->lt($this->failingSince) && $this->capReachedAt === null) {
             $this->failingSince = $since;
+            if ($this->firstFailure === null || $since->lt($this->firstFailure)) {
+                $this->firstFailure = $since;
+            }
         }
+    }
+
+    /**
+     * A full failure after the cap of the current window was used up opens a new window at $at.
+     */
+    private function reopen(CarbonImmutable $at): void
+    {
+        if ($this->failingSince === null || $this->capReachedAt === null || ! $this->full()) {
+            return;
+        }
+
+        $this->windows[] = [$this->failingSince, $this->capReachedAt];
+        $this->failingSince = $at->startOfSecond();
+        $this->capReachedAt = null;
+        $this->partialSeconds = 0;
+        $this->accountedAt = max($this->accountedAt, $at->getTimestamp());
     }
 
     private function settle(): void
@@ -136,16 +235,24 @@ final class OutageTracker
             return;
         }
 
-        $from = $this->failingSince;
         $end = max($this->readAt, $this->writtenAt);
+        $windows = [...$this->windows, [$this->failingSince, min($end, $this->capReachedAt ?? $end)]];
+        $first = $this->firstFailure ?? $this->failingSince;
         $this->failingSince = null;
+        $this->firstFailure = null;
         $this->readAt = null;
         $this->writtenAt = null;
+        $this->capReachedAt = null;
+        $this->windows = [];
 
-        if ($end->getTimestamp() - $from->getTimestamp() >= self::MIN_SECONDS) {
-            $to = min($end, $from->addSeconds(self::MAX_HOLD_SECONDS));
-            foreach ($this->listeners as $listener) {
-                $listener($from, $to, $end);
+        if ($end->getTimestamp() - $first->getTimestamp() < self::MIN_SECONDS) {
+            return;
+        }
+        foreach ($windows as [$from, $to]) {
+            if ($to->gt($from)) {
+                foreach ($this->listeners as $listener) {
+                    $listener($from, $to, $end);
+                }
             }
         }
     }

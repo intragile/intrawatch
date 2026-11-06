@@ -44,10 +44,10 @@ use function Amp\async;
  * without a recorded miss is moved to the end of that blind spot in one batched update at the next flush.
  * Until that update has succeeded or been dropped, outcomes for deadlines inside the window are held back
  * and evaluated again later; afterwards evaluation reads the moved anchors, so no window has to be remembered.
- * While a failure goes on, deadlines due since it started are held back too, for at most
- * OutageTracker::MAX_HOLD_SECONDS; after that they are evaluated and recorded as usual. Only deadline reads and
- * outcome writes count as failures; heartbeat and poll errors are logged, so a query that keeps failing there
- * never holds back a down.
+ * While a failure goes on, deadlines due since it started are held back too: throughout a full failure, but
+ * for at most OutageTracker::MAX_HOLD_SECONDS of partial failure, after which they are evaluated and recorded
+ * as usual. Only deadline reads and outcome writes start failures; heartbeat and poll errors never do, so a
+ * query that keeps failing there never holds back a down.
  */
 final class Scheduler
 {
@@ -294,9 +294,12 @@ final class Scheduler
 
         while (true) {
             // A heartbeat that was written proves writes work, which can end a failure on a shard whose outcomes
-            // are all held back. A failed one is logged by the heartbeat and holds nothing back.
-            if ($this->heartbeat->beat(count($this->specs), $this->buffer->count()) === null) {
+            // are all held back. A failed one only tells a full failure from a partial one; it starts none.
+            $error = $this->heartbeat->beat(count($this->specs), $this->buffer->count());
+            if ($error === null) {
                 $outages->writeSucceeded($this->clock->now());
+            } elseif (OutageTracker::isDatabaseError($error)) {
+                $outages->heartbeatFailed($this->clock->now());
             }
             if ($outages->failingSince() !== null) {
                 $this->expediteDeadlines();
@@ -356,8 +359,8 @@ final class Scheduler
     }
 
     /**
-     * Whether an outcome for this deadline must wait: the database is failing since before it, for less than
-     * OutageTracker::MAX_HOLD_SECONDS so far, or it lies in a window whose re-anchoring is still pending.
+     * Whether an outcome for this deadline must wait: the database is failing since before it and the failure
+     * still holds deadlines back (see OutageTracker), or it lies in a window whose re-anchoring is still pending.
      */
     private function withheld(Deadline $deadline, CarbonImmutable $now): bool
     {

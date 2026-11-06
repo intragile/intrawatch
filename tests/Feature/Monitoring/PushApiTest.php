@@ -699,6 +699,60 @@ class PushApiTest extends TestCase
         $this->assertSame([[$start->getTimestamp(), $start->getTimestamp() + 300, $start->getTimestamp() + 410]], $ended);
     }
 
+    public function test_a_full_outage_of_twenty_minutes_reports_no_down_and_the_next_miss_still_counts(): void
+    {
+        $monitor = $this->push(['retries' => 0], grace: 30);
+        $t0 = $this->clock->now();
+        [$stop, $run] = $this->startScheduler();
+
+        // Reads, writes and heartbeats all fail from +60 s to +1260 s; the deadline at +90 s falls inside.
+        $this->failEverythingBetween($t0, 60, 1260);
+        $this->clock->advance(1340);
+        $this->assertSame(0, CheckResult::where('monitor_id', $monitor->id)->count(), 'no down for the heartbeat the outage may have swallowed');
+        $anchor = DB::table('monitor_states')->where('monitor_id', $monitor->id)->value('deadline_anchor_at');
+        $this->assertIsString($anchor);
+        $recovered = CarbonImmutable::parse($anchor)->getTimestamp();
+        $this->assertGreaterThanOrEqual($t0->getTimestamp() + 1260, $recovered, 'the whole outage is re-anchored');
+
+        // Still silent a full period after the recovery: that miss is reported.
+        $this->clock->advance(80);
+        $this->stopScheduler($stop, $run);
+        $result = CheckResult::where('monitor_id', $monitor->id)->sole();
+        $this->assertSame(MonitorStatus::Down, $result->status);
+        $this->assertLessThanOrEqual($recovered + 92, CarbonImmutable::instance($result->checked_at)->getTimestamp());
+    }
+
+    public function test_the_hold_cap_counts_only_the_time_spent_in_a_partial_failure(): void
+    {
+        $outages = new OutageTracker;
+        $start = $this->clock->now();
+        $at = fn (int $seconds): CarbonImmutable => $start->addSeconds($seconds);
+        $ended = [];
+        $outages->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $end) use (&$ended, $start): void {
+            $ended[] = [$from->getTimestamp() - $start->getTimestamp(), $to->getTimestamp() - $start->getTimestamp(), $end->getTimestamp() - $start->getTimestamp()];
+        });
+
+        // Partial for 100 s (reads fail, writes work), full for 1000 s, partial again.
+        $outages->writeSucceeded($at(0));
+        $outages->readFailed($at(0));
+        $outages->heartbeatFailed($at(100));
+        $this->assertSame(0, $outages->holdingSince($at(900))?->getTimestamp() - $start->getTimestamp(), 'full-outage time is not counted');
+        $outages->writeSucceeded($at(1100));
+        $this->assertNotNull($outages->holdingSince($at(1299)), '100 s + 199 s of partial failure');
+        $this->assertNull($outages->holdingSince($at(1300)), '300 s of partial failure');
+
+        // Once the cap is spent, a new full outage starts a new window that is re-anchored as a whole.
+        $outages->writeFailed($at(1400));
+        $this->assertSame(1400, $outages->holdingSince($at(1500))?->getTimestamp() - $start->getTimestamp());
+        $outages->writeSucceeded($at(2000));
+        $outages->readSucceeded($at(2010));
+        $this->assertSame([[0, 1300, 2010], [1400, 2010, 2010]], $ended);
+
+        // A heartbeat failure alone never starts a failure.
+        $outages->heartbeatFailed($at(3000));
+        $this->assertNull($outages->failingSince());
+    }
+
     public function test_chained_short_failures_with_successes_in_between_are_separate(): void
     {
         $outages = new OutageTracker;
