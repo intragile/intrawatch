@@ -3,7 +3,7 @@
 namespace App\Monitoring\Types\Definitions;
 
 use App\Enums\MonitorType;
-use App\Monitoring\Types\JsonPathSyntax;
+use App\Monitoring\Types\JsonPath;
 use Illuminate\Validation\Validator;
 
 class HttpDefinition extends AbstractDefinition
@@ -31,7 +31,7 @@ class HttpDefinition extends AbstractDefinition
             'keyword.mode' => ['required_with:config.keyword', 'in:contains,not_contains'],
             'keyword.case_sensitive' => ['boolean'],
             'json_query' => ['nullable', 'array'],
-            'json_query.path' => ['required_with:config.json_query', 'string', 'max:1024', fn (string $a, mixed $v, \Closure $fail) => is_string($v) && JsonPathSyntax::isValid($v) ?: $fail('The :attribute must be a valid JSONPath expression.')],
+            'json_query.path' => ['required_with:config.json_query', 'string', 'max:1024', fn (string $a, mixed $v, \Closure $fail) => is_string($v) && JsonPath::isValid($v) ?: $fail('The :attribute must be a valid JSONPath expression.')],
             'json_query.operator' => ['required_with:config.json_query', 'in:==,!=,>,>=,<,<=,contains,exists'],
             'json_query.expected' => ['nullable', 'max:1024'],
             'header_checks' => ['array', 'max:'.$this->limit('max_header_checks')],

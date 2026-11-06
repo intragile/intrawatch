@@ -110,9 +110,17 @@ class TypeDefinitionTest extends TestCase
         $query = ['path' => '$.data[0].status', 'operator' => '==', 'expected' => 'ok'];
         $this->assertSame([], $this->validate(MonitorType::Http, ['url' => 'https://x.test', 'json_query' => $query])->errors()->all());
 
-        $query['path'] = 'data.status';
-        $v = $this->validate(MonitorType::Http, ['url' => 'https://x.test', 'json_query' => $query]);
-        $this->assertTrue($v->errors()->has('config.json_query.path'));
+        foreach (['$..items[?(@.price < 10 && @.tag == "x")].name', '$[\'a\',\'b\']', '$.list[-1:]', '$..*', '$[?(length(@.c) > 1)]'] as $path) {
+            $query['path'] = $path;
+            $this->assertSame([], $this->validate(MonitorType::Http, ['url' => 'https://x.test', 'json_query' => $query])->errors()->all(), $path);
+        }
+
+        // Paths the evaluator would reject at check time are rejected up front, including bad filters.
+        foreach (['data.status', '$.a[?(foo bar baz)]', '$[?(@.a =~ /x/)]', '$[?()]', '$.a b', '$.'] as $path) {
+            $query['path'] = $path;
+            $v = $this->validate(MonitorType::Http, ['url' => 'https://x.test', 'json_query' => $query]);
+            $this->assertTrue($v->errors()->has('config.json_query.path'), $path);
+        }
 
         $v = $this->validate(MonitorType::Http, ['url' => 'https://x.test', 'max_redirects' => 21]);
         $this->assertTrue($v->errors()->has('config.max_redirects'));

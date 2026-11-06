@@ -6,6 +6,7 @@ use Amp\Dns\DnsResolver;
 use App\Enums\MonitorType;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
+use App\Monitoring\Checks\HttpChecker;
 use App\Monitoring\Checks\PingChecker;
 use App\Monitoring\Checks\TcpChecker;
 use App\Monitoring\Engine\DatabaseGroupEvaluator;
@@ -46,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(DeadlineEvaluator::class, NullDeadlineEvaluator::class);
         $this->app->singleton(CheckerRegistry::class);
         $this->app->resolving(CheckerRegistry::class, function (CheckerRegistry $registry): void {
+            $registry->register(MonitorType::Http, HttpChecker::class);
             $registry->register(MonitorType::Tcp, TcpChecker::class);
             $registry->register(MonitorType::Ping, PingChecker::class);
         });

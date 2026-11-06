@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a1b08d2cd32e36bd9104041e16e13d50",
+    "content-hash": "b355638e583bd01a4d6c1d0147b9746e",
     "packages": [
         {
             "name": "amphp/amp",
@@ -6372,6 +6372,76 @@
             "time": "2026-05-16T17:55:38+00:00"
         },
         {
+            "name": "softcreatr/jsonpath",
+            "version": "2.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/SoftCreatR/JSONPath.git",
+                "reference": "105243c9a3a3cf7ef76d81a2ec306dfdb83ab53a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/SoftCreatR/JSONPath/zipball/105243c9a3a3cf7ef76d81a2ec306dfdb83ab53a",
+                "reference": "105243c9a3a3cf7ef76d81a2ec306dfdb83ab53a",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "php": "^8.3"
+            },
+            "replace": {
+                "flow/jsonpath": "*"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.92",
+                "phpstan/phpstan": "^2.1",
+                "phpunit/phpunit": "^12",
+                "squizlabs/php_codesniffer": "^4.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Flow\\JSONPath\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Stephen Frank",
+                    "email": "stephen@flowsa.com",
+                    "homepage": "https://prismaticbytes.com",
+                    "role": "Developer"
+                },
+                {
+                    "name": "Sascha Greuel",
+                    "email": "hello@1-2.dev",
+                    "homepage": "https://1-2.dev",
+                    "role": "Developer"
+                }
+            ],
+            "description": "JSONPath implementation for parsing, searching and flattening arrays",
+            "support": {
+                "email": "hello@1-2.dev",
+                "forum": "https://github.com/SoftCreatR/JSONPath/discussions",
+                "issues": "https://github.com/SoftCreatR/JSONPath/issues",
+                "source": "https://github.com/SoftCreatR/JSONPath"
+            },
+            "funding": [
+                {
+                    "url": "https://ecologi.com/softcreatr?r=61212ab3fc69b8eb8a2014f4",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/softcreatr",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-09-28T16:20:10+00:00"
+        },
+        {
             "name": "spatie/laravel-package-tools",
             "version": "1.93.3",
             "source": {
@@ -10047,6 +10117,103 @@
         }
     ],
     "packages-dev": [
+        {
+            "name": "amphp/http-server",
+            "version": "v3.4.8",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/amphp/http-server.git",
+                "reference": "31b004bf1cfd3feed3f0bdf20ddb9bfef935efb8"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/amphp/http-server/zipball/31b004bf1cfd3feed3f0bdf20ddb9bfef935efb8",
+                "reference": "31b004bf1cfd3feed3f0bdf20ddb9bfef935efb8",
+                "shasum": ""
+            },
+            "require": {
+                "amphp/amp": "^3",
+                "amphp/byte-stream": "^2",
+                "amphp/cache": "^2",
+                "amphp/hpack": "^3",
+                "amphp/http": "^2",
+                "amphp/pipeline": "^1",
+                "amphp/socket": "^2.1",
+                "amphp/sync": "^2.2",
+                "league/uri": "^7.1",
+                "league/uri-interfaces": "^7.1",
+                "php": ">=8.1",
+                "psr/http-message": "^1 | ^2",
+                "psr/log": "^1 | ^2 | ^3",
+                "revolt/event-loop": "^1"
+            },
+            "require-dev": {
+                "amphp/http-client": "^5",
+                "amphp/log": "^2",
+                "amphp/php-cs-fixer-config": "^2",
+                "amphp/phpunit-util": "^3",
+                "league/uri-components": "^7.1",
+                "monolog/monolog": "^3",
+                "phpunit/phpunit": "^9",
+                "psalm/phar": "6.16.1"
+            },
+            "suggest": {
+                "ext-zlib": "Allows GZip compression of response bodies"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/Driver/functions.php",
+                    "src/Middleware/functions.php",
+                    "src/functions.php"
+                ],
+                "psr-4": {
+                    "Amp\\Http\\Server\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Daniel Lowrey",
+                    "email": "rdlowrey@php.net"
+                },
+                {
+                    "name": "Bob Weinand"
+                },
+                {
+                    "name": "Niklas Keller",
+                    "email": "me@kelunik.com"
+                },
+                {
+                    "name": "Aaron Piotrowski",
+                    "email": "aaron@trowski.com"
+                }
+            ],
+            "description": "A non-blocking HTTP application server for PHP based on Amp.",
+            "homepage": "https://github.com/amphp/http-server",
+            "keywords": [
+                "amp",
+                "amphp",
+                "async",
+                "http",
+                "non-blocking",
+                "server"
+            ],
+            "support": {
+                "issues": "https://github.com/amphp/http-server/issues",
+                "source": "https://github.com/amphp/http-server/tree/v3.4.8"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/amphp",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-11-01T16:18:27+00:00"
+        },
         {
             "name": "fakerphp/faker",
             "version": "v1.24.1",

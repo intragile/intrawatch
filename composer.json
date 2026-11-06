@@ -20,9 +20,11 @@
         "laravel/framework": "^13.17",
         "laravel/reverb": "^1.12",
         "laravel/sanctum": "^4.3",
-        "laravel/tinker": "^3.0"
+        "laravel/tinker": "^3.0",
+        "softcreatr/jsonpath": "^2.1"
     },
     "require-dev": {
+        "amphp/http-server": "^3.4",
         "fakerphp/faker": "^1.23",
         "larastan/larastan": "^3.14",
         "laravel/pail": "^1.2.5",
