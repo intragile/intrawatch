@@ -2,7 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Enums\WorkspaceRole;
 use App\Models\User;
+use App\Models\Workspace;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -41,5 +43,15 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
         ]);
+    }
+
+    /**
+     * Attach the created user to a workspace with the given role.
+     */
+    public function memberOf(Workspace $workspace, WorkspaceRole $role): static
+    {
+        return $this->afterCreating(function (User $user) use ($workspace, $role): void {
+            $user->workspaces()->attach($workspace, ['role' => $role->value]);
+        });
     }
 }
