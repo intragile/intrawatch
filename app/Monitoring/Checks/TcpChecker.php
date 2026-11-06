@@ -40,7 +40,7 @@ final class TcpChecker implements Checker
 
         try {
             $socket = $this->connector->connect(
-                "tcp://{$host}:{$port}",
+                "tcp://{$this->bracket($host)}:{$port}",
                 (new ConnectContext)->withConnectTimeout((float) $spec->timeoutSeconds),
                 new CompositeCancellation($cancellation, new TimeoutCancellation($spec->timeoutSeconds)),
             );
@@ -48,7 +48,7 @@ final class TcpChecker implements Checker
             $socket->close();
 
             return CheckOutcome::up($latencyMs);
-        } catch (CancelledException $e) {
+        } catch (CancelledException) {
             $cancellation->throwIfRequested();
 
             return CheckOutcome::down("Timed out after {$spec->timeoutSeconds} s");
@@ -63,6 +63,8 @@ final class TcpChecker implements Checker
 
     private function describe(ConnectException $e, int $timeoutSeconds): string
     {
+        // amphp reports some asynchronous connect failures (for example an unreachable host) with the
+        // refused code, so "Connection refused" can occasionally mean the host was unreachable.
         $code = $e->getCode();
 
         return match (true) {
@@ -70,7 +72,12 @@ final class TcpChecker implements Checker
             $code === self::ETIMEDOUT => "Timed out after {$timeoutSeconds} s",
             $e->getPrevious() !== null => 'Connection failed: DNS resolution failed',
             isset(self::REASONS[$code]) => 'Connection failed: '.self::REASONS[$code],
-            default => $e->getMessage() === 'DNS resolution failed' ? 'Connection failed: DNS resolution failed' : 'Connection failed: error #'.$code,
+            default => 'Connection failed: error #'.$code,
         };
+    }
+
+    private function bracket(string $host): string
+    {
+        return str_contains($host, ':') ? "[{$host}]" : $host;
     }
 }

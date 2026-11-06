@@ -129,6 +129,16 @@ class MonitorApiTest extends TestCase
             ->assertCreated();
     }
 
+    public function test_ping_count_must_fit_inside_the_timeout(): void
+    {
+        $ping = fn (int $count, int $timeout): array => ['name' => 'P', 'type' => 'ping', 'config' => ['host' => '10.0.0.1', 'count' => $count], 'timeout_seconds' => $timeout];
+
+        $this->actingAs($this->editor)->postJson($this->url(), $ping(5, 4))
+            ->assertUnprocessable()->assertJsonValidationErrors(['timeout_seconds']);
+        $this->actingAs($this->editor)->postJson($this->url(), $ping(5, 5))->assertCreated();
+        $this->actingAs($this->editor)->postJson($this->url(), $ping(1, 1))->assertCreated();
+    }
+
     public function test_cron_timezone_defaults_to_workspace_timezone(): void
     {
         $this->actingAs($this->editor)->postJson($this->url(), [

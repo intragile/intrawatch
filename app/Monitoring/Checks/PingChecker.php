@@ -26,12 +26,20 @@ final class PingChecker implements Checker
 {
     private readonly AllowedAddressResolver $addresses;
 
+    private const GRACE_SECONDS = 1;
+
+    private ?string $override;
+
     private ?string $binary = null;
 
     private bool $binaryLookedUp = false;
 
-    public function __construct(DnsResolver $resolver, NetworkPolicy $policy)
+    /**
+     * @param  string|null  $binary  Path of the ping executable; located on the system when omitted.
+     */
+    public function __construct(DnsResolver $resolver, NetworkPolicy $policy, ?string $binary = null)
     {
+        $this->override = $binary;
         $this->addresses = new AllowedAddressResolver($resolver, $policy);
     }
 
@@ -39,9 +47,11 @@ final class PingChecker implements Checker
     {
         $host = is_string($spec->config['host'] ?? null) ? $spec->config['host'] : '';
         $count = is_int($spec->config['count'] ?? null) ? max(1, $spec->config['count']) : 1;
-        $limit = new CompositeCancellation($cancellation, new TimeoutCancellation($spec->timeoutSeconds));
+        // Ping gets a second beyond its own deadline so it can print its summary before the check is cut off.
+        $limit = new CompositeCancellation($cancellation, new TimeoutCancellation($spec->timeoutSeconds + self::GRACE_SECONDS));
 
         $process = null;
+        $output = '';
         try {
             $ip = $this->addresses->resolve($host, null, $limit)[0];
 
@@ -53,12 +63,20 @@ final class PingChecker implements Checker
             $process = Process::start([$binary, ...$this->arguments($binary, $count, $spec->timeoutSeconds, $ip)], cancellation: $limit);
             // Standard error is drained so a chatty ping can never block on a full pipe.
             async(static fn (): string => ByteStream\buffer($process->getStderr(), $limit))->ignore();
-            $output = ByteStream\buffer($process->getStdout(), $limit);
+            while (($chunk = $process->getStdout()->read($limit)) !== null) {
+                $output .= $chunk;
+            }
             $process->join($limit);
 
-            return $this->interpret($output, $count);
+            return $this->interpret(PingOutput::fromSummary($output), $count);
         } catch (CancelledException) {
             $cancellation->throwIfRequested();
+
+            // Replies that arrived before the deadline still prove the host is reachable.
+            $partial = PingOutput::fromReplies($output);
+            if ($partial !== null) {
+                return $this->interpret($partial, $count);
+            }
 
             return CheckOutcome::down("Timed out after {$spec->timeoutSeconds} s");
         } catch (BlockedTarget) {
@@ -86,27 +104,29 @@ final class PingChecker implements Checker
         return [...$arguments, $ip];
     }
 
-    private function interpret(string $output, int $count): CheckOutcome
+    private function interpret(?PingOutput $output, int $count): CheckOutcome
     {
-        if (preg_match('/(\d+) packets transmitted, (\d+) (?:packets )?received/', $output, $m) !== 1) {
+        if ($output === null) {
             return CheckOutcome::down('Ping failed');
         }
 
-        $received = (int) $m[2];
-        $lost = max(0, $count - $received);
-        if ($received === 0) {
+        $lost = max(0, $count - $output->received);
+        if ($output->received === 0) {
             return CheckOutcome::down("{$lost}/{$count} packets lost", facts: ['packets_lost' => $lost]);
         }
 
-        $latencyMs = preg_match('#min/avg/max/(?:mdev|stddev|std-dev) = [\d.]+/([\d.]+)/#', $output, $r) === 1
-            ? (int) round((float) $r[1])
-            : null;
-
-        return CheckOutcome::up($latencyMs, facts: ['packets_lost' => $lost]);
+        return CheckOutcome::up(
+            $output->averageMs === null ? null : (int) round($output->averageMs),
+            facts: ['packets_lost' => $lost],
+        );
     }
 
     private function findBinary(string $ip): ?string
     {
+        if ($this->override !== null) {
+            return $this->override;
+        }
+
         // IPv6 targets need the dedicated binary on macOS; Linux ping handles both families.
         if (str_contains($ip, ':') && PHP_OS_FAMILY === 'Darwin') {
             return $this->locate('ping6');

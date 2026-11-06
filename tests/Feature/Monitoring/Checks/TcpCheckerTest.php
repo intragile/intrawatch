@@ -94,4 +94,20 @@ class TcpCheckerTest extends TestCase
             $outcome->message,
         );
     }
+
+    public function test_ipv6_literal_target_connects(): void
+    {
+        try {
+            $server = Socket\listen('[::1]:0');
+        } catch (Socket\SocketException) {
+            $this->markTestSkipped('IPv6 loopback is not available.');
+        }
+        $address = $server->getAddress();
+        $this->assertInstanceOf(InternetAddress::class, $address);
+
+        $outcome = $this->probe('::1', $address->getPort());
+        $server->close();
+
+        $this->assertSame(MonitorStatus::Up, $outcome->status, $outcome->message);
+    }
 }

@@ -159,8 +159,31 @@ abstract class MonitorRequest extends FormRequest
             );
         }
 
+        $this->checkPingCadence($v, $timeout);
+
         if (! $supportsInverted && $this->boolean('inverted')) {
             $v->errors()->add('inverted', 'This monitor type does not support inverted results.');
+        }
+    }
+
+    /**
+     * Ping sends its packets one second apart, so the last one leaves after `count - 1` seconds.
+     */
+    private function checkPingCadence(Validator $v, mixed $timeout): void
+    {
+        if ($this->monitorType() !== MonitorType::Ping || ! is_numeric($timeout) || $v->errors()->has('config.count')) {
+            return;
+        }
+
+        $stored = $this->stored();
+        $config = $this->input('config');
+        $count = is_array($config) && isset($config['count']) ? $config['count'] : ($stored->config['count'] ?? 1);
+
+        if (is_numeric($count) && (int) $count - 1 >= (float) $timeout && ! $v->errors()->has('timeout_seconds')) {
+            $v->errors()->add(
+                $this->has('timeout_seconds') ? 'timeout_seconds' : 'config.count',
+                'Ping sends packets one second apart, so the timeout must be longer than count minus one seconds.',
+            );
         }
     }
 
