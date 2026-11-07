@@ -524,6 +524,12 @@ incidents. Pages are managed with `GET`/`POST /api/v1/workspaces/{workspace}/sta
 | --- | --- |
 | `{APP_URL}/status/{slug}` | The page, on any host name of the installation |
 | `https://{custom_domain}/` | The page, when the request's `Host` is the page's custom domain |
+| `{APP_URL}/status/{slug}/feed.atom`, `/feed.rss` | Atom and RSS feeds of incidents and maintenance |
+| `{APP_URL}/status/{slug}/summary.json` | JSON summary, readable from any web page (CORS) |
+| `{APP_URL}/status/{slug}/badge.svg`, `/badge/{monitor_id}/{kind}.svg` | Status, uptime and latency badges |
+
+On a custom domain the same endpoints live at `/feed.atom`, `/feed.rss`,
+`/summary.json`, `/badge.svg` and `/badge/{monitor_id}/{kind}.svg`.
 
 Only published pages are served; an unpublished page answers exactly like a
 page that does not exist (404). Nothing else is ever shown: no monitor
@@ -557,6 +563,63 @@ a render, the last good copy is served with `X-Status-Stale: 1`; it is kept
 for 7 days (`status.cache.stale_seconds`). With no copy at all the page answers
 503 with `Retry-After: 30`.
 
+#### Badges
+
+Badges are small SVG images for a README or a website. The overall badge
+shows the page title and its status; a component badge shows one monitor of
+the page (the monitor id is the number in the API), and answers 404 for a
+monitor that is not shown on that published page.
+
+| Path | Shows |
+| --- | --- |
+| `/status/{slug}/badge.svg` | Page title and overall status |
+| `/status/{slug}/badge/{monitor_id}/status.svg` | Current status of the component |
+| `/status/{slug}/badge/{monitor_id}/uptime.svg` | Uptime percentage |
+| `/status/{slug}/badge/{monitor_id}/latency.svg` | Average response time of the last 24 hours (`n/a` without data) |
+
+Query parameters, all optional; an invalid value falls back to its default
+instead of breaking the image:
+
+* `days`: uptime window, one of `1`, `7`, `30` (default), `90`, `365`.
+* `label`: replaces the left-hand text, at most 40 characters. The text is
+  escaped.
+* `style`: `flat` (default) or `flat-square`.
+
+```markdown
+![status](https://watch.example.com/status/acme/badge.svg)
+![website uptime](https://watch.example.com/status/acme/badge/42/uptime.svg?days=90&label=website)
+```
+
+Colours: operational green, degraded yellow, partial outage orange, major
+outage red, maintenance blue, unknown grey; uptime is green from 99.9%,
+yellow-green from 99%, yellow from 95% and red below. Uptime and latency are
+hidden (`n/a`) for a component whose uptime is hidden on the page or whose
+page hides latency. Badges are served with `Cache-Control: public, max-age=60`.
+
+#### Feeds and JSON summary
+
+`feed.atom` (Atom 1.0) and `feed.rss` (RSS 2.0) list the newest 50 incidents
+and maintenance windows of the page, each with every update in order and a
+link of the form `{page address}#incident-{id}` or `#maintenance-{id}`. The
+feeds cover incidents open or resolved within the page's history setting and
+maintenance that is in progress or upcoming within its window setting.
+
+`summary.json` is meant for status widgets on other sites and is sent with
+`Access-Control-Allow-Origin: *`:
+
+```json
+{
+  "page": {"title": "Acme", "url": "https://watch.example.com/status/acme", "status": "operational", "updated_at": "2026-11-07T12:30:00Z"},
+  "components": [{"id": 42, "name": "Website", "status": "operational", "children": []}],
+  "incidents": [{"id": 7, "title": "Slow site", "impact": "minor", "status": "monitoring", "url": "https://watch.example.com/status/acme#incident-7"}],
+  "maintenances": [{"id": 3, "title": "Database upgrade", "starts_at": "2026-11-08T12:30:00Z", "ends_at": "2026-11-08T13:30:00Z"}]
+}
+```
+
+`incidents` lists the open incidents; `children` appears only for expanded
+groups. Feeds, the summary and the badges are cached like the page, share its
+invalidation, and are served without database queries while cached.
+
 ## Development
 
 ```bash
@@ -581,6 +644,21 @@ deletes the benchmark workspace.
 ```bash
 docker run --rm --cpus=2 intrawatch \
   php artisan intrawatch:bench --monitors=1000 --interval=60 --duration=180
+```
+
+The status page benchmark seeds a throwaway workspace with 300 published
+pages of 20 components each and 90 days of rollups, then sends requests
+through the application in-process: one per page for the cold pass (every
+page rendered once), then 3 000 round-robin for the warm pass (served from the
+page cache). It prints the median, 95th percentile and maximum of both passes
+and the number of database queries during the warm pass, and exits with 1 when
+the warm 95th percentile reaches 100 ms or any warm request queried the
+database. It uses a cache directory of its own, refuses to run against a
+database that already holds workspaces unless `--force` is given, and deletes
+its data afterwards unless `--keep` is given.
+
+```bash
+php artisan intrawatch:bench:status --pages=300 --items=20 --requests=3000
 ```
 
 A command passed to `docker run` runs after the usual setup instead of the
