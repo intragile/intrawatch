@@ -26,6 +26,8 @@ use stdClass;
  */
 final class DatabaseGroupEvaluator implements GroupEvaluator
 {
+    public function __construct(private readonly MaintenanceOracle $maintenance) {}
+
     /** @var array<int, stdClass> Locked active group rows by id. */
     private array $groups = [];
 
@@ -133,6 +135,7 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
         $lastResult = $this->lastResultAt($ids);
         $now = CarbonImmutable::now();
         $stamp = $now->format('Y-m-d H:i:s');
+        $inWindow = array_flip($this->maintenance->underMaintenance($ids, $now));
 
         foreach ($ids as $id) {
             $group = $this->groups[$id] ?? null;
@@ -144,11 +147,15 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
             $config = json_decode($this->string($group->config), true);
             $config = is_array($config) ? $config : [];
             $count = $counts[$id] ?? [];
-            [$status, $available, $total] = $this->evaluate(
-                is_string($config['mode'] ?? null) ? $config['mode'] : 'all',
-                is_numeric($config['quorum'] ?? null) ? (int) $config['quorum'] : 1,
-                $count,
-            );
+            $excludedMaintenance = $count[MonitorStatus::Maintenance->value] ?? 0;
+            [$status, $available, $total] = isset($inWindow[$id])
+                ? [MonitorStatus::Maintenance, 0, 0]
+                : $this->evaluate(
+                    is_string($config['mode'] ?? null) ? $config['mode'] : 'all',
+                    is_numeric($config['quorum'] ?? null) ? (int) $config['quorum'] : 1,
+                    $count,
+                    $excludedMaintenance,
+                );
 
             $from = MonitorStatus::tryFrom($this->string($state->status)) ?? MonitorStatus::Pending;
             $since = CarbonImmutable::parse($this->string($state->status_since));
@@ -163,7 +170,9 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
                 continue;
             }
 
-            $message = "{$available}/{$total} children available";
+            $message = $status === MonitorStatus::Maintenance
+                ? StatusMachine::MAINTENANCE_MESSAGE
+                : "{$available}/{$total} children available";
             $statusSince = $changed ? $stamp : $since->format('Y-m-d H:i:s');
             DB::table('check_results')->insert([
                 'monitor_id' => $id,
@@ -217,10 +226,11 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
     }
 
     /**
-     * @param  array<string, int>  $counts  Children per status.
+     * @param  array<string, int>  $counts  Counted children per status.
+     * @param  int  $excludedMaintenance  Children left out of the count because they are in maintenance.
      * @return array{0: MonitorStatus, 1: int, 2: int} Status, available children and counted children.
      */
-    private function evaluate(string $mode, int $quorum, array $counts): array
+    private function evaluate(string $mode, int $quorum, array $counts, int $excludedMaintenance): array
     {
         $up = $counts[MonitorStatus::Up->value] ?? 0;
         $degraded = $counts[MonitorStatus::Degraded->value] ?? 0;
@@ -230,21 +240,23 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
         $available = $up + $degraded + $pending;
 
         if ($total === 0) {
-            return [MonitorStatus::Pending, 0, 0];
+            return [$excludedMaintenance > 0 ? MonitorStatus::Maintenance : MonitorStatus::Pending, 0, 0];
         }
 
         $status = match ($mode) {
             // A pending child may still turn out up, so the group is never reported down while one is pending.
             'any' => $up > 0 ? MonitorStatus::Up : ($degraded > 0 ? MonitorStatus::Degraded : ($pending > 0 ? MonitorStatus::Pending : MonitorStatus::Down)),
             'quorum' => $available >= $quorum ? MonitorStatus::Up : MonitorStatus::Down,
-            default => $down > 0 ? MonitorStatus::Down : ($degraded > 0 || $pending > 0 ? MonitorStatus::Degraded : MonitorStatus::Up),
+            // A pending child is not yet a fact: it neither degrades the group nor counts as up.
+            default => $down > 0 ? MonitorStatus::Down : ($degraded > 0 ? MonitorStatus::Degraded : ($up > 0 ? MonitorStatus::Up : MonitorStatus::Pending)),
         };
 
         return [$status, $available, $total];
     }
 
     /**
-     * Children that take part in a group: active ones whose state is neither paused nor in maintenance.
+     * Children that take part in a group: active ones whose state is neither paused nor in maintenance. The
+     * children in maintenance are returned under the maintenance key so a group can tell them from paused ones.
      *
      * @param  list<int>  $ids
      * @return array<int, array<string, int>>
@@ -261,7 +273,7 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
         $counts = [];
         foreach ($rows as $row) {
             $status = $row->status === null ? MonitorStatus::Pending->value : $this->string($row->status);
-            if (in_array($status, [MonitorStatus::Paused->value, MonitorStatus::Maintenance->value], true)) {
+            if ($status === MonitorStatus::Paused->value) {
                 continue;
             }
             $parent = $this->int($row->parent_id);

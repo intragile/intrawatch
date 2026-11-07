@@ -72,7 +72,7 @@ class GroupEvaluatorTest extends TestCase
     {
         $this->assertSame(MonitorStatus::Down, $this->evaluate('all', [MonitorStatus::Up, MonitorStatus::Down]));
         $this->assertSame(MonitorStatus::Degraded, $this->evaluate('all', [MonitorStatus::Up, MonitorStatus::Degraded]));
-        $this->assertSame(MonitorStatus::Degraded, $this->evaluate('all', [MonitorStatus::Up, MonitorStatus::Pending]));
+        $this->assertSame(MonitorStatus::Up, $this->evaluate('all', [MonitorStatus::Up, MonitorStatus::Pending]));
         $this->assertSame(MonitorStatus::Up, $this->evaluate('all', [MonitorStatus::Up, MonitorStatus::Up]));
     }
 
@@ -100,7 +100,8 @@ class GroupEvaluatorTest extends TestCase
         $this->assertSame(MonitorStatus::Up, $this->statusOf($group));
         $this->assertSame('1/1 children available', CheckResult::where('monitor_id', $group->id)->firstOrFail()->message);
 
-        $this->setStatus($children[0], MonitorStatus::Maintenance);
+        $this->setStatus($children[0], MonitorStatus::Paused);
+        $children[0]->update(['active' => false]);
         $this->app->make(GroupEvaluator::class)->recompute([$group->id]);
         $this->assertSame(MonitorStatus::Pending, $this->statusOf($group));
     }
@@ -209,7 +210,7 @@ class GroupEvaluatorTest extends TestCase
 
         $this->app->make(GroupEvaluator::class)->recompute([$a->id]);
 
-        $this->assertSame(MonitorStatus::Degraded, $this->statusOf($a));
+        $this->assertSame(MonitorStatus::Pending, $this->statusOf($a));
     }
 
     public function test_moving_child_out_recomputes_old_parent(): void
@@ -290,8 +291,7 @@ class GroupEvaluatorTest extends TestCase
             'name' => 'Child', 'type' => 'http', 'config' => ['url' => 'https://example.test'], 'parent_id' => $group->id,
         ])->assertCreated();
 
-        $this->assertSame(MonitorStatus::Degraded, $this->statusOf($group));
-        Event::assertDispatched(MonitorStatusChanged::class, fn (MonitorStatusChanged $e): bool => $e->monitorId === $group->id
-            && $e->to === MonitorStatus::Degraded);
+        $this->assertSame(MonitorStatus::Pending, $this->statusOf($group));
+        Event::assertNotDispatched(MonitorStatusChanged::class, fn (MonitorStatusChanged $e): bool => $e->monitorId === $group->id);
     }
 }
