@@ -12,7 +12,6 @@ use App\Models\MonitorEvent;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use JsonException;
 
 /**
@@ -32,8 +31,6 @@ final class ResultRecorder
      * Monitors whose alert signals go into one EvaluateAlerts job.
      */
     public const ALERT_CHUNK = 200;
-
-    private static bool $warnedNonAtomicQueue = false;
 
     public function __construct(
         private readonly StatusMachine $machine,
@@ -258,7 +255,7 @@ final class ResultRecorder
             return;
         }
 
-        $atomic = self::queueIsTransactional();
+        $atomic = PostCommit::queueJoinsTransaction();
         foreach (array_chunk($signals, self::ALERT_CHUNK, true) as $chunk) {
             $job = new EvaluateAlerts(AlertSignals::toPayload($chunk));
             if ($atomic) {
@@ -267,27 +264,6 @@ final class ResultRecorder
                 $jobs[] = $job;
             }
         }
-    }
-
-    private static function queueIsTransactional(): bool
-    {
-        $name = config('queue.default');
-        $connection = is_string($name) ? config("queue.connections.{$name}") : null;
-        $atomic = is_array($connection)
-            && ($connection['driver'] ?? null) === 'database'
-            && ($connection['after_commit'] ?? false) !== true
-            && in_array($connection['connection'] ?? null, [null, '', DB::getDefaultConnection()], true);
-
-        // The sync queue runs the evaluation in this process right after commit; there is no queue to lose it in.
-        $sync = is_array($connection) && ($connection['driver'] ?? null) === 'sync';
-        if (! $atomic && ! $sync && ! self::$warnedNonAtomicQueue) {
-            self::$warnedNonAtomicQueue = true;
-            Log::warning('Alert evaluations are queued after commit because the default queue is not the database queue of this connection; a crash in between loses them.', [
-                'queue' => $name,
-            ]);
-        }
-
-        return $atomic;
     }
 
     /**

@@ -15,6 +15,7 @@ use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\Engine\SafeText;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use JsonException;
 use stdClass;
@@ -37,6 +38,9 @@ final class AlertEvaluator
 
     /** Alert events per digest delivery. */
     private const DIGEST_CHUNK = 200;
+
+    /** Seconds a due time is moved on by when the policy gives no positive re-check interval. */
+    private const FALLBACK_RECHECK_SECONDS = 60;
 
     private const CHANGE_KINDS = [AlertKind::Expiring, AlertKind::Renewed, AlertKind::Changed];
 
@@ -67,8 +71,13 @@ final class AlertEvaluator
 
         /** @var array<int, list<int>> $raised */
         $raised = [];
-        $count = DB::transaction(function () use ($signalsByMonitor, $now, &$raised): int {
-            return $this->run($signalsByMonitor, $now, $raised);
+        /** @var list<SendNotification> $sends */
+        $sends = [];
+        $count = DB::transaction(function () use ($signalsByMonitor, $now, &$raised, &$sends): int {
+            $raised = [];
+            $sends = [];
+
+            return $this->run($signalsByMonitor, $now, $raised, $sends);
         });
 
         $events = [];
@@ -76,6 +85,7 @@ final class AlertEvaluator
             $events[] = new AlertRaised($workspaceId, $ids);
         }
         PostCommit::dispatch($events);
+        PostCommit::queue($sends);
 
         return $count;
     }
@@ -83,8 +93,9 @@ final class AlertEvaluator
     /**
      * @param  array<int, list<StatusSignal|ChangeSignal|TickSignal>>  $signalsByMonitor
      * @param  array<int, list<int>>  $raised  Receives the recorded alert event ids by workspace.
+     * @param  list<SendNotification>  $sends  Receives the sends to queue after commit.
      */
-    private function run(array $signalsByMonitor, CarbonImmutable $now, array &$raised): int
+    private function run(array $signalsByMonitor, CarbonImmutable $now, array &$raised, array &$sends): int
     {
         $policies = $this->policies->load(array_keys($signalsByMonitor));
 
@@ -109,7 +120,7 @@ final class AlertEvaluator
         $eventRows = [];
         foreach ($pausedTicks as $id) {
             if (isset($states[$id]) && $states[$id]->dueAt !== null) {
-                $stateRows[] = $this->stateRow($id, self::withoutDueAt($states[$id]), $now);
+                $stateRows[] = $this->stateRow($id, self::withDueAt($states[$id], null), $now);
             }
         }
 
@@ -118,12 +129,14 @@ final class AlertEvaluator
             $state = $states[$id] ?? AlertSnapshot::initial();
             $before = $state;
             $suppressor = $suppressedBy[$id] ?? null;
+            $ticked = false;
 
             foreach ($signalsByMonitor[$id] as $signal) {
                 if ($signal instanceof TickSignal && ($state->dueAt === null || $state->dueAt->greaterThan($signal->now))) {
                     // Another evaluation moved the due time on after this monitor was selected.
                     continue;
                 }
+                $ticked = $ticked || $signal instanceof TickSignal;
                 if ($signal instanceof ChangeSignal && isset($replayed[$id][$signal->at->getTimestamp()])) {
                     continue;
                 }
@@ -134,6 +147,14 @@ final class AlertEvaluator
                 foreach ($decision->alerts as $alert) {
                     $eventRows[] = $this->eventRow($policy, $alert, $alert->suppressed ? $suppressor : null, $at);
                 }
+            }
+
+            if ($ticked && $state->dueAt !== null && $state->dueAt->lessThanOrEqualTo($now)) {
+                // A due tick must move the due time past now, or the tick selects this state again on every page
+                // and every run. The machine always does; this guards against a policy (or a defect) that does not.
+                $recheck = $policy->policy->suppressionRecheckSeconds;
+                $state = self::withDueAt($state, $now->addSeconds($recheck > 0 ? $recheck : self::FALLBACK_RECHECK_SECONDS));
+                Log::warning('An alert tick left a due time that is not in the future; it was moved on.', ['monitor_id' => $id]);
             }
 
             if ($state != $before || ! isset($states[$id])) {
@@ -154,7 +175,7 @@ final class AlertEvaluator
             $raised[$event['workspace_id']][] = $event['id'];
         }
 
-        $this->queueDeliveries($events, $now);
+        $this->queueDeliveries($events, $now, $sends);
 
         return count($events);
     }
@@ -278,9 +299,13 @@ final class AlertEvaluator
      * supports digests and receives more than the digest threshold gets one delivery per 200 alerts; otherwise
      * every alert is a delivery of its own.
      *
+     * The sends are queued in this transaction when the queue writes to this database; otherwise they are handed
+     * back to be queued after commit, so a rolled-back evaluation never sends anything.
+     *
      * @param  list<array{id: int, workspace_id: int, monitor_id: int, suppressed: bool}>  $events
+     * @param  list<SendNotification>  $sends  Receives the sends to queue after commit.
      */
-    private function queueDeliveries(array $events, CarbonImmutable $now): void
+    private function queueDeliveries(array $events, CarbonImmutable $now, array &$sends): void
     {
         $byMonitor = [];
         foreach ($events as $event) {
@@ -359,8 +384,14 @@ final class AlertEvaluator
         }
         sort($deliveryIds);
 
-        foreach (array_chunk($deliveryIds, self::CHUNK) as $chunk) {
-            Queue::connection()->bulk(array_map(static fn (int $id): SendNotification => new SendNotification($id), $chunk), '', 'notifications');
+        $jobs = array_map(static fn (int $id): SendNotification => new SendNotification($id), $deliveryIds);
+        if (! PostCommit::queueJoinsTransaction()) {
+            array_push($sends, ...$jobs);
+
+            return;
+        }
+        foreach (array_chunk($jobs, self::CHUNK) as $chunk) {
+            Queue::connection()->bulk($chunk, '', 'notifications');
         }
     }
 
@@ -436,11 +467,11 @@ final class AlertEvaluator
         );
     }
 
-    private static function withoutDueAt(AlertSnapshot $s): AlertSnapshot
+    private static function withDueAt(AlertSnapshot $s, ?CarbonImmutable $dueAt): AlertSnapshot
     {
         return new AlertSnapshot(
             $s->notified, $s->observed, $s->current, $s->problemSince, $s->downSince, $s->degradedSince, $s->flapping,
-            $s->flappingSince, $s->recentChanges, $s->lastNotifiedAt, $s->remindersSent, $s->suppressed, $s->lastSignalAt, null,
+            $s->flappingSince, $s->recentChanges, $s->lastNotifiedAt, $s->remindersSent, $s->suppressed, $s->lastSignalAt, $dueAt,
         );
     }
 

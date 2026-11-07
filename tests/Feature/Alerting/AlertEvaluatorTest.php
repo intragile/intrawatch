@@ -18,11 +18,13 @@ use App\Models\AlertEvent;
 use App\Models\Monitor;
 use App\Models\NotificationChannel;
 use App\Models\Workspace;
+use App\Monitoring\Engine\PostCommit;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
+use Tests\Support\RecordingQueue;
 use Tests\TestCase;
 
 class AlertEvaluatorTest extends TestCase
@@ -39,7 +41,9 @@ class AlertEvaluatorTest extends TestCase
         $this->t0 = CarbonImmutable::parse('2026-11-06 10:00:00', 'UTC');
         CarbonImmutable::setTestNow($this->t0);
         $this->ws = Workspace::factory()->create();
-        Queue::fake([SendNotification::class]);
+        if ($this->name() !== 'test_sends_wait_for_commit_when_the_queue_is_not_transactional') {
+            Queue::fake([SendNotification::class]);
+        }
     }
 
     protected function tearDown(): void
@@ -150,6 +154,28 @@ class AlertEvaluatorTest extends TestCase
         $this->assertSame(['alert_event_ids' => $first->alertEventIds], $first->broadcastWith());
         $this->assertSame("private-workspace.{$this->ws->id}", $first->broadcastOn()[0]->name);
         $this->assertSame($other->id, $seen[1][0]->workspaceId);
+    }
+
+    public function test_sends_wait_for_commit_when_the_queue_is_not_transactional(): void
+    {
+        RecordingQueue::install('recording');
+        $this->assertFalse(PostCommit::queueJoinsTransaction());
+        $channel = NotificationChannel::factory()->for($this->ws)->webhook()->create();
+        $monitors = Monitor::factory()->for($this->ws)->count(2)->create();
+        foreach ($monitors as $monitor) {
+            $monitor->notificationChannels()->attach($channel->id);
+        }
+        $baseline = DB::transactionLevel();
+
+        $this->evaluateDown(array_values($monitors->all()));
+
+        $sends = array_values(array_filter(RecordingQueue::$pushed, fn (array $entry): bool => $entry[0] instanceof SendNotification));
+        $this->assertCount(2, $sends);
+        foreach ($sends as [$job, $level]) {
+            $this->assertSame($baseline, $level, 'queued after the evaluation committed');
+            $this->assertInstanceOf(SendNotification::class, $job);
+            $this->assertContains($job->deliveryId, AlertDelivery::pluck('id')->all());
+        }
     }
 
     public function test_suppression_map_finds_the_nearest_alerting_ancestor(): void

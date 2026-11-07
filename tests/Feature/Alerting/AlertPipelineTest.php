@@ -26,8 +26,10 @@ use App\Monitoring\MonitorActivation;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Tests\TestCase;
@@ -316,6 +318,31 @@ class AlertPipelineTest extends TestCase
         $this->getJson("/api/v1/push/{$monitor->push_token}")->assertOk();
         $this->assertSame(['down', 'up'], $this->kinds($monitor));
         $this->assertSame(2, AlertDelivery::count());
+    }
+
+    public function test_a_due_tick_always_moves_the_due_time_past_now(): void
+    {
+        // A re-check interval of 0 makes the machine return "due now" for a monitor that stays suppressed.
+        config(['alerting.suppression_recheck_seconds' => 0]);
+        $group = Monitor::factory()->for($this->ws)->group('all')->create();
+        $this->channel($group);
+        $group->state()->update(['status' => MonitorStatus::Down]);
+        $child = $this->monitor(['parent_id' => $group->id]);
+        $this->channel($child);
+        AlertState::create(['monitor_id' => $child->id, 'notified' => 'ok', 'observed' => 'down', 'current' => 'down',
+            'down_since' => $this->t0, 'suppressed' => true, 'last_signal_at' => $this->t0, 'due_at' => $this->t0]);
+        $logged = [];
+        Event::listen(MessageLogged::class, function (MessageLogged $e) use (&$logged): void {
+            $logged[] = $e->message;
+        });
+
+        $this->tick(30);
+
+        $this->assertSame(0, AlertEvent::count(), 'still suppressed');
+        $dueAt = AlertState::findOrFail($child->id)->due_at;
+        $this->assertNotNull($dueAt);
+        $this->assertTrue($dueAt->equalTo($this->t0->addSeconds(90)), "due at {$dueAt}");
+        $this->assertContains('An alert tick left a due time that is not in the future; it was moved on.', $logged);
     }
 
     public function test_tick_query_count_is_constant(): void

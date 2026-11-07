@@ -87,7 +87,7 @@ class NotificationChannelController extends Controller
                     continue;
                 }
                 $new = $channel->getAttribute($field);
-                if ($old !== $new) {
+                if (self::canonical($old) !== self::canonical($new)) {
                     $diff[$field] = [$old, $new];
                 }
             }
@@ -134,6 +134,23 @@ class NotificationChannelController extends Controller
         }, 'monitors.id', 'id');
 
         return $attached;
+    }
+
+    /**
+     * A JSON value with its object keys sorted, recursively. MySQL stores JSON objects with their keys in its own
+     * order, so a value read back can differ from the submitted one in key order alone.
+     */
+    private static function canonical(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+        $value = array_map(self::canonical(...), $value);
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return $value;
     }
 
     private function channel(Model $model): NotificationChannel

@@ -347,6 +347,22 @@ class NotificationChannelApiTest extends TestCase
         $this->assertSame([['bot_token'], ['bot_token']], $rotated->changes['secret_keys'] ?? null);
     }
 
+    public function test_config_stored_in_another_key_order_is_no_change(): void
+    {
+        $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), $this->telegram())->assertCreated()->json('data.id'));
+        // MySQL returns JSON objects with their keys in its own order.
+        $config = DB::table('notification_channels')->where('id', $id)->value('config');
+        $this->assertIsString($config);
+        $decoded = json_decode($config, true);
+        $this->assertIsArray($decoded);
+        DB::table('notification_channels')->where('id', $id)->update(['config' => json_encode(array_reverse($decoded, true))]);
+        AuditEvent::query()->delete();
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), [])->assertOk();
+
+        $this->assertSame(0, AuditEvent::query()->count());
+    }
+
     public function test_apply_to_existing_is_audited_only_when_something_was_attached(): void
     {
         $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), $this->telegram() + ['apply_to_existing' => true])->assertCreated()->json('data.id'));
