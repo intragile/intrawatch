@@ -9,7 +9,7 @@ import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
 import { useCan } from '../../composables/useCan'
-import { bodyOf, withCursor } from '../../utils/cursorPage'
+import { bodyOf } from '../../utils/cursorPage'
 import { formatChange, parseAuditEvent } from './rows'
 
 type ActorType = 'user' | 'token' | 'system'
@@ -34,9 +34,8 @@ const list = useCursorList(async (cursor) => {
   const result = await bodyOf(api.GET('/workspaces/{workspace}/audit', {
     params: {
       path: { workspace: slug.value },
-      query: { ...applied.value },
+      query: { ...applied.value, cursor: cursor ?? undefined },
     },
-    ...withCursor(cursor),
   }))
   return {
     data: result.data.map(parseAuditEvent),

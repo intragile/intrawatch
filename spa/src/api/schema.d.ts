@@ -1012,6 +1012,11 @@ export interface components {
          */
         ChannelType: "email" | "webhook" | "slack" | "discord" | "teams" | "mattermost" | "google_chat" | "telegram" | "ntfy" | "gotify" | "pushover" | "matrix" | "pagerduty" | "opsgenie" | "apprise";
         /**
+         * DeliveryStatus
+         * @enum {string}
+         */
+        DeliveryStatus: "queued" | "sent" | "failed";
+        /**
          * IncidentImpact
          * @enum {string}
          */
@@ -1893,7 +1898,12 @@ export interface operations {
     };
     "workspace.index": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2099,6 +2109,10 @@ export interface operations {
                 monitor_id?: number;
                 kind?: components["schemas"]["AlertKind"];
                 since?: string;
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -2116,21 +2130,35 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            id: unknown;
-                            kind: unknown;
+                            id: number;
+                            kind: components["schemas"]["AlertKind"];
                             monitor: {
-                                id: unknown;
-                                name: unknown;
+                                id: number;
+                                name: string;
                             } | null;
-                            status: unknown;
-                            previous_status: unknown;
-                            message: unknown;
-                            duration_seconds: unknown;
-                            /** @description Rebuilt in a fixed key order: MySQL hands JSON objects back with its own key order. */
-                            changes: unknown[] | null;
-                            suppressed_by_monitor_id: unknown;
-                            created_at: unknown;
-                            deliveries: unknown;
+                            status: components["schemas"]["MonitorStatus"] | null;
+                            previous_status: components["schemas"]["MonitorStatus"] | null;
+                            message: string;
+                            duration_seconds: number | null;
+                            changes: {
+                                key: string;
+                                old: unknown;
+                                new: unknown;
+                            }[] | null;
+                            suppressed_by_monitor_id: number | null;
+                            created_at: string;
+                            deliveries: {
+                                id: number;
+                                channel: {
+                                    id: number;
+                                    name: string;
+                                    type: components["schemas"]["ChannelType"];
+                                } | null;
+                                status: components["schemas"]["DeliveryStatus"];
+                                attempts: number;
+                                last_error: string | null;
+                                sent_at: string | null;
+                            }[];
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -2152,6 +2180,10 @@ export interface operations {
                 actor_id?: number;
                 actor_type?: "user" | "token" | "system";
                 actor_user_id?: number;
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -2169,16 +2201,21 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            id: unknown;
-                            action: unknown;
-                            actor_type: unknown;
-                            actor_id: unknown;
-                            actor_user_id: unknown;
-                            subject_type: unknown;
-                            subject_id: unknown;
-                            changes: unknown;
-                            ip: unknown;
-                            created_at: unknown;
+                            id: number;
+                            action: string;
+                            actor_type: string;
+                            actor_id: number | null;
+                            actor_user_id: number | null;
+                            subject_type: string | null;
+                            subject_id: string | null;
+                            changes: {
+                                [key: string]: [
+                                    unknown,
+                                    unknown
+                                ];
+                            } | null;
+                            ip: string | null;
+                            created_at: string;
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -2197,6 +2234,10 @@ export interface operations {
         parameters: {
             query?: {
                 state?: "open" | "resolved" | "all";
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -2226,14 +2267,7 @@ export interface operations {
                             status_page_ids: number[];
                             created_at: string | null;
                             updated_at: string | null;
-                            updates: {
-                                id: number;
-                                /** @enum {string} */
-                                status: "investigating" | "identified" | "monitoring" | "resolved";
-                                message: string;
-                                created_at: string;
-                                updated_at: string | null;
-                            }[];
+                            updates: string[];
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -2283,14 +2317,7 @@ export interface operations {
                             status_page_ids: number[];
                             created_at: string | null;
                             updated_at: string | null;
-                            updates: {
-                                id: number;
-                                /** @enum {string} */
-                                status: "investigating" | "identified" | "monitoring" | "resolved";
-                                message: string;
-                                created_at: string;
-                                updated_at: string | null;
-                            }[];
+                            updates: string[];
                         };
                     };
                 };
@@ -2334,14 +2361,7 @@ export interface operations {
                             status_page_ids: number[];
                             created_at: string | null;
                             updated_at: string | null;
-                            updates: {
-                                id: number;
-                                /** @enum {string} */
-                                status: "investigating" | "identified" | "monitoring" | "resolved";
-                                message: string;
-                                created_at: string;
-                                updated_at: string | null;
-                            }[];
+                            updates: string[];
                         };
                     };
                 };
@@ -2414,14 +2434,7 @@ export interface operations {
                             status_page_ids: number[];
                             created_at: string | null;
                             updated_at: string | null;
-                            updates: {
-                                id: number;
-                                /** @enum {string} */
-                                status: "investigating" | "identified" | "monitoring" | "resolved";
-                                message: string;
-                                created_at: string;
-                                updated_at: string | null;
-                            }[];
+                            updates: string[];
                         };
                     };
                 };
@@ -2548,6 +2561,10 @@ export interface operations {
         parameters: {
             query?: {
                 state?: "active" | "upcoming" | "past" | "all";
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -2866,7 +2883,12 @@ export interface operations {
     };
     "member.index": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
+            };
             header?: never;
             path: {
                 /** @description The workspace slug */
@@ -3021,6 +3043,10 @@ export interface operations {
                 q?: string;
                 parent_id?: string;
                 active?: "true" | "false" | "1" | "0";
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -3054,20 +3080,15 @@ export interface operations {
                             config: {
                                 [key: string]: unknown;
                             };
-                            secret_keys: unknown[];
-                            notification_channel_ids: number[];
+                            secret_keys: string[];
+                            notification_channel_ids: string[] | number[];
                             alerting: {
                                 resend_interval_minutes: number;
                                 notify_degraded: boolean;
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: {
-                                id: number;
-                                name: string;
-                                color: string;
-                                value: string | null;
-                            }[];
+                            tags: string[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3138,20 +3159,15 @@ export interface operations {
                             config: {
                                 [key: string]: unknown;
                             };
-                            secret_keys: unknown[];
-                            notification_channel_ids: number[];
+                            secret_keys: string[];
+                            notification_channel_ids: string[] | number[];
                             alerting: {
                                 resend_interval_minutes: number;
                                 notify_degraded: boolean;
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: {
-                                id: number;
-                                name: string;
-                                color: string;
-                                value: string | null;
-                            }[];
+                            tags: string[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3254,20 +3270,15 @@ export interface operations {
                             config: {
                                 [key: string]: unknown;
                             };
-                            secret_keys: unknown[];
-                            notification_channel_ids: number[];
+                            secret_keys: string[];
+                            notification_channel_ids: string[] | number[];
                             alerting: {
                                 resend_interval_minutes: number;
                                 notify_degraded: boolean;
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: {
-                                id: number;
-                                name: string;
-                                color: string;
-                                value: string | null;
-                            }[];
+                            tags: string[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3361,20 +3372,15 @@ export interface operations {
                             config: {
                                 [key: string]: unknown;
                             };
-                            secret_keys: unknown[];
-                            notification_channel_ids: number[];
+                            secret_keys: string[];
+                            notification_channel_ids: string[] | number[];
                             alerting: {
                                 resend_interval_minutes: number;
                                 notify_degraded: boolean;
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: {
-                                id: number;
-                                name: string;
-                                color: string;
-                                value: string | null;
-                            }[];
+                            tags: string[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3407,6 +3413,10 @@ export interface operations {
             query?: {
                 kind?: components["schemas"]["AlertKind"];
                 since?: string;
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -3426,21 +3436,35 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            id: unknown;
-                            kind: unknown;
+                            id: number;
+                            kind: components["schemas"]["AlertKind"];
                             monitor: {
-                                id: unknown;
-                                name: unknown;
+                                id: number;
+                                name: string;
                             } | null;
-                            status: unknown;
-                            previous_status: unknown;
-                            message: unknown;
-                            duration_seconds: unknown;
-                            /** @description Rebuilt in a fixed key order: MySQL hands JSON objects back with its own key order. */
-                            changes: unknown[] | null;
-                            suppressed_by_monitor_id: unknown;
-                            created_at: unknown;
-                            deliveries: unknown;
+                            status: components["schemas"]["MonitorStatus"] | null;
+                            previous_status: components["schemas"]["MonitorStatus"] | null;
+                            message: string;
+                            duration_seconds: number | null;
+                            changes: {
+                                key: string;
+                                old: unknown;
+                                new: unknown;
+                            }[] | null;
+                            suppressed_by_monitor_id: number | null;
+                            created_at: string;
+                            deliveries: {
+                                id: number;
+                                channel: {
+                                    id: number;
+                                    name: string;
+                                    type: components["schemas"]["ChannelType"];
+                                } | null;
+                                status: components["schemas"]["DeliveryStatus"];
+                                attempts: number;
+                                last_error: string | null;
+                                sent_at: string | null;
+                            }[];
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -3488,6 +3512,10 @@ export interface operations {
         parameters: {
             query?: {
                 kind?: "status_changed" | "changed";
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -3507,15 +3535,15 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            id: unknown;
-                            kind: unknown;
-                            from_status: unknown;
-                            to_status: unknown;
-                            key: unknown;
-                            old_value: unknown;
-                            new_value: unknown;
-                            message: unknown;
-                            created_at: unknown;
+                            id: number;
+                            kind: string;
+                            from_status: components["schemas"]["MonitorStatus"] | null;
+                            to_status: components["schemas"]["MonitorStatus"] | null;
+                            key: string | null;
+                            old_value: string | null;
+                            new_value: string | null;
+                            message: string;
+                            created_at: string;
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -3567,20 +3595,15 @@ export interface operations {
                             config: {
                                 [key: string]: unknown;
                             };
-                            secret_keys: unknown[];
-                            notification_channel_ids: number[];
+                            secret_keys: string[];
+                            notification_channel_ids: string[] | number[];
                             alerting: {
                                 resend_interval_minutes: number;
                                 notify_degraded: boolean;
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: {
-                                id: number;
-                                name: string;
-                                color: string;
-                                value: string | null;
-                            }[];
+                            tags: string[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3642,6 +3665,10 @@ export interface operations {
                 from?: string;
                 to?: string;
                 status?: components["schemas"]["MonitorStatus"];
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -3661,12 +3688,14 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            id: unknown;
-                            status: unknown;
-                            latency_ms: unknown;
-                            message: unknown;
-                            facts: unknown;
-                            checked_at: unknown;
+                            id: number;
+                            status: components["schemas"]["MonitorStatus"];
+                            latency_ms: number | null;
+                            message: string | null;
+                            facts: {
+                                [key: string]: unknown;
+                            } | null;
+                            checked_at: string;
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -3718,20 +3747,15 @@ export interface operations {
                             config: {
                                 [key: string]: unknown;
                             };
-                            secret_keys: unknown[];
-                            notification_channel_ids: number[];
+                            secret_keys: string[];
+                            notification_channel_ids: string[] | number[];
                             alerting: {
                                 resend_interval_minutes: number;
                                 notify_degraded: boolean;
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: {
-                                id: number;
-                                name: string;
-                                color: string;
-                                value: string | null;
-                            }[];
+                            tags: string[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3764,6 +3788,10 @@ export interface operations {
                 bucket: "minute" | "hour" | "day";
                 from?: string;
                 to?: string;
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -3783,17 +3811,17 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            bucket_start: unknown;
-                            total: unknown;
-                            up: unknown;
-                            down: unknown;
-                            degraded: unknown;
-                            pending: unknown;
-                            maintenance: unknown;
-                            availability: string;
-                            latency_min: unknown;
-                            latency_max: unknown;
-                            latency_avg: unknown;
+                            bucket_start: string;
+                            total: number;
+                            up: number;
+                            down: number;
+                            degraded: number;
+                            pending: number;
+                            maintenance: number;
+                            availability: number | null;
+                            latency_min: number | null;
+                            latency_max: number | null;
+                            latency_avg: number | null;
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -3813,6 +3841,10 @@ export interface operations {
             query?: {
                 type?: components["schemas"]["ChannelType"];
                 q?: string;
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
             };
             header?: never;
             path: {
@@ -3834,9 +3866,14 @@ export interface operations {
                             name: string;
                             /** @enum {string} */
                             type: "email" | "webhook" | "slack" | "discord" | "teams" | "mattermost" | "google_chat" | "telegram" | "ntfy" | "gotify" | "pushover" | "matrix" | "pagerduty" | "opsgenie" | "apprise";
-                            config: unknown;
-                            secret_keys: unknown[];
-                            templates: unknown;
+                            config: {
+                                [key: string]: unknown;
+                            };
+                            secret_keys: string[];
+                            templates: {
+                                title?: string;
+                                body?: string;
+                            } | null;
                             is_default: boolean;
                             active: boolean;
                             monitor_count: number;
@@ -3886,9 +3923,14 @@ export interface operations {
                             name: string;
                             /** @enum {string} */
                             type: "email" | "webhook" | "slack" | "discord" | "teams" | "mattermost" | "google_chat" | "telegram" | "ntfy" | "gotify" | "pushover" | "matrix" | "pagerduty" | "opsgenie" | "apprise";
-                            config: string;
-                            secret_keys: unknown[];
-                            templates: string | null;
+                            config: {
+                                [key: string]: unknown;
+                            };
+                            secret_keys: string[];
+                            templates: {
+                                title?: string;
+                                body?: string;
+                            } | null;
                             is_default: boolean;
                             active: boolean;
                             monitor_count: number;
@@ -3974,9 +4016,14 @@ export interface operations {
                             name: string;
                             /** @enum {string} */
                             type: "email" | "webhook" | "slack" | "discord" | "teams" | "mattermost" | "google_chat" | "telegram" | "ntfy" | "gotify" | "pushover" | "matrix" | "pagerduty" | "opsgenie" | "apprise";
-                            config: string;
-                            secret_keys: unknown[];
-                            templates: string | null;
+                            config: {
+                                [key: string]: unknown;
+                            };
+                            secret_keys: string[];
+                            templates: {
+                                title?: string;
+                                body?: string;
+                            } | null;
                             is_default: boolean;
                             active: boolean;
                             monitor_count: number;
@@ -4049,9 +4096,14 @@ export interface operations {
                             name: string;
                             /** @enum {string} */
                             type: "email" | "webhook" | "slack" | "discord" | "teams" | "mattermost" | "google_chat" | "telegram" | "ntfy" | "gotify" | "pushover" | "matrix" | "pagerduty" | "opsgenie" | "apprise";
-                            config: string;
-                            secret_keys: unknown[];
-                            templates: string | null;
+                            config: {
+                                [key: string]: unknown;
+                            };
+                            secret_keys: string[];
+                            templates: {
+                                title?: string;
+                                body?: string;
+                            } | null;
                             is_default: boolean;
                             active: boolean;
                             monitor_count: number;
@@ -4111,7 +4163,12 @@ export interface operations {
     };
     "statusPage.index": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
+            };
             header?: never;
             path: {
                 /** @description The workspace slug */
@@ -4147,21 +4204,7 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: {
-                                id: number;
-                                name: string;
-                                description: string | null;
-                                position: number;
-                                items: {
-                                    id: number;
-                                    monitor_id: number;
-                                    display_name: string | null;
-                                    description: string | null;
-                                    position: number;
-                                    expand_children: boolean;
-                                    show_uptime: boolean;
-                                }[];
-                            }[];
+                            sections: string[];
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -4217,21 +4260,7 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: {
-                                id: number;
-                                name: string;
-                                description: string | null;
-                                position: number;
-                                items: {
-                                    id: number;
-                                    monitor_id: number;
-                                    display_name: string | null;
-                                    description: string | null;
-                                    position: number;
-                                    expand_children: boolean;
-                                    show_uptime: boolean;
-                                }[];
-                            }[];
+                            sections: string[];
                         };
                     };
                 };
@@ -4282,21 +4311,7 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: {
-                                id: number;
-                                name: string;
-                                description: string | null;
-                                position: number;
-                                items: {
-                                    id: number;
-                                    monitor_id: number;
-                                    display_name: string | null;
-                                    description: string | null;
-                                    position: number;
-                                    expand_children: boolean;
-                                    show_uptime: boolean;
-                                }[];
-                            }[];
+                            sections: string[];
                         };
                     };
                 };
@@ -4376,21 +4391,7 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: {
-                                id: number;
-                                name: string;
-                                description: string | null;
-                                position: number;
-                                items: {
-                                    id: number;
-                                    monitor_id: number;
-                                    display_name: string | null;
-                                    description: string | null;
-                                    position: number;
-                                    expand_children: boolean;
-                                    show_uptime: boolean;
-                                }[];
-                            }[];
+                            sections: string[];
                         };
                     };
                 };
@@ -4445,21 +4446,7 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: {
-                                id: number;
-                                name: string;
-                                description: string | null;
-                                position: number;
-                                items: {
-                                    id: number;
-                                    monitor_id: number;
-                                    display_name: string | null;
-                                    description: string | null;
-                                    position: number;
-                                    expand_children: boolean;
-                                    show_uptime: boolean;
-                                }[];
-                            }[];
+                            sections: string[];
                         };
                     };
                 };
@@ -4472,7 +4459,12 @@ export interface operations {
     };
     "tag.index": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
+            };
             header?: never;
             path: {
                 /** @description The workspace slug */
@@ -4613,7 +4605,12 @@ export interface operations {
     };
     "token.index": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
+            };
             header?: never;
             path: {
                 /** @description The workspace slug */
@@ -4630,12 +4627,12 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            id: unknown;
-                            name: unknown;
-                            abilities: unknown;
-                            last_used_at: unknown;
-                            expires_at: unknown;
-                            created_at: unknown;
+                            id: number;
+                            name: string;
+                            abilities: string[] | null;
+                            last_used_at: string | null;
+                            expires_at: string | null;
+                            created_at: string | null;
                         }[];
                         meta: {
                             next_cursor: string | null;

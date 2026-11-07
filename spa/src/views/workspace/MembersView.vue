@@ -13,7 +13,7 @@ import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
 import { useSession } from '../../stores/session'
-import { bodyOf, withCursor } from '../../utils/cursorPage'
+import { bodyOf } from '../../utils/cursorPage'
 import { ROLES } from '../../utils/roles'
 
 const { t } = useI18n()
@@ -28,8 +28,8 @@ const slug = computed(() => String(route.params.workspace))
 const list = useCursorList(cursor => bodyOf(api.GET('/workspaces/{workspace}/members', {
   params: {
     path: { workspace: slug.value },
+    query: { cursor: cursor ?? undefined },
   },
-  ...withCursor(cursor),
 })))
 type Member = (typeof list.items.value)[number]
 

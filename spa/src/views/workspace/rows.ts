@@ -1,11 +1,4 @@
-import type { paths } from '../../api/schema'
-
-type Body<P extends keyof paths> = paths[P] extends { get: { responses: { 200: { content: { 'application/json': infer B } } } } } ? B : never
-type Item<B> = B extends { data: Array<infer I> } ? I : never
-
-/** The token and audit list items are untyped in the generated schema; these narrow them at runtime. */
-export type RawToken = Item<Body<'/workspaces/{workspace}/tokens'>>
-export type RawAuditEvent = Item<Body<'/workspaces/{workspace}/audit'>>
+import type { AuditEntry, TokenItem } from '../../api/types'
 
 export interface TokenRow {
   id: string
@@ -23,57 +16,46 @@ export interface AuditRow {
   actorId: number | null
   actorUserId: number | null
   subjectType: string | null
-  subjectId: number | null
+  subjectId: string | null
   changes: Array<{ field: string, from: unknown, to: unknown }>
   ip: string | null
   createdAt: string
 }
 
-function text(v: unknown): string | null {
-  return typeof v === 'string' && v !== ''
-    ? v
-    : null
-}
-function num(v: unknown): number | null {
-  return typeof v === 'number'
-    ? v
-    : null
-}
-
-export function parseToken(raw: RawToken): TokenRow {
+export function parseToken(raw: TokenItem): TokenRow {
   return {
     id: String(raw.id),
-    name: text(raw.name) ?? '',
-    abilities: Array.isArray(raw.abilities)
-      ? raw.abilities.filter((a): a is string => typeof a === 'string')
-      : [],
-    lastUsedAt: text(raw.last_used_at),
-    expiresAt: text(raw.expires_at),
-    createdAt: text(raw.created_at),
+    name: raw.name,
+    abilities: raw.abilities ?? [],
+    lastUsedAt: raw.last_used_at,
+    expiresAt: raw.expires_at,
+    createdAt: raw.created_at,
   }
 }
 
-/** Audit `changes` map a field to `[old, new]`; anything else is shown as a single value. */
-function parseChanges(raw: unknown): AuditRow['changes'] {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
-    return []
-  return Object.entries(raw).map(([field, value]) => (Array.isArray(value) && value.length === 2
-    ? { field, from: value[0], to: value[1] }
-    : { field, from: undefined, to: value }))
+/**
+ * An audit entry as the client returns it: `openapi-fetch` widens the `[old, new]` tuples of `changes`
+ * to arrays.
+ */
+type AuditPayload = Omit<AuditEntry, 'changes'> & { changes: Record<string, readonly unknown[]> | null }
+
+/** Audit `changes` map each field to its `[old, new]` pair. */
+function parseChanges(raw: AuditPayload['changes']): AuditRow['changes'] {
+  return Object.entries(raw ?? {}).map(([field, [from, to]]) => ({ field, from, to }))
 }
 
-export function parseAuditEvent(raw: RawAuditEvent): AuditRow {
+export function parseAuditEvent(raw: AuditPayload): AuditRow {
   return {
-    id: num(raw.id) ?? 0,
-    action: text(raw.action) ?? '',
-    actorType: text(raw.actor_type) ?? 'system',
-    actorId: num(raw.actor_id),
-    actorUserId: num(raw.actor_user_id),
-    subjectType: text(raw.subject_type),
-    subjectId: num(raw.subject_id),
+    id: raw.id,
+    action: raw.action,
+    actorType: raw.actor_type,
+    actorId: raw.actor_id,
+    actorUserId: raw.actor_user_id,
+    subjectType: raw.subject_type,
+    subjectId: raw.subject_id,
     changes: parseChanges(raw.changes),
-    ip: text(raw.ip),
-    createdAt: text(raw.created_at) ?? '',
+    ip: raw.ip,
+    createdAt: raw.created_at,
   }
 }
 

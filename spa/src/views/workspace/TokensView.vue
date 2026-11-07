@@ -12,7 +12,7 @@ import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useNotify } from '../../composables/useNotify'
-import { bodyOf, withCursor } from '../../utils/cursorPage'
+import { bodyOf } from '../../utils/cursorPage'
 import { ABILITY_LABEL_KEYS, TOKEN_ABILITIES } from '../../utils/tokenAbilities'
 import { parseToken } from './rows'
 
@@ -27,8 +27,8 @@ const list = useCursorList(async (cursor) => {
   const result = await bodyOf(api.GET('/workspaces/{workspace}/tokens', {
     params: {
       path: { workspace: slug.value },
+      query: { cursor: cursor ?? undefined },
     },
-    ...withCursor(cursor),
   }))
   return {
     data: result.data.map(parseToken),
