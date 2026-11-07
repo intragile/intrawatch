@@ -60,6 +60,31 @@ class BroadcastChannelTest extends TestCase
         $this->withToken($token->plainTextToken)->authorize($b)->assertForbidden();
     }
 
+    public function test_the_spa_cookie_session_authorizes_its_workspace_channel(): void
+    {
+        // A persistent session driver, with guards and session stores dropped between requests, so the
+        // user can only come from the session cookie, as in a browser.
+        config(['session.driver' => 'database']);
+        $workspace = Workspace::factory()->create();
+        $member = User::factory()->memberOf($workspace, WorkspaceRole::Viewer)->create();
+        $stateful = ['Origin' => 'http://localhost:3000', 'Referer' => 'http://localhost:3000/admin/'];
+
+        $login = $this->postJson('/api/v1/auth/login', ['email' => $member->email, 'password' => 'password'], $stateful)
+            ->assertSuccessful();
+        $cookie = $login->getCookie(config()->string('session.cookie'), false);
+        $this->assertNotNull($cookie);
+
+        $this->app['auth']->forgetGuards();
+        $this->app['session']->forgetDrivers();
+        $this->app->forgetInstance('session.store');
+
+        $this->withCredentials()->withUnencryptedCookie($cookie->getName(), (string) $cookie->getValue())
+            ->withHeaders($stateful)
+            ->authorize($workspace)
+            ->assertOk()
+            ->assertJsonStructure(['auth']);
+    }
+
     public function test_a_token_needs_the_monitors_read_ability_to_listen(): void
     {
         $workspace = Workspace::factory()->create();
