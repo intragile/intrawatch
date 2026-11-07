@@ -302,6 +302,36 @@ describe('status page editor behaviour', () => {
     await expect.poll(() => router.currentRoute.value.params.statusPage).toBe('6')
   })
 
+  it('an edit typed while a focus refetch is in flight survives it', async () => {
+    let release: (() => void) | undefined
+    const server = fakeApi({
+      ...base(),
+      'GET /workspaces/acme/status-pages/5': [
+        json({
+          data: statusPage(),
+        }),
+        () => new Promise<Response>((resolve) => {
+          release = () => resolve(json({
+            data: statusPage({ title: 'Changed elsewhere' }),
+          }))
+        }),
+      ],
+    })
+    await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector<HTMLInputElement>('input[name="status_title"]')?.value).toBe('Acme status')
+
+    window.dispatchEvent(new Event('focus'))
+    await expect.poll(() => server.of('GET /workspaces/acme/status-pages/5')).toHaveLength(2)
+    await expect.poll(() => release).toBeDefined()
+    fill('input[name="status_title"]', 'Typed meanwhile')
+    await flushPromises()
+
+    release?.()
+    await flushPromises()
+
+    expect(document.querySelector<HTMLInputElement>('input[name="status_title"]')?.value).toBe('Typed meanwhile')
+  })
+
   it('a viewer gets no write controls', async () => {
     fakeApi({
       ...base(viewerCan),

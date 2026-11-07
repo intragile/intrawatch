@@ -134,6 +134,9 @@ async function refresh(): Promise<void> {
     return
   try {
     const page = await fetchPage(id)
+    // Edits typed or a page switched to while the request was in flight take precedence.
+    if (dirty.value || id !== pageId.value)
+      return
     applySettings(page)
     applyLayout(page)
   }
