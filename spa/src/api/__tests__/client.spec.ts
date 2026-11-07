@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError, ensureCsrf, resetCsrf, setAuthHandlers, unwrap } from '..'
 import { inspect, json, problem, stubFetch } from './helpers'
 
+// Untyped handle for exercising paths regardless of the generated route table.
+const loose = api as unknown as Record<'GET' | 'PUT', (path: string, init?: unknown) => Promise<unknown>>
+
 function setCookie(value: string) {
   document.cookie = `XSRF-TOKEN=${value}; path=/`
 }
@@ -152,5 +155,117 @@ describe('api client', () => {
     await expect(unwrap(Promise.resolve({
       error: { title: 'x' },
     }))).rejects.toBeInstanceOf(ApiError)
+  })
+
+  it('csrf network failure and non-ok status surface as ApiError', async () => {
+    stubFetch(new TypeError('offline'))
+    const net = await ensureCsrf().catch(e => e)
+    expect(net).toBeInstanceOf(ApiError)
+    expect(net.status).toBe(0)
+    expect(net.type).toBe('urn:client:network')
+
+    stubFetch(problem(500, { title: 'Broken' }))
+    const bad = await api.POST('/auth/logout').catch(e => e)
+    expect(bad).toBeInstanceOf(ApiError)
+    expect(bad).toMatchObject({ status: 500, title: 'Broken' })
+
+    const retry = stubFetch(json({}, 204))
+    await ensureCsrf()
+    expect(retry).toHaveBeenCalledTimes(1)
+  })
+
+  it('concurrent 419 recoveries share one forced csrf refresh', async () => {
+    let csrfCalls = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const { url } = inspect([input])
+      if (url.pathname === '/sanctum/csrf-cookie') {
+        csrfCalls++
+        await new Promise(r => setTimeout(r, 5))
+        return json({}, 204)
+      }
+      return csrfCalls < 2
+        ? problem(419)
+        : json({ data: {} })
+    }))
+    await ensureCsrf()
+    await Promise.all([
+      api.POST('/auth/logout'),
+      api.POST('/auth/logout'),
+      api.POST('/auth/logout'),
+    ])
+    expect(csrfCalls).toBe(2)
+  })
+
+  it.each([
+    [
+      '419',
+      () => [
+        problem(419),
+        json({}, 204),
+        json({ data: {} }),
+      ],
+    ],
+    [
+      '401',
+      () => [
+        problem(401),
+        json({ data: {} }),
+      ],
+    ],
+  ])('retried request after %s carries the same JSON body', async (kind, rest) => {
+    setAuthHandlers({
+      onUnauthenticated: async () => true,
+      onPasswordConfirmRequired: async () => false,
+    })
+    const fetch = stubFetch(json({}, 204), ...rest())
+    await loose.PUT('/workspaces/{workspace}', {
+      params: {
+        path: { workspace: 'w' },
+      },
+      body: { name: 'N' },
+    })
+    const bodies = await Promise.all(
+      fetch.mock.calls
+        .filter(c => inspect(c).url.pathname === '/api/v1/workspaces/w')
+        .map(c => (c[0] as Request).text()),
+    )
+    expect(bodies).toHaveLength(2)
+    expect(bodies[0]).toContain('"name":"N"')
+    expect(bodies[1]).toBe(bodies[0])
+    expect(kind).toBeTruthy()
+  })
+
+  it('exempts auth endpoints exactly and not by suffix', async () => {
+    const onUnauthenticated = vi.fn(async () => false)
+    setAuthHandlers({
+      onUnauthenticated,
+      onPasswordConfirmRequired: async () => false,
+    })
+    stubFetch(json({}, 204), problem(401))
+    await api.POST('/auth/logout').catch(() => {})
+    expect(onUnauthenticated).not.toHaveBeenCalled()
+
+    stubFetch(problem(401))
+    await loose.GET('/workspaces/{workspace}/monitors/{monitor}/pause', {
+      params: {
+        path: { workspace: 'w', monitor: 'm' },
+      },
+    }).catch(() => {})
+    stubFetch(problem(401))
+    await loose.GET('/workspaces/{workspace}/me', {
+      params: {
+        path: { workspace: 'w' },
+      },
+    }).catch(() => {})
+    expect(onUnauthenticated).toHaveBeenCalledTimes(2)
+  })
+
+  it('unwrap resolves undefined for a 204 and keeps real errors', async () => {
+    expect(await unwrap<void>(Promise.resolve({}))).toBeUndefined()
+    const boom = new TypeError('x')
+    await expect(unwrap(Promise.resolve({ error: boom }))).rejects.toBe(boom)
+    const odd = (await unwrap(Promise.resolve({ error: 'str' })).catch((e: unknown) => e)) as ApiError
+    expect(odd).toBeInstanceOf(ApiError)
+    expect(odd.status).not.toBe(0)
   })
 })

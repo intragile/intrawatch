@@ -84,15 +84,21 @@ export function fieldErrors(e: ApiError | null, prefix?: string): Record<string,
   return out
 }
 
-/** The problem detail plus every message whose field is not rendered inline. */
-export function formError(e: ApiError | null, knownFields: string[]): string | null {
+/**
+ * The problem detail plus every message whose field is not rendered inline.
+ * With a prefix, `knownFields` are relative to it, as in `fieldErrors`.
+ */
+export function formError(e: ApiError | null, knownFields: string[], prefix?: string): string | null {
   if (!e)
     return null
+  const known = new Set(prefix
+    ? knownFields.map(f => `${prefix}.${f}`)
+    : knownFields)
   const lines: string[] = []
   if (e.detail)
     lines.push(e.detail)
   for (const [key, messages] of Object.entries(e.errors ?? {})) {
-    if (!knownFields.includes(key))
+    if (!known.has(key))
       lines.push(...messages)
   }
   return lines.length > 0

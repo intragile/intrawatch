@@ -21,16 +21,20 @@ export function setAuthHandlers(next: AuthHandlers): void {
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 // A 401 here is an expected answer, not an expired session.
-const UNAUTHENTICATED_EXEMPT = [
+const API_PREFIX = '/api/v1'
+const UNAUTHENTICATED_EXEMPT = new Set([
   '/auth/login',
   '/auth/two-factor-challenge',
+  '/auth/logout',
   '/setup',
   '/me',
-]
+])
 
 function isExempt(url: string): boolean {
   const { pathname } = new URL(url, window.location.origin)
-  return UNAUTHENTICATED_EXEMPT.some(suffix => pathname.endsWith(suffix))
+  if (!pathname.startsWith(`${API_PREFIX}/`))
+    return false
+  return UNAUTHENTICATED_EXEMPT.has(pathname.slice(API_PREFIX.length))
 }
 
 async function attempt(template: Request): Promise<Response> {
@@ -79,18 +83,22 @@ async function send(template: Request): Promise<Response> {
 
 // Request objects need an absolute URL; the API is always served from the page's own origin.
 export const api = createClient<paths>({
-  baseUrl: `${window.location.origin}/api/v1`,
+  baseUrl: `${window.location.origin}${API_PREFIX}`,
   credentials: 'same-origin',
   fetch: send,
 })
 
-/** Unwraps a `{data: ...}` envelope; failures surface as `ApiError`. */
+/**
+ * Unwraps a `{data: ...}` envelope; failures surface as `ApiError`.
+ * A successful response without a body (204) resolves to `undefined`, so use
+ * `unwrap<void>` for endpoints that return no content.
+ */
 export async function unwrap<T>(p: Promise<{ data?: { data: T }, error?: unknown }>): Promise<T> {
   const result = await p
   if (result.error !== undefined && result.error !== null) {
-    throw result.error instanceof ApiError
-      ? result.error
-      : new ApiError(0, 'about:blank', 'Unexpected API error')
+    if (result.error instanceof Error)
+      throw result.error
+    throw new ApiError(500, 'urn:client:unexpected-response', 'Unexpected API response')
   }
-  return (result.data as { data: T }).data
+  return result.data?.data as T
 }

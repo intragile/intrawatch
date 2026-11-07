@@ -103,4 +103,25 @@ describe('useCursorList', () => {
     expect(list.error.value).toBeTruthy()
     expect(list.hasMore.value).toBe(true)
   })
+
+  it('loadMore during reloadLoaded collapses into it', async () => {
+    const gate = deferred<Page>()
+    const fetchPage = vi.fn(async (cursor: string | null) => pages[cursor ?? 'start']!)
+    const list = useCursorList<number>(fetchPage)
+    await list.loadMore()
+    await list.loadMore()
+    fetchPage.mockClear()
+    fetchPage.mockImplementationOnce(() => gate.promise)
+
+    const reloading = list.reloadLoaded()
+    const more = list.loadMore()
+    expect(fetchPage).toHaveBeenCalledTimes(1)
+    gate.resolve(pages.start!)
+    await Promise.all([reloading, more])
+
+    expect(list.items.value).toEqual([1, 2, 3, 4])
+    expect(list.loading.value).toBe(false)
+    await list.loadMore()
+    expect(list.items.value).toEqual([1, 2, 3, 4, 5])
+  })
 })

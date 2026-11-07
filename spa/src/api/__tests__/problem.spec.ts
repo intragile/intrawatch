@@ -31,4 +31,14 @@ describe('problem helpers', () => {
     }), ['name'])).toBeNull()
     expect(formError(null, [])).toBeNull()
   })
+
+  it('formError accepts known fields relative to a prefix', () => {
+    const e = err({
+      'config.url': ['Bad url'],
+      'config.method': ['Bad method'],
+      'name': ['Short'],
+    })
+    expect(formError(e, ['url'], 'config')).toBe('Bad method\nShort')
+    expect(formError(e, ['config.url', 'config.method', 'name'])).toBeNull()
+  })
 })

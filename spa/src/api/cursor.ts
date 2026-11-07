@@ -87,39 +87,45 @@ export function useCursorList<T>(fetchPage: (cursor: string | null) => Promise<C
     return loadMore()
   }
 
-  async function reloadLoaded(): Promise<void> {
+  function reloadLoaded(): Promise<void> {
     const pages = Math.max(pagesLoaded, 1)
     const mine = ++generation
-    inFlight = null
     loading.value = true
     error.value = null
-    try {
-      const fresh: T[] = []
-      let next: string | null = null
-      let count = 0
-      for (let i = 0; i < pages; i++) {
-        const page: CursorPage<T> = await fetchPage(next)
-        if (mine !== generation)
-          return
-        fresh.push(...page.data)
-        next = page.meta.next_cursor
-        count++
-        if (next === null)
-          break
+    // Registered as the in-flight load so loadMore collapses into it.
+    const run = (async () => {
+      try {
+        const fresh: T[] = []
+        let next: string | null = null
+        let count = 0
+        for (let i = 0; i < pages; i++) {
+          const page: CursorPage<T> = await fetchPage(next)
+          if (mine !== generation)
+            return
+          fresh.push(...page.data)
+          next = page.meta.next_cursor
+          count++
+          if (next === null)
+            break
+        }
+        items.value = fresh
+        cursor = next
+        pagesLoaded = count
+        hasMore.value = next !== null
       }
-      items.value = fresh
-      cursor = next
-      pagesLoaded = count
-      hasMore.value = next !== null
-    }
-    catch (e) {
-      if (mine === generation)
-        error.value = toApiError(e)
-    }
-    finally {
-      if (mine === generation)
-        loading.value = false
-    }
+      catch (e) {
+        if (mine === generation)
+          error.value = toApiError(e)
+      }
+      finally {
+        if (mine === generation) {
+          loading.value = false
+          inFlight = null
+        }
+      }
+    })()
+    inFlight = run
+    return run
   }
 
   return {
