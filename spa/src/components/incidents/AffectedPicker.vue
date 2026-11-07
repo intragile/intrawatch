@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import type { ApiError } from '../../api'
 import type { Monitor, StatusPageSummary } from '../../api/types'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '../../api'
 import { bodyOf } from '../../utils/cursorPage'
+import { asApiError } from '../../utils/errors'
+import ProblemAlert from '../common/ProblemAlert.vue'
 
 const props = withDefaults(defineProps<{
   slug: string
@@ -43,6 +46,8 @@ const monitors = ref<NamedMonitor[]>([])
 const pages = ref<NamedPage[]>([])
 const search = ref('')
 const searching = ref(false)
+const loadError = ref<ApiError | null>(null)
+const pagesTruncated = ref(false)
 const pagesLoading = ref(false)
 let searchSeq = 0
 let searchTimer: ReturnType<typeof setTimeout> | undefined
@@ -61,6 +66,7 @@ async function searchMonitors(q: string): Promise<void> {
     return
   const mine = ++searchSeq
   searching.value = true
+  loadError.value = null
   try {
     const result = await bodyOf(api.GET('/workspaces/{workspace}/monitors', {
       params: {
@@ -76,8 +82,8 @@ async function searchMonitors(q: string): Promise<void> {
     if (mine === searchSeq)
       remember(result.data)
   }
-  catch {
-    // The picker keeps working with the options it already has.
+  catch (e) {
+    loadError.value = asApiError(e)
   }
   finally {
     if (mine === searchSeq)
@@ -109,7 +115,8 @@ async function resolveMonitorNames(): Promise<void> {
         ? { id: data.id, name: data.name }
         : null
     }
-    catch {
+    catch (e) {
+      loadError.value = asApiError(e)
       return null
     }
   }))
@@ -134,9 +141,10 @@ async function loadStatusPages(): Promise<void> {
         break
     }
     pages.value = all
+    pagesTruncated.value = cursor !== undefined
   }
-  catch {
-    // Selected pages still show by id.
+  catch (e) {
+    loadError.value = asApiError(e)
   }
   finally {
     pagesLoading.value = false
@@ -174,6 +182,7 @@ const pageItems = computed(() => {
 </script>
 
 <template>
+  <ProblemAlert :error="loadError" />
   <v-autocomplete
     v-model="monitorIds"
     v-model:search="search"
@@ -201,7 +210,7 @@ const pageItems = computed(() => {
     item-value="id"
     :loading="pagesLoading"
     :label="t('incidents.affected.statusPages')"
-    :hint="statusPagesHint ?? t('incidents.affected.hint')"
+    :hint="pagesTruncated ? t('incidents.affected.truncated', { count: STATUS_PAGE_LIMIT * STATUS_PAGE_PAGES }) : (statusPagesHint ?? t('incidents.affected.hint'))"
     persistent-hint
     :disabled="disabled"
     :error-messages="statusPagesError"

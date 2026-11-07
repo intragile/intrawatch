@@ -146,4 +146,31 @@ describe('maintenance windows', () => {
     expect(document.querySelector('[data-test="maintenance-end-now"]')).toBeNull()
     expect(text()).toContain('read-only')
   })
+
+  it('refetches the loaded maintenance list when the window regains focus', async () => {
+    const server = fakeApi({
+      ...base(),
+      'GET /workspaces/acme/maintenances': json(page([
+        maintenance(),
+      ])),
+    })
+    await mountApp('/w/acme/maintenances')
+    await expect.poll(() => server.of('GET /workspaces/acme/maintenances')).toHaveLength(1)
+
+    window.dispatchEvent(new Event('focus'))
+
+    await expect.poll(() => server.of('GET /workspaces/acme/maintenances')).toHaveLength(2)
+  })
+
+  it('marks the monitors field as required on create only', async () => {
+    fakeApi({
+      ...base(),
+      'GET /workspaces/acme/maintenances/7': json({
+        data: maintenance(),
+      }),
+    })
+    await mountApp('/w/acme/maintenances/new')
+    await expect.poll(() => document.querySelector('[data-test="affected-monitors"]')).not.toBeNull()
+    expect(document.querySelector('[data-test="affected-monitors"] label')?.textContent).toContain('*')
+  })
 })

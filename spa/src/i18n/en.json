@@ -910,14 +910,16 @@
       "searchMonitors": "Search monitors",
       "monitorById": "Monitor #{id}",
       "statusPageById": "Status page #{id}",
-      "hint": "Optional. Status pages show the incident only when they are selected here."
+      "hint": "Optional. Status pages show the incident only when they are selected here.",
+      "truncated": "Only the first {count} status pages are listed."
     },
     "timeline": {
       "title": "Timeline",
       "empty": "No updates yet.",
       "edited": "edited",
       "edit": "Edit update",
-      "delete": "Delete update"
+      "delete": "Delete update",
+      "unreadable": "The timeline could not be read. Reload the page; if it persists, the server response has an unexpected shape."
     },
     "composer": {
       "title": "Post an update",

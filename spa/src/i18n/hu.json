@@ -910,14 +910,16 @@
       "searchMonitors": "Figyelők keresése",
       "monitorById": "{id}. figyelő",
       "statusPageById": "{id}. státuszoldal",
-      "hint": "Nem kötelező. A státuszoldal csak akkor mutatja az incidenst, ha itt ki van választva."
+      "hint": "Nem kötelező. A státuszoldal csak akkor mutatja az incidenst, ha itt ki van választva.",
+      "truncated": "Csak az első {count} státuszoldal látható a listában."
     },
     "timeline": {
       "title": "Idővonal",
       "empty": "Még nincs frissítés.",
       "edited": "szerkesztve",
       "edit": "Frissítés szerkesztése",
-      "delete": "Frissítés törlése"
+      "delete": "Frissítés törlése",
+      "unreadable": "Az idővonal nem olvasható. Töltsd újra az oldalt; ha így marad, a szerver válasza váratlan alakú."
     },
     "composer": {
       "title": "Frissítés közzététele",

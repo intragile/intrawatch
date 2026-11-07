@@ -12,7 +12,7 @@ import ProblemAlert from '../../components/common/ProblemAlert.vue'
 import AffectedPicker from '../../components/incidents/AffectedPicker.vue'
 import ImpactChip from '../../components/incidents/ImpactChip.vue'
 import IncidentStatusChip from '../../components/incidents/IncidentStatusChip.vue'
-import { INCIDENT_IMPACTS, timelineOf } from '../../components/incidents/model'
+import { INCIDENT_IMPACTS, timelineOf, timelineUnreadable } from '../../components/incidents/model'
 import UpdateComposer from '../../components/incidents/UpdateComposer.vue'
 import UpdateTimeline from '../../components/incidents/UpdateTimeline.vue'
 import { deepEqual } from '../../components/monitors/forms/model'
@@ -20,6 +20,7 @@ import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useLeaveGuard } from '../../composables/useLeaveGuard'
 import { useNotify } from '../../composables/useNotify'
+import { useRefetchOnReturn } from '../../composables/useRefetchOnReturn'
 import { useSession } from '../../stores/session'
 import { asApiError } from '../../utils/errors'
 
@@ -44,9 +45,11 @@ interface Details {
 
 const incident = ref<Incident | null>(null)
 const entries = ref<IncidentTimelineEntry[]>([])
+const unreadable = ref(false)
 const details = ref<Details | null>(null)
 const initial = ref<Details | null>(null)
 const loading = ref(true)
+const posting = ref(false)
 const loadError = ref<ApiError | null>(null)
 
 function detailsOf(value: Incident): Details {
@@ -73,6 +76,7 @@ const dirty = computed(() => details.value !== null
 function apply(value: Incident): void {
   incident.value = value
   entries.value = timelineOf(value)
+  unreadable.value = timelineUnreadable(value)
   // Edits in progress on the details survive a timeline refresh.
   if (details.value === null || !dirty.value) {
     details.value = detailsOf(value)
@@ -104,6 +108,9 @@ async function load(): Promise<void> {
 }
 
 onMounted(load)
+useRefetchOnReturn(() => {
+  void fetchIncident().then(apply).catch(() => {})
+}, () => loading.value || posting.value)
 watch(incidentId, () => void load())
 
 const leave = useLeaveGuard(dirty)
@@ -170,7 +177,6 @@ async function saveDetails(): Promise<void> {
 
 // Timeline: post, edit and delete.
 const composer = ref<InstanceType<typeof UpdateComposer> | null>(null)
-const posting = ref(false)
 const postError = ref<ApiError | null>(null)
 
 async function post(update: { status: IncidentStatus, message: string }): Promise<void> {
@@ -364,6 +370,9 @@ async function removeIncident(): Promise<void> {
             {{ t('incidents.timeline.title') }}
           </v-card-title>
           <v-card-text>
+            <v-alert v-if="unreadable" type="warning" variant="tonal" class="mb-4" data-test="timeline-unreadable">
+              {{ t('incidents.timeline.unreadable') }}
+            </v-alert>
             <UpdateTimeline :entries="entries" :editable="canManage" @edit="startEdit" @remove="removingUpdate = $event" />
           </v-card-text>
         </v-card>

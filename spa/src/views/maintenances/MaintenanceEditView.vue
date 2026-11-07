@@ -303,6 +303,7 @@ async function remove(): Promise<void> {
             v-model:monitor-ids="form.monitor_ids"
             v-model:status-page-ids="form.status_page_ids"
             :slug="slug"
+            :monitors-label="`${t('incidents.affected.monitors')}${isEdit ? '' : ' *'}`"
             :disabled="!canManage"
             :can-list-monitors="can('viewMonitors')"
             :monitors-error="fields.monitor_ids ?? Object.entries(fields).find(([k]) => k.startsWith('monitor_ids.'))?.[1]"

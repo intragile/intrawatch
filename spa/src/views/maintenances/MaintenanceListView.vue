@@ -14,6 +14,7 @@ import StateChips from '../../components/maintenances/StateChips.vue'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
+import { useRefetchOnReturn } from '../../composables/useRefetchOnReturn'
 import { useSession } from '../../stores/session'
 import { bodyOf } from '../../utils/cursorPage'
 
@@ -48,6 +49,7 @@ watch([slug, state], () => {
   void list.reload()
 })
 void list.loadMore()
+useRefetchOnReturn(() => void list.reloadLoaded(), () => list.loading.value)
 
 /** Only a one-off maintenance can be ended; a recurring one is switched off in the editor. */
 const endable = (m: Maintenance) => canManage.value && m.in_progress && m.strategy === 'once'

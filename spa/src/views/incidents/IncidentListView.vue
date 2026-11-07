@@ -15,6 +15,7 @@ import IncidentStatusChip from '../../components/incidents/IncidentStatusChip.vu
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
+import { useRefetchOnReturn } from '../../composables/useRefetchOnReturn'
 import { bodyOf } from '../../utils/cursorPage'
 
 type StateFilter = 'all' | 'open' | 'resolved'
@@ -47,6 +48,7 @@ watch([slug, state], () => {
   void list.reload()
 })
 void list.loadMore()
+useRefetchOnReturn(() => void list.reloadLoaded(), () => list.loading.value)
 
 const creating = ref(false)
 const createBusy = ref(false)

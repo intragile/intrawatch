@@ -26,3 +26,9 @@ export function timelineOf(incident: Pick<Incident, 'updates'>): IncidentTimelin
   const raw: unknown[] = incident.updates
   return raw.filter(isEntry)
 }
+
+/** Whether the incident has updates none of which could be read as timeline entries. */
+export function timelineUnreadable(incident: Pick<Incident, 'updates'>): boolean {
+  const raw: unknown[] = incident.updates
+  return raw.length > 0 && timelineOf(incident).length === 0
+}

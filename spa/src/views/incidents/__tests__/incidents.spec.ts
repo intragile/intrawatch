@@ -2,8 +2,8 @@ import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { meWith, viewerCan } from '../../../test/fixtures'
 import { click, fill, mountApp } from '../../../test/mount'
-import { fakeApi, json } from '../../../test/server'
-import { choose } from '../../workspace/__tests__/helpers'
+import { fakeApi, json, problem } from '../../../test/server'
+import { choose, page } from '../../workspace/__tests__/helpers'
 
 const text = () => document.body.textContent ?? ''
 
@@ -138,5 +138,85 @@ describe('incident page', () => {
 
     await expect.poll(() => server.of('PATCH /workspaces/acme/incidents/5')).toHaveLength(1)
     expect(server.of('PATCH /workspaces/acme/incidents/5')[0]?.body).toEqual({ impact: 'critical' })
+  })
+
+  it('refetches the open incident when the window regains focus', async () => {
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+      'GET /workspaces/acme/incidents/5': [
+        json({
+          data: incident(),
+        }),
+        json({
+          data: incident({ status: 'monitoring' }),
+        }),
+      ],
+    })
+    await mountApp('/w/acme/incidents/5')
+    await expect.poll(() => document.querySelector('[data-test="incident-status"]')).not.toBeNull()
+
+    window.dispatchEvent(new Event('focus'))
+
+    await expect.poll(() => server.of('GET /workspaces/acme/incidents/5')).toHaveLength(2)
+    await expect.poll(() => document.querySelector('[data-test="incident-status"]')?.textContent).toContain('Monitoring')
+  })
+
+  it('warns when the timeline entries cannot be read', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+      'GET /workspaces/acme/incidents/5': json({
+        data: incident({
+          updates: ['oops'],
+        }),
+      }),
+    })
+    await mountApp('/w/acme/incidents/5')
+
+    await expect.poll(() => document.querySelector('[data-test="timeline-unreadable"]')).not.toBeNull()
+  })
+
+  it('refetches the loaded incident list when the window regains focus', async () => {
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+      'GET /workspaces/acme/incidents': json(page([])),
+    })
+    await mountApp('/w/acme/incidents')
+    await expect.poll(() => server.of('GET /workspaces/acme/incidents')).toHaveLength(1)
+
+    window.dispatchEvent(new Event('focus'))
+
+    await expect.poll(() => server.of('GET /workspaces/acme/incidents')).toHaveLength(2)
+  })
+
+  it('shows a failed monitor lookup and the status page truncation hint', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+      'GET /workspaces/acme/incidents/5': json({
+        data: incident({
+          monitor_ids: [9],
+        }),
+      }),
+      'GET /workspaces/acme/monitors/9': problem(500, { title: 'Monitor lookup failed' }),
+      'GET /workspaces/acme/status-pages': json({
+        data: [],
+        meta: { next_cursor: 'more', limit: 100 },
+      }),
+    })
+    await mountApp('/w/acme/incidents/5')
+
+    await expect.poll(() => text()).toContain('Monitor lookup failed')
+    await expect.poll(() => text()).toContain('Only the first 500 status pages are listed.')
   })
 })
