@@ -6,11 +6,13 @@ namespace App\Import\Kuma\Source;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use Exception;
 use Generator;
 use PDO;
 use Pdo\Mysql;
 use Pdo\Sqlite;
 use PDOException;
+use Throwable;
 
 /**
  * Reads a Kuma SQLite or MariaDB/MySQL database. SQLite files are opened as a private read-only temp copy;
@@ -47,11 +49,14 @@ final class PdoKumaSource implements KumaSource
     public static function sqlite(string $path): self
     {
         $temp = tempnam(sys_get_temp_dir(), 'kuma-import-');
-        if ($temp === false || ! @copy($path, $temp)) {
+        if ($temp === false) {
             throw new UnreadableSource('The source file cannot be copied for reading.');
         }
 
         try {
+            if (! @copy($path, $temp)) {
+                throw new UnreadableSource('The source file cannot be copied for reading.');
+            }
             self::clearWalMode($temp);
             $pdo = Sqlite::connect('sqlite:'.$temp, null, null, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -68,12 +73,12 @@ final class PdoKumaSource implements KumaSource
             $source->assertKuma();
 
             return $source;
-        } catch (PDOException) {
-            @unlink($temp);
-            throw new UnreadableSource('The SQLite file is corrupt or is not a readable database.');
         } catch (UnreadableSource $e) {
             @unlink($temp);
             throw $e;
+        } catch (Throwable) {
+            @unlink($temp);
+            throw new UnreadableSource('The SQLite file is corrupt or is not a readable database.');
         }
     }
 
@@ -115,21 +120,29 @@ final class PdoKumaSource implements KumaSource
 
     /**
      * A WAL-mode file without its -wal sidecar only opens once the header says rollback-journal mode.
+     *
+     * @throws UnreadableSource
      */
     private static function clearWalMode(string $path): void
     {
-        $handle = fopen($path, 'r+b');
+        $handle = @fopen($path, 'r+b');
         if ($handle === false) {
-            return;
+            throw new UnreadableSource('The source file cannot be prepared for reading.');
         }
-        if (fread($handle, 16) === self::SQLITE_MAGIC) {
-            fseek($handle, 18);
-            if (fread($handle, 2) === "\x02\x02") {
-                fseek($handle, 18);
-                fwrite($handle, "\x01\x01");
+        $ok = true;
+        if (@fread($handle, 16) === self::SQLITE_MAGIC) {
+            $ok = @fseek($handle, 18) === 0;
+            $flags = $ok ? @fread($handle, 2) : false;
+            if ($flags === false) {
+                $ok = false;
+            } elseif ($flags === "\x02\x02") {
+                $ok = @fseek($handle, 18) === 0 && @fwrite($handle, "\x01\x01") === 2;
             }
         }
         fclose($handle);
+        if (! $ok) {
+            throw new UnreadableSource('The source file cannot be prepared for reading.');
+        }
     }
 
     private function assertKuma(): void
@@ -323,10 +336,15 @@ final class PdoKumaSource implements KumaSource
             if (! is_array($row) || ! is_string($row['time'])) {
                 continue;
             }
+            try {
+                $time = (new DateTimeImmutable($row['time'], $utc))->getTimestamp();
+            } catch (Exception) {
+                continue;
+            }
             yield [
                 'status' => Cast::int($row['status']),
                 'ping' => Cast::float($row['ping']),
-                'time' => (new DateTimeImmutable($row['time'], $utc))->getTimestamp(),
+                'time' => $time,
             ];
         }
     }

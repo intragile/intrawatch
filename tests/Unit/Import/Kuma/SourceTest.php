@@ -10,7 +10,9 @@ use App\Import\Kuma\Source\SourceFactory;
 use App\Import\Kuma\Source\SourceKind;
 use App\Import\Kuma\Source\UnreadableSource;
 use PDO;
+use PDOException;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 
 final class SourceTest extends TestCase
 {
@@ -27,7 +29,7 @@ final class SourceTest extends TestCase
 
     public static function fixture(string $name): string
     {
-        return dirname(__DIR__, 4).'/tests/fixtures/kuma/'.$name;
+        return dirname(__DIR__, 4).'/tests/Fixtures/kuma/'.$name;
     }
 
     private function tempFile(string $contents): string
@@ -37,6 +39,14 @@ final class SourceTest extends TestCase
         file_put_contents($path, $contents);
 
         return $this->cleanup[] = $path;
+    }
+
+    private function scalar(PDO $pdo, string $sql): int
+    {
+        $stmt = $pdo->query($sql);
+        $this->assertNotFalse($stmt);
+
+        return (int) $stmt->fetchColumn();
     }
 
     private function copyOf(string $fixture): string
@@ -253,6 +263,17 @@ final class SourceTest extends TestCase
         $during = glob(sys_get_temp_dir().'/kuma-import-*') ?: [];
         $this->assertCount(count($before) + 1, $during);
 
+        $pdo = (new ReflectionProperty(PdoKumaSource::class, 'pdo'))->getValue($source);
+        $this->assertInstanceOf(PDO::class, $pdo);
+        $this->assertSame(1, $this->scalar($pdo, 'PRAGMA query_only'));
+        $this->assertSame(0, $this->scalar($pdo, 'PRAGMA trusted_schema'));
+        try {
+            $pdo->exec("INSERT INTO setting (key, value) VALUES ('x', 'y')");
+            $this->fail('A write through the source must fail.');
+        } catch (PDOException) {
+            $this->addToAssertionCount(1);
+        }
+
         $source->close();
         $this->assertEqualsCanonicalizing($before, glob(sys_get_temp_dir().'/kuma-import-*') ?: []);
         $this->assertFileExists($path);
@@ -274,5 +295,43 @@ final class SourceTest extends TestCase
         $this->assertSame(0, $old->notMigratedCounts()['remote_browsers']);
         $this->assertSame(1, $old->notMigratedCounts()['users']);
         $old->close();
+    }
+
+    public function test_failed_opens_leave_no_temp_copy(): void
+    {
+        $before = glob(sys_get_temp_dir().'/kuma-import-*') ?: [];
+
+        foreach ([self::fixture('missing.db'), $this->tempFile(substr((string) file_get_contents(self::fixture('kuma2.db')), 0, 20000))] as $bad) {
+            try {
+                PdoKumaSource::sqlite($bad);
+                $this->fail('Expected UnreadableSource.');
+            } catch (UnreadableSource) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->assertEqualsCanonicalizing($before, glob(sys_get_temp_dir().'/kuma-import-*') ?: []);
+    }
+
+    public function test_malformed_heartbeat_time_is_skipped(): void
+    {
+        $path = $this->copyOf('kuma1.db');
+        $pdo = new PDO('sqlite:'.$path);
+        $pdo->exec("UPDATE heartbeat SET time = 'not a time' WHERE id = (SELECT MIN(id) FROM heartbeat WHERE monitor_id = 2)");
+        $total = $this->scalar($pdo, 'SELECT COUNT(*) FROM heartbeat WHERE monitor_id = 2');
+        $pdo = null;
+
+        $source = SourceFactory::open($path);
+        $this->assertCount($total - 1, iterator_to_array($source->heartbeats(2), false));
+        $source->close();
+    }
+
+    public function test_json_backup_with_bom_is_read(): void
+    {
+        $raw = (string) file_get_contents(self::fixture('kuma1-backup.json'));
+        $path = $this->tempFile("\xEF\xBB\xBF".$raw);
+
+        $this->assertSame(SourceKind::Json, SourceFactory::detect($path));
+        $this->assertCount(8, SourceFactory::open($path)->monitors());
     }
 }

@@ -37,7 +37,7 @@ final class JsonBackupSource implements KumaSource
         }
 
         try {
-            $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+            $data = json_decode(str_starts_with($raw, "\xEF\xBB\xBF") ? substr($raw, 3) : $raw, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
             throw new UnreadableSource('The file is not valid JSON.');
         }
