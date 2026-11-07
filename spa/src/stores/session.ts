@@ -90,6 +90,11 @@ export const useSession = defineStore('session', () => {
     await load()
   }
 
+  /** Abandons a pending re-login or sign-in challenge. */
+  function cancelTwoFactor(): void {
+    twoFactorPending.value = false
+  }
+
   async function logout(): Promise<void> {
     try {
       await fortify.logout()
@@ -153,6 +158,7 @@ export const useSession = defineStore('session', () => {
     checkSetup,
     login,
     twoFactor,
+    cancelTwoFactor,
     logout,
     refreshIfStale,
     watchFocus,

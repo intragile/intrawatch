@@ -3,7 +3,8 @@ import { useSession } from '../stores/session'
 
 /** A same-application path from a `redirect` query, or the home route. */
 export function safeRedirect(value: unknown): RouteLocationRaw {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
+  // A backslash is treated as a slash by browsers, so `/\evil` would act like `//evil`.
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\')
     ? value
     : { name: 'home' }
 }

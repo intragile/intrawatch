@@ -59,4 +59,34 @@ describe('account two-factor', () => {
     expect(server.of('GET /auth/user/two-factor-recovery-codes')).toHaveLength(1)
     expect(document.querySelector('[data-test="2fa-disable"]')).not.toBeNull()
   })
+
+  it('2FA confirm that cannot fetch recovery codes stays out of setup and retries the codes', async () => {
+    const server = fakeApi({
+      'POST /auth/user/two-factor-authentication': json(''),
+      'GET /auth/user/two-factor-qr-code': json({ svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', url: 'otpauth://totp/x' }),
+      'GET /auth/user/two-factor-secret-key': json({ secretKey: 'JBSWY3DPEHPK3PXP' }),
+      'POST /auth/user/confirmed-two-factor-authentication': json(''),
+      'GET /auth/user/two-factor-recovery-codes': [
+        problem(500, { title: 'Boom' }),
+        json(['alpha-one']),
+      ],
+      'GET /me': problem(500),
+    })
+    mountComponent(Host)
+    useSession().me = me()
+
+    await expect.poll(() => document.querySelector('[data-test="2fa-enable"]')).not.toBeNull()
+    await click('[data-test="2fa-enable"]')
+    await expect.poll(() => document.querySelector('input[name="totp_code"]')).not.toBeNull()
+    fill('input[name="totp_code"]', '654321')
+    await submit('input[name="totp_code"]')
+
+    await expect.poll(() => document.querySelector('[data-test="codes-retry"]')).not.toBeNull()
+    expect(document.querySelector('input[name="totp_code"]')).toBeNull()
+    expect(server.of('POST /auth/user/confirmed-two-factor-authentication')).toHaveLength(1)
+
+    await click('[data-test="codes-retry"]')
+    await expect.poll(() => document.body.textContent).toContain('alpha-one')
+    expect(document.querySelector('[data-test="codes-retry"]')).toBeNull()
+  })
 })

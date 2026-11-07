@@ -91,7 +91,7 @@
       "done": "A jelszava megváltozott. Jelentkezzen be az újjal."
     },
     "setup": {
-      "title": "Üdvözli az IntraWatch",
+      "title": "Üdvözöljük az IntraWatchban",
       "step": "{step}. lépés / {total}",
       "owner": "Tulajdonosi fiók",
       "workspace": "Első munkaterület",
@@ -132,6 +132,7 @@
       "codesTitle": "Helyreállítási kódok",
       "codesIntro": "Tegye el biztonságos helyre ezeket a helyreállítási kódokat. Mindegyikkel egyszer bejelentkezhet a telefonja nélkül. Csak most látja őket.",
       "codesDone": "Elmentettem őket",
+      "showCodes": "Helyreállítási kódok megjelenítése",
       "regenerate": "Új helyreállítási kódok",
       "regenerateConfirm": "A mostani helyreállítási kódok érvénytelenné válnak, az újakat pedig egyszer mutatjuk meg.",
       "disable": "Kikapcsolás",

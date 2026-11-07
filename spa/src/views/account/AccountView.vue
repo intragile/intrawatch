@@ -25,6 +25,8 @@ const secretKey = ref<string | null>(null)
 const code = ref('')
 // Recovery codes live only in this component and are dropped when the user is done.
 const codes = ref<string[]>([])
+// Set when the recovery codes of a confirmed setup could not be fetched.
+const codesError = ref<ApiError | null>(null)
 const confirmDisable = ref(false)
 const confirmRegenerate = ref(false)
 
@@ -71,13 +73,39 @@ function confirm(): Promise<void> {
     return Promise.resolve()
   return run(async () => {
     await fortify.confirmTwoFactor(value)
-    codes.value = await fortify.recoveryCodes()
+    // Two-factor is confirmed from here on; failures below must not return to the setup step.
     qrSvg.value = null
     secretKey.value = null
     code.value = ''
+    codes.value = []
     phase.value = 'codes'
-    await session.load()
+    await fetchCodes()
+    await refreshSession()
   })
+}
+
+/** Loads the recovery codes; a failure is kept apart so it can be retried in place. */
+async function fetchCodes(): Promise<void> {
+  codesError.value = null
+  try {
+    codes.value = await fortify.recoveryCodes()
+  }
+  catch (e) {
+    codesError.value = asApiError(e)
+  }
+}
+
+async function refreshSession(): Promise<void> {
+  try {
+    await session.load()
+  }
+  catch {
+    // The next focus refresh picks the new state up.
+  }
+}
+
+function retryCodes(): Promise<void> {
+  return run(fetchCodes)
 }
 
 function cancelSetup(): Promise<void> {
@@ -93,8 +121,9 @@ function cancelSetup(): Promise<void> {
 async function regenerate(): Promise<void> {
   await run(async () => {
     await fortify.regenerateRecoveryCodes()
-    codes.value = await fortify.recoveryCodes()
     phase.value = 'codes'
+    codes.value = []
+    await fetchCodes()
   })
   confirmRegenerate.value = false
 }
@@ -110,7 +139,9 @@ async function disable(): Promise<void> {
 
 function finishCodes(): void {
   codes.value = []
+  codesError.value = null
   phase.value = 'idle'
+  void refreshSession()
 }
 
 async function copyCodes(): Promise<void> {
@@ -170,19 +201,30 @@ function downloadCodes(): void {
       <ProblemAlert :error="error" :known-fields="phase === 'setup' ? ['code'] : []" />
 
       <template v-if="phase === 'codes'">
+        <ProblemAlert :error="codesError" />
+        <v-btn
+          v-if="codesError"
+          data-test="codes-retry"
+          class="mb-4"
+          variant="tonal"
+          :loading="busy"
+          @click="retryCodes"
+        >
+          {{ t('account.twoFactor.showCodes') }}
+        </v-btn>
         <v-alert type="warning" variant="tonal" class="mb-4">
           {{ t('account.twoFactor.codesIntro') }}
         </v-alert>
-        <ul class="recovery-codes mb-4" :aria-label="t('account.twoFactor.codesTitle')">
+        <ul v-if="!codesError" class="recovery-codes mb-4" :aria-label="t('account.twoFactor.codesTitle')">
           <li v-for="item in codes" :key="item">
             <code>{{ item }}</code>
           </li>
         </ul>
         <div class="d-flex flex-wrap ga-2">
-          <v-btn variant="tonal" :prepend-icon="mdiContentCopy" @click="copyCodes">
+          <v-btn variant="tonal" :prepend-icon="mdiContentCopy" :disabled="codes.length === 0" @click="copyCodes">
             {{ t('common.copy') }}
           </v-btn>
-          <v-btn variant="tonal" :prepend-icon="mdiDownload" @click="downloadCodes">
+          <v-btn variant="tonal" :prepend-icon="mdiDownload" :disabled="codes.length === 0" @click="downloadCodes">
             {{ t('common.download') }}
           </v-btn>
           <v-spacer />

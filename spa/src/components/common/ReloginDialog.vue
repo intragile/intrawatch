@@ -37,6 +37,8 @@ watch(open, (isOpen) => {
 
 function finish(ok: boolean): void {
   password.value = ''
+  if (!ok)
+    session.cancelTwoFactor()
   reloginPrompt.settle(ok)
 }
 
@@ -122,7 +124,7 @@ async function signInAgain(): Promise<void> {
             {{ t('auth.relogin.leave') }}
           </v-btn>
           <v-spacer />
-          <v-btn variant="text" :disabled="busy" @click="finish(false)">
+          <v-btn data-test="relogin-cancel" variant="text" :disabled="busy" @click="finish(false)">
             {{ t('common.cancel') }}
           </v-btn>
           <v-btn type="submit" color="primary" variant="flat" :loading="busy">

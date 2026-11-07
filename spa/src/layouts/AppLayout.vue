@@ -149,6 +149,13 @@ onMounted(() => {
 })
 onUnmounted(() => stopFocusRefresh?.())
 
+// A refresh that drops the workspace being viewed (membership removed or workspace deleted) leaves it.
+watch(() => session.me, (current) => {
+  const slug = route.params.workspace
+  if (current !== null && typeof slug === 'string' && !session.workspace(slug))
+    void router.push({ name: 'home' })
+})
+
 // A background refresh that finds the session gone (signed out in another tab) leaves the shell.
 watch(() => session.me, (current) => {
   if (current === null && session.loaded && !signingOut && !route.meta.guest) {

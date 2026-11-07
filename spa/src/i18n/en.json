@@ -132,6 +132,7 @@
       "codesTitle": "Recovery codes",
       "codesIntro": "Save these recovery codes somewhere safe. Each one lets you sign in once without your phone. They are shown only now.",
       "codesDone": "I have saved them",
+      "showCodes": "Show recovery codes",
       "regenerate": "New recovery codes",
       "regenerateConfirm": "Your current recovery codes stop working and new ones are shown once.",
       "disable": "Turn off",

@@ -1,13 +1,6 @@
 import type { RouteRecordRaw, RouterHistory } from 'vue-router'
 import { createRouter, createWebHistory } from 'vue-router'
-import AccountView from '../views/account/AccountView.vue'
-import ForgotPasswordView from '../views/auth/ForgotPasswordView.vue'
 import LoginView from '../views/auth/LoginView.vue'
-import ResetPasswordView from '../views/auth/ResetPasswordView.vue'
-import SetupView from '../views/auth/SetupView.vue'
-import TwoFactorView from '../views/auth/TwoFactorView.vue'
-import HomeView from '../views/HomeView.vue'
-import PlaceholderView from '../views/PlaceholderView.vue'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -18,35 +11,108 @@ declare module 'vue-router' {
   }
 }
 
+// Every view except the login screen is split into its own chunk.
 const auth = { layout: 'auth', guest: true } as const
 
 // Workspace screens; each placeholder is replaced by its view as the screen is built.
 const workspaceRoutes: RouteRecordRaw[] = [
-  { path: 'monitors', name: 'ws.monitors', component: PlaceholderView },
-  { path: 'monitors/new', name: 'ws.monitor.new', component: PlaceholderView },
-  { path: 'monitors/:monitor(\\d+)', name: 'ws.monitor', component: PlaceholderView },
-  { path: 'monitors/:monitor(\\d+)/edit', name: 'ws.monitor.edit', component: PlaceholderView },
-  { path: 'channels', name: 'ws.channels', component: PlaceholderView },
-  { path: 'channels/new', name: 'ws.channel.new', component: PlaceholderView },
-  { path: 'channels/:channel(\\d+)', name: 'ws.channel', component: PlaceholderView },
-  { path: 'alerts', name: 'ws.alerts', component: PlaceholderView },
-  { path: 'incidents', name: 'ws.incidents', component: PlaceholderView },
-  { path: 'incidents/:incident(\\d+)', name: 'ws.incident', component: PlaceholderView },
-  { path: 'maintenances', name: 'ws.maintenances', component: PlaceholderView },
-  { path: 'maintenances/:maintenance(new|\\d+)', name: 'ws.maintenance', component: PlaceholderView },
-  { path: 'status-pages', name: 'ws.status-pages', component: PlaceholderView },
-  { path: 'status-pages/:statusPage(new|\\d+)', name: 'ws.status-page', component: PlaceholderView },
-  { path: 'settings', name: 'ws.settings', component: PlaceholderView },
-  { path: 'members', name: 'ws.members', component: PlaceholderView },
-  { path: 'tokens', name: 'ws.tokens', component: PlaceholderView },
-  { path: 'audit', name: 'ws.audit', component: PlaceholderView },
+  {
+    path: 'monitors',
+    name: 'ws.monitors',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'monitors/new',
+    name: 'ws.monitor.new',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'monitors/:monitor(\\d+)',
+    name: 'ws.monitor',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'monitors/:monitor(\\d+)/edit',
+    name: 'ws.monitor.edit',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'channels',
+    name: 'ws.channels',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'channels/new',
+    name: 'ws.channel.new',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'channels/:channel(\\d+)',
+    name: 'ws.channel',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'alerts',
+    name: 'ws.alerts',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'incidents',
+    name: 'ws.incidents',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'incidents/:incident(\\d+)',
+    name: 'ws.incident',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'maintenances',
+    name: 'ws.maintenances',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'maintenances/:maintenance(new|\\d+)',
+    name: 'ws.maintenance',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'status-pages',
+    name: 'ws.status-pages',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'status-pages/:statusPage(new|\\d+)',
+    name: 'ws.status-page',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'settings',
+    name: 'ws.settings',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'members',
+    name: 'ws.members',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'tokens',
+    name: 'ws.tokens',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
+  {
+    path: 'audit',
+    name: 'ws.audit',
+    component: () => import('../views/PlaceholderView.vue'),
+  },
 ]
 
 export const routes: RouteRecordRaw[] = [
   {
     path: '/setup',
     name: 'setup',
-    component: SetupView,
+    component: () => import('../views/auth/SetupView.vue'),
     meta: { layout: 'auth' },
   },
   {
@@ -58,23 +124,31 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/two-factor',
     name: 'two-factor',
-    component: TwoFactorView,
+    component: () => import('../views/auth/TwoFactorView.vue'),
     meta: auth,
   },
   {
     path: '/forgot-password',
     name: 'forgot-password',
-    component: ForgotPasswordView,
+    component: () => import('../views/auth/ForgotPasswordView.vue'),
     meta: auth,
   },
   {
     path: '/reset-password/:token',
     name: 'reset-password',
-    component: ResetPasswordView,
+    component: () => import('../views/auth/ResetPasswordView.vue'),
     meta: auth,
   },
-  { path: '/', name: 'home', component: HomeView },
-  { path: '/account', name: 'account', component: AccountView },
+  {
+    path: '/',
+    name: 'home',
+    component: () => import('../views/HomeView.vue'),
+  },
+  {
+    path: '/account',
+    name: 'account',
+    component: () => import('../views/account/AccountView.vue'),
+  },
   {
     path: '/w/:workspace',
     children: [

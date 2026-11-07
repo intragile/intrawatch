@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { me } from '../../test/fixtures'
+import { nextTick } from 'vue'
+import { useSession } from '../../stores/session'
+import { me, workspace } from '../../test/fixtures'
 import { fill, mountApp, submit } from '../../test/mount'
 import { fakeApi, json, problem } from '../../test/server'
+import { safeRedirect } from '../guards'
 
 describe('router guard', () => {
   it('guard sends to setup when setup is required', async () => {
@@ -40,5 +43,72 @@ describe('router guard', () => {
       email: 'ada@example.com',
       password: 'correct horse battery',
     })
+  })
+
+  it('safeRedirect only accepts same-application paths', () => {
+    const home = { name: 'home' }
+    expect(safeRedirect('//evil.com')).toEqual(home)
+    expect(safeRedirect('https://evil.com')).toEqual(home)
+    expect(safeRedirect('/\\evil')).toEqual(home)
+    expect(safeRedirect(['/w/acme/monitors'])).toEqual(home)
+    expect(safeRedirect(undefined)).toEqual(home)
+    expect(safeRedirect('/w/acme/monitors?x=1')).toBe('/w/acme/monitors?x=1')
+  })
+
+  it('an unknown workspace slug goes home', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: me(),
+      }),
+    })
+    const { router } = await mountApp('/w/nope/monitors')
+
+    expect(router.currentRoute.value.params.workspace).toBe('acme')
+    expect(router.currentRoute.value.name).toBe('ws.monitors')
+  })
+
+  it('a user without workspaces sees the empty state on home', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: me({ workspaces: [] }),
+      }),
+    })
+    const { router } = await mountApp('/')
+
+    expect(router.currentRoute.value.name).toBe('home')
+    await expect.poll(() => document.body.textContent).toContain('No workspace yet')
+  })
+
+  it('leaves the workspace when a refresh no longer lists it', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': [
+        json({
+          data: me({
+            workspaces: [
+              workspace(),
+              workspace({ id: '01JBBBBBBBBBBBBBBBBBBBBBBB', slug: 'beta', name: 'Beta' }),
+            ],
+          }),
+        }),
+        json({
+          data: me({
+            workspaces: [
+              workspace({ id: '01JBBBBBBBBBBBBBBBBBBBBBBB', slug: 'beta', name: 'Beta' }),
+            ],
+          }),
+        }),
+      ],
+    })
+    const { router } = await mountApp('/w/acme/members')
+    await expect.poll(() => router.currentRoute.value.name).toBe('ws.members')
+
+    await useSession().load()
+    await nextTick()
+
+    await expect.poll(() => router.currentRoute.value.params.workspace).toBe('beta')
+    expect(router.currentRoute.value.name).toBe('ws.monitors')
   })
 })
