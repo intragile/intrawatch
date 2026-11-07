@@ -156,15 +156,60 @@ export function parseHeaderLines(source: string): Record<string, string> {
   return out
 }
 
-/** The secrets to send: only touched keys, never an empty string (the API would read it as a clear). */
+/** One-based numbers of the non-blank lines that are not in `Name: value` form. */
+export function invalidHeaderLines(source: string): number[] {
+  const bad: number[] = []
+  source.split('\n').forEach((line, i) => {
+    if (line.trim() === '')
+      return
+    const at = line.indexOf(':')
+    if (at < 1 || line.slice(0, at).trim() === '')
+      bad.push(i + 1)
+  })
+  return bad
+}
+
+/** The secret keys whose controls are on screen for the given type and config. */
+export function renderedSecrets(type: MonitorType, config: Config): string[] {
+  if (type !== 'http')
+    return []
+  const auth = typeof config.auth === 'object' && config.auth !== null
+    ? (config.auth as Record<string, unknown>).type
+    : undefined
+  const keys = ['secret_headers']
+  if (auth === 'basic')
+    keys.push('basic_password')
+  if (auth === 'bearer')
+    keys.push('bearer_token')
+  if (config.mtls === true)
+    keys.push('mtls_cert', 'mtls_key')
+  if (config.proxy !== null && config.proxy !== undefined)
+    keys.push('proxy_password')
+  return keys
+}
+
+/** Drops drafts of secrets whose feature the user has switched off. */
+export function pruneSecrets(type: MonitorType, config: Config, draft: SecretDraft): SecretDraft {
+  const allowed = new Set(renderedSecrets(type, config))
+  return Object.fromEntries(Object.entries(draft).filter(([key]) => allowed.has(key)))
+}
+
+/**
+ * The secrets to send: only touched keys. An empty string is never sent (the API would read it as a
+ * clear), and a header list that parses to nothing is skipped rather than wiping the stored map.
+ */
 export function secretsPayload(draft: SecretDraft): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(draft)) {
     if (value === undefined || value === '')
       continue
-    out[key] = value !== null && SECRET_MAP_KEYS.has(key)
-      ? parseHeaderLines(value)
-      : value
+    if (value !== null && SECRET_MAP_KEYS.has(key)) {
+      const map = parseHeaderLines(value)
+      if (Object.keys(map).length > 0)
+        out[key] = map
+      continue
+    }
+    out[key] = value
   }
   return out
 }

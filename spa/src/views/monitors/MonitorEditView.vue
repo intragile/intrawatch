@@ -15,8 +15,11 @@ import {
   createBody,
   deepEqual,
   formFromMonitor,
+  invalidHeaderLines,
   newForm,
   patchBody,
+  pruneSecrets,
+  renderedSecrets,
 } from '../../components/monitors/forms/model'
 import NotificationPicker from '../../components/monitors/forms/NotificationPicker.vue'
 import { FORM_KEYS, FORMS } from '../../components/monitors/forms/registry'
@@ -78,7 +81,11 @@ const error = ref<ApiError | null>(null)
 const info = computed(() => typeInfos.value.find(i => i.type === type.value))
 const fields = computed(() => fieldErrors(error.value))
 const configErrors = computed(() => fieldErrors(error.value, 'config'))
-const secretErrors = computed(() => fieldErrors(error.value, 'secrets'))
+const clientSecretErrors = ref<Record<string, string>>({})
+const secretErrors = computed(() => ({
+  ...fieldErrors(error.value, 'secrets'),
+  ...clientSecretErrors.value,
+}))
 const alertingErrors = computed(() => fieldErrors(error.value, 'alerting'))
 const tagErrors = computed(() => fieldErrors(error.value, 'tags'))
 const channelError = computed(() => {
@@ -87,31 +94,33 @@ const channelError = computed(() => {
     ?? Object.entries(errors).find(([k]) => k.startsWith('notification_channel_ids.'))?.[1]
 })
 
-const FORM_FIELDS = [
-  'name',
-  'description',
-  'active',
-  'interval_seconds',
-  'timeout_seconds',
-  'retries',
-  'retry_interval_seconds',
-  'degraded_threshold_ms',
-  'inverted',
-  'parent_id',
-  'tags',
-  'notification_channel_ids',
-  'alerting',
-  'type',
-]
-
-/** Error keys that sit on a control this screen renders; everything else goes to the alert. */
+/** Error roots of the controls that are on screen right now; every other key goes to the alert. */
 const knownFields = computed(() => {
+  const entry = info.value
+  const current = form.value
   const keys = FORM_KEYS[type.value]
   const roots = [
-    ...FORM_FIELDS,
+    'name',
+    'description',
+    'active',
+    'parent_id',
+    'tags',
+    'type',
+    'alerting.resend_interval_minutes',
+    'alerting.notify_changes',
+    'alerting.notify_degraded',
     ...keys.config.map(k => `config.${k}`),
-    ...keys.secrets.map(k => `secrets.${k}`),
+    ...renderedSecrets(type.value, current?.config ?? {}).map(k => `secrets.${k}`),
   ]
+  if (canPickChannels.value)
+    roots.push('notification_channel_ids')
+  if (entry?.supports_inverted)
+    roots.push('inverted')
+  if (entry?.scheduled) {
+    roots.push('interval_seconds', 'timeout_seconds', 'retries', 'retry_interval_seconds', 'degraded_threshold_ms')
+  }
+  if (current?.alerting.notify_degraded)
+    roots.push('alerting.degraded_alert_after_seconds')
   return Object.keys(error.value?.errors ?? {}).filter(key =>
     roots.some(root => key === root || key.startsWith(`${root}.`)))
 })
@@ -254,16 +263,30 @@ async function save(): Promise<void> {
     return
 
   error.value = null
+  clientSecretErrors.value = {}
+  const draft = pruneSecrets(type.value, current.config, secrets.value)
+  const headerDraft = draft.secret_headers
+  if (typeof headerDraft === 'string') {
+    const bad = invalidHeaderLines(headerDraft)
+    if (bad.length > 0) {
+      clientSecretErrors.value = {
+        secret_headers: t('monitorEditor.http.secretHeadersInvalid', {
+          lines: bad.join(', '),
+        }),
+      }
+      return
+    }
+  }
   let body: Record<string, unknown>
   if (isEdit.value) {
-    body = patchBody(baseline, current, secrets.value)
+    body = patchBody(baseline, current, draft)
     if (Object.keys(body).length === 0) {
       notify(t('monitorEditor.noChanges'), 'info')
       return
     }
   }
   else {
-    body = createBody(type.value, current, secrets.value, canPickChannels.value)
+    body = createBody(type.value, current, draft, canPickChannels.value)
   }
 
   saving.value = true
@@ -283,6 +306,7 @@ async function save(): Promise<void> {
           body: body as never,
         }))
     monitors.upsert(result)
+    secrets.value = {}
     saved = true
     notify(t(isEdit.value ? 'monitorEditor.updated' : 'monitorEditor.created'))
     await router.push({
@@ -419,6 +443,7 @@ watch(leaveOpen, (open) => {
           v-model="form.tags"
           :tags="tags"
           :loading="loadingOptions"
+          :error="fields.tags"
           :errors="tagErrors"
         />
       </v-card-text>

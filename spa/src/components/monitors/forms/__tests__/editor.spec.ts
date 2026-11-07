@@ -323,4 +323,106 @@ describe('monitor editor', () => {
     await router.push('/w/acme/monitors')
     expect(router.currentRoute.value.name).toBe('ws.monitors')
   })
+
+  it('a non-scheduled type shows a timing-field error in the form alert', async () => {
+    const server = fakeApi(routes({
+      'POST /workspaces/acme/monitors': json({
+        type: 'about:blank',
+        title: 'The given data was invalid.',
+        status: 422,
+        errors: {
+          timeout_seconds: ['The timeout is too long.'],
+        },
+      }, 422),
+    }))
+    const { wrapper } = await mountApp('/w/acme/monitors/new')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    choose(wrapper, 'monitor-type', 'push')
+    await flushPromises()
+    expect(document.querySelector('input[name="timeout_seconds"]')).toBeNull()
+    fill('input[name="monitor_name"]', 'Job')
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
+    await expect.poll(() => document.querySelector('.problem-alert')?.textContent ?? '').toContain('The timeout is too long.')
+  })
+
+  it('bare tags and header_checks errors are visible', async () => {
+    const server = fakeApi(routes({
+      'PATCH /workspaces/acme/monitors/1': json({
+        type: 'about:blank',
+        title: 'The given data was invalid.',
+        status: 422,
+        errors: {
+          'tags': ['Too many tags.'],
+          'config.header_checks': ['Too many header checks.'],
+        },
+      }, 422),
+    }))
+    await mountApp('/w/acme/monitors/1/edit')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    fill('input[name="monitor_name"]', 'X')
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('PATCH /workspaces/acme/monitors/1')).toHaveLength(1)
+    await flushPromises()
+    expect(text()).toContain('Too many tags.')
+    expect(text()).toContain('Too many header checks.')
+  })
+
+  it('malformed secret header lines are reported and never sent', async () => {
+    const server = fakeApi(routes({
+      'PATCH /workspaces/acme/monitors/1': json({ data: MONITOR }),
+    }))
+    await mountApp('/w/acme/monitors/1/edit')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    await expect.poll(exists('textarea[name="secrets_secret_headers"]')).not.toBeNull()
+    const area = document.querySelector<HTMLTextAreaElement>('textarea[name="secrets_secret_headers"]')
+    if (area) {
+      area.value = 'no colon here'
+      area.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await submit('input[name="monitor_name"]')
+    await flushPromises()
+    expect(server.of('PATCH /workspaces/acme/monitors/1')).toHaveLength(0)
+    expect(text()).toContain('not in the Name: value format')
+  })
+
+  it('secrets of a switched-off feature are not sent', async () => {
+    const server = fakeApi(routes({
+      'PATCH /workspaces/acme/monitors/1': json({ data: MONITOR }),
+    }))
+    const { wrapper } = await mountApp('/w/acme/monitors/1/edit')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    await click('[data-test="secret-bearer_token-replace"]')
+    await expect.poll(exists('input[name="secrets_bearer_token"]')).not.toBeNull()
+    fill('input[name="secrets_bearer_token"]', 'typed')
+    choose(wrapper, 'config-auth-type', 'none')
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('PATCH /workspaces/acme/monitors/1')).toHaveLength(1)
+    expect(server.of('PATCH /workspaces/acme/monitors/1')[0]?.body).toEqual({
+      config: {
+        auth: { type: 'none', username: null },
+      },
+    })
+  })
+
+  it('a stored non-string json_query.expected is shown and preserved', async () => {
+    const withJson = {
+      ...MONITOR,
+      config: {
+        ...MONITOR.config,
+        json_query: { path: '$.n', operator: '==', expected: 5 },
+      },
+    }
+    const server = fakeApi(routes({
+      'GET /workspaces/acme/monitors/1': json({ data: withJson }),
+      'PATCH /workspaces/acme/monitors/1': json({ data: withJson }),
+    }))
+    await mountApp('/w/acme/monitors/1/edit')
+    await expect.poll(exists('input[name="config_json_query_expected"]')).not.toBeNull()
+    expect(value('input[name="config_json_query_expected"]')).toBe('5')
+    fill('input[name="monitor_name"]', 'Only name')
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('PATCH /workspaces/acme/monitors/1')).toHaveLength(1)
+    expect(server.of('PATCH /workspaces/acme/monitors/1')[0]?.body).toEqual({ name: 'Only name' })
+  })
 })

@@ -584,7 +584,8 @@
       "proxyEnable": "Send checks through a proxy",
       "proxyUrl": "Proxy URL",
       "proxyUsername": "Proxy username",
-      "proxyPassword": "Proxy password"
+      "proxyPassword": "Proxy password",
+      "secretHeadersInvalid": "Lines {lines} are not in the Name: value format."
     }
   }
 }

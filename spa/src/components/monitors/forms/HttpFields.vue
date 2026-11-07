@@ -158,6 +158,27 @@ function member(block: Record<string, unknown> | null, key: string): string {
     : ''
 }
 
+/** The stored expected value as text; the API accepts any scalar here. */
+function expectedText(): string {
+  const v = jsonQuery()?.expected
+  return v === null || v === undefined
+    ? ''
+    : String(v)
+}
+
+/** Text back to a value, keeping the stored type while the text still reads as that value. */
+function parseExpected(text: string | null): unknown {
+  const trimmed = (text ?? '').trim()
+  if (trimmed === '')
+    return null
+  const original = jsonQuery()?.expected
+  if (typeof original === 'number' && Number.isFinite(Number(trimmed)))
+    return Number(trimmed)
+  if (typeof original === 'boolean' && (trimmed === 'true' || trimmed === 'false'))
+    return trimmed === 'true'
+  return trimmed
+}
+
 function setBlock(key: string, current: Record<string, unknown> | null, patch: Record<string, unknown>): void {
   cf.set(key, {
     ...current,
@@ -282,6 +303,7 @@ function statuses(): string[] {
   <v-select
     :model-value="String(cf.obj('auth').type ?? 'none')"
     name="config_auth_type"
+    data-test="config-auth-type"
     :items="authtypesItems"
     :label="t('monitorEditor.http.authType')"
     :error-messages="cf.err('auth.type') ?? cf.err('auth')"
@@ -321,6 +343,7 @@ function statuses(): string[] {
   <v-switch
     :model-value="keyword() !== null"
     name="config_keyword_enabled"
+    :error-messages="errors.keyword"
     :label="t('monitorEditor.http.keywordEnable')"
     color="primary"
     @update:model-value="cf.set('keyword', $event === true ? { value: '', mode: 'contains', case_sensitive: true } : null)"
@@ -353,6 +376,7 @@ function statuses(): string[] {
   <v-switch
     :model-value="jsonQuery() !== null"
     name="config_json_query_enabled"
+    :error-messages="errors.json_query"
     :label="t('monitorEditor.http.jsonEnable')"
     color="primary"
     @update:model-value="cf.set('json_query', $event === true ? { path: '', operator: '==', expected: null } : null)"
@@ -376,20 +400,20 @@ function statuses(): string[] {
       @update:model-value="setBlock('json_query', jsonQuery(), { operator: $event })"
     />
     <v-text-field
-      :model-value="member(jsonQuery(), 'expected')"
+      :model-value="expectedText()"
       name="config_json_query_expected"
       :label="t('monitorEditor.http.jsonExpected')"
       :error-messages="cf.err('json_query.expected')"
       autocomplete="off"
-      @update:model-value="setBlock('json_query', jsonQuery(), { expected: cf.nullable($event) })"
+      @update:model-value="setBlock('json_query', jsonQuery(), { expected: parseExpected($event) })"
     />
   </template>
 
   <h4 class="text-subtitle-2 mt-2 mb-2">
     {{ t('monitorEditor.http.headerChecks') }}
   </h4>
-  <p v-if="cf.err('header_checks') && checks().length === 0" class="text-caption text-error mb-2" role="alert">
-    {{ cf.err('header_checks') }}
+  <p v-if="errors.header_checks" class="text-caption text-error mb-2" role="alert">
+    {{ errors.header_checks }}
   </p>
   <div v-for="(check, i) in checks()" :key="i" class="d-flex ga-2 align-start flex-wrap">
     <v-text-field
@@ -501,6 +525,7 @@ function statuses(): string[] {
   <v-switch
     :model-value="proxy() !== null"
     name="config_proxy_enabled"
+    :error-messages="errors.proxy"
     :label="t('monitorEditor.http.proxyEnable')"
     color="primary"
     @update:model-value="cf.set('proxy', $event === true ? { url: '', username: null } : null)"

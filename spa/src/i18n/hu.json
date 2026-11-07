@@ -584,7 +584,8 @@
       "proxyEnable": "Az ellenőrzések küldése proxyn keresztül",
       "proxyUrl": "Proxy URL",
       "proxyUsername": "Proxy felhasználóneve",
-      "proxyPassword": "Proxy jelszava"
+      "proxyPassword": "Proxy jelszava",
+      "secretHeadersInvalid": "Ezek a sorok nem Név: érték formátumúak: {lines}."
     }
   }
 }

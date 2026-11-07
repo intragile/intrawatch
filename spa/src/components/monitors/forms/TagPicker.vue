@@ -7,6 +7,8 @@ import { useI18n } from 'vue-i18n'
 const props = defineProps<{
   tags: Tag[]
   loading?: boolean
+  /** A message about the tag list as a whole (for example too many tags). */
+  error?: string
   /** Validation messages keyed relative to `tags.` (e.g. `0.id`). */
   errors: Record<string, string>
 }>()
@@ -55,6 +57,7 @@ function errorAt(index: number): string | undefined {
     :label="t('monitorEditor.tags.label')"
     :hint="tags.length === 0 && !loading ? t('monitorEditor.tags.none') : undefined"
     :persistent-hint="tags.length === 0 && !loading"
+    :error-messages="error"
     @update:model-value="select"
   />
   <v-text-field
