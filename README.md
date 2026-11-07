@@ -510,6 +510,53 @@ after it: the monitor goes from maintenance to down on its first check after
 the end, a `Down` alert is sent if none was sent for that outage yet, and
 reminders (`STILL DOWN`) resume.
 
+### Status pages
+
+A status page shows a curated set of monitors to the public: an overall banner,
+maintenance in progress, open incidents with their updates, sections of
+components (status, uptime, day bars and an optional 24-hour latency line;
+expanded groups list their children), upcoming maintenance and past
+incidents. Pages are managed with `GET`/`POST /api/v1/workspaces/{workspace}/status-pages`,
+`PATCH`/`DELETE .../status-pages/{statusPage}` and `PUT .../status-pages/{statusPage}/layout`
+(`status-pages:read` / `status-pages:write`).
+
+| Address | Serves |
+| --- | --- |
+| `{APP_URL}/status/{slug}` | The page, on any host name of the installation |
+| `https://{custom_domain}/` | The page, when the request's `Host` is the page's custom domain |
+
+Only published pages are served; an unpublished page answers exactly like a
+page that does not exist (404). Nothing else is ever shown: no monitor
+targets, URLs, error messages, check results or monitors that are not on the
+page. The page is plain HTML with inline CSS and SVG, no JavaScript and no
+external fonts or stylesheets, reloads itself every 60 seconds, and is
+rendered in the page's locale (`en` or `hu`) with times in the workspace
+timezone. Public pages set no cookies and are limited to 300 requests per
+minute per client address.
+
+**Custom domain.** Point the domain's DNS at your reverse proxy, terminate
+TLS there (automatic certificates for custom domains are planned for a later
+release) and forward the requests to the container with the original `Host`
+header. A host that is a published page's custom domain serves only the
+status paths (`/`, and the feed, summary and badge paths); everything else on
+it, including the API and the admin, is a 404. Any other host name or IP
+address reaches the application as usual. Canonical and feed links always use
+the page's own address (`https://{custom_domain}` or `APP_URL`), never the
+request's `Host`.
+
+**Caching.** Rendered pages are kept in a file cache
+(`STATUS_PAGE_CACHE_PATH`, under `/data` in the image). A cached page is
+served without any database query until it is 60 seconds old
+(`status.cache.ttl_seconds`), a maintenance window on the page starts or ends,
+the page or something it shows is edited, or a monitor of the workspace
+changes status; then the next request renders it again, while concurrent
+requests keep getting the previous copy. Responses carry
+`Cache-Control: public, max-age=30, stale-while-revalidate=60, stale-if-error=86400`
+and a strong `ETag` (`If-None-Match` gives a 304). If the database fails during
+a render, the last good copy is served with `X-Status-Stale: 1`; it is kept
+for 7 days (`status.cache.stale_seconds`). With no copy at all the page answers
+503 with `Retry-After: 30`.
+
 ## Development
 
 ```bash

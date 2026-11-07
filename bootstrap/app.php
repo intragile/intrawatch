@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureTokenAbility;
 use App\Http\Middleware\RequireSession;
+use App\Http\Middleware\ResolveStatusHost;
 use App\Http\Middleware\ResolveWorkspace;
 use App\Http\Problem\ProblemRenderer;
 use Illuminate\Foundation\Application;
@@ -19,6 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withBroadcasting(__DIR__.'/../routes/channels.php', ['middleware' => ['auth:sanctum']])
     ->withMiddleware(function (Middleware $middleware): void {
+        // Custom status domains are recognised before anything else and confined to the public status paths.
+        $middleware->prepend(ResolveStatusHost::class);
         $middleware->statefulApi();
 
         $trusted = Env::get('TRUSTED_PROXIES');

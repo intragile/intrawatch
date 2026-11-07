@@ -7,6 +7,7 @@ use App\Alerting\Transport\AddressResolver;
 use App\Alerting\Transport\SystemAddressResolver;
 use App\Enums\MonitorType;
 use App\Events\MonitorStatusChanged;
+use App\Http\Middleware\ThrottleStatusRequests;
 use App\Listeners\StampStatusPages;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
@@ -141,6 +142,9 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(120)->by('token:'.(is_string($token) ? $token : ''));
         });
+
+        // Public status pages, per client address; counted in the status page file cache.
+        RateLimiter::for(ThrottleStatusRequests::LIMITER, fn (Request $request): Limit => Limit::perMinute(300)->by('status:'.$request->ip()));
 
         RateLimiter::for('notification-test', fn (Request $request): Limit => Limit::perMinute(10)->by('user:'.($request->user()->id ?? $request->ip())));
 

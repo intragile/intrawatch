@@ -2,7 +2,8 @@
 # Builds the image, boots it with a fresh volume and exercises the setup and
 # session flow over HTTP, a restart, an upgrade (new container, same volume),
 # a non-localhost APP_URL, a permanently failing worker and an unwritable
-# /data, plus monitors checked by the in-image worker, down and up alerts
+# /data, plus monitors checked by the in-image worker, a public status page
+# by slug and by custom domain, down and up alerts
 # delivered to a webhook receiver inside the container, and a timed docker
 # stop. Usage: bash tests/docker/smoke.sh [--pgsql]
 set -euo pipefail
@@ -149,7 +150,7 @@ WS_URL="$BASE/api/v1/workspaces/smoke-ops"
 load_xsrf
 token_json="$(curl -fsS --max-time 10 -c "$JAR" -b "$JAR" "${STATEFUL[@]}" -H "X-XSRF-TOKEN: $XSRF" \
   -H 'Content-Type: application/json' -X POST "$WS_URL/tokens" \
-  -d '{"name":"smoke","abilities":["monitors:write","monitors:read","notifications:write","notifications:read"]}')" || fail "token creation failed"
+  -d '{"name":"smoke","abilities":["monitors:write","monitors:read","notifications:write","notifications:read","status-pages:write","status-pages:read"]}')" || fail "token creation failed"
 API_TOKEN="$(jq -r '.token // empty' <<<"$token_json")"
 [[ -n "$API_TOKEN" ]] || fail "no token in response: $token_json"
 AUTH=(-H "Authorization: Bearer $API_TOKEN" -H 'Accept: application/json' -H 'Content-Type: application/json')
@@ -193,6 +194,37 @@ status="$(timeout 30 docker exec "$NAME" supervisorctl -c /etc/supervisor/conf.d
 echo "$status"
 grep -Eq '^intrawatch:notifications +RUNNING' <<<"$status" || fail "notifications worker is not RUNNING"
 ok "notifications worker running"
+
+echo "== public status page"
+page_json="$(curl -fsS --max-time 10 "${AUTH[@]}" -X POST "$WS_URL/status-pages" \
+  -d '{"slug":"smoke","title":"Smoke status","published":true,"custom_domain":"status.example.test"}')" \
+  || fail "status page creation failed"
+PAGE_ID="$(jq -r '.data.id // empty' <<<"$page_json")"
+[[ -n "$PAGE_ID" ]] || fail "no status page id: $page_json"
+[[ "$(http_code "${AUTH[@]}" -X PUT "$WS_URL/status-pages/$PAGE_ID/layout" \
+  -d "{\"sections\":[{\"name\":\"Core\",\"items\":[{\"monitor_id\":${HTTP_ID},\"display_name\":\"Smoke API\"}]}]}")" == "200" ]] \
+  || fail "status page layout update failed"
+ok "status page created and published"
+
+page_headers="$(mktemp)"
+page_body="$(curl -fsS --max-time 10 -D "$page_headers" "$BASE/status/smoke")" || fail "/status/smoke did not return 200"
+[[ "$page_body" == *"Smoke status"* && "$page_body" == *"Smoke API"* ]] || fail "status page HTML lacks its title or component"
+if grep -qi '^set-cookie:' "$page_headers"; then fail "status page sets a cookie"; fi
+grep -qi '^content-security-policy:' "$page_headers" || fail "status page has no CSP header"
+etag="$(awk 'tolower($1) == "etag:" { print $2 }' "$page_headers" | tr -d '\r')"
+rm -f "$page_headers"
+[[ -n "$etag" ]] || fail "status page has no ETag"
+[[ "$(http_code -H "If-None-Match: $etag" "$BASE/status/smoke")" == "304" ]] || fail "matching If-None-Match is not a 304"
+[[ "$(http_code "$BASE/status/no-such-page")" == "404" ]] || fail "unknown status page is not a 404"
+ok "status page served by slug, without cookies, with ETag and 304"
+
+# Custom-domain contract: / on a status domain always reaches PHP and shows the page; nothing else is reachable.
+domain_body="$(curl -fsS --max-time 10 -H 'Host: status.example.test' "$BASE/")" || fail "/ on the custom domain did not return 200"
+[[ "$domain_body" == *"Smoke status"* ]] || fail "/ on the custom domain is not the status page"
+[[ "$(http_code -H 'Host: status.example.test' "$BASE/api/v1/ping")" == "404" ]] || fail "/api/v1/ping is reachable on the custom domain"
+[[ "$(http_code -H 'Host: status.example.test' "${STATEFUL[@]}" "$BASE/api/v1/me")" == "404" ]] || fail "/api/v1/me is reachable on the custom domain"
+[[ "$(http_code -H 'Host: status.example.test' "$BASE/up")" == "200" ]] || fail "/up is not served on the custom domain"
+ok "custom domain serves the status page and nothing else"
 
 echo "== alerts to a webhook"
 # A tiny receiver inside the container appends every request body to a file. CHECK_BLOCKED_NETWORKS keeps

@@ -14,6 +14,10 @@ class RouteConventionTest extends TestCase
 
         foreach (Route::getRoutes()->getRoutes() as $route) {
             $uri = $route->uri();
+            // Public status pages are HTML for browsers, not API.
+            if (str_starts_with($route->getActionName(), 'App\\Http\\Controllers\\Status\\')) {
+                continue;
+            }
             if (in_array($uri, $allowed, true) || str_starts_with($uri, 'broadcasting/') || str_starts_with($uri, 'api/v1/')) {
                 continue;
             }

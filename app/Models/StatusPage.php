@@ -69,6 +69,19 @@ class StatusPage extends Model
     }
 
     /**
+     * The page's absolute public address, never derived from a request: its custom domain when it has one,
+     * otherwise its path under the configured application URL.
+     */
+    public function publicUrl(): string
+    {
+        if ($this->custom_domain !== null && $this->custom_domain !== '') {
+            return 'https://'.$this->custom_domain;
+        }
+
+        return rtrim(config()->string('app.url'), '/').'/status/'.rawurlencode($this->slug);
+    }
+
+    /**
      * @return HasMany<StatusPageSection, $this>
      */
     public function sections(): HasMany
