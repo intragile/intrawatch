@@ -16,6 +16,7 @@ final readonly class PageView
      * @param  list<IncidentView>  $pastIncidents  Resolved within the page's history, most recently resolved first.
      * @param  list<MaintenanceView>  $activeMaintenance  Ordered by start.
      * @param  list<MaintenanceView>  $upcomingMaintenance  Ordered by start.
+     * @param  list<MaintenanceView>  $recentMaintenance  Windows that ended within the last 30 days, ordered by start; filled only for feeds.
      * @param  CarbonImmutable|null  $expiresAt  The next maintenance start or end within the cache freshness, after which the view is stale.
      */
     public function __construct(
@@ -32,5 +33,6 @@ final readonly class PageView
         public CarbonImmutable $generatedAt,
         public string $timezone,
         public string $locale,
+        public array $recentMaintenance = [],
     ) {}
 }

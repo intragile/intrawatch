@@ -27,14 +27,14 @@ final class BadgeData
         }
 
         $today = CarbonImmutable::parse($view->generatedAt)->setTimezone($view->timezone)->startOfDay();
-        $windows = self::windows(array_keys(array_filter($items, static fn (ItemView $i): bool => $i->uptimePercent !== null)), $today);
+        $windows = self::windows(array_keys(array_filter($items, static fn (ItemView $i): bool => $i->showUptime)), $today);
 
         $monitors = [];
         foreach ($items as $id => $item) {
             $latency = $item->latencyHourly === null ? null : array_values(array_filter($item->latencyHourly, static fn (?int $v): bool => $v !== null));
             $monitors[(string) $id] = [
                 'status' => $item->status->value,
-                'uptime' => $windows[$id] ?? null,
+                'uptime' => $item->showUptime ? ($windows[$id] ?? null) : null,
                 'latency' => $latency === null || $latency === [] ? null : (int) round(array_sum($latency) / count($latency)),
             ];
         }

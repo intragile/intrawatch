@@ -58,13 +58,13 @@ final class PublicPageGateway
         }
 
         $model = null;
-        $build = function () use ($pageId, &$model): PageView {
+        $build = function () use ($pageId, $variant, &$model): PageView {
             $model = StatusPage::query()->with('workspace')->whereKey($pageId)->where('published', true)->first();
             if ($model === null) {
                 throw self::notFound();
             }
 
-            return (new StatusPageSnapshot)->build($model, CarbonImmutable::now());
+            return (new StatusPageSnapshot)->build($model, CarbonImmutable::now(), in_array($variant, ['atom', 'rss'], true));
         };
         $view = function (PageView $view) use (&$model, $render): string {
             assert($model instanceof StatusPage);

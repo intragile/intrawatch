@@ -34,6 +34,9 @@ class StatusBenchCommand extends Command
 
     private const HOURS = 24;
 
+    /** Paths of a page requested in the warm pass, besides the page itself. */
+    private const ENDPOINTS = ['', '/feed.atom', '/feed.rss', '/summary.json', '/badge.svg'];
+
     private bool $interrupted = false;
 
     public function handle(): int
@@ -82,12 +85,14 @@ class StatusBenchCommand extends Command
 
             $kernel = $this->laravel->make(Kernel::class);
             $failed = 0;
-            $cold = $this->pass($kernel, $slugs, count($slugs), 0, $failed);
+            $cold = $this->pass($kernel, $slugs, count($slugs), 0, $failed, false);
+            // Renders the feeds, summary and badge of every page once, so the warm pass starts from a full cache.
+            $this->prime($kernel, $slugs, $failed);
             $queries = 0;
             DB::listen(static function () use (&$queries): void {
                 $queries++;
             });
-            $warm = $this->pass($kernel, $slugs, $requests, count($slugs), $failed);
+            $warm = $this->pass($kernel, $slugs, $requests, 0, $failed, true);
             if ($this->wasInterrupted()) {
                 $this->warn('Interrupted; no results are reported.');
 
@@ -228,26 +233,55 @@ class StatusBenchCommand extends Command
      * @param  list<string>  $slugs
      * @return list<float>
      */
-    private function pass(Kernel $kernel, array $slugs, int $requests, int $offset, int &$failed): array
+    private function pass(Kernel $kernel, array $slugs, int $requests, int $offset, int &$failed, bool $mixed): array
     {
         $durations = [];
         $count = count($slugs);
         for ($i = 0; $i < $requests && ! $this->wasInterrupted(); $i++) {
             $n = $offset + $i;
-            $request = Request::create('/status/'.$slugs[$n % $count], 'GET', server: [
-                // A client of its own per request keeps the public rate limit out of the measurement.
-                'REMOTE_ADDR' => '10.'.(($n >> 16) & 255).'.'.(($n >> 8) & 255).'.'.($n & 255),
-            ]);
+            // The warm pass cycles through the page and its machine-readable endpoints.
+            $path = $mixed ? self::ENDPOINTS[($n + intdiv($n, $count)) % count(self::ENDPOINTS)] : '';
             $started = hrtime(true);
-            $response = $kernel->handle($request);
+            $response = $this->send($kernel, '/status/'.$slugs[$n % $count].$path, $n);
             $durations[] = (hrtime(true) - $started) / 1_000_000;
-            if ($response->getStatusCode() !== 200) {
+            if ($response !== 200) {
                 $failed++;
             }
         }
         sort($durations);
 
         return $durations;
+    }
+
+    /**
+     * @param  list<string>  $slugs
+     */
+    private function prime(Kernel $kernel, array $slugs, int &$failed): void
+    {
+        $n = 1_000_000;
+        foreach ($slugs as $slug) {
+            foreach (array_slice(self::ENDPOINTS, 1) as $path) {
+                if ($this->send($kernel, '/status/'.$slug.$path, $n++) !== 200) {
+                    $failed++;
+                }
+            }
+        }
+    }
+
+    /**
+     * One in-process request from a client address of its own, so the public rate limit stays out of the
+     * measurement; returns the status code.
+     */
+    private function send(Kernel $kernel, string $path, int $n): int
+    {
+        $request = Request::create($path, 'GET', server: [
+            'REMOTE_ADDR' => '10.'.(($n >> 16) & 255).'.'.(($n >> 8) & 255).'.'.($n & 255),
+        ]);
+        $response = $kernel->handle($request);
+        $status = $response->getStatusCode();
+        $kernel->terminate($request, $response);
+
+        return $status;
     }
 
     /**

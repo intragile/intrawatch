@@ -100,4 +100,27 @@ trait PublicFeedFixture
             'total' => 10, 'up' => 10, 'latency_sum' => 1500, 'latency_count' => 10,
         ]);
     }
+
+    /**
+     * Runs the callback with the default connection pointing at a server that refuses connections.
+     */
+    protected function withDeadDatabase(callable $callback): void
+    {
+        $original = DB::getDefaultConnection();
+        config(['database.connections.dead' => [
+            'driver' => 'mysql',
+            'host' => '127.0.0.1',
+            'port' => 1,
+            'database' => 'none',
+            'username' => 'none',
+            'password' => 'none',
+        ]]);
+        DB::setDefaultConnection('dead');
+        try {
+            $callback();
+        } finally {
+            DB::setDefaultConnection($original);
+            DB::purge('dead');
+        }
+    }
 }

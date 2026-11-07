@@ -13,6 +13,7 @@ final readonly class ItemView
      * @param  list<DayBar>  $bars  Oldest first, ending with the current local day.
      * @param  list<int|null>|null  $latencyHourly  Average latency in ms of the last 24 UTC hours, oldest first; null when the page hides latency.
      * @param  list<ItemView>  $children  Direct children of an expanded group, ordered by name.
+     * @param  bool  $showUptime  Whether the page shows this component's uptime; `uptimePercent` is null when not.
      */
     public function __construct(
         public int $monitorId,
@@ -23,5 +24,6 @@ final readonly class ItemView
         public array $bars,
         public ?array $latencyHourly,
         public array $children,
+        public bool $showUptime = true,
     ) {}
 }

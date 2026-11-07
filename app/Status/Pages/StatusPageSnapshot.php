@@ -37,6 +37,8 @@ final class StatusPageSnapshot
 
     private const CHUNK = 500;
 
+    private const RECENT_DAYS = 30;
+
     private const MARKDOWN = ['html_input' => 'escape', 'allow_unsafe_links' => false];
 
     /**
@@ -44,7 +46,10 @@ final class StatusPageSnapshot
      */
     public function __construct(private readonly int $maxMonitors = self::MAX_MONITORS) {}
 
-    public function build(StatusPage $page, CarbonImmutable $now): PageView
+    /**
+     * @param  bool  $recentMaintenance  Also collect the windows that ended within the last 30 days (feeds only).
+     */
+    public function build(StatusPage $page, CarbonImmutable $now, bool $recentMaintenance = false): PageView
     {
         $timezone = $this->timezone($page);
         $layout = $this->layout($page);
@@ -99,7 +104,7 @@ final class StatusPageSnapshot
         }
 
         $incidents = $this->incidents($page, $displayed, $now, $occurrences);
-        $maintenance = $this->maintenance($page, $displayed, $ancestors, $now, $timezone, $occurrences);
+        $maintenance = $this->maintenance($page, $displayed, $ancestors, $now, $timezone, $occurrences, $recentMaintenance);
 
         $status = static fn (int $monitorId): DisplayStatus => DisplayStatusResolver::item(
             $monitors[$monitorId]['status'],
@@ -126,6 +131,7 @@ final class StatusPageSnapshot
                         $this->bars($dayRows[$childId] ?? [], $today, $barDays),
                         $hourly($childId),
                         [],
+                        $item['show_uptime'],
                     );
                 }
                 $view = new ItemView(
@@ -137,6 +143,7 @@ final class StatusPageSnapshot
                     $this->bars($dayRows[$monitorId] ?? [], $today, $barDays),
                     $hourly($monitorId),
                     $children,
+                    $item['show_uptime'],
                 );
                 $items[] = $view;
                 $statuses[] = $view->status;
@@ -167,6 +174,7 @@ final class StatusPageSnapshot
             generatedAt: $now,
             timezone: $timezone,
             locale: $page->locale,
+            recentMaintenance: $maintenance['recent'],
         );
     }
 
@@ -527,9 +535,9 @@ final class StatusPageSnapshot
      * @param  list<int>  $displayed
      * @param  array<int, list<int>>  $ancestors
      * @param  list<array{int, string}>  $occurrences
-     * @return array{active: list<MaintenanceView>, upcoming: list<MaintenanceView>, covered: array<int, true>, expires_at: CarbonImmutable|null}
+     * @return array{active: list<MaintenanceView>, upcoming: list<MaintenanceView>, recent: list<MaintenanceView>, covered: array<int, true>, expires_at: CarbonImmutable|null}
      */
-    private function maintenance(StatusPage $page, array $displayed, array $ancestors, CarbonImmutable $now, string $timezone, array $occurrences): array
+    private function maintenance(StatusPage $page, array $displayed, array $ancestors, CarbonImmutable $now, string $timezone, array $occurrences, bool $withRecent = false): array
     {
         $relevant = array_values(array_unique(array_merge($displayed, ...array_values($ancestors))));
         $linked = $this->linked($page, 'maintenance');
@@ -559,6 +567,7 @@ final class StatusPageSnapshot
         $expiryLimit = $now->addSeconds(max(1, config()->integer('status.cache.ttl_seconds', 60)));
         $active = [];
         $upcoming = [];
+        $recent = [];
         $covered = [];
         $expiresAt = null;
         foreach ($maintenances as $id => $maintenance) {
@@ -573,6 +582,18 @@ final class StatusPageSnapshot
                     if ($boundary !== null && $boundary->gt($now) && $boundary->lte($expiryLimit) && ($expiresAt === null || $boundary->lt($expiresAt))) {
                         $expiresAt = $boundary;
                     }
+                }
+            }
+
+            if ($withRecent) {
+                $ended = null;
+                foreach ($schedule->windowsBetween($now->subDays(self::RECENT_DAYS), $now) as $past) {
+                    if ($past->end !== null && $past->end->lte($now) && $past->end->gt($now->subDays(self::RECENT_DAYS))) {
+                        $ended = $past;
+                    }
+                }
+                if ($ended !== null) {
+                    $recent[$id] = new MaintenanceView($id, $maintenance->title, $this->markdown($maintenance->description), $ended->start, $ended->end, $this->coveredNames($id, $displayed, $ancestors, $targets, $occurrences));
                 }
             }
 
@@ -614,8 +635,35 @@ final class StatusPageSnapshot
         $byStart = static fn (MaintenanceView $a, MaintenanceView $b): int => [$a->startsAt->getTimestamp(), $a->id] <=> [$b->startsAt->getTimestamp(), $b->id];
         usort($active, $byStart);
         usort($upcoming, $byStart);
+        // A maintenance already listed as current or upcoming keeps that one entry.
+        $recent = array_values(array_filter($recent, static fn (MaintenanceView $v): bool => ! in_array($v->id, array_map(static fn (MaintenanceView $m): int => $m->id, [...$active, ...$upcoming]), true)));
+        usort($recent, $byStart);
 
-        return ['active' => $active, 'upcoming' => $upcoming, 'covered' => $covered, 'expires_at' => $expiresAt];
+        return ['active' => $active, 'upcoming' => $upcoming, 'recent' => $recent, 'covered' => $covered, 'expires_at' => $expiresAt];
+    }
+
+    /**
+     * Names of the shown components a maintenance covers, directly or through an ancestor group.
+     *
+     * @param  list<int>  $displayed
+     * @param  array<int, list<int>>  $ancestors
+     * @param  array<int, array<int, true>>  $targets
+     * @param  list<array{int, string}>  $occurrences
+     * @return list<string>
+     */
+    private function coveredNames(int $id, array $displayed, array $ancestors, array $targets, array $occurrences): array
+    {
+        $covered = [];
+        foreach ($displayed as $monitorId) {
+            foreach ([$monitorId, ...($ancestors[$monitorId] ?? [])] as $candidate) {
+                if (isset($targets[$id][$candidate])) {
+                    $covered[$monitorId] = true;
+                    break;
+                }
+            }
+        }
+
+        return self::names($occurrences, $covered);
     }
 
     /**

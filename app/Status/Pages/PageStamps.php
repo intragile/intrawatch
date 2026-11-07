@@ -37,6 +37,19 @@ final class PageStamps
         return 'status:html:'.$pageId;
     }
 
+    /**
+     * Entry key of a non-HTML rendering of a page (see `PageCache::VARIANTS`).
+     */
+    public static function variantKey(int $pageId, string $variant): string
+    {
+        return 'status:'.$variant.':'.$pageId;
+    }
+
+    public static function variantLastGoodKey(int $pageId, string $variant): string
+    {
+        return 'status:last:'.$variant.':'.$pageId;
+    }
+
     public static function lastGoodKey(int $pageId): string
     {
         return 'status:last:'.$pageId;
@@ -80,6 +93,10 @@ final class PageStamps
         $store = $this->store();
         $store->forget(self::htmlKey($pageId));
         $store->forget(self::lastGoodKey($pageId));
+        foreach (PageCache::VARIANTS as $variant) {
+            $store->forget(self::variantKey($pageId, $variant));
+            $store->forget(self::variantLastGoodKey($pageId, $variant));
+        }
         if ($slug !== null && $slug !== '') {
             $store->forget(self::slugKey($slug));
         }

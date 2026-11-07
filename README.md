@@ -607,7 +607,7 @@ page hides latency. Badges are served with `Cache-Control: public, max-age=60`.
 and maintenance windows of the page, each with every update in order and a
 link of the form `{page address}#incident-{id}` or `#maintenance-{id}`. The
 feeds cover incidents open or resolved within the page's history setting and
-maintenance that is in progress or upcoming within its window setting.
+maintenance that is in progress, upcoming within its window setting, or ended within the last 30 days.
 
 `summary.json` is meant for status widgets on other sites and is sent with
 `Access-Control-Allow-Origin: *`:
@@ -615,7 +615,7 @@ maintenance that is in progress or upcoming within its window setting.
 ```json
 {
   "page": {"title": "Acme", "url": "https://watch.example.com/status/acme", "status": "operational", "updated_at": "2026-11-07T12:30:00Z"},
-  "components": [{"id": 42, "name": "Website", "status": "operational", "children": []}],
+  "components": [{"id": 42, "name": "Website", "status": "operational"}],
   "incidents": [{"id": 7, "title": "Slow site", "impact": "minor", "status": "monitoring", "url": "https://watch.example.com/status/acme#incident-7"}],
   "maintenances": [{"id": 3, "title": "Database upgrade", "starts_at": "2026-11-08T12:30:00Z", "ends_at": "2026-11-08T13:30:00Z"}]
 }
@@ -653,9 +653,9 @@ docker run --rm --cpus=2 intrawatch \
 
 The status page benchmark seeds a throwaway workspace with 300 published
 pages of 20 components each and 90 days of rollups, then sends requests
-through the application in-process: one per page for the cold pass (every
-page rendered once), then 3 000 round-robin for the warm pass (served from the
-page cache). It prints the median, 95th percentile and maximum of both passes
+through the application in-process: one page request per page for the cold pass
+(every page rendered once), then 3 000 round-robin for the warm pass (the page,
+its feeds, summary and badge, served from the cache). It prints the median, 95th percentile and maximum of both passes
 and the number of database queries during the warm pass, and exits with 1 when
 the warm 95th percentile reaches 100 ms or any warm request queried the
 database. It uses a cache directory of its own, refuses to run against a

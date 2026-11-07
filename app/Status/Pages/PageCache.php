@@ -24,6 +24,9 @@ use PDOException;
  */
 final class PageCache
 {
+    /** Every rendering of a page besides the HTML one; page edits drop all of them. */
+    public const VARIANTS = ['atom', 'rss', 'summary', 'badges'];
+
     private const LOCK_SECONDS = 10;
 
     private const LOCK_POLL_MICROSECONDS = 100_000;
@@ -212,7 +215,7 @@ final class PageCache
             return [PageStamps::htmlKey($pageId), PageStamps::lastGoodKey($pageId), 'status:render:'.$pageId];
         }
 
-        return ['status:'.$variant.':'.$pageId, 'status:last:'.$variant.':'.$pageId, 'status:render:'.$pageId.':'.$variant];
+        return [PageStamps::variantKey($pageId, $variant), PageStamps::variantLastGoodKey($pageId, $variant), 'status:render:'.$pageId.':'.$variant];
     }
 
     /**

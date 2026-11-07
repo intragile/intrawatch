@@ -100,19 +100,23 @@ final class FeedBuilder
                 'html' => $html,
             ];
         }
-        foreach ([...$view->activeMaintenance, ...$view->upcomingMaintenance] as $maintenance) {
+        foreach ([...$view->activeMaintenance, ...$view->upcomingMaintenance, ...$view->recentMaintenance] as $maintenance) {
             $html = $maintenance->descriptionHtml ?? '';
             $html .= '<p>'.$maintenance->startsAt->utc()->format('Y-m-d H:i').' UTC'
                 .($maintenance->endsAt === null ? '' : ' - '.$maintenance->endsAt->utc()->format('Y-m-d H:i').' UTC').'</p>';
             if ($maintenance->affectedComponents !== []) {
                 $html .= '<p>'.self::h(implode(', ', $maintenance->affectedComponents)).'</p>';
             }
+            // Never later than the feed itself: an upcoming window is dated by when it was published.
+            $published = $maintenance->startsAt->min($view->generatedAt);
+            $ended = $maintenance->endsAt !== null && $maintenance->endsAt->lte($view->generatedAt);
+            $updated = $ended ? $maintenance->endsAt : $published;
             $entries[] = [
                 'title' => $maintenance->title,
                 'link' => $url.'#maintenance-'.$maintenance->id,
                 'category' => 'maintenance',
-                'published' => $maintenance->startsAt,
-                'updated' => $maintenance->startsAt,
+                'published' => $published,
+                'updated' => $updated,
                 'html' => $html,
             ];
         }
