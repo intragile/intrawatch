@@ -2,14 +2,17 @@
 
 namespace App\Monitoring\Engine;
 
+use App\Alerting\Engine\AlertSignals;
 use App\Enums\MonitorStatus;
 use App\Events\ChecksRecorded;
 use App\Events\MonitorChanged;
 use App\Events\MonitorStatusChanged;
+use App\Jobs\EvaluateAlerts;
 use App\Models\MonitorEvent;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use JsonException;
 
 /**
@@ -24,6 +27,13 @@ final class ResultRecorder
      * Checks per ChecksRecorded event, which keeps each broadcast below the WebSocket message size limit.
      */
     public const BROADCAST_CHUNK = 200;
+
+    /**
+     * Monitors whose alert signals go into one EvaluateAlerts job.
+     */
+    public const ALERT_CHUNK = 200;
+
+    private static bool $warnedNonAtomicQueue = false;
 
     public function __construct(
         private readonly StatusMachine $machine,
@@ -47,8 +57,12 @@ final class ResultRecorder
 
         /** @var list<object> $events */
         $events = [];
-        $batch = DB::transaction(function () use ($items, $broadcastChecks, $within, &$events): RecordedBatch {
-            $batch = $this->persist($items, $broadcastChecks, $events);
+        /** @var list<EvaluateAlerts> $jobs */
+        $jobs = [];
+        $batch = DB::transaction(function () use ($items, $broadcastChecks, $within, &$events, &$jobs): RecordedBatch {
+            $events = [];
+            $jobs = [];
+            $batch = $this->persist($items, $broadcastChecks, $events, $jobs);
             if ($within !== null) {
                 $within($batch);
             }
@@ -58,6 +72,7 @@ final class ResultRecorder
 
         // The results are committed at this point; see PostCommit for why a failing dispatch is swallowed.
         PostCommit::dispatch($events);
+        PostCommit::queue($jobs);
 
         return $batch;
     }
@@ -65,8 +80,9 @@ final class ResultRecorder
     /**
      * @param  list<array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}>  $items
      * @param  list<object>  $events  Receives the events to dispatch after commit.
+     * @param  list<EvaluateAlerts>  $jobs  Receives the jobs to queue after commit.
      */
-    private function persist(array $items, bool $broadcastChecks, array &$events): RecordedBatch
+    private function persist(array $items, bool $broadcastChecks, array &$events, array &$jobs): RecordedBatch
     {
         $ids = array_values(array_unique(array_map(fn (array $item): int => $item[0]->id, $items)));
         sort($ids);
@@ -213,6 +229,8 @@ final class ResultRecorder
         $groupTransitions = $parentIds === [] ? [] : $this->groups->recompute(array_keys($parentIds));
         array_push($events, ...PostCommit::statusEvents($groupTransitions, $now));
 
+        $this->queueAlerts($events, $jobs);
+
         if ($broadcastChecks) {
             foreach ($checks as $workspaceId => $list) {
                 foreach (array_chunk($list, self::BROADCAST_CHUNK) as $chunk) {
@@ -222,6 +240,54 @@ final class ResultRecorder
         }
 
         return new RecordedBatch($transitions, $groupTransitions);
+    }
+
+    /**
+     * Queues the alert evaluation of the batch's status and value changes. On a database queue that uses this
+     * connection the jobs are written inside the batch's transaction, so a committed change always has its
+     * evaluation queued and a rolled-back one never has. Any other queue is written after commit, which loses
+     * the evaluation if the process dies in between.
+     *
+     * @param  list<object>  $events
+     * @param  list<EvaluateAlerts>  $jobs  Receives the jobs to queue after commit.
+     */
+    private function queueAlerts(array $events, array &$jobs): void
+    {
+        $signals = AlertSignals::fromEvents($events);
+        if ($signals === []) {
+            return;
+        }
+
+        $atomic = self::queueIsTransactional();
+        foreach (array_chunk($signals, self::ALERT_CHUNK, true) as $chunk) {
+            $job = new EvaluateAlerts(AlertSignals::toPayload($chunk));
+            if ($atomic) {
+                dispatch($job);
+            } else {
+                $jobs[] = $job;
+            }
+        }
+    }
+
+    private static function queueIsTransactional(): bool
+    {
+        $name = config('queue.default');
+        $connection = is_string($name) ? config("queue.connections.{$name}") : null;
+        $atomic = is_array($connection)
+            && ($connection['driver'] ?? null) === 'database'
+            && ($connection['after_commit'] ?? false) !== true
+            && in_array($connection['connection'] ?? null, [null, '', DB::getDefaultConnection()], true);
+
+        // The sync queue runs the evaluation in this process right after commit; there is no queue to lose it in.
+        $sync = is_array($connection) && ($connection['driver'] ?? null) === 'sync';
+        if (! $atomic && ! $sync && ! self::$warnedNonAtomicQueue) {
+            self::$warnedNonAtomicQueue = true;
+            Log::warning('Alert evaluations are queued after commit because the default queue is not the database queue of this connection; a crash in between loses them.', [
+                'queue' => $name,
+            ]);
+        }
+
+        return $atomic;
     }
 
     /**

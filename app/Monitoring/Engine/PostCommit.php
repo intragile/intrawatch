@@ -57,6 +57,26 @@ final class PostCommit
     }
 
     /**
+     * Queues jobs once the transaction that produced them has committed. Like events, a job that cannot be
+     * queued is logged and swallowed.
+     *
+     * @param  iterable<object>  $jobs
+     */
+    public static function queue(iterable $jobs): void
+    {
+        foreach ($jobs as $job) {
+            try {
+                dispatch($job);
+            } catch (Throwable $e) {
+                Log::warning('Queueing a job failed after its data was committed.', [
+                    'job' => $job::class,
+                    'exception' => $e::class,
+                ]);
+            }
+        }
+    }
+
+    /**
      * Whether a broadcast event dispatched now should queue its own broadcast job. False while dispatch()
      * runs, which queues the broadcasts of all its events in one job; the events' broadcastWhen() asks this.
      */

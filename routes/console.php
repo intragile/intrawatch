@@ -17,3 +17,7 @@ Schedule::command('intrawatch:rollup')->everyMinute()->withoutOverlapping(10)->o
 // Hourly pruning keeps each run small; deletes are chunked and paced. The first prune of a large backlog can
 // take longer than an hour, so its lock outlives the next two slots.
 Schedule::command('intrawatch:prune')->hourlyAt(30)->withoutOverlapping(180)->onOneServer();
+
+// Degraded holds, reminders, flap ends and suppression re-checks. Signals from the checker are evaluated by queued
+// jobs; this only covers what falls due with time.
+Schedule::command('intrawatch:alerts:tick')->everyFifteenSeconds()->withoutOverlapping(2)->onOneServer();

@@ -65,7 +65,9 @@ class BroadcastBatchTest extends TestCase
         $this->app->make(ResultRecorder::class)->record($this->failures(3));
 
         $this->assertSame(3, $heard);
-        $this->assertCount(4, $broadcasts);
+        // The alert evaluation of the batch (run inline by the sync queue) broadcasts once more.
+        $this->assertCount(1, array_filter($broadcasts, fn (string $line): bool => str_contains($line, '[alert.raised]')));
+        $this->assertCount(5, $broadcasts);
         $this->assertCount(3, array_filter($broadcasts, fn (string $line): bool => str_contains($line, '[monitor.status_changed]')));
     }
 }
