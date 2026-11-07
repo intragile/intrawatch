@@ -12,10 +12,13 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "vue-tsc --build --force",
     "test": "vitest run",
-    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "verify": "npm run api:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "api:generate": "openapi-typescript ../docs/openapi.json -o src/api/schema.d.ts",
+    "api:check": "node scripts/api-check.mjs"
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",
+    "openapi-fetch": "^0.17.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.45",
     "vue-router": "^4.6.4",
@@ -30,6 +33,7 @@
     "@vue/tsconfig": "^0.9.1",
     "eslint": "^10.14.0",
     "jsdom": "^31.0.0",
+    "openapi-typescript": "^7.13.0",
     "typescript": "~5.9.3",
     "vite": "^7.3.7",
     "vite-plugin-vuetify": "^2.1.3",

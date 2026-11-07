@@ -5,6 +5,7 @@ export default antfu({
   typescript: true,
   ignores: [
     'dist/**',
+    'src/api/schema.d.ts',
     'coverage/**',
     'test-results/**',
     'playwright-report/**',
