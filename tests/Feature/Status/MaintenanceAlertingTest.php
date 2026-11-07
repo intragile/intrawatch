@@ -5,6 +5,7 @@ namespace Tests\Feature\Status;
 use App\Enums\AlertKind;
 use App\Enums\MonitorStatus;
 use App\Enums\WorkspaceRole;
+use App\Jobs\EvaluateAlerts;
 use App\Jobs\SendNotification;
 use App\Models\AlertEvent;
 use App\Models\Maintenance;
@@ -156,6 +157,24 @@ class MaintenanceAlertingTest extends TestCase
         return false;
     }
 
+    /**
+     * Runs the queued EvaluateAlerts jobs in this process and removes them from the queue.
+     */
+    private function runEvaluationJobs(): void
+    {
+        foreach (DB::table('jobs')->where('payload', 'like', '%EvaluateAlerts%')->get() as $row) {
+            $this->assertIsString($row->payload);
+            $decoded = json_decode($row->payload, true);
+            $this->assertIsArray($decoded);
+            $this->assertIsArray($decoded['data'] ?? null);
+            $this->assertIsString($decoded['data']['command'] ?? null);
+            $job = unserialize($decoded['data']['command']);
+            $this->assertInstanceOf(EvaluateAlerts::class, $job);
+            $this->app->call([$job, 'handle']);
+            DB::table('jobs')->where('id', $row->id)->delete();
+        }
+    }
+
     private function editor(): User
     {
         return User::factory()->memberOf($this->ws, WorkspaceRole::Editor)->create();
@@ -220,7 +239,7 @@ class MaintenanceAlertingTest extends TestCase
         $this->assertTrue($this->evaluationQueuedFor($group), 'an EvaluateAlerts job was written with the transaction');
 
         // The evaluation finds an outage that was already notified: no second Down, and no Up in between.
-        $this->assertSame(0, Artisan::call('queue:work', ['--stop-when-empty' => true, '--queue' => 'default', '--memory' => 4096]));
+        $this->runEvaluationJobs();
         $this->assertSame(['down'], $this->kinds($group));
     }
 }

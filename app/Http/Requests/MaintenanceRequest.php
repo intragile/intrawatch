@@ -238,6 +238,12 @@ class MaintenanceRequest extends FormRequest
         }
         $ids = $this->input($field);
 
-        return is_array($ids) ? array_values(array_unique(array_map(static fn (mixed $id): int => is_numeric($id) ? (int) $id : 0, $ids))) : [];
+        if (! is_array($ids)) {
+            return [];
+        }
+        $ids = array_values(array_unique(array_map(static fn (mixed $id): int => is_numeric($id) ? (int) $id : 0, $ids)));
+        sort($ids);
+
+        return $ids;
     }
 }

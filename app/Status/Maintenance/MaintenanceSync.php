@@ -143,6 +143,10 @@ final class MaintenanceSync
             }
         }
 
+        // Ascending ids, so the exclusive row locks are taken in the same order as the recorder's shared ones.
+        sort($leaves);
+        sort($groups);
+
         // A plain update: `updated_at` stays, so no monitor looks edited and no config reload is triggered.
         foreach (array_chunk($leaves, self::CHUNK) as $chunk) {
             DB::table('monitors')->whereIn('id', $chunk)->where('active', true)->update(['check_requested_at' => $now]);

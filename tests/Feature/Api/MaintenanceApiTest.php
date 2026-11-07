@@ -9,6 +9,11 @@ use App\Models\Monitor;
 use App\Models\StatusPage;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Monitoring\Engine\MaintenanceOracle;
+use App\Monitoring\Worker\Clock;
+use App\Status\Maintenance\CalendarMaintenanceOracle;
+use App\Status\Maintenance\MaintenanceCalendar;
+use App\Status\Maintenance\MaintenanceCalendarLoader;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -298,5 +303,42 @@ class MaintenanceApiTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors(['monitor_ids']);
         $this->actingAs($this->editor)->postJson($this->url(), ['title' => 'x', 'strategy' => 'once', 'starts_at' => '2026-11-06T11:00:00Z', 'monitor_ids' => []])
             ->assertUnprocessable()->assertJsonValidationErrors(['monitor_ids']);
+    }
+
+    public function test_resending_the_same_ids_in_another_order_changes_nothing(): void
+    {
+        $a = $this->monitor();
+        $b = $this->monitor();
+        $body = $this->oneOff($a);
+        $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), ['monitor_ids' => [$a->id, $b->id]] + $body)->assertCreated()->json('data.id'));
+        $audit = AuditEvent::query()->count();
+        $pivot = DB::table('maintenance_monitor')->where('maintenance_id', $id)->orderBy('monitor_id')->pluck('monitor_id')->all();
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['monitor_ids' => [$b->id, $a->id], 'status_page_ids' => []])->assertOk()
+            ->assertJsonPath('data.monitor_ids', [$a->id, $b->id]);
+
+        $this->assertSame($audit, AuditEvent::query()->count(), 'no audit row for an unchanged target set');
+        $this->assertSame($pivot, DB::table('maintenance_monitor')->where('maintenance_id', $id)->orderBy('monitor_id')->pluck('monitor_id')->all());
+    }
+
+    public function test_a_failing_calendar_reload_rolls_the_write_back(): void
+    {
+        $monitor = $this->monitor();
+        $failing = new class extends MaintenanceCalendarLoader
+        {
+            public function load(CarbonImmutable $now): MaintenanceCalendar
+            {
+                throw new \RuntimeException('database unavailable');
+            }
+        };
+        $this->app->instance(MaintenanceOracle::class, new CalendarMaintenanceOracle($failing, $this->app->make(Clock::class)));
+
+        // The window is in progress, so the sync needs the reloaded calendar.
+        $this->actingAs($this->editor)->postJson($this->url(), $this->oneOff($monitor, '2026-11-06T09:00:00Z', '2026-11-06T12:00:00Z'))
+            ->assertStatus(500)->assertHeader('Content-Type', 'application/problem+json');
+
+        $this->assertSame(0, Maintenance::query()->count());
+        $this->assertSame(0, DB::table('maintenance_monitor')->count());
+        $this->assertSame(0, AuditEvent::query()->where('action', 'maintenance.created')->count());
     }
 }

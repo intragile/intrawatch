@@ -128,12 +128,20 @@ class MaintenanceSyncTest extends TestCase
         $this->assertSame(0, Artisan::call('intrawatch:maintenance:sync'));
         $this->assertNull($this->requested($leaf), 'the boundary is behind the watermark');
 
-        // A stale watermark is capped to one hour back.
-        Cache::forever('maintenance:sync:at', $this->now->subDays(2)->getTimestamp());
-        $this->window([$leaf], '2026-11-06 08:00:00', '2026-11-06 09:30:00');
+        // A stale watermark is capped to one hour back: a boundary 90 minutes ago is out of reach, 30 minutes ago is not.
+        DB::table('monitors')->update(['check_requested_at' => null]);
+        DB::table('maintenances')->delete();
+        Cache::forever('maintenance:sync:at', $this->now->subHours(3)->getTimestamp());
         CarbonImmutable::setTestNow($this->now->addSeconds(30));
+        $this->window([$leaf], '2026-11-06 08:00:00', '2026-11-06 08:31:00');
         $this->assertSame(0, Artisan::call('intrawatch:maintenance:sync'));
-        $this->assertNotNull($this->requested($leaf), 'a boundary within the last hour is still handled');
+        $this->assertNull($this->requested($leaf), 'a boundary older than an hour is not processed');
+
+        Cache::forever('maintenance:sync:at', $this->now->subHours(3)->getTimestamp());
+        CarbonImmutable::setTestNow($this->now->addSeconds(40));
+        $this->window([$leaf], '2026-11-06 09:00:00', '2026-11-06 09:31:00');
+        $this->assertSame(0, Artisan::call('intrawatch:maintenance:sync'));
+        $this->assertNotNull($this->requested($leaf), 'a boundary within the last hour is processed');
     }
 
     public function test_command_is_scheduled_every_fifteen_seconds(): void

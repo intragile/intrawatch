@@ -79,9 +79,14 @@ final class CalendarMaintenanceOracle implements MaintenanceOracle
      */
     public function refresh(): void
     {
-        $this->checkedAt = null;
-        $this->stamp = null;
-        $this->warm();
+        $this->attempted = true;
+        $now = $this->clock->now();
+        // A failure propagates: the caller's write must not commit a status derived from an outdated calendar.
+        $stamp = $this->loader->stamp();
+        $this->calendar = $this->loader->load($now);
+        $this->stamp = $stamp;
+        $this->loadedAt = $now;
+        $this->checkedAt = $now;
     }
 
     /**
