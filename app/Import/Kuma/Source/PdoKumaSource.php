@@ -1,0 +1,448 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Import\Kuma\Source;
+
+use DateTimeImmutable;
+use DateTimeZone;
+use Generator;
+use PDO;
+use Pdo\Mysql;
+use Pdo\Sqlite;
+use PDOException;
+
+/**
+ * Reads a Kuma SQLite or MariaDB/MySQL database. SQLite files are opened as a private read-only temp copy;
+ * only whitelisted tables are read, with explicit column lists.
+ */
+final class PdoKumaSource implements KumaSource
+{
+    private const SQLITE_MAGIC = "SQLite format 3\0";
+
+    /** @var array<string, bool> */
+    private array $tableCache = [];
+
+    /** @var array<string, list<string>> */
+    private array $columnCache = [];
+
+    private ?string $tempPath;
+
+    private function __construct(
+        private readonly PDO $pdo,
+        private readonly SourceKind $kind,
+        ?string $tempPath = null,
+    ) {
+        $this->tempPath = $tempPath;
+    }
+
+    public function __destruct()
+    {
+        $this->close();
+    }
+
+    /**
+     * @throws UnreadableSource
+     */
+    public static function sqlite(string $path): self
+    {
+        $temp = tempnam(sys_get_temp_dir(), 'kuma-import-');
+        if ($temp === false || ! @copy($path, $temp)) {
+            throw new UnreadableSource('The source file cannot be copied for reading.');
+        }
+
+        try {
+            self::clearWalMode($temp);
+            $pdo = Sqlite::connect('sqlite:'.$temp, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                Sqlite::ATTR_OPEN_FLAGS => Sqlite::OPEN_READONLY,
+            ]);
+            $pdo->exec('PRAGMA trusted_schema = OFF');
+            $pdo->exec('PRAGMA query_only = ON');
+            $check = $pdo->query('PRAGMA quick_check(1)');
+            if ($check === false || $check->fetchColumn() !== 'ok') {
+                throw new UnreadableSource('The SQLite file is corrupt.');
+            }
+            $source = new self($pdo, SourceKind::Sqlite, $temp);
+            $source->assertKuma();
+
+            return $source;
+        } catch (PDOException) {
+            @unlink($temp);
+            throw new UnreadableSource('The SQLite file is corrupt or is not a readable database.');
+        } catch (UnreadableSource $e) {
+            @unlink($temp);
+            throw $e;
+        }
+    }
+
+    /**
+     * @throws UnreadableSource
+     */
+    public static function mysql(string $dsn): self
+    {
+        $parts = parse_url($dsn);
+        if ($parts === false || ! isset($parts['host'], $parts['path']) || trim($parts['path'], '/') === '') {
+            throw new UnreadableSource('The MySQL source must look like mysql://user:password@host:port/database.');
+        }
+
+        try {
+            $pdo = new Mysql(
+                sprintf(
+                    'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+                    $parts['host'],
+                    $parts['port'] ?? 3306,
+                    rawurldecode(trim($parts['path'], '/')),
+                ),
+                rawurldecode($parts['user'] ?? ''),
+                rawurldecode($parts['pass'] ?? ''),
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_TIMEOUT => 10,
+                ],
+            );
+            $pdo->exec('SET SESSION TRANSACTION READ ONLY');
+            $source = new self($pdo, SourceKind::Mysql);
+            $source->assertKuma();
+
+            return $source;
+        } catch (PDOException) {
+            throw new UnreadableSource('The MySQL/MariaDB database cannot be reached with the given DSN.');
+        }
+    }
+
+    /**
+     * A WAL-mode file without its -wal sidecar only opens once the header says rollback-journal mode.
+     */
+    private static function clearWalMode(string $path): void
+    {
+        $handle = fopen($path, 'r+b');
+        if ($handle === false) {
+            return;
+        }
+        if (fread($handle, 16) === self::SQLITE_MAGIC) {
+            fseek($handle, 18);
+            if (fread($handle, 2) === "\x02\x02") {
+                fseek($handle, 18);
+                fwrite($handle, "\x01\x01");
+            }
+        }
+        fclose($handle);
+    }
+
+    private function assertKuma(): void
+    {
+        if (! $this->hasTable('monitor') || ! $this->hasTable('setting')) {
+            throw new UnreadableSource('The database is not an Uptime Kuma database (no monitor table).');
+        }
+    }
+
+    public function close(): void
+    {
+        if ($this->tempPath !== null) {
+            @unlink($this->tempPath);
+            $this->tempPath = null;
+        }
+    }
+
+    public function kind(): SourceKind
+    {
+        return $this->kind;
+    }
+
+    public function version(): string
+    {
+        return $this->hasTable('stat_daily') ? '2.x' : '1.23';
+    }
+
+    public function instanceKey(): string
+    {
+        $secret = $this->setting('jwtSecret');
+        if ($secret === null || $secret === '') {
+            throw new UnreadableSource('The database has no jwtSecret, so the instance cannot be identified.');
+        }
+
+        return hash('sha256', 'kuma-db:'.(is_string($secret) ? $secret : json_encode($secret)));
+    }
+
+    public function monitors(): array
+    {
+        return $this->select('monitor', self::MONITOR_COLUMNS);
+    }
+
+    public function notifications(): array
+    {
+        $out = [];
+        foreach ($this->select('notification', ['id', 'name', 'active', 'is_default', 'config']) as $row) {
+            $config = is_string($row['config']) ? json_decode($row['config'], true) : null;
+            $out[] = [
+                'id' => Cast::int($row['id']),
+                'name' => Cast::string($row['name']),
+                'active' => (bool) $row['active'],
+                'is_default' => (bool) $row['is_default'],
+                'config' => Cast::map($config),
+            ];
+        }
+
+        return $out;
+    }
+
+    public function monitorNotifications(): array
+    {
+        $out = [];
+        foreach ($this->select('monitor_notification', ['monitor_id', 'notification_id']) as $row) {
+            $out[] = ['monitor_id' => Cast::int($row['monitor_id']), 'notification_id' => Cast::int($row['notification_id'])];
+        }
+
+        return $out;
+    }
+
+    public function tags(): array
+    {
+        return $this->select('tag', ['id', 'name', 'color']);
+    }
+
+    public function monitorTags(): array
+    {
+        return $this->select('monitor_tag', ['monitor_id', 'tag_id', 'value']);
+    }
+
+    public function proxies(): array
+    {
+        return $this->select('proxy', ['id', 'protocol', 'host', 'port', 'auth', 'username', 'password', 'active', 'default']);
+    }
+
+    public function statusPages(): array
+    {
+        return $this->select('status_page', [
+            'id', 'slug', 'title', 'description', 'icon', 'theme', 'published', 'search_engine_index',
+            'show_tags', 'footer_text', 'custom_css', 'show_powered_by', 'show_certificate_expiry',
+            'auto_refresh_interval', 'analytics_id', 'analytics_type', 'analytics_script_url',
+            'google_analytics_tag_id', 'show_only_last_heartbeat', 'rss_title',
+        ]);
+    }
+
+    public function statusPageGroups(): array
+    {
+        return $this->select('group', ['id', 'name', 'public', 'active', 'weight', 'status_page_id']);
+    }
+
+    public function groupMonitors(): array
+    {
+        return $this->select('monitor_group', ['id', 'monitor_id', 'group_id', 'weight', 'send_url', 'custom_url']);
+    }
+
+    public function statusPageDomains(): array
+    {
+        return $this->select('status_page_cname', ['id', 'status_page_id', 'domain']);
+    }
+
+    public function incidents(): array
+    {
+        return $this->select('incident', [
+            'id', 'title', 'content', 'style', 'created_date', 'last_updated_date', 'pin', 'active', 'status_page_id',
+        ]);
+    }
+
+    public function maintenances(): array
+    {
+        return $this->select('maintenance', [
+            'id', 'title', 'description', 'active', 'strategy', 'start_date', 'end_date', 'start_time',
+            'end_time', 'weekdays', 'days_of_month', 'interval_day', 'cron', 'timezone', 'duration',
+        ]);
+    }
+
+    public function maintenanceMonitors(): array
+    {
+        return $this->select('monitor_maintenance', ['monitor_id', 'maintenance_id']);
+    }
+
+    public function maintenanceStatusPages(): array
+    {
+        return $this->select('maintenance_status_page', ['status_page_id', 'maintenance_id']);
+    }
+
+    public function setting(string $key): mixed
+    {
+        if (! $this->hasTable('setting')) {
+            return null;
+        }
+        $stmt = $this->pdo->prepare('SELECT '.$this->quote('value').' FROM '.$this->quote('setting').' WHERE '.$this->quote('key').' = ?');
+        $stmt->execute([$key]);
+        $value = $stmt->fetchColumn();
+        if (! is_string($value)) {
+            return $value === false ? null : $value;
+        }
+        $decoded = json_decode($value, true);
+
+        return json_last_error() === JSON_ERROR_NONE ? $decoded : $value;
+    }
+
+    public function notMigratedCounts(): array
+    {
+        return [
+            'users' => $this->count('user'),
+            'api_keys' => $this->count('api_key'),
+            'docker_hosts' => $this->count('docker_host'),
+            'remote_browsers' => $this->count('remote_browser'),
+        ];
+    }
+
+    public function historyKind(): string
+    {
+        return match (true) {
+            $this->hasTable('stat_daily') => 'stats',
+            $this->hasTable('heartbeat') => 'heartbeats',
+            default => 'none',
+        };
+    }
+
+    public function hourStats(): iterable
+    {
+        return $this->stats('stat_hourly');
+    }
+
+    public function dayStats(): iterable
+    {
+        return $this->stats('stat_daily');
+    }
+
+    public function heartbeats(int $monitorId): iterable
+    {
+        if (! $this->hasTable('heartbeat')) {
+            return;
+        }
+        $stmt = $this->pdo->prepare(
+            'SELECT status, ping, '.$this->quote('time').' FROM heartbeat WHERE monitor_id = ? ORDER BY '.$this->quote('time'),
+        );
+        $stmt->execute([$monitorId]);
+        $utc = new DateTimeZone('UTC');
+        while (($row = $stmt->fetch()) !== false) {
+            if (! is_array($row) || ! is_string($row['time'])) {
+                continue;
+            }
+            yield [
+                'status' => Cast::int($row['status']),
+                'ping' => Cast::float($row['ping']),
+                'time' => (new DateTimeImmutable($row['time'], $utc))->getTimestamp(),
+            ];
+        }
+    }
+
+    /**
+     * @return Generator<int, array{monitor_id: int, timestamp: int, up: int, down: int, maintenance: int, ping: ?float, ping_min: ?float, ping_max: ?float}>
+     */
+    private function stats(string $table): Generator
+    {
+        if (! $this->hasTable($table)) {
+            return;
+        }
+        $columns = ['monitor_id', 'timestamp', 'up', 'down', 'ping', 'ping_min', 'ping_max', 'extras'];
+        foreach ($this->select($table, $columns, 'monitor_id, '.$this->quote('timestamp')) as $row) {
+            $extras = is_string($row['extras']) ? json_decode($row['extras'], true) : null;
+            yield [
+                'monitor_id' => Cast::int($row['monitor_id']),
+                'timestamp' => Cast::int($row['timestamp']),
+                'up' => Cast::int($row['up']),
+                'down' => Cast::int($row['down']),
+                'maintenance' => is_array($extras) ? Cast::int($extras['maintenance'] ?? 0) : 0,
+                'ping' => Cast::float($row['ping']),
+                'ping_min' => Cast::float($row['ping_min']),
+                'ping_max' => Cast::float($row['ping_max']),
+            ];
+        }
+    }
+
+    /**
+     * Reads the wanted columns that exist in the table; the others come back as null.
+     *
+     * @param  list<string>  $wanted
+     * @return list<array<string, mixed>>
+     */
+    private function select(string $table, array $wanted, ?string $orderBy = null): array
+    {
+        if (! $this->hasTable($table)) {
+            return [];
+        }
+        $present = array_values(array_intersect($wanted, $this->columns($table)));
+        $order = $orderBy ?? (in_array('id', $present, true) ? $this->quote('id') : null);
+        $sql = 'SELECT '.implode(', ', array_map($this->quote(...), $present)).' FROM '.$this->quote($table)
+            .($order !== null ? ' ORDER BY '.$order : '');
+        $stmt = $this->pdo->query($sql);
+        if ($stmt === false) {
+            return [];
+        }
+
+        $rows = [];
+        while (($row = $stmt->fetch()) !== false) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $out = [];
+            foreach ($wanted as $column) {
+                $out[$column] = $row[$column] ?? null;
+            }
+            $rows[] = $out;
+        }
+
+        return $rows;
+    }
+
+    private function count(string $table): int
+    {
+        if (! $this->hasTable($table)) {
+            return 0;
+        }
+
+        $stmt = $this->pdo->query('SELECT COUNT(*) FROM '.$this->quote($table));
+
+        return $stmt === false ? 0 : Cast::int($stmt->fetchColumn());
+    }
+
+    private function hasTable(string $table): bool
+    {
+        return $this->tableCache[$table] ??= $this->lookupTable($table);
+    }
+
+    private function lookupTable(string $table): bool
+    {
+        $sql = $this->kind === SourceKind::Sqlite
+            ? "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
+            : 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$table]);
+
+        return Cast::int($stmt->fetchColumn()) > 0;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function columns(string $table): array
+    {
+        if (isset($this->columnCache[$table])) {
+            return $this->columnCache[$table];
+        }
+        $sql = $this->kind === SourceKind::Sqlite
+            ? 'SELECT name AS c FROM pragma_table_info(?)'
+            : 'SELECT column_name AS c FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$table]);
+
+        $columns = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $name) {
+            if (is_string($name)) {
+                $columns[] = $name;
+            }
+        }
+
+        return $this->columnCache[$table] = $columns;
+    }
+
+    private function quote(string $identifier): string
+    {
+        return $this->kind === SourceKind::Sqlite ? '"'.$identifier.'"' : '`'.$identifier.'`';
+    }
+}
