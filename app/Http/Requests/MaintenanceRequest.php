@@ -77,16 +77,27 @@ class MaintenanceRequest extends FormRequest
     }
 
     /**
+     * Whether the request creates a maintenance; the update request overrides this.
+     */
+    protected function creating(): bool
+    {
+        return true;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         $strategy = $this->strategyValue();
+        // On update, prepareForValidation() fills every column the request leaves out, so `sometimes` only
+        // marks the field as optional to send.
+        $presence = $this->creating() ? ['required'] : ['sometimes', 'required'];
 
         return [
-            'title' => ['required', 'string', 'max:190'],
+            'title' => [...$presence, 'string', 'max:190'],
             'description' => ['nullable', 'string', 'max:5000'],
-            'strategy' => ['required', Rule::enum(MaintenanceStrategy::class)],
+            'strategy' => [...$presence, Rule::enum(MaintenanceStrategy::class)],
             'timezone' => ['nullable', 'string', 'timezone:all'],
             'starts_at' => [$strategy === 'once' ? 'required' : 'nullable', 'date', ...self::TIMESTAMP_RANGE],
             'ends_at' => ['nullable', 'date', ...self::TIMESTAMP_RANGE],
@@ -101,7 +112,7 @@ class MaintenanceRequest extends FormRequest
             'valid_from' => ['nullable', 'date_format:Y-m-d'],
             'valid_until' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:valid_from'],
             'active' => ['sometimes', 'boolean'],
-            'monitor_ids' => [$this->stored() === null ? 'required' : 'sometimes', 'array', 'min:1', 'max:1000'],
+            'monitor_ids' => [$this->creating() ? 'required' : 'sometimes', 'array', 'min:1', 'max:1000'],
             'monitor_ids.*' => ['integer', 'distinct'],
             'status_page_ids' => ['sometimes', 'array', 'max:100'],
             'status_page_ids.*' => ['integer', 'distinct'],

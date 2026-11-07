@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\IncidentStatus;
-use App\Models\IncidentUpdate;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,13 +18,21 @@ class IncidentUpdateRequest extends FormRequest
     }
 
     /**
+     * Whether the request creates a timeline entry; the update request overrides this.
+     */
+    protected function creating(): bool
+    {
+        return true;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         $rules = ['message' => ['required', 'string', 'max:10000']];
 
-        if (! $this->route('update') instanceof IncidentUpdate) {
+        if ($this->creating()) {
             $rules['status'] = ['required', Rule::enum(IncidentStatus::class)];
         }
 

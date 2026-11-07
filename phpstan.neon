@@ -9,3 +9,7 @@ parameters:
         - database
         - routes
         - tests
+    typeAliases:
+        # Scramble's docblock alias for one field's validation rules (vendor/dedoc/scramble/phpstan.neon). Form
+        # requests type their rules as array<string, mixed>, so the alias resolves to the same.
+        RuleSet: 'mixed'

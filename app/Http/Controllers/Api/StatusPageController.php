@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
 use App\Http\Requests\StatusPageRequest;
+use App\Http\Requests\UpdateStatusPageRequest;
 use App\Http\Resources\StatusPageResource;
 use App\Models\StatusPage;
 use App\Models\Workspace;
@@ -52,7 +53,7 @@ class StatusPageController extends Controller
         return $this->respond($page->id, 201);
     }
 
-    public function update(StatusPageRequest $request, Workspace $workspace, StatusPage $statusPage): JsonResponse
+    public function update(UpdateStatusPageRequest $request, Workspace $workspace, StatusPage $statusPage): JsonResponse
     {
         $oldSlug = $statusPage->slug;
         $oldDomain = $statusPage->custom_domain;

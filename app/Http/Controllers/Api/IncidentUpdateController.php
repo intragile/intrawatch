@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\IncidentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IncidentUpdateRequest;
+use App\Http\Requests\UpdateIncidentUpdateRequest;
 use App\Http\Resources\IncidentUpdateResource;
 use App\Models\Incident;
 use App\Models\IncidentUpdate;
@@ -59,7 +60,7 @@ class IncidentUpdateController extends Controller
     /**
      * Edits the message of a timeline entry; its status and time stay as recorded.
      */
-    public function update(IncidentUpdateRequest $request, Workspace $workspace, Incident $incident, IncidentUpdate $update): JsonResponse
+    public function update(UpdateIncidentUpdateRequest $request, Workspace $workspace, Incident $incident, IncidentUpdate $update): JsonResponse
     {
         DB::transaction(function () use ($request, $incident, $update): void {
             $old = $update->message;

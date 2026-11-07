@@ -167,6 +167,19 @@ class MaintenanceApiTest extends TestCase
         $this->assertSame('once', Maintenance::query()->findOrFail($id)->strategy->value);
     }
 
+    public function test_an_update_may_omit_the_title_and_strategy_but_not_clear_them(): void
+    {
+        $monitor = $this->monitor();
+        $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), $this->oneOff($monitor))->assertCreated()->json('data.id'));
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['description' => 'Rescheduled'])
+            ->assertOk()->assertJsonPath('data.title', 'DB upgrade')->assertJsonPath('data.strategy', 'once');
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['title' => null, 'strategy' => null])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['title' => 'The title field is required.', 'strategy' => 'The strategy field is required.']);
+        $this->assertSame('DB upgrade', Maintenance::query()->findOrFail($id)->title);
+    }
+
     public function test_cross_workspace_ids_are_rejected(): void
     {
         [$actor, $own, $foreign] = $this->crossWorkspaceFixture();

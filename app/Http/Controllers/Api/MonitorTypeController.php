@@ -11,6 +11,9 @@ use Illuminate\Http\JsonResponse;
  */
 class MonitorTypeController extends Controller
 {
+    /**
+     * @response list<array{type: \App\Enums\MonitorType, default_interval_seconds: int, min_interval_seconds: int, supports_inverted: bool, scheduled: bool, defaults: array<string, mixed>}>
+     */
     public function __invoke(): JsonResponse
     {
         return response()->json(array_map(static fn ($definition): array => [

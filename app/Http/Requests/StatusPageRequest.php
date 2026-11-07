@@ -68,12 +68,20 @@ class StatusPageRequest extends FormRequest
     }
 
     /**
+     * Whether the request creates a status page; the update request overrides this.
+     */
+    protected function creating(): bool
+    {
+        return true;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         $stored = $this->stored();
-        $presence = $stored === null ? 'required' : 'sometimes';
+        $presence = $this->creating() ? 'required' : 'sometimes';
         $ignore = $stored?->id;
 
         return [

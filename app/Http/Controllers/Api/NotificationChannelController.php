@@ -6,6 +6,7 @@ use App\Enums\ChannelType;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
 use App\Http\Requests\NotificationChannelRequest;
+use App\Http\Requests\UpdateNotificationChannelRequest;
 use App\Http\Resources\NotificationChannelPresenter;
 use App\Models\NotificationChannel;
 use App\Models\Workspace;
@@ -70,7 +71,7 @@ class NotificationChannelController extends Controller
         return response()->json(['data' => NotificationChannelPresenter::toArray($this->fresh($channel))]);
     }
 
-    public function update(NotificationChannelRequest $request, Workspace $workspace, NotificationChannel $channel): JsonResponse
+    public function update(UpdateNotificationChannelRequest $request, Workspace $workspace, NotificationChannel $channel): JsonResponse
     {
         $changes = $request->changes();
         $secretsSent = $request->secretsSubmitted();

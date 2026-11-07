@@ -12,6 +12,9 @@ use Illuminate\Http\JsonResponse;
  */
 class NotificationChannelTypeController extends Controller
 {
+    /**
+     * @response list<array{type: \App\Enums\ChannelType, supports_digest: bool, defaults: array<string, mixed>, config_keys: list<string>, secret_keys: list<string>}>
+     */
     public function __invoke(): JsonResponse
     {
         return response()->json(array_map(static fn ($definition): array => [

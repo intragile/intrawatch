@@ -60,6 +60,7 @@ final class MonitorPresenter
                 'degraded_alert_after_seconds' => $monitor->degraded_alert_after_seconds,
                 'notify_changes' => $monitor->notify_changes,
             ],
+            /** @var list<array{id: int, name: string, color: string, value: string|null}> */
             'tags' => $monitor->tags->map(static fn (Tag $tag): array => [
                 'id' => $tag->id,
                 'name' => $tag->name,

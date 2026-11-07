@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
 use App\Http\Requests\MaintenanceRequest;
+use App\Http\Requests\UpdateMaintenanceRequest;
 use App\Http\Resources\MaintenanceResource;
 use App\Models\Maintenance;
 use App\Models\Workspace;
@@ -102,7 +103,7 @@ class MaintenanceController extends Controller
         return $this->respond($workspace, $id, 201);
     }
 
-    public function update(MaintenanceRequest $request, Workspace $workspace, Maintenance $maintenance): JsonResponse
+    public function update(UpdateMaintenanceRequest $request, Workspace $workspace, Maintenance $maintenance): JsonResponse
     {
         $affected = [];
         $result = $this->write(function () use ($request, $workspace, $maintenance, &$affected): SyncResult {

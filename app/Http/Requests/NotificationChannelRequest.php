@@ -6,6 +6,8 @@ use App\Alerting\Channels\ChannelDefinition;
 use App\Alerting\Messages\TemplateRenderer;
 use App\Enums\ChannelType;
 use App\Models\NotificationChannel;
+use App\OpenApi\DocumentedRequestBody;
+use App\OpenApi\KeyedObject;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -20,7 +22,7 @@ use Illuminate\Validation\Validator;
  * null removes it. The merged secrets are validated, so an update that leaves a required secret alone
  * passes, while removing one is refused.
  */
-class NotificationChannelRequest extends FormRequest
+class NotificationChannelRequest extends FormRequest implements DocumentedRequestBody
 {
     private const TITLE_MAX = 200;
 
@@ -96,35 +98,33 @@ class NotificationChannelRequest extends FormRequest
     }
 
     /**
+     * Whether the request creates a channel (or tests an unsaved one); the update request overrides this.
+     */
+    protected function creating(): bool
+    {
+        return true;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         $type = $this->channelType();
-        $update = $this->stored() !== null;
 
         if ($type === null) {
             return ['type' => ['required', Rule::enum(ChannelType::class)]];
         }
 
         $rules = [
-            'type' => $update
-                ? ['sometimes', function (string $attribute, mixed $value, \Closure $fail) use ($type): void {
+            'type' => $this->creating()
+                ? ['required', Rule::enum(ChannelType::class)]
+                : ['sometimes', function (string $attribute, mixed $value, \Closure $fail) use ($type): void {
                     if ($value !== $type->value) {
                         $fail('The type of a notification channel cannot be changed.');
                     }
-                }]
-                : ['required', Rule::enum(ChannelType::class)],
-            'name' => [$update ? 'sometimes' : 'required', 'string', 'max:120'],
-            'is_default' => ['boolean'],
-            'active' => ['boolean'],
-            'apply_to_existing' => ['boolean'],
-            'templates' => ['nullable', 'array'],
-            'templates.title' => ['nullable', 'string', 'max:'.self::TITLE_MAX, $this->knownVariables(...)],
-            'templates.body' => ['nullable', 'string', 'max:'.self::BODY_MAX, $this->knownVariables(...)],
-            'config' => ['array'],
-            'secrets' => ['array'],
-        ];
+                }],
+        ] + $this->fieldRules();
 
         $definition = $type->definition();
         foreach ($definition->configRules() as $key => $rule) {
@@ -135,6 +135,40 @@ class NotificationChannelRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    /**
+     * The rules of the type-independent fields.
+     *
+     * @return array<string, mixed>
+     */
+    private function fieldRules(): array
+    {
+        return [
+            'name' => [$this->creating() ? 'required' : 'sometimes', 'string', 'max:120'],
+            'is_default' => ['boolean'],
+            'active' => ['boolean'],
+            'apply_to_existing' => ['boolean'],
+            'templates' => ['nullable', 'array'],
+            'templates.title' => ['nullable', 'string', 'max:'.self::TITLE_MAX, $this->knownVariables(...)],
+            'templates.body' => ['nullable', 'string', 'max:'.self::BODY_MAX, $this->knownVariables(...)],
+            'config' => ['array'],
+            'secrets' => ['array'],
+        ];
+    }
+
+    /**
+     * The type-specific `config` and `secrets` keys are listed by the channel type catalogue; the reference
+     * documents them as free-form maps.
+     *
+     * @return array<string, mixed>
+     */
+    public function documentedRules(): array
+    {
+        return ['type' => [$this->creating() ? 'required' : 'sometimes', Rule::enum(ChannelType::class)]] + array_replace($this->fieldRules(), [
+            'config' => [KeyedObject::ofAny()],
+            'secrets' => [KeyedObject::ofSecrets()],
+        ]);
     }
 
     private function knownVariables(string $attribute, mixed $value, \Closure $fail): void

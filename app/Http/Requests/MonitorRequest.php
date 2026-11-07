@@ -4,8 +4,12 @@ namespace App\Http\Requests;
 
 use App\Enums\MonitorType;
 use App\Models\Monitor;
+use App\Monitoring\Types\TypeRegistry;
+use App\OpenApi\DocumentedRequestBody;
+use App\OpenApi\KeyedObject;
 use App\Support\CurrentWorkspace;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
@@ -16,7 +20,7 @@ use Illuminate\Validation\Validator;
  * `secrets`; this layer completes the input first (defaults, stored values, workspace timezone) so the
  * definitions can stay pure.
  */
-abstract class MonitorRequest extends FormRequest
+abstract class MonitorRequest extends FormRequest implements DocumentedRequestBody
 {
     private const COLUMNS = [
         'name', 'description', 'active', 'interval_seconds', 'timeout_seconds', 'retries',
@@ -88,30 +92,7 @@ abstract class MonitorRequest extends FormRequest
         }
 
         $definition = $type->definition();
-        $rules = $this->ownRules($type) + [
-            'name' => [$this->required(), 'string', 'max:120'],
-            'description' => ['nullable', 'string', 'max:5000'],
-            'active' => ['boolean'],
-            'interval_seconds' => ['integer', 'between:'.$definition->minIntervalSeconds().','.config()->integer('monitoring.limits.interval.max')],
-            'timeout_seconds' => ['integer', 'between:'.config()->integer('monitoring.limits.timeout.min').','.config()->integer('monitoring.limits.timeout.max')],
-            'retries' => ['integer', 'between:'.config()->integer('monitoring.limits.retries.min').','.config()->integer('monitoring.limits.retries.max')],
-            'retry_interval_seconds' => ['integer', 'between:'.config()->integer('monitoring.limits.retry_interval_min').','.config()->integer('monitoring.limits.interval.max')],
-            'degraded_threshold_ms' => ['nullable', 'integer', 'min:1'],
-            'inverted' => ['boolean'],
-            'parent_id' => ['nullable', 'integer'],
-            'tags' => ['array', 'max:50'],
-            'tags.*.id' => ['required', 'integer', 'distinct', Rule::exists('tags', 'id')->where('workspace_id', app(CurrentWorkspace::class)->get()->id)],
-            'tags.*.value' => ['nullable', 'string', 'max:120'],
-            'config' => ['array'],
-            'secrets' => ['array'],
-            'notification_channel_ids' => ['array', 'max:50'],
-            'notification_channel_ids.*' => ['integer', 'distinct', Rule::exists('notification_channels', 'id')->where('workspace_id', app(CurrentWorkspace::class)->get()->id)],
-            'alerting' => ['array'],
-            'alerting.resend_interval_minutes' => ['integer', 'between:0,10080'],
-            'alerting.notify_degraded' => ['boolean'],
-            'alerting.degraded_alert_after_seconds' => ['integer', 'between:0,86400'],
-            'alerting.notify_changes' => ['boolean'],
-        ];
+        $rules = $this->ownRules($type) + $this->fieldRules($definition->minIntervalSeconds());
 
         foreach ($definition->configRules() as $key => $rule) {
             $rules['config.'.$key] = $rule;
@@ -121,6 +102,69 @@ abstract class MonitorRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    /**
+     * The rules of the type-independent fields.
+     *
+     * @return array<string, mixed>
+     */
+    private function fieldRules(int $minIntervalSeconds): array
+    {
+        return [
+            'name' => [$this->required(), 'string', 'max:120'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'active' => ['boolean'],
+            'interval_seconds' => ['integer', 'between:'.$minIntervalSeconds.','.config()->integer('monitoring.limits.interval.max')],
+            'timeout_seconds' => ['integer', 'between:'.config()->integer('monitoring.limits.timeout.min').','.config()->integer('monitoring.limits.timeout.max')],
+            'retries' => ['integer', 'between:'.config()->integer('monitoring.limits.retries.min').','.config()->integer('monitoring.limits.retries.max')],
+            'retry_interval_seconds' => ['integer', 'between:'.config()->integer('monitoring.limits.retry_interval_min').','.config()->integer('monitoring.limits.interval.max')],
+            'degraded_threshold_ms' => ['nullable', 'integer', 'min:1'],
+            'inverted' => ['boolean'],
+            'parent_id' => ['nullable', 'integer'],
+            'tags' => ['array', 'max:50'],
+            'tags.*.id' => ['required', 'integer', 'distinct', Rule::exists('tags', 'id')->where($this->inCurrentWorkspace(...))],
+            'tags.*.value' => ['nullable', 'string', 'max:120'],
+            'config' => ['array'],
+            'secrets' => ['array'],
+            'notification_channel_ids' => ['array', 'max:50'],
+            'notification_channel_ids.*' => ['integer', 'distinct', Rule::exists('notification_channels', 'id')->where($this->inCurrentWorkspace(...))],
+            'alerting' => ['array'],
+            'alerting.resend_interval_minutes' => ['integer', 'between:0,10080'],
+            'alerting.notify_degraded' => ['boolean'],
+            'alerting.degraded_alert_after_seconds' => ['integer', 'between:0,86400'],
+            'alerting.notify_changes' => ['boolean'],
+        ];
+    }
+
+    /**
+     * Scopes an existence check to the current workspace. Resolved when the rule runs, so the rules can be
+     * built without a workspace (the API reference does that).
+     *
+     * @param  Builder  $query
+     */
+    private function inCurrentWorkspace($query): void
+    {
+        $query->where('workspace_id', app(CurrentWorkspace::class)->get()->id);
+    }
+
+    /**
+     * The type-specific `config` and `secrets` keys are listed by the monitor type catalogue; the reference
+     * documents them as free-form maps. The interval floor shown is the lowest of all types.
+     *
+     * @return array<string, mixed>
+     */
+    public function documentedRules(): array
+    {
+        $minInterval = PHP_INT_MAX;
+        foreach (TypeRegistry::all() as $definition) {
+            $minInterval = min($minInterval, $definition->minIntervalSeconds());
+        }
+
+        return ['type' => [$this->required(), Rule::enum(MonitorType::class)]] + array_replace($this->fieldRules($minInterval), [
+            'config' => [KeyedObject::ofAny()],
+            'secrets' => [KeyedObject::ofSecrets()],
+        ]);
     }
 
     protected function required(): string

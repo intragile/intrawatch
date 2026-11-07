@@ -37,15 +37,20 @@ use App\Monitoring\Worker\Clock;
 use App\Monitoring\Worker\SystemClock;
 use App\OpenApi\CursorPageParameters;
 use App\OpenApi\CursorPageReturnType;
+use App\OpenApi\DocumentedRequestBody;
+use App\OpenApi\DocumentedRequestBodyExtractor;
+use App\OpenApi\IntegerInRule;
 use App\OpenApi\JsonObjectReturnType;
 use App\Policies\WorkspacePolicy;
 use App\Status\Maintenance\CalendarMaintenanceOracle;
 use App\Status\Maintenance\MaintenanceCalendarLoader;
 use App\Support\CurrentWorkspace;
 use App\Support\RecordAuthEvent;
+use Dedoc\Scramble\Configuration\ParametersExtractors;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\Server;
+use Dedoc\Scramble\Support\OperationExtensions\ParameterExtractor\FormRequestParametersExtractor;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -160,8 +165,13 @@ class AppServiceProvider extends ServiceProvider
         // The spec is served from the API itself; Scramble's own UI and JSON routes stay off.
         Scramble::registerExtension(CursorPageReturnType::class);
         Scramble::registerExtension(JsonObjectReturnType::class);
+        FormRequestParametersExtractor::ignoreInstanceOf(DocumentedRequestBody::class);
         Scramble::configure()
             ->expose(false)
+            ->withParametersExtractors(function (ParametersExtractors $extractors): void {
+                $extractors->append(DocumentedRequestBodyExtractor::class);
+            })
+            ->withRuleTransformers(IntegerInRule::class)
             ->withOperationTransformers(new CursorPageParameters)
             ->withDocumentTransformers(function (OpenApi $openApi): void {
                 $openApi->info->title = config()->string('app.name');

@@ -6,6 +6,7 @@ use App\Enums\IncidentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
 use App\Http\Requests\IncidentRequest;
+use App\Http\Requests\UpdateIncidentRequest;
 use App\Http\Resources\IncidentResource;
 use App\Models\Incident;
 use App\Models\Workspace;
@@ -87,7 +88,7 @@ class IncidentController extends Controller
         return $this->respond($id, 201);
     }
 
-    public function update(IncidentRequest $request, Workspace $workspace, Incident $incident): JsonResponse
+    public function update(UpdateIncidentRequest $request, Workspace $workspace, Incident $incident): JsonResponse
     {
         $affected = [];
         DB::transaction(function () use ($request, $incident, &$affected): void {

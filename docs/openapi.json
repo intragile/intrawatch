@@ -812,7 +812,38 @@
                             "application/json": {
                                 "schema": {
                                     "type": "array",
-                                    "items": {}
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "$ref": "#/components/schemas/MonitorType"
+                                            },
+                                            "default_interval_seconds": {
+                                                "type": "integer"
+                                            },
+                                            "min_interval_seconds": {
+                                                "type": "integer"
+                                            },
+                                            "supports_inverted": {
+                                                "type": "boolean"
+                                            },
+                                            "scheduled": {
+                                                "type": "boolean"
+                                            },
+                                            "defaults": {
+                                                "type": "object",
+                                                "additionalProperties": {}
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "default_interval_seconds",
+                                            "min_interval_seconds",
+                                            "supports_inverted",
+                                            "scheduled",
+                                            "defaults"
+                                        ]
+                                    }
                                 }
                             }
                         }
@@ -836,7 +867,40 @@
                             "application/json": {
                                 "schema": {
                                     "type": "array",
-                                    "items": {}
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "$ref": "#/components/schemas/ChannelType"
+                                            },
+                                            "supports_digest": {
+                                                "type": "boolean"
+                                            },
+                                            "defaults": {
+                                                "type": "object",
+                                                "additionalProperties": {}
+                                            },
+                                            "config_keys": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "secret_keys": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "supports_digest",
+                                            "defaults",
+                                            "config_keys",
+                                            "secret_keys"
+                                        ]
+                                    }
                                 }
                             }
                         }
@@ -2717,11 +2781,10 @@
                     }
                 ],
                 "requestBody": {
-                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/IncidentRequest"
+                                "$ref": "#/components/schemas/UpdateIncidentRequest"
                             }
                         }
                     }
@@ -3023,7 +3086,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/IncidentUpdateRequest"
+                                "$ref": "#/components/schemas/UpdateIncidentUpdateRequest"
                             }
                         }
                     }
@@ -3906,11 +3969,10 @@
                     }
                 ],
                 "requestBody": {
-                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/MaintenanceRequest"
+                                "$ref": "#/components/schemas/UpdateMaintenanceRequest"
                             }
                         }
                     }
@@ -4959,7 +5021,30 @@
                                                     "tags": {
                                                         "type": "array",
                                                         "items": {
-                                                            "type": "string"
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "color": {
+                                                                    "type": "string"
+                                                                },
+                                                                "value": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "id",
+                                                                "name",
+                                                                "color",
+                                                                "value"
+                                                            ]
                                                         }
                                                     },
                                                     "push_url": {
@@ -5242,7 +5327,30 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
                                                     }
                                                 },
                                                 "push_url": {
@@ -5601,7 +5709,30 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
                                                     }
                                                 },
                                                 "push_url": {
@@ -5869,7 +6000,30 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
                                                     }
                                                 },
                                                 "push_url": {
@@ -6684,7 +6838,30 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
                                                     }
                                                 },
                                                 "push_url": {
@@ -7170,7 +7347,30 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "color": {
+                                                                "type": "string"
+                                                            },
+                                                            "value": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "color",
+                                                            "value"
+                                                        ]
                                                     }
                                                 },
                                                 "push_url": {
@@ -8181,11 +8381,10 @@
                     }
                 ],
                 "requestBody": {
-                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/NotificationChannelRequest"
+                                "$ref": "#/components/schemas/UpdateNotificationChannelRequest"
                             }
                         }
                     }
@@ -9057,11 +9256,10 @@
                     }
                 ],
                 "requestBody": {
-                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/StatusPageRequest"
+                                "$ref": "#/components/schemas/UpdateStatusPageRequest"
                             }
                         }
                     }
@@ -10354,10 +10552,69 @@
                 "properties": {
                     "type": {
                         "$ref": "#/components/schemas/ChannelType"
+                    },
+                    "name": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "is_default": {
+                        "type": "boolean"
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "apply_to_existing": {
+                        "type": "boolean"
+                    },
+                    "templates": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "title": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 200
+                            },
+                            "body": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 4000
+                            }
+                        }
+                    },
+                    "config": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    },
+                    "secrets": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
                     }
                 },
                 "required": [
-                    "type"
+                    "type",
+                    "name"
                 ],
                 "title": "NotificationChannelRequest"
             },
@@ -10522,11 +10779,11 @@
                     "uptime_days": {
                         "type": "integer",
                         "enum": [
-                            "1",
-                            "7",
-                            "30",
-                            "90",
-                            "365"
+                            1,
+                            7,
+                            30,
+                            90,
+                            365
                         ]
                     },
                     "upcoming_maintenance_days": {
@@ -10554,10 +10811,136 @@
                 "properties": {
                     "type": {
                         "$ref": "#/components/schemas/MonitorType"
+                    },
+                    "name": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 5000
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "interval_seconds": {
+                        "type": "integer",
+                        "minimum": 20,
+                        "maximum": 86400
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 120
+                    },
+                    "retries": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10
+                    },
+                    "retry_interval_seconds": {
+                        "type": "integer",
+                        "minimum": 20,
+                        "maximum": 86400
+                    },
+                    "degraded_threshold_ms": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1
+                    },
+                    "inverted": {
+                        "type": "boolean"
+                    },
+                    "parent_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "value": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 120
+                                }
+                            },
+                            "required": [
+                                "id"
+                            ]
+                        },
+                        "maxItems": 50,
+                        "uniqueItems": true
+                    },
+                    "config": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    },
+                    "secrets": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    "notification_channel_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "maxItems": 50,
+                        "uniqueItems": true
+                    },
+                    "alerting": {
+                        "type": "object",
+                        "properties": {
+                            "resend_interval_minutes": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 10080
+                            },
+                            "notify_degraded": {
+                                "type": "boolean"
+                            },
+                            "degraded_alert_after_seconds": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 86400
+                            },
+                            "notify_changes": {
+                                "type": "boolean"
+                            }
+                        }
                     }
                 },
                 "required": [
-                    "type"
+                    "type",
+                    "name"
                 ],
                 "title": "StoreMonitorRequest"
             },
@@ -10597,14 +10980,490 @@
                 },
                 "title": "TwoFactorLoginRequest"
             },
+            "UpdateIncidentRequest": {
+                "type": "object",
+                "description": "Validation of an update to an incident: every field is optional, and the status and first message are set through the timeline instead.",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "maxLength": 190
+                    },
+                    "impact": {
+                        "$ref": "#/components/schemas/IncidentImpact"
+                    },
+                    "started_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "monitor_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "maxItems": 1000,
+                        "uniqueItems": true
+                    },
+                    "status_page_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "maxItems": 100,
+                        "uniqueItems": true
+                    }
+                },
+                "title": "UpdateIncidentRequest"
+            },
+            "UpdateIncidentUpdateRequest": {
+                "type": "object",
+                "description": "Validation of an update to a timeline entry: only the message can change.",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "maxLength": 10000
+                    }
+                },
+                "required": [
+                    "message"
+                ],
+                "title": "UpdateIncidentUpdateRequest"
+            },
+            "UpdateMaintenanceRequest": {
+                "type": "object",
+                "description": "Validation of an update to a maintenance: every field is optional; the ones left out keep their stored value.",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "maxLength": 190
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 5000
+                    },
+                    "strategy": {
+                        "$ref": "#/components/schemas/MaintenanceStrategy"
+                    },
+                    "timezone": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "starts_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "ends_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "start_time": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "duration_minutes": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 10080
+                    },
+                    "every_days": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 3650
+                    },
+                    "weekdays": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 7
+                        },
+                        "minItems": 1,
+                        "maxItems": 7,
+                        "uniqueItems": true
+                    },
+                    "month_days": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "integer"
+                        },
+                        "minItems": 1,
+                        "maxItems": 32,
+                        "uniqueItems": true
+                    },
+                    "cron": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "valid_from": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date"
+                    },
+                    "valid_until": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date"
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "monitor_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "uniqueItems": true
+                    },
+                    "status_page_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "maxItems": 100,
+                        "uniqueItems": true
+                    }
+                },
+                "title": "UpdateMaintenanceRequest"
+            },
             "UpdateMonitorRequest": {
                 "type": "object",
                 "properties": {
                     "type": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/MonitorType"
+                    },
+                    "name": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 5000
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "interval_seconds": {
+                        "type": "integer",
+                        "minimum": 20,
+                        "maximum": 86400
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 120
+                    },
+                    "retries": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10
+                    },
+                    "retry_interval_seconds": {
+                        "type": "integer",
+                        "minimum": 20,
+                        "maximum": 86400
+                    },
+                    "degraded_threshold_ms": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1
+                    },
+                    "inverted": {
+                        "type": "boolean"
+                    },
+                    "parent_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "value": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 120
+                                }
+                            },
+                            "required": [
+                                "id"
+                            ]
+                        },
+                        "maxItems": 50,
+                        "uniqueItems": true
+                    },
+                    "config": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    },
+                    "secrets": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    "notification_channel_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "maxItems": 50,
+                        "uniqueItems": true
+                    },
+                    "alerting": {
+                        "type": "object",
+                        "properties": {
+                            "resend_interval_minutes": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 10080
+                            },
+                            "notify_degraded": {
+                                "type": "boolean"
+                            },
+                            "degraded_alert_after_seconds": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 86400
+                            },
+                            "notify_changes": {
+                                "type": "boolean"
+                            }
+                        }
                     }
                 },
                 "title": "UpdateMonitorRequest"
+            },
+            "UpdateNotificationChannelRequest": {
+                "type": "object",
+                "description": "Validation of a notification channel update: every field is optional and the type cannot change.",
+                "properties": {
+                    "type": {
+                        "$ref": "#/components/schemas/ChannelType"
+                    },
+                    "name": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "is_default": {
+                        "type": "boolean"
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "apply_to_existing": {
+                        "type": "boolean"
+                    },
+                    "templates": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "title": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 200
+                            },
+                            "body": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 4000
+                            }
+                        }
+                    },
+                    "config": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    },
+                    "secrets": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "title": "UpdateNotificationChannelRequest"
+            },
+            "UpdateStatusPageRequest": {
+                "type": "object",
+                "description": "Validation of an update to a status page: every field is optional.",
+                "properties": {
+                    "slug": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])$"
+                    },
+                    "title": {
+                        "type": "string",
+                        "maxLength": 190
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 10000
+                    },
+                    "custom_domain": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 253
+                    },
+                    "published": {
+                        "type": "boolean"
+                    },
+                    "locale": {
+                        "type": "string",
+                        "enum": [
+                            "en",
+                            "hu"
+                        ]
+                    },
+                    "accent_color": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^#[0-9a-f]{6}$"
+                    },
+                    "logo_url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2048
+                    },
+                    "favicon_url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2048
+                    },
+                    "custom_css": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 20000
+                    },
+                    "footer": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2000
+                    },
+                    "bar_days": {
+                        "type": "integer",
+                        "minimum": 7,
+                        "maximum": 365
+                    },
+                    "uptime_days": {
+                        "type": "integer",
+                        "enum": [
+                            1,
+                            7,
+                            30,
+                            90,
+                            365
+                        ]
+                    },
+                    "upcoming_maintenance_days": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 90
+                    },
+                    "incident_history_days": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 90
+                    },
+                    "show_latency": {
+                        "type": "boolean"
+                    }
+                },
+                "title": "UpdateStatusPageRequest"
             },
             "WorkspaceRole": {
                 "type": "string",

@@ -34,11 +34,19 @@ class IncidentRequest extends FormRequest
     }
 
     /**
+     * Whether the request creates an incident; the update request overrides this.
+     */
+    protected function creating(): bool
+    {
+        return true;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
-        $presence = $this->stored() === null ? 'required' : 'sometimes';
+        $presence = $this->creating() ? 'required' : 'sometimes';
 
         $rules = [
             'title' => [$presence, 'string', 'max:190'],
@@ -50,7 +58,7 @@ class IncidentRequest extends FormRequest
             'status_page_ids.*' => ['integer', 'distinct'],
         ];
 
-        if ($this->stored() === null) {
+        if ($this->creating()) {
             $rules['status'] = ['required', Rule::enum(IncidentStatus::class)];
             $rules['message'] = ['required', 'string', 'max:10000'];
         }
