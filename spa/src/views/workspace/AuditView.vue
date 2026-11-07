@@ -115,7 +115,7 @@ if (can('viewAudit'))
 
   <template v-else>
     <v-card class="mb-4">
-      <v-card-title as="h2" class="text-h6">
+      <v-card-title tag="h2" class="text-h6">
         {{ t('audit.filters') }}
       </v-card-title>
       <v-form @submit.prevent="apply">

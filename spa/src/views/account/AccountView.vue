@@ -176,7 +176,7 @@ function downloadCodes(): void {
   </h1>
 
   <v-card class="mb-4" max-width="720">
-    <v-card-title as="h2" class="text-h6">
+    <v-card-title tag="h2" class="text-h6">
       {{ t('account.profile') }}
     </v-card-title>
     <v-card-text>
@@ -186,7 +186,7 @@ function downloadCodes(): void {
   </v-card>
 
   <v-card max-width="720">
-    <v-card-title as="h2" class="text-h6 d-flex align-center ga-2">
+    <v-card-title tag="h2" class="text-h6 d-flex align-center ga-2">
       {{ t('account.twoFactor.title') }}
       <v-chip
         :color="enabled ? 'success' : 'grey'"

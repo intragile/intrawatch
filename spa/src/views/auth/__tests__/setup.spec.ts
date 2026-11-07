@@ -67,6 +67,7 @@ describe('setup wizard', () => {
     })
     await mountApp('/setup')
 
+    expect(document.querySelector('h1')?.textContent).toContain('Welcome to IntraWatch')
     fill('input[name="name"]', 'Ada Lovelace')
     fill('input[name="email"]', 'ada@example.com')
     fill('input[name="password"]', 'correct horse battery')

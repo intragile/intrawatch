@@ -366,7 +366,7 @@ async function removeIncident(): Promise<void> {
     <v-row>
       <v-col cols="12" md="7">
         <v-card class="mb-4" max-width="860">
-          <v-card-title as="h2" class="text-h6">
+          <v-card-title tag="h2" class="text-h6">
             {{ t('incidents.timeline.title') }}
           </v-card-title>
           <v-card-text>
@@ -378,7 +378,7 @@ async function removeIncident(): Promise<void> {
         </v-card>
 
         <v-card v-if="canManage" max-width="860">
-          <v-card-title as="h2" class="text-h6">
+          <v-card-title tag="h2" class="text-h6">
             {{ t('incidents.composer.title') }}
           </v-card-title>
           <v-card-text>
@@ -399,7 +399,7 @@ async function removeIncident(): Promise<void> {
       <v-col cols="12" md="5">
         <v-card max-width="860">
           <v-form :disabled="!canManage" @submit.prevent="saveDetails">
-            <v-card-title as="h2" class="text-h6">
+            <v-card-title tag="h2" class="text-h6">
               {{ t('incidents.details.title') }}
             </v-card-title>
             <v-card-text>

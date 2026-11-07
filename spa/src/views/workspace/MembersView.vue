@@ -160,7 +160,7 @@ async function add(): Promise<void> {
 
   <template v-else>
     <v-card v-if="can('manageMembers')" class="mb-4" max-width="960">
-      <v-card-title as="h2" class="text-h6">
+      <v-card-title tag="h2" class="text-h6">
         {{ t('members.add.title') }}
       </v-card-title>
       <v-form @submit.prevent="add">

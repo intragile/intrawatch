@@ -44,7 +44,7 @@ async function submit(): Promise<void> {
 
 <template>
   <v-form @submit.prevent="submit">
-    <v-card-title as="h1" class="text-h6">
+    <v-card-title tag="h1" class="text-h6">
       {{ t('auth.login.title') }}
     </v-card-title>
     <v-card-text>

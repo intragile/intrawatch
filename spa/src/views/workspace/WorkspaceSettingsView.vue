@@ -158,7 +158,7 @@ async function remove(): Promise<void> {
   </v-card>
 
   <v-card v-if="workspace && can('delete')" max-width="720" border="error md">
-    <v-card-title as="h2" class="text-h6">
+    <v-card-title tag="h2" class="text-h6">
       {{ t('settings.danger.title') }}
     </v-card-title>
     <v-card-text>

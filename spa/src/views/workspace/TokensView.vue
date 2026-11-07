@@ -163,7 +163,7 @@ async function copy(): Promise<void> {
   </p>
 
   <v-card class="mb-4" max-width="960">
-    <v-card-title as="h2" class="text-h6">
+    <v-card-title tag="h2" class="text-h6">
       {{ t('tokens.create.title') }}
     </v-card-title>
     <v-form @submit.prevent="create">

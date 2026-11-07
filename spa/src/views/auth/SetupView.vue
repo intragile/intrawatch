@@ -122,7 +122,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <v-card-title as="h1" class="text-h6">
+  <v-card-title tag="h1" class="text-h6">
     {{ t('auth.setup.title') }}
   </v-card-title>
   <v-card-subtitle>

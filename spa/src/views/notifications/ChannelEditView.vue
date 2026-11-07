@@ -585,7 +585,7 @@ watch(leaveOpen, (open) => {
       </v-card>
 
       <v-card v-if="isEdit && canBind" max-width="860" data-test="binding-card">
-        <v-card-title as="h2" class="text-h6">
+        <v-card-title tag="h2" class="text-h6">
           {{ t('channels.binding.title') }}
         </v-card-title>
         <v-card-text>
