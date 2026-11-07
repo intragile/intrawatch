@@ -1,4 +1,4 @@
-import type { WorkspaceSummary } from '../api/types'
+import type { Monitor, WorkspaceSummary } from '../api/types'
 import type { SessionUser } from '../stores/session'
 
 type Can = WorkspaceSummary['can']
@@ -64,4 +64,43 @@ export function meWith(...workspaces: Array<Parameters<typeof workspace>[0]>): S
   return me({
     workspaces: workspaces.map(w => workspace(w)),
   })
+}
+
+export function monitor(overrides: Partial<Monitor> = {}): Monitor {
+  return {
+    id: 1,
+    name: 'Homepage',
+    description: null,
+    type: 'http',
+    active: true,
+    interval_seconds: 60,
+    timeout_seconds: 10,
+    retries: 0,
+    retry_interval_seconds: 60,
+    degraded_threshold_ms: null,
+    inverted: false,
+    parent_id: null,
+    config: {},
+    secret_keys: [],
+    notification_channel_ids: [],
+    alerting: {
+      resend_interval_minutes: 0,
+      notify_degraded: false,
+      degraded_alert_after_seconds: 0,
+      notify_changes: false,
+    },
+    tags: [],
+    push_url: null,
+    has_push_token: false,
+    state: {
+      status: 'up',
+      since: '2025-12-31T00:00:00Z',
+      last_checked_at: null,
+      last_latency_ms: null,
+      last_message: null,
+    },
+    created_at: null,
+    updated_at: null,
+    ...overrides,
+  }
 }

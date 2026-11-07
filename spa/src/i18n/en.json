@@ -159,6 +159,12 @@
     "title": "Coming soon",
     "text": "This screen is not available yet."
   },
+  "live": {
+    "live": "Live",
+    "connecting": "Connecting",
+    "offline": "Offline — showing last loaded data",
+    "label": "Live updates"
+  },
   "status": {
     "up": "Up",
     "down": "Down",

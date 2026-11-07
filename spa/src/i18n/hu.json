@@ -159,6 +159,12 @@
     "title": "Hamarosan",
     "text": "Ez a képernyő még nem érhető el."
   },
+  "live": {
+    "live": "Élő",
+    "connecting": "Csatlakozás",
+    "offline": "Nincs kapcsolat — az utoljára betöltött adatok láthatók",
+    "label": "Élő frissítés"
+  },
   "status": {
     "up": "Működik",
     "down": "Leállt",

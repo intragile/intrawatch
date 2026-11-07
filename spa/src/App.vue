@@ -2,15 +2,18 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
+import LiveIndicator from './components/common/LiveIndicator.vue'
 import PasswordConfirmDialog from './components/common/PasswordConfirmDialog.vue'
 import ReloginDialog from './components/common/ReloginDialog.vue'
 import { useNotify } from './composables/useNotify'
 import AppLayout from './layouts/AppLayout.vue'
 import AuthLayout from './layouts/AuthLayout.vue'
+import { useSession } from './stores/session'
 
 const route = useRoute()
 const { t } = useI18n()
 const { notices, dismiss } = useNotify()
+const session = useSession()
 
 const notice = computed(() => notices.value[0] ?? null)
 </script>
@@ -21,6 +24,9 @@ const notice = computed(() => notices.value[0] ?? null)
       <router-view />
     </AuthLayout>
     <AppLayout v-else-if="route.matched.length > 0">
+      <template #status>
+        <LiveIndicator v-if="session.current" />
+      </template>
       <router-view />
     </AppLayout>
 

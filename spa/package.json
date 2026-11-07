@@ -18,8 +18,10 @@
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",
+    "laravel-echo": "^2.6.3",
     "openapi-fetch": "^0.17.0",
     "pinia": "^3.0.4",
+    "pusher-js": "^8.6.0",
     "vue": "^3.5.45",
     "vue-i18n": "^11.4.18",
     "vue-router": "^4.6.4",
