@@ -669,6 +669,32 @@ vendor/bin/pint --test
 bash tests/docker/smoke.sh          # image smoke test (add --pgsql for PostgreSQL)
 ```
 
+### Admin interface
+
+The admin interface is a Vue single-page application in `spa/` (Node.js 22 or
+later). The server sends its shell for every path under `/admin/`, with the
+runtime configuration in a `<meta name="intrawatch-config">` tag, and its
+fingerprinted files from `/admin/assets/`. Without a build, `/admin/` answers
+503.
+
+```bash
+cd spa
+npm ci
+npm run dev       # Vite dev server on http://localhost:5173/admin/
+npm run verify    # lint, type check, unit tests and production build
+```
+
+The dev server proxies `/api`, `/sanctum`, `/broadcasting` and the `/app`
+websocket to `VITE_BACKEND` (default `http://127.0.0.1:8000`, i.e.
+`php artisan serve`). Point it at a running image
+(`VITE_BACKEND=http://localhost:3000`) to get live updates through the image's
+Reverb proxy as well. `npm run build` writes `spa/dist`, the directory the
+`intrawatch.spa_path` setting points to.
+
+The image builds the application in a Node.js stage of `docker/Dockerfile`
+(`npm ci` and `npm run build`) and copies only `spa/dist` into the runtime
+image; Node.js is not part of the final image.
+
 The schedule drift benchmark seeds a throwaway workspace with HTTP monitors
 against a local target that answers in 50 to 300 ms, runs one check worker and
 prints the median, 95th percentile and maximum delay from the schedule, the

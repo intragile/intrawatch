@@ -1,5 +1,14 @@
 # syntax=docker/dockerfile:1
 
+# The admin single-page application, served by PHP under /admin/.
+FROM node:22-alpine AS spa
+WORKDIR /spa
+COPY spa/package.json spa/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY spa/ ./
+COPY docs/openapi.json ../docs/openapi.json
+RUN npm run build
+
 FROM composer:2 AS composer
 WORKDIR /app
 COPY composer.json composer.lock ./
@@ -33,6 +42,7 @@ RUN install-php-extensions pdo_sqlite pdo_mysql pdo_pgsql intl pcntl bcmath opca
 
 WORKDIR /app
 COPY --from=composer --chown=app:app /app /app
+COPY --from=spa --chown=app:app /spa/dist /app/spa/dist
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh

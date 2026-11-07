@@ -3,7 +3,7 @@
 # session flow over HTTP, a restart, an upgrade (new container, same volume),
 # a non-localhost APP_URL, a permanently failing worker and an unwritable
 # /data, plus monitors checked by the in-image worker, a public status page
-# by slug and by custom domain, down and up alerts
+# by slug and by custom domain, the admin shell under /admin/, down and up alerts
 # delivered to a webhook receiver inside the container, and a timed docker
 # stop. Usage: bash tests/docker/smoke.sh [--pgsql]
 set -euo pipefail
@@ -243,6 +243,34 @@ domain_body="$(curl -fsS --max-time 10 -H 'Host: status.example.test' "$BASE/")"
 [[ "$(http_code -H 'Host: status.example.test' "${STATEFUL[@]}" "$BASE/api/v1/me")" == "404" ]] || fail "/api/v1/me is reachable on the custom domain"
 [[ "$(http_code -H 'Host: status.example.test' "$BASE/up")" == "200" ]] || fail "/up is not served on the custom domain"
 ok "custom domain serves the status page and nothing else"
+
+echo "== admin single-page application"
+root_headers="$(mktemp)"
+curl -s -o /dev/null -D "$root_headers" --max-time 10 "$BASE/" || true
+grep -Eqi '^HTTP/[0-9.]+ 302' "$root_headers" || fail "/ is not a 302"
+grep -Eqi '^location: (http://[^/]+)?/admin/'$'\r''?$' "$root_headers" || fail "/ does not redirect to /admin/"
+rm -f "$root_headers"
+admin_headers="$(mktemp)"
+admin_body="$(curl -fsS --max-time 10 -D "$admin_headers" "$BASE/admin/")" || fail "/admin/ did not return 200"
+grep -qi '^content-type: text/html' "$admin_headers" || fail "/admin/ is not HTML"
+grep -qi '^content-security-policy: default-src '"'"'self'"'" "$admin_headers" || fail "/admin/ has no CSP header"
+grep -qi '^cache-control: no-store' "$admin_headers" || fail "/admin/ is cacheable"
+if grep -qi '^set-cookie:' "$admin_headers"; then fail "/admin/ sets a cookie"; fi
+rm -f "$admin_headers"
+[[ "$admin_body" == *'<meta name="intrawatch-config" content="'* ]] || fail "/admin/ lacks the runtime config meta"
+ASSET="$(grep -oE '/admin/assets/[A-Za-z0-9._-]+\.js' <<<"$admin_body" | head -n 1)"
+[[ -n "$ASSET" ]] || fail "/admin/ references no script asset"
+asset_headers="$(mktemp)"
+curl -fsS --max-time 10 -D "$asset_headers" -o /dev/null "$BASE$ASSET" || fail "$ASSET did not return 200"
+grep -qi '^cache-control:.*immutable' "$asset_headers" || fail "$ASSET is not immutable"
+grep -qi '^content-type: text/javascript' "$asset_headers" || fail "$ASSET is not served as JavaScript"
+rm -f "$asset_headers"
+deep_body="$(curl -fsS --max-time 10 "$BASE/admin/monitors")" || fail "/admin/monitors did not return 200"
+[[ "$deep_body" == *'<meta name="intrawatch-config"'* ]] || fail "/admin/monitors is not the shell"
+for path in /admin/ "$ASSET" /api/v1/ping; do
+  [[ "$(http_code -H 'Host: status.example.test' "$BASE$path")" == "404" ]] || fail "$path is reachable on the custom domain"
+done
+ok "admin shell, assets and deep links served; none on the custom domain"
 
 echo "== alerts to a webhook"
 # A tiny receiver inside the container appends every request body to a file. CHECK_BLOCKED_NETWORKS keeps

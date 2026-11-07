@@ -6,7 +6,8 @@
 !.env.example
 .phpunit.result.cache
 .phpunit.cache
-node_modules
+**/node_modules
+spa/dist
 vendor
 storage/logs/*
 storage/framework/cache/*

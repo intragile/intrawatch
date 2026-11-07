@@ -18,6 +18,10 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+/spa/dist
+/spa/node_modules
+/spa/playwright-report
+/spa/test-results
 /storage/*.key
 /storage/pail
 /vendor
