@@ -10,11 +10,13 @@ import { installGuards } from './router/guards'
 const router = createAppRouter()
 installGuards(router)
 installAuthHandlers()
-applyLocale(i18n.global.locale.value, false)
 
-createApp(App)
+const app = createApp(App)
   .use(createPinia())
   .use(i18n)
   .use(router)
   .use(vuetify)
-  .mount('#app')
+
+// Mount once the active locale's messages are in, so the first paint is already translated. If they
+// cannot be fetched, the app still mounts with the English fallback.
+void applyLocale(i18n.global.locale.value, false).finally(() => app.mount('#app'))

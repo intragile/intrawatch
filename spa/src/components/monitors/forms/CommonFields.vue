@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { MonitorForm, MonitorTypeInfo } from './model'
+import type { MonitorTypeInfo } from '../../../api/types'
+import type { MonitorForm } from './model'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IntField from './IntField.vue'

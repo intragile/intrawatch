@@ -1,28 +1,17 @@
-import type { Monitor, MonitorType } from '../../../api/types'
+import type { Monitor, MonitorCreateBody, MonitorType, MonitorTypeInfo, MonitorUpdateBody } from '../../../api/types'
 
-export type Config = Record<string, unknown>
+export type Config = NonNullable<MonitorCreateBody['config']>
+type Secrets = NonNullable<MonitorCreateBody['secrets']>
 
 /** Secrets the user touched: a string replaces the stored value, `null` clears it. Untouched keys are absent. */
 export type SecretDraft = Record<string, string | null | undefined>
 
-export interface TagAssignment {
-  id: number
-  value: string | null
-}
-
-/** One entry of `GET /monitor-types`. */
-export interface MonitorTypeInfo {
-  type: MonitorType
-  default_interval_seconds: number
-  min_interval_seconds: number
-  supports_inverted: boolean
-  scheduled: boolean
-  defaults: Config
-}
+/** A tag assignment as the editor holds it: the value is always present, null when empty. */
+export type TagAssignment = Required<NonNullable<MonitorCreateBody['tags']>[number]>
 
 type Scalars = Pick<Monitor, 'name' | 'description' | 'active' | 'interval_seconds' | 'timeout_seconds' | 'retries' | 'retry_interval_seconds' | 'degraded_threshold_ms' | 'inverted' | 'parent_id'>
 
-/** The editable part of a monitor. Tags and channel ids are normalised from the loosely typed response. */
+/** The editable part of a monitor. */
 export interface MonitorForm extends Scalars {
   config: Config
   tags: TagAssignment[]
@@ -77,28 +66,6 @@ export function errorFor(errors: Record<string, string>, key: string): string | 
     : errors[nested]
 }
 
-/** The tags of a monitor response, which carries `{id, value}` objects although the schema types names. */
-function tagsOf(monitor: Monitor): TagAssignment[] {
-  const raw: unknown = monitor.tags
-  if (!Array.isArray(raw))
-    return []
-  const out: TagAssignment[] = []
-  for (const entry of raw) {
-    if (typeof entry !== 'object' || entry === null)
-      continue
-    const { id, value } = entry as { id?: unknown, value?: unknown }
-    if (typeof id === 'number') {
-      out.push({
-        id,
-        value: typeof value === 'string'
-          ? value
-          : null,
-      })
-    }
-  }
-  return out
-}
-
 export function formFromMonitor(monitor: Monitor): MonitorForm {
   return {
     name: monitor.name,
@@ -112,7 +79,7 @@ export function formFromMonitor(monitor: Monitor): MonitorForm {
     inverted: monitor.inverted,
     parent_id: monitor.parent_id,
     config: clone(monitor.config),
-    tags: tagsOf(monitor),
+    tags: monitor.tags.map(tag => ({ id: tag.id, value: tag.value })),
     notification_channel_ids: monitor.notification_channel_ids.map(Number),
     alerting: { ...monitor.alerting },
   }
@@ -198,8 +165,8 @@ export function pruneSecrets(type: MonitorType, config: Config, draft: SecretDra
  * The secrets to send: only touched keys. An empty string is never sent (the API would read it as a
  * clear), and a header list that parses to nothing is skipped rather than wiping the stored map.
  */
-export function secretsPayload(draft: SecretDraft): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
+export function secretsPayload(draft: SecretDraft): Secrets {
+  const out: Secrets = {}
   for (const [key, value] of Object.entries(draft)) {
     if (value === undefined || value === '')
       continue
@@ -214,11 +181,9 @@ export function secretsPayload(draft: SecretDraft): Record<string, unknown> {
   return out
 }
 
-type Body = Record<string, unknown>
-
 /** The body of `POST /monitors`: every field of the form plus the touched secrets. */
-export function createBody(type: MonitorType, form: MonitorForm, draft: SecretDraft, includeChannels: boolean): Body {
-  const body: Body = {
+export function createBody(type: MonitorType, form: MonitorForm, draft: SecretDraft, includeChannels: boolean): MonitorCreateBody {
+  const body: MonitorCreateBody = {
     type,
     name: form.name.trim(),
     description: form.description,
@@ -257,19 +222,29 @@ const SCALAR_KEYS = [
   'notification_channel_ids',
 ] as const
 
+type ScalarKey = typeof SCALAR_KEYS[number]
+
+function copyKey<K extends ScalarKey>(target: Partial<Pick<MonitorForm, ScalarKey>>, form: MonitorForm, key: K): void {
+  target[key] = form[key]
+}
+
+function copyAlerting<K extends keyof MonitorForm['alerting']>(target: Partial<MonitorForm['alerting']>, source: MonitorForm['alerting'], key: K): void {
+  target[key] = source[key]
+}
+
 /**
  * The body of `PATCH /monitors/{id}`: only top-level keys that changed. `config` and `alerting` carry
  * only their changed members, which the API merges into the stored values.
  */
-export function patchBody(initial: MonitorForm, form: MonitorForm, draft: SecretDraft): Body {
-  const body: Body = {}
+export function patchBody(initial: MonitorForm, form: MonitorForm, draft: SecretDraft): MonitorUpdateBody {
+  const changed: Partial<Pick<MonitorForm, ScalarKey>> = {}
   for (const key of SCALAR_KEYS) {
-    if (!deepEqual(initial[key], form[key])) {
-      body[key] = key === 'name'
-        ? form.name.trim()
-        : form[key]
-    }
+    if (!deepEqual(initial[key], form[key]))
+      copyKey(changed, form, key)
   }
+  const body: MonitorUpdateBody = { ...changed }
+  if (body.name !== undefined)
+    body.name = body.name.trim()
   const config: Config = {}
   for (const [key, value] of Object.entries(form.config)) {
     if (!deepEqual(initial.config[key], value))
@@ -277,10 +252,10 @@ export function patchBody(initial: MonitorForm, form: MonitorForm, draft: Secret
   }
   if (Object.keys(config).length > 0)
     body.config = config
-  const alerting: Record<string, unknown> = {}
+  const alerting: Partial<MonitorForm['alerting']> = {}
   for (const key of Object.keys(form.alerting) as Array<keyof MonitorForm['alerting']>) {
     if (!deepEqual(initial.alerting[key], form.alerting[key]))
-      alerting[key] = form.alerting[key]
+      copyAlerting(alerting, form.alerting, key)
   }
   if (Object.keys(alerting).length > 0)
     body.alerting = alerting

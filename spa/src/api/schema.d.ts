@@ -1112,6 +1112,22 @@ export interface components {
          */
         NotificationChannelRequest: {
             type: components["schemas"]["ChannelType"];
+            name: string;
+            is_default?: boolean;
+            active?: boolean;
+            apply_to_existing?: boolean;
+            templates?: {
+                title?: string | null;
+                body?: string | null;
+            } | null;
+            config?: {
+                [key: string]: unknown;
+            };
+            secrets?: {
+                [key: string]: string | {
+                    [key: string]: string;
+                } | null;
+            };
         };
         /** SendPasswordResetLinkRequest */
         SendPasswordResetLinkRequest: {
@@ -1157,7 +1173,7 @@ export interface components {
             footer?: string | null;
             bar_days?: number;
             /** @enum {integer} */
-            uptime_days?: "1" | "7" | "30" | "90" | "365";
+            uptime_days?: 1 | 7 | 30 | 90 | 365;
             upcoming_maintenance_days?: number;
             incident_history_days?: number;
             show_latency?: boolean;
@@ -1165,6 +1181,35 @@ export interface components {
         /** StoreMonitorRequest */
         StoreMonitorRequest: {
             type: components["schemas"]["MonitorType"];
+            name: string;
+            description?: string | null;
+            active?: boolean;
+            interval_seconds?: number;
+            timeout_seconds?: number;
+            retries?: number;
+            retry_interval_seconds?: number;
+            degraded_threshold_ms?: number | null;
+            inverted?: boolean;
+            parent_id?: number | null;
+            tags?: {
+                id: number;
+                value?: string | null;
+            }[];
+            config?: {
+                [key: string]: unknown;
+            };
+            secrets?: {
+                [key: string]: string | {
+                    [key: string]: string;
+                } | null;
+            };
+            notification_channel_ids?: number[];
+            alerting?: {
+                resend_interval_minutes?: number;
+                notify_degraded?: boolean;
+                degraded_alert_after_seconds?: number;
+                notify_changes?: boolean;
+            };
         };
         /**
          * TokenAbility
@@ -1176,9 +1221,131 @@ export interface components {
             code?: string | null;
             recovery_code?: string | null;
         };
+        /**
+         * UpdateIncidentRequest
+         * @description Validation of an update to an incident: every field is optional, and the status and first message are set through the timeline instead.
+         */
+        UpdateIncidentRequest: {
+            title?: string;
+            impact?: components["schemas"]["IncidentImpact"];
+            /** Format: date-time */
+            started_at?: string | null;
+            monitor_ids?: number[];
+            status_page_ids?: number[];
+        };
+        /**
+         * UpdateIncidentUpdateRequest
+         * @description Validation of an update to a timeline entry: only the message can change.
+         */
+        UpdateIncidentUpdateRequest: {
+            message: string;
+        };
+        /**
+         * UpdateMaintenanceRequest
+         * @description Validation of an update to a maintenance: every field is optional; the ones left out keep their stored value.
+         */
+        UpdateMaintenanceRequest: {
+            title?: string;
+            description?: string | null;
+            strategy?: components["schemas"]["MaintenanceStrategy"];
+            timezone?: string | null;
+            /** Format: date-time */
+            starts_at?: string | null;
+            /** Format: date-time */
+            ends_at?: string | null;
+            start_time?: string | null;
+            duration_minutes?: number | null;
+            every_days?: number | null;
+            weekdays?: number[] | null;
+            month_days?: number[] | null;
+            cron?: string | null;
+            /** Format: date */
+            valid_from?: string | null;
+            /** Format: date */
+            valid_until?: string | null;
+            active?: boolean;
+            monitor_ids?: number[];
+            status_page_ids?: number[];
+        };
         /** UpdateMonitorRequest */
         UpdateMonitorRequest: {
-            type?: string;
+            type?: components["schemas"]["MonitorType"];
+            name?: string;
+            description?: string | null;
+            active?: boolean;
+            interval_seconds?: number;
+            timeout_seconds?: number;
+            retries?: number;
+            retry_interval_seconds?: number;
+            degraded_threshold_ms?: number | null;
+            inverted?: boolean;
+            parent_id?: number | null;
+            tags?: {
+                id: number;
+                value?: string | null;
+            }[];
+            config?: {
+                [key: string]: unknown;
+            };
+            secrets?: {
+                [key: string]: string | {
+                    [key: string]: string;
+                } | null;
+            };
+            notification_channel_ids?: number[];
+            alerting?: {
+                resend_interval_minutes?: number;
+                notify_degraded?: boolean;
+                degraded_alert_after_seconds?: number;
+                notify_changes?: boolean;
+            };
+        };
+        /**
+         * UpdateNotificationChannelRequest
+         * @description Validation of a notification channel update: every field is optional and the type cannot change.
+         */
+        UpdateNotificationChannelRequest: {
+            type?: components["schemas"]["ChannelType"];
+            name?: string;
+            is_default?: boolean;
+            active?: boolean;
+            apply_to_existing?: boolean;
+            templates?: {
+                title?: string | null;
+                body?: string | null;
+            } | null;
+            config?: {
+                [key: string]: unknown;
+            };
+            secrets?: {
+                [key: string]: string | {
+                    [key: string]: string;
+                } | null;
+            };
+        };
+        /**
+         * UpdateStatusPageRequest
+         * @description Validation of an update to a status page: every field is optional.
+         */
+        UpdateStatusPageRequest: {
+            slug?: string;
+            title?: string;
+            description?: string | null;
+            custom_domain?: string | null;
+            published?: boolean;
+            /** @enum {string} */
+            locale?: "en" | "hu";
+            accent_color?: string | null;
+            logo_url?: string | null;
+            favicon_url?: string | null;
+            custom_css?: string | null;
+            footer?: string | null;
+            bar_days?: number;
+            /** @enum {integer} */
+            uptime_days?: 1 | 7 | 30 | 90 | 365;
+            upcoming_maintenance_days?: number;
+            incident_history_days?: number;
+            show_latency?: boolean;
         };
         /**
          * WorkspaceRole
@@ -1674,7 +1841,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown[];
+                    "application/json": {
+                        type: components["schemas"]["MonitorType"];
+                        default_interval_seconds: number;
+                        min_interval_seconds: number;
+                        supports_inverted: boolean;
+                        scheduled: boolean;
+                        defaults: {
+                            [key: string]: unknown;
+                        };
+                    }[];
                 };
             };
             401: components["responses"]["AuthenticationException"];
@@ -1694,7 +1870,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown[];
+                    "application/json": {
+                        type: components["schemas"]["ChannelType"];
+                        supports_digest: boolean;
+                        defaults: {
+                            [key: string]: unknown;
+                        };
+                        config_keys: string[];
+                        secret_keys: string[];
+                    }[];
                 };
             };
             401: components["responses"]["AuthenticationException"];
@@ -2409,9 +2593,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["IncidentRequest"];
+                "application/json": components["schemas"]["UpdateIncidentRequest"];
             };
         };
         responses: {
@@ -2530,7 +2714,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IncidentUpdateRequest"];
+                "application/json": components["schemas"]["UpdateIncidentUpdateRequest"];
             };
         };
         responses: {
@@ -2775,9 +2959,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["MaintenanceRequest"];
+                "application/json": components["schemas"]["UpdateMaintenanceRequest"];
             };
         };
         responses: {
@@ -3088,7 +3272,12 @@ export interface operations {
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: string[];
+                            tags: {
+                                id: number;
+                                name: string;
+                                color: string;
+                                value: string | null;
+                            }[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3167,7 +3356,12 @@ export interface operations {
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: string[];
+                            tags: {
+                                id: number;
+                                name: string;
+                                color: string;
+                                value: string | null;
+                            }[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3278,7 +3472,12 @@ export interface operations {
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: string[];
+                            tags: {
+                                id: number;
+                                name: string;
+                                color: string;
+                                value: string | null;
+                            }[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3380,7 +3579,12 @@ export interface operations {
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: string[];
+                            tags: {
+                                id: number;
+                                name: string;
+                                color: string;
+                                value: string | null;
+                            }[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3603,7 +3807,12 @@ export interface operations {
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: string[];
+                            tags: {
+                                id: number;
+                                name: string;
+                                color: string;
+                                value: string | null;
+                            }[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -3755,7 +3964,12 @@ export interface operations {
                                 degraded_alert_after_seconds: number;
                                 notify_changes: boolean;
                             };
-                            tags: string[];
+                            tags: {
+                                id: number;
+                                name: string;
+                                color: string;
+                                value: string | null;
+                            }[];
                             /**
                              * @description The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
                              *     monitors:write ability, and for monitors without a push token.
@@ -4079,9 +4293,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["NotificationChannelRequest"];
+                "application/json": components["schemas"]["UpdateNotificationChannelRequest"];
             };
         };
         responses: {
@@ -4359,9 +4573,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["StatusPageRequest"];
+                "application/json": components["schemas"]["UpdateStatusPageRequest"];
             };
         };
         responses: {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ApiError } from '../../api'
-import type { ChannelSummary, Monitor, MonitorType, Tag } from '../../api/types'
-import type { MonitorForm, MonitorTypeInfo, SecretDraft } from '../../components/monitors/forms/model'
+import type { ChannelSummary, Monitor, MonitorType, MonitorTypeInfo, Tag } from '../../api/types'
+import type { MonitorForm, SecretDraft } from '../../components/monitors/forms/model'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
@@ -214,7 +214,7 @@ async function load(): Promise<void> {
   loading.value = true
   loadError.value = null
   try {
-    typeInfos.value = await bodyOf(api.GET('/monitor-types')) as MonitorTypeInfo[]
+    typeInfos.value = await bodyOf(api.GET('/monitor-types'))
     if (monitorId.value === null) {
       await loadOptions()
       startCreate('http')
@@ -277,33 +277,29 @@ async function save(): Promise<void> {
       return
     }
   }
-  let body: Record<string, unknown>
-  if (isEdit.value) {
-    body = patchBody(baseline, current, draft)
-    if (Object.keys(body).length === 0) {
-      notify(t('monitorEditor.noChanges'), 'info')
-      return
-    }
-  }
-  else {
-    body = createBody(type.value, current, draft, canPickChannels.value)
+  const id = monitorId.value
+  const update = isEdit.value && id !== null
+    ? patchBody(baseline, current, draft)
+    : null
+  if (update !== null && Object.keys(update).length === 0) {
+    notify(t('monitorEditor.noChanges'), 'info')
+    return
   }
 
   saving.value = true
   try {
-    // The generated request types do not describe the monitor fields, so the body is assembled by `model.ts`.
-    const result = isEdit.value && monitorId.value !== null
+    const result = update !== null && id !== null
       ? await unwrap<Monitor>(api.PATCH('/workspaces/{workspace}/monitors/{monitor}', {
           params: {
-            path: { workspace: slug.value, monitor: monitorId.value },
+            path: { workspace: slug.value, monitor: id },
           },
-          body: body as never,
+          body: update,
         }))
       : await unwrap<Monitor>(api.POST('/workspaces/{workspace}/monitors', {
           params: {
             path: { workspace: slug.value },
           },
-          body: body as never,
+          body: createBody(type.value, current, draft, canPickChannels.value),
         }))
     monitors.upsert(result)
     secrets.value = {}

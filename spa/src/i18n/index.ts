@@ -1,7 +1,6 @@
 import { createI18n } from 'vue-i18n'
 import { readPreference, writePreference } from '../utils/storage'
 import en from './en.json'
-import hu from './hu.json'
 
 export type MessageSchema = typeof en
 export const LOCALES = ['en', 'hu'] as const
@@ -26,14 +25,44 @@ export function detectLocale(): Locale {
     : 'en'
 }
 
-export const i18n = createI18n<[MessageSchema], Locale, false>({
+/**
+ * English ships in the main bundle as the fallback; every other locale is a separate chunk fetched the
+ * first time it is applied.
+ */
+const LOADERS: Record<Locale, () => Promise<MessageSchema>> = {
+  en: async () => en,
+  hu: async () => (await import('./hu.json')).default,
+}
+
+/** Only English is present up front; the rest are added by loadLocaleMessages(). */
+const initialMessages: Partial<Record<Locale, MessageSchema>> = { en }
+
+export const i18n = createI18n({
   legacy: false,
   locale: detectLocale(),
   fallbackLocale: 'en',
-  messages: { en, hu },
+  messages: initialMessages,
 })
 
-export function applyLocale(locale: Locale, persist = true): void {
+const loaded = new Set<Locale>(['en'])
+let requested: Locale | null = null
+
+/** Makes the messages of a locale available, fetching them on first use. */
+export async function loadLocaleMessages(locale: Locale): Promise<void> {
+  if (loaded.has(locale))
+    return
+  i18n.global.setLocaleMessage(locale, await LOADERS[locale]())
+  loaded.add(locale)
+}
+
+/**
+ * Switches to a locale once its messages are loaded. When switches overlap, the last one requested wins.
+ */
+export async function applyLocale(locale: Locale, persist = true): Promise<void> {
+  requested = locale
+  await loadLocaleMessages(locale)
+  if (requested !== locale)
+    return
   i18n.global.locale.value = locale
   if (persist)
     writePreference(STORAGE_KEY, locale)

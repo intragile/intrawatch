@@ -23,7 +23,12 @@ export function usePreferences() {
 
   function setLocale(next: Locale): void {
     applyLocale(next)
-    vuetifyLocale.current.value = next
+      .then(() => {
+        if (locale.value === next)
+          vuetifyLocale.current.value = next
+      })
+      // If the messages cannot be fetched, the current language simply stays.
+      .catch(() => {})
   }
 
   return {

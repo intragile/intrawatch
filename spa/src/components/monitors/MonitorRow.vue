@@ -95,8 +95,8 @@ function onRowClick(event: MouseEvent): void {
       <time :datetime="monitor.state.since" :title="absolute">{{ since }}</time>
     </td>
     <td>
-      <v-chip v-for="tag in monitor.tags" :key="tag" size="x-small" label class="mr-1">
-        {{ tag }}
+      <v-chip v-for="tag in monitor.tags" :key="tag.id" :color="tag.color" size="x-small" label class="mr-1">
+        {{ tag.value === null ? tag.name : `${tag.name}: ${tag.value}` }}
       </v-chip>
     </td>
     <td><HeartbeatBar :beats="beats" /></td>

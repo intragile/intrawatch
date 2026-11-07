@@ -5,6 +5,7 @@ type Ok<P> = P extends { 200: infer R } ? JsonBody<R> : never
 type Item<B> = B extends { data: Array<infer I> } ? I : B extends { data: infer D } ? D : never
 
 type GetOk<P extends keyof paths> = paths[P] extends { get: { responses: infer R } } ? Ok<R> : never
+type JsonRequest<O> = O extends { requestBody?: infer R } ? JsonBody<NonNullable<R>> : never
 
 export type Schemas = components['schemas']
 
@@ -25,3 +26,19 @@ export type MonitorEvent = Item<GetOk<'/workspaces/{workspace}/monitors/{monitor
 export type CheckResult = Item<GetOk<'/workspaces/{workspace}/monitors/{monitor}/results'>>
 export type ChannelSummary = Item<GetOk<'/workspaces/{workspace}/notification-channels'>>
 export type Tag = Item<GetOk<'/workspaces/{workspace}/tags'>>
+
+export type MonitorTypeInfo = GetOk<'/monitor-types'>[number]
+export type ChannelTypeInfo = GetOk<'/notification-channel-types'>[number]
+
+export type MonitorCreateBody = JsonRequest<paths['/workspaces/{workspace}/monitors']['post']>
+export type MonitorUpdateBody = JsonRequest<paths['/workspaces/{workspace}/monitors/{monitor}']['patch']>
+export type ChannelCreateBody = JsonRequest<paths['/workspaces/{workspace}/notification-channels']['post']>
+export type ChannelUpdateBody = JsonRequest<paths['/workspaces/{workspace}/notification-channels/{channel}']['patch']>
+export type IncidentCreateBody = JsonRequest<paths['/workspaces/{workspace}/incidents']['post']>
+export type IncidentUpdateBody = JsonRequest<paths['/workspaces/{workspace}/incidents/{incident}']['patch']>
+export type IncidentUpdateCreateBody = JsonRequest<paths['/workspaces/{workspace}/incidents/{incident}/updates']['post']>
+export type MaintenanceCreateBody = JsonRequest<paths['/workspaces/{workspace}/maintenances']['post']>
+export type MaintenanceUpdateBody = JsonRequest<paths['/workspaces/{workspace}/maintenances/{maintenance}']['patch']>
+export type StatusPageCreateBody = JsonRequest<paths['/workspaces/{workspace}/status-pages']['post']>
+export type StatusPageUpdateBody = JsonRequest<paths['/workspaces/{workspace}/status-pages/{statusPage}']['patch']>
+export type StatusPageLayoutBody = JsonRequest<paths['/workspaces/{workspace}/status-pages/{statusPage}/layout']['put']>
