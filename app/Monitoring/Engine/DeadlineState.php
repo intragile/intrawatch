@@ -17,7 +17,7 @@ final readonly class DeadlineState
      */
     public const COLUMNS = [
         'status', 'status_since', 'last_checked_at', 'last_ping_at', 'run_started_at', 'deadline_anchor_at',
-        'miss_deadline_at', 'miss_number',
+        'miss_deadline_at', 'miss_number', 'miss_origin_at',
     ];
 
     public function __construct(
@@ -29,6 +29,7 @@ final readonly class DeadlineState
         public ?CarbonImmutable $deadlineAnchorAt,
         public ?CarbonImmutable $missDeadlineAt = null,
         public ?int $missNumber = null,
+        public ?CarbonImmutable $missOriginAt = null,
     ) {}
 
     public static function fromRow(object $row): self
@@ -42,6 +43,7 @@ final readonly class DeadlineState
             self::time($row->deadline_anchor_at ?? null),
             self::time($row->miss_deadline_at ?? null),
             is_numeric($row->miss_number ?? null) ? (int) $row->miss_number : null,
+            self::time($row->miss_origin_at ?? null),
         );
     }
 
@@ -83,6 +85,26 @@ final readonly class DeadlineState
     }
 
     /**
+     * Where the push misses of $deadline count from: the deadline itself, or a later origin stored when an
+     * outage hid the moment the next miss fell due (see DatabaseDeadlineEvaluator::reanchor()).
+     */
+    public function missOrigin(CarbonImmutable $deadline): CarbonImmutable
+    {
+        $origin = $this->originFor($deadline);
+
+        return $origin !== null && $origin->gt($deadline) ? $origin : $deadline;
+    }
+
+    /**
+     * The stored miss origin if it belongs to $deadline, the deadline whose misses are recorded.
+     */
+    public function originFor(CarbonImmutable $deadline): ?CarbonImmutable
+    {
+        return $this->missOriginAt !== null && $this->missDeadlineAt !== null
+            && $this->missDeadlineAt->getTimestamp() === $deadline->getTimestamp() ? $this->missOriginAt : null;
+    }
+
+    /**
      * The same state after a result with the given status was recorded at $checkedAt.
      */
     public function withCheck(MonitorStatus $status, CarbonImmutable $checkedAt, ?Deadline $deadline): self
@@ -92,6 +114,7 @@ final readonly class DeadlineState
         return new self(
             $status, $this->statusSince, $checkedAt, $this->lastPingAt, $this->runStartedAt, $this->deadlineAnchorAt,
             $counted ? $deadline->at : null, $counted ? $deadline->miss : null,
+            $counted ? $this->originFor($deadline->at) : null,
         );
     }
 

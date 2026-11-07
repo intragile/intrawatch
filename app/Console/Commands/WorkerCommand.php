@@ -12,6 +12,7 @@ use App\Monitoring\Worker\Heartbeat;
 use App\Monitoring\Worker\MonitorLoader;
 use App\Monitoring\Worker\OutcomeBuffer;
 use App\Monitoring\Worker\Scheduler;
+use App\Monitoring\Worker\WorkerDatabase;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -43,6 +44,9 @@ class WorkerCommand extends Command
 
             return self::FAILURE;
         }
+
+        // Every blocking database wait stalls the event loop; give up on locks quickly, the buffer retries.
+        WorkerDatabase::apply();
 
         $scheduler = new Scheduler(
             shard: $shard,

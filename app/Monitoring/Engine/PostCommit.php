@@ -3,15 +3,22 @@
 namespace App\Monitoring\Engine;
 
 use App\Events\MonitorStatusChanged;
+use App\Jobs\BroadcastEvents;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
  * Dispatches events once the transaction that produced them has committed.
+ *
+ * Listeners run as usual, but the broadcasts of one dispatch are queued together as a single BroadcastEvents
+ * job instead of one job per event (see broadcastsSeparately()).
  */
 final class PostCommit
 {
+    private static bool $collecting = false;
+
     /**
      * A failing dispatch (for instance a queue that cannot be written) is logged and swallowed: the data is
      * committed already, and surfacing the error would make the caller redo work.
@@ -20,18 +27,52 @@ final class PostCommit
      */
     public static function dispatch(iterable $events): void
     {
-        foreach ($events as $event) {
-            try {
-                event($event);
-            } catch (Throwable $e) {
-                Log::warning('Dispatching a monitor event failed after its data was committed.', [
-                    'event' => $event::class,
-                    'monitor_id' => property_exists($event, 'monitorId') ? $event->monitorId : null,
-                    'workspace_id' => property_exists($event, 'workspaceId') ? $event->workspaceId : null,
-                    'exception' => $e::class,
-                ]);
+        $broadcasts = [];
+        self::$collecting = true;
+        try {
+            foreach ($events as $event) {
+                try {
+                    event($event);
+                } catch (Throwable $e) {
+                    self::failed($event, $e);
+
+                    continue;
+                }
+                if ($event instanceof ShouldBroadcast) {
+                    $broadcasts[] = $event;
+                }
             }
+        } finally {
+            self::$collecting = false;
         }
+
+        if ($broadcasts === []) {
+            return;
+        }
+        try {
+            BroadcastEvents::dispatch($broadcasts);
+        } catch (Throwable $e) {
+            self::failed($broadcasts[0], $e);
+        }
+    }
+
+    /**
+     * Whether a broadcast event dispatched now should queue its own broadcast job. False while dispatch()
+     * runs, which queues the broadcasts of all its events in one job; the events' broadcastWhen() asks this.
+     */
+    public static function broadcastsSeparately(): bool
+    {
+        return ! self::$collecting;
+    }
+
+    private static function failed(object $event, Throwable $e): void
+    {
+        Log::warning('Dispatching a monitor event failed after its data was committed.', [
+            'event' => $event::class,
+            'monitor_id' => property_exists($event, 'monitorId') ? $event->monitorId : null,
+            'workspace_id' => property_exists($event, 'workspaceId') ? $event->workspaceId : null,
+            'exception' => $e::class,
+        ]);
     }
 
     /**

@@ -51,6 +51,10 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
      * Reads the state rows in batches, picks the monitors whose current deadline falls in the window, and
      * moves them with one batched update per chunk. The updates never move an anchor backwards, so a report
      * that arrived after the read wins.
+     *
+     * A push deadline whose miss is recorded already is never moved, and neither is the recorded miss. When
+     * the next miss of such a deadline fell due inside the window, the misses after the recorded one count
+     * from the end of the window instead: a full retry interval after it, the next miss is due.
      */
     public function reanchor(array $specs, ?CarbonImmutable $from, CarbonImmutable $to): int
     {
@@ -62,6 +66,8 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
         $byId = $this->byId($specs);
         $anchors = [];
         $runs = [];
+        /** @var array<string, array{origin: CarbonImmutable, miss: int, ids: list<int>}> $origins */
+        $origins = [];
         foreach ($this->states(array_keys($byId)) as $id => $state) {
             $spec = $byId[$id] ?? null;
             if ($spec === null) {
@@ -72,6 +78,17 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
                 $missed = $state->missDeadlineAt !== null && $state->missDeadlineAt->getTimestamp() >= $deadline->getTimestamp();
                 if ($inside($deadline) && ! $missed && ! $state->reported($deadline)) {
                     $anchors[] = $id;
+                } elseif ($missed && $state->missNumber !== null && ! $state->reported($deadline)
+                    && $state->missDeadlineAt->getTimestamp() === $deadline->getTimestamp()) {
+                    $retry = max(1, $spec->retryIntervalSeconds);
+                    $nextMiss = $state->missOrigin($deadline)->addSeconds(($state->missNumber + 1) * $retry);
+                    if ($inside($nextMiss)) {
+                        // Miss m + 1 is then due at origin + (m + 1) * retry = $to + retry.
+                        $origin = $to->subSeconds($state->missNumber * $retry);
+                        $key = $origin->getTimestamp().':'.$state->missNumber;
+                        $origins[$key] ??= ['origin' => $origin, 'miss' => $state->missNumber, 'ids' => []];
+                        $origins[$key]['ids'][] = $id;
+                    }
                 }
             } elseif ($spec->type === MonitorType::Cron) {
                 $maxRuntime = $this->int($spec->config['max_runtime_seconds'] ?? null, null);
@@ -87,11 +104,11 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
             }
         }
 
-        if ($anchors === [] && $runs === []) {
+        if ($anchors === [] && $runs === [] && $origins === []) {
             return 0;
         }
 
-        DB::transaction(function () use ($anchors, $runs, $to): void {
+        DB::transaction(function () use ($anchors, $runs, $origins, $to): void {
             foreach (array_chunk($anchors, self::CHUNK) as $chunk) {
                 DB::table('monitor_states')->whereIn('monitor_id', $chunk)
                     ->where(fn (Builder $query) => $query->whereNull('deadline_anchor_at')->orWhere('deadline_anchor_at', '<', $to))
@@ -101,9 +118,19 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
                 DB::table('monitor_states')->whereIn('monitor_id', $chunk)->where('run_started_at', '<', $to)
                     ->update(['run_started_at' => $to]);
             }
+            foreach ($origins as ['origin' => $origin, 'miss' => $miss, 'ids' => $ids]) {
+                // A report or another miss recorded since the read changed the miss number; that row is left alone.
+                foreach (array_chunk($ids, self::CHUNK) as $chunk) {
+                    DB::table('monitor_states')->whereIn('monitor_id', $chunk)->where('miss_number', $miss)
+                        ->where(fn (Builder $query) => $query->whereNull('miss_origin_at')->orWhere('miss_origin_at', '<', $origin))
+                        ->update(['miss_origin_at' => $origin]);
+                }
+            }
         });
 
-        return count(array_unique([...$anchors, ...$runs]));
+        $resumed = array_merge(...array_values(array_map(static fn (array $group): array => $group['ids'], $origins)));
+
+        return count(array_unique([...$anchors, ...$runs, ...$resumed]));
     }
 
     /**
@@ -175,18 +202,19 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
             return [null, $deadline->addSecond()];
         }
 
-        // Miss k is due after deadline + k * retry interval: the retries are spent by time, not by how often
-        // the deadline happens to be evaluated.
+        // Miss k is due after origin + k * retry interval, the origin being the deadline unless an outage
+        // moved it: the retries are spent by time, not by how often the deadline happens to be evaluated.
         $retry = max(1, $spec->retryIntervalSeconds);
-        $miss = intdiv(max(0, $now->getTimestamp() - $deadline->getTimestamp() - 1), $retry);
-        $next = $deadline->addSeconds(($miss + 1) * $retry + 1);
+        $origin = $state->missOrigin($deadline);
+        $miss = intdiv(max(0, $now->getTimestamp() - $origin->getTimestamp() - 1), $retry);
+        $next = $origin->addSeconds(($miss + 1) * $retry + 1);
         if ($state->reported($deadline) || $state->missRecorded($deadline, $miss)) {
             return [null, $next];
         }
 
         $silent = $now->getTimestamp() - $anchor->getTimestamp();
         $outcome = CheckOutcome::down("No heartbeat for {$silent} s", facts: ['deadline' => $deadline->toIso8601ZuluString()])
-            ->forDeadline(new Deadline($deadline, $anchor, null, $miss));
+            ->forDeadline(new Deadline($deadline, $anchor, null, $miss, $origin->addSeconds($miss * $retry)));
 
         return [$outcome, $next];
     }

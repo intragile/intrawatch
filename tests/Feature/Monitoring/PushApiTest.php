@@ -653,104 +653,241 @@ class PushApiTest extends TestCase
         $this->assertLessThanOrEqual($t0->getTimestamp() + 92, CarbonImmutable::instance($result->checked_at)->getTimestamp());
     }
 
-    public function test_missed_deadlines_are_held_back_for_at_most_five_minutes_of_a_failure(): void
+    public function test_missed_deadlines_stay_held_back_while_no_write_succeeds_and_are_reanchored_on_recovery(): void
     {
         $monitor = $this->push(['retries' => 0], grace: 30);
         $t0 = $this->clock->now();
         // The read of the deadline at +90 s fails at +91 s, so the failure starts at +90 s. The heartbeat fails
-        // throughout and nothing else is written, so the failure never ends on its own.
+        // until +700 s and nothing else is written, so no write proves that the database works before that.
         DB::connection()->beforeExecuting(function (string $query) use ($t0): void {
             $elapsed = $this->clock->now()->getTimestamp() - $t0->getTimestamp();
-            if (($elapsed >= 91 && $elapsed < 100 && $this->isDeadlineRead($query)) || str_contains($query, 'check_workers')) {
+            if (($elapsed >= 91 && $elapsed < 100 && $this->isDeadlineRead($query)) || ($elapsed < 700 && str_contains($query, 'check_workers'))) {
                 throw new QueryException('sqlite', $query, [], new PDOException('SQLSTATE[HY000]: General error: 2006 MySQL server has gone away'));
             }
         });
 
         [$stop, $run] = $this->startScheduler();
-        $this->clock->advance(385);
-        $this->assertSame(0, CheckResult::where('monitor_id', $monitor->id)->count(), 'held back inside the first five minutes');
+        $this->clock->advance(690);
+        $this->assertSame(0, CheckResult::where('monitor_id', $monitor->id)->count(), 'held back for as long as no write succeeds, with no cap');
 
-        $this->clock->advance(25);
-        $this->stopScheduler($stop, $run);
-
-        $result = CheckResult::where('monitor_id', $monitor->id)->sole();
-        $this->assertSame(MonitorStatus::Down, $result->status);
-        $at = CarbonImmutable::instance($result->checked_at)->getTimestamp();
-        $this->assertGreaterThanOrEqual($t0->getTimestamp() + 390, $at);
-        $this->assertLessThanOrEqual($t0->getTimestamp() + 401, $at, 'evaluated again within the retry delay of the cap');
-    }
-
-    public function test_the_reanchored_window_never_extends_past_the_hold_cap(): void
-    {
-        $outages = new OutageTracker;
-        $start = $this->clock->now();
-        $ended = [];
-        $outages->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $end) use (&$ended): void {
-            $ended[] = [$from->getTimestamp(), $to->getTimestamp(), $end->getTimestamp()];
-        });
-
-        $outages->readFailed($start);
-        $this->assertSame($start->getTimestamp(), $outages->holdingSince($start->addSeconds(299))?->getTimestamp());
-        $this->assertNull($outages->holdingSince($start->addSeconds(300)), 'nothing is held back after five minutes');
-        $this->assertNotNull($outages->failingSince());
-
-        $outages->writeSucceeded($start->addSeconds(400));
-        $outages->readSucceeded($start->addSeconds(410));
-        $this->assertSame([[$start->getTimestamp(), $start->getTimestamp() + 300, $start->getTimestamp() + 410]], $ended);
-    }
-
-    public function test_a_full_outage_of_twenty_minutes_reports_no_down_and_the_next_miss_still_counts(): void
-    {
-        $monitor = $this->push(['retries' => 0], grace: 30);
-        $t0 = $this->clock->now();
-        [$stop, $run] = $this->startScheduler();
-
-        // Reads, writes and heartbeats all fail from +60 s to +1260 s; the deadline at +90 s falls inside.
-        $this->failEverythingBetween($t0, 60, 1260);
-        $this->clock->advance(1340);
-        $this->assertSame(0, CheckResult::where('monitor_id', $monitor->id)->count(), 'no down for the heartbeat the outage may have swallowed');
+        // The heartbeat is written again at +700 s: the failure from +90 s was an outage, re-anchored as a whole.
+        $this->clock->advance(30);
         $anchor = DB::table('monitor_states')->where('monitor_id', $monitor->id)->value('deadline_anchor_at');
         $this->assertIsString($anchor);
         $recovered = CarbonImmutable::parse($anchor)->getTimestamp();
-        $this->assertGreaterThanOrEqual($t0->getTimestamp() + 1260, $recovered, 'the whole outage is re-anchored');
+        $this->assertGreaterThanOrEqual($t0->getTimestamp() + 700, $recovered);
+        $this->assertLessThanOrEqual($t0->getTimestamp() + 711, $recovered);
+        $this->assertSame(0, CheckResult::where('monitor_id', $monitor->id)->count());
 
         // Still silent a full period after the recovery: that miss is reported.
         $this->clock->advance(80);
         $this->stopScheduler($stop, $run);
         $result = CheckResult::where('monitor_id', $monitor->id)->sole();
         $this->assertSame(MonitorStatus::Down, $result->status);
-        $this->assertLessThanOrEqual($recovered + 92, CarbonImmutable::instance($result->checked_at)->getTimestamp());
+        $this->assertGreaterThanOrEqual($recovered + 91, CarbonImmutable::instance($result->checked_at)->getTimestamp());
     }
 
-    public function test_the_hold_cap_counts_only_the_time_spent_in_a_partial_failure(): void
+    public function test_a_partial_failure_is_held_back_and_reanchored_as_a_whole(): void
+    {
+        $outages = new OutageTracker;
+        $start = $this->clock->now();
+        $ended = [];
+        $outages->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to) use (&$ended): void {
+            $ended[] = [$from->getTimestamp(), $to->getTimestamp()];
+        });
+
+        // Reads fail for 410 s while writes keep working.
+        $outages->readFailed($start);
+        $outages->writeSucceeded($start->addSeconds(100));
+        $this->assertSame($start->getTimestamp(), $outages->holdingSince()?->getTimestamp());
+        $outages->writeSucceeded($start->addSeconds(400));
+        $this->assertSame($start->getTimestamp(), $outages->holdingSince()?->getTimestamp(), 'still held back after five minutes');
+
+        $outages->readSucceeded($start->addSeconds(410));
+        $this->assertNull($outages->holdingSince());
+        $this->assertSame([[$start->getTimestamp(), $start->getTimestamp() + 410]], $ended);
+    }
+
+    public function test_partial_and_full_phases_of_one_failure_form_one_window(): void
     {
         $outages = new OutageTracker;
         $start = $this->clock->now();
         $at = fn (int $seconds): CarbonImmutable => $start->addSeconds($seconds);
         $ended = [];
-        $outages->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $end) use (&$ended, $start): void {
-            $ended[] = [$from->getTimestamp() - $start->getTimestamp(), $to->getTimestamp() - $start->getTimestamp(), $end->getTimestamp() - $start->getTimestamp()];
+        $outages->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to) use (&$ended, $start): void {
+            $ended[] = [$from->getTimestamp() - $start->getTimestamp(), $to->getTimestamp() - $start->getTimestamp()];
         });
 
-        // Partial for 100 s (reads fail, writes work), full for 1000 s, partial again.
+        // Partial for 100 s (reads fail, writes work), full for 1000 s, partial again, full again.
         $outages->writeSucceeded($at(0));
         $outages->readFailed($at(0));
-        $outages->heartbeatFailed($at(100));
-        $this->assertSame(0, $outages->holdingSince($at(900))?->getTimestamp() - $start->getTimestamp(), 'full-outage time is not counted');
+        $outages->writeFailed($at(100));
         $outages->writeSucceeded($at(1100));
-        $this->assertNotNull($outages->holdingSince($at(1299)), '100 s + 199 s of partial failure');
-        $this->assertNull($outages->holdingSince($at(1300)), '300 s of partial failure');
-
-        // Once the cap is spent, a new full outage starts a new window that is re-anchored as a whole.
         $outages->writeFailed($at(1400));
-        $this->assertSame(1400, $outages->holdingSince($at(1500))?->getTimestamp() - $start->getTimestamp());
+        $this->assertSame(0, $outages->holdingSince()?->getTimestamp() - $start->getTimestamp());
         $outages->writeSucceeded($at(2000));
         $outages->readSucceeded($at(2010));
-        $this->assertSame([[0, 1300, 2010], [1400, 2010, 2010]], $ended);
+        $this->assertSame([[0, 2010]], $ended);
+    }
 
-        // A heartbeat failure alone never starts a failure.
-        $outages->heartbeatFailed($at(3000));
+    public function test_a_failure_on_a_shard_without_deadline_monitors_ends_with_the_next_write(): void
+    {
+        $outages = new OutageTracker;
+        $start = $this->clock->now();
+        $ended = [];
+        $outages->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to) use (&$ended): void {
+            $ended[] = [$from->getTimestamp(), $to->getTimestamp()];
+        });
+        $reads = false;
+        $outages->expectReadsWhen(function () use (&$reads): bool {
+            return $reads;
+        });
+
+        $outages->writeFailed($start);
+        $outages->writeSucceeded($start->addSeconds(5));
+        $this->assertNull($outages->failingSince(), 'nothing on the shard reads deadlines, so no read can end it');
+
+        // Days later the first push monitor is added: no stale failure is waiting to be settled.
+        $reads = true;
+        $outages->readSucceeded($start->addDays(3));
+        $this->assertSame([], $ended);
+
+        $outages->writeFailed($start->addDays(3)->addSeconds(10));
+        $outages->writeSucceeded($start->addDays(3)->addSeconds(15));
+        $this->assertNotNull($outages->failingSince(), 'with deadline monitors a read has to succeed as well');
+        $outages->readSucceeded($start->addDays(3)->addSeconds(20));
         $this->assertNull($outages->failingSince());
+        $this->assertSame([], $ended, 'a 10 s failure is no outage');
+    }
+
+    public function test_a_failed_write_of_a_retry_miss_is_a_blip_not_an_outage_since_the_original_deadline(): void
+    {
+        $push = $this->push(['interval_seconds' => 3600, 'retries' => 1, 'retry_interval_seconds' => 3600], grace: 0);
+        // Miss 0 of the deadline at 11:00:00 is recorded before the worker starts.
+        $this->clock->advance(3601);
+        [$outcome] = $this->evaluate($push);
+        $this->assertNotNull($outcome);
+        $this->assertSame(0, $outcome->deadline?->miss);
+        $this->record($push, $outcome);
+
+        // A daily job expected at 12:00:00 with 10 s of grace is due by 12:00:10. It is created at 11:58:00,
+        // outside the tolerance in which a report counts for the next run, and the worker starts at 11:59:50.
+        $this->clock->advance(3479);
+        $cron = Monitor::factory()->for($this->ws)->cron('0 12 * * *', 'UTC', 10)->create(['interval_seconds' => 60]);
+        $this->clock->advance(110);
+
+        // The batch holding miss 1 (due at 12:00:00, evaluated at 12:00:01) fails to write once.
+        $deadlocks = new FailureBudget(1);
+        DB::connection()->beforeExecuting(function (string $query) use ($deadlocks): void {
+            if ($deadlocks->remaining > 0 && str_starts_with($query, 'insert into') && str_contains($query, 'check_results')) {
+                $deadlocks->remaining--;
+                throw new QueryException('sqlite', $query, [], new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock'));
+            }
+        });
+        $outageWarnings = [];
+        Event::listen(MessageLogged::class, function (MessageLogged $e) use (&$outageWarnings): void {
+            if (str_contains($e->message, 'unavailable')) {
+                $outageWarnings[] = $e->context;
+            }
+        });
+
+        [$stop, $run] = $this->startScheduler();
+        $this->clock->advance(40);
+        $this->stopScheduler($stop, $run);
+
+        $this->assertSame(0, $deadlocks->remaining);
+        $this->assertSame([], $outageWarnings, 'an 11 s blip is no outage');
+        $this->assertSame(MonitorStatus::Down, $push->state()->firstOrFail()->status, 'miss 1 is recorded');
+        $missed = CheckResult::where('monitor_id', $cron->id)->pluck('message')->all();
+        $this->assertCount(1, $missed, 'the run due during the blip is reported');
+        $this->assertIsString($missed[0]);
+        $this->assertStringStartsWith('Missed run expected at', $missed[0]);
+    }
+
+    public function test_a_deadline_outcome_handed_back_during_a_blip_is_evaluated_again_within_the_retry_delay(): void
+    {
+        $push = $this->push(['interval_seconds' => 3600, 'retries' => 1, 'retry_interval_seconds' => 3600], grace: 0);
+        $this->clock->advance(3601);
+        [$outcome] = $this->evaluate($push);
+        $this->assertNotNull($outcome);
+        $this->record($push, $outcome);
+
+        // A job due by 12:00:05 whose read ends the blip before the next heartbeat.
+        $this->clock->advance(3479);
+        $cron = Monitor::factory()->for($this->ws)->cron('0 12 * * *', 'UTC', 5)->create(['interval_seconds' => 60]);
+        $this->clock->advance(110);
+        $deadlocks = new FailureBudget(1);
+        DB::connection()->beforeExecuting(function (string $query) use ($deadlocks): void {
+            if ($deadlocks->remaining > 0 && str_starts_with($query, 'insert into') && str_contains($query, 'check_results')) {
+                $deadlocks->remaining--;
+                throw new QueryException('sqlite', $query, [], new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock'));
+            }
+        });
+
+        [$stop, $run] = $this->startScheduler();
+        $this->clock->advance(40);
+        $this->stopScheduler($stop, $run);
+
+        // Miss 1 was handed back while the write failure lasted; it is not left until the next miss an hour later.
+        $this->assertSame(MonitorStatus::Down, $push->state()->firstOrFail()->status);
+        $this->assertSame(2, CheckResult::where('monitor_id', $push->id)->count());
+        $this->assertSame(1, CheckResult::where('monitor_id', $cron->id)->count());
+    }
+
+    public function test_a_retry_miss_that_falls_due_inside_an_outage_counts_from_the_recovery(): void
+    {
+        $monitor = $this->push(['retries' => 1, 'interval_seconds' => 60, 'retry_interval_seconds' => 60], grace: 30);
+        $t0 = $this->clock->now();
+        [$stop, $run] = $this->startScheduler();
+
+        // Miss 0 is recorded at +91 s. Everything fails from +100 s to +200 s; miss 1 would fall due at +150 s.
+        $this->failEverythingBetween($t0, 100, 200);
+        $this->clock->advance(250);
+        $this->assertSame(MonitorStatus::Pending, $monitor->state()->firstOrFail()->status, 'the pings of the outage may have been lost');
+        $this->assertSame(1, CheckResult::where('monitor_id', $monitor->id)->count(), 'the recorded miss stays');
+
+        // Still silent a retry interval after the recovery: now it is down.
+        $this->clock->advance(30);
+        $this->stopScheduler($stop, $run);
+        $this->assertSame(MonitorStatus::Down, $monitor->state()->firstOrFail()->status);
+        $this->assertSame(2, CheckResult::where('monitor_id', $monitor->id)->count());
+        $missOne = CarbonImmutable::instance(CheckResult::where('monitor_id', $monitor->id)->latest('id')->firstOrFail()->checked_at)->getTimestamp();
+        $this->assertGreaterThanOrEqual($t0->getTimestamp() + 260, $missOne);
+    }
+
+    public function test_a_push_that_loses_a_deadlock_is_retried_three_times(): void
+    {
+        $monitor = $this->push();
+        $deadlocks = new FailureBudget(3);
+        DB::connection()->beforeExecuting(function (string $query) use ($deadlocks): void {
+            if ($deadlocks->remaining > 0 && str_starts_with($query, 'insert into') && str_contains($query, 'check_results')) {
+                $deadlocks->remaining--;
+                $deadlock = new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock');
+                $deadlock->errorInfo = ['40001', 1213, 'Deadlock found when trying to get lock'];
+                throw new QueryException('mysql', $query, [], $deadlock);
+            }
+        });
+
+        $this->getJson("/api/v1/push/{$monitor->push_token}?msg=ok")->assertOk();
+        $this->assertSame(0, $deadlocks->remaining);
+        $this->assertSame(1, CheckResult::where('monitor_id', $monitor->id)->count());
+
+        $deadlocks->remaining = 4;
+        $this->getJson("/api/v1/push/{$monitor->push_token}")->assertStatus(503);
+        $this->assertSame(0, $deadlocks->remaining, 'three retries, then the request gives up');
+        $this->assertSame(1, CheckResult::where('monitor_id', $monitor->id)->count());
+    }
+
+    public function test_a_push_message_with_a_nul_byte_and_invalid_utf8_is_recorded_cleaned(): void
+    {
+        $monitor = $this->push(['retries' => 3]);
+
+        $this->getJson("/api/v1/push/{$monitor->push_token}?msg=a%00b%FFc")->assertOk();
+        $this->getJson("/api/v1/push/{$monitor->push_token}/fail?msg=x%00%FF")->assertOk();
+
+        $messages = CheckResult::where('monitor_id', $monitor->id)->orderBy('id')->pluck('message')->all();
+        $this->assertSame(['ab?c', 'Reported failure: x?'], $messages);
+        $this->assertSame('Reported failure: x?', $monitor->state()->firstOrFail()->last_message);
     }
 
     public function test_chained_short_failures_with_successes_in_between_are_separate(): void
@@ -920,7 +1057,7 @@ class PushApiTest extends TestCase
         $buffer->push(MonitorSpec::fromModel($other), CheckOutcome::down('No heartbeat')->forDeadline(new Deadline($t0->addSeconds(70), $t0, null, 0)), $this->clock->now(), null, fn () => null);
         $this->assertFalse($buffer->flush());
         $this->assertFalse($buffer->flush());
-        $this->assertNull($buffer->outages()->holdingSince($this->clock->now()), 'no database error yet');
+        $this->assertNull($buffer->outages()->holdingSince(), 'no database error yet');
         $this->assertFalse($buffer->flush());
 
         $this->assertSame(4, $inserts);

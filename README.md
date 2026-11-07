@@ -151,6 +151,28 @@ application cache (`CACHE_STORE`, the database by default). With several
 containers behind one address, keep the cache on a store they share, such as
 the shared database or Redis, so that the limit applies across all of them.
 
+The `push_url` contains the push token, which is all it takes to report a
+monitor up, down or running. The API returns it only to Editors and above, and
+to API tokens that hold `monitors:write`; Viewers and read-only tokens get
+`null` and `has_push_token: true`. Credential headers (`Authorization`,
+`Proxy-Authorization`, `Cookie`, `X-Api-Key`, `X-Auth-Token`) are refused in an
+HTTP monitor's plain `headers`, which the API returns; put them in
+`secret_headers`.
+
+While the database fails, the reports that push and cron monitors send may be
+refused, so the worker does not judge their deadlines on its own. A failure of
+deadline reads or result writes that lasts at least 30 seconds counts as an
+outage: deadlines that fell due during it are not reported, for however long
+it lasts and whether reads, writes or both failed, and they are counted again
+from the moment the database came back (a full interval plus grace for a push
+monitor, the next scheduled run for a cron job). A miss already recorded before
+the outage stays recorded; the next retry then falls due one retry interval
+after the recovery. Shorter failures, such as a deadlock or a busy database,
+move nothing. The same applies to deadlines that passed while the worker itself
+was not running. Text a checked target sends back (a response body, a DNS
+record, a push message) is stored with NUL bytes and other control characters
+removed and invalid UTF-8 replaced by `?`.
+
 ### Check workers and scaling
 
 Every container runs `CHECK_WORKERS` check worker processes. Monitors are split

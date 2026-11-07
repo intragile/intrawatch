@@ -178,9 +178,11 @@ final class ResultRecorder
                 'last_latency_ms' => $outcome->latencyMs,
                 'last_message' => $transition->message === '' ? null : $transition->message,
                 'watch' => $watch === [] ? null : $this->json($watch),
-                // Any other result starts the miss count of a push monitor over.
+                // Any other result starts the miss count of a push monitor over. A miss of the deadline whose
+                // misses are recorded keeps the origin they count from.
                 'miss_deadline_at' => $outcome->deadline?->miss === null ? null : $outcome->deadline->at,
                 'miss_number' => $outcome->deadline?->miss,
+                'miss_origin_at' => $outcome->deadline?->miss === null ? null : ($deadlineStates[$spec->id] ?? null)?->originFor($outcome->deadline->at),
                 'updated_at' => $now,
             ];
             $transitions[$spec->id] = $transition;
@@ -200,7 +202,7 @@ final class ResultRecorder
         foreach (array_chunk(array_values($stateUpdates), self::INSERT_CHUNK) as $chunk) {
             DB::table('monitor_states')->upsert($chunk, ['monitor_id'], [
                 'status', 'status_since', 'last_checked_at', 'consecutive_failures', 'last_latency_ms',
-                'last_message', 'watch', 'miss_deadline_at', 'miss_number', 'updated_at',
+                'last_message', 'watch', 'miss_deadline_at', 'miss_number', 'miss_origin_at', 'updated_at',
             ]);
         }
 
@@ -288,11 +290,17 @@ final class ResultRecorder
     }
 
     /**
+     * Event text can repeat values seen on the checked target (and watch values stored before they were
+     * cleaned), so it is made storable here as well.
+     *
      * @param  array<string, string|null>  $columns
      * @return array<string, mixed>
      */
     private function eventRow(MonitorSpec $spec, string $kind, string $message, CarbonImmutable $at, array $columns): array
     {
+        $columns = array_map(static fn (?string $value): ?string => $value === null ? null : SafeText::clean($value), $columns);
+        $message = mb_substr(SafeText::clean($message), 0, CheckOutcome::MAX_MESSAGE_LENGTH);
+
         return array_merge([
             'workspace_id' => $spec->workspaceId,
             'monitor_id' => $spec->id,

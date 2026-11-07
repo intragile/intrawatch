@@ -44,10 +44,9 @@ use function Amp\async;
  * without a recorded miss is moved to the end of that blind spot in one batched update at the next flush.
  * Until that update has succeeded or been dropped, outcomes for deadlines inside the window are held back
  * and evaluated again later; afterwards evaluation reads the moved anchors, so no window has to be remembered.
- * While a failure goes on, deadlines due since it started are held back too: throughout a full failure, but
- * for at most OutageTracker::MAX_HOLD_SECONDS of partial failure, after which they are evaluated and recorded
- * as usual. Only deadline reads and outcome writes start failures; heartbeat and poll errors never do, so a
- * query that keeps failing there never holds back a down.
+ * While a failure goes on, outcomes that fell due since it started are held back too, for as long as it
+ * lasts. Only deadline reads and outcome writes start failures; heartbeat and poll errors are logged and never
+ * do, so a query that keeps failing there never holds back a down.
  */
 final class Scheduler
 {
@@ -144,15 +143,16 @@ final class Scheduler
         $this->heap = new SplMinHeap;
         $this->wake = new DeferredCancellation;
         $this->abort = new DeferredCancellation;
-        $this->buffer->outages()->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to, CarbonImmutable $end): void {
+        $this->buffer->outages()->onOutageEnded(function (CarbonImmutable $from, CarbonImmutable $to): void {
             Log::warning('The database was unavailable; push and cron deadlines that fell due meanwhile are re-anchored.', [
                 'shard' => $this->shard,
                 'from' => $from->toIso8601ZuluString(),
                 'to' => $to->toIso8601ZuluString(),
-                'ended' => $end->toIso8601ZuluString(),
             ]);
             $this->reanchor($from, $to);
         });
+        // A shard without push or cron monitors never reads deadlines, so no read can end a failure there.
+        $this->buffer->outages()->expectReadsWhen(fn (): bool => $this->hasDeadlineMonitors());
     }
 
     /**
@@ -297,12 +297,9 @@ final class Scheduler
 
         while (true) {
             // A heartbeat that was written proves writes work, which can end a failure on a shard whose outcomes
-            // are all held back. A failed one only tells a full failure from a partial one; it starts none.
-            $error = $this->heartbeat->beat(count($this->specs), $this->buffer->count());
-            if ($error === null) {
+            // are all held back. A failed one is logged by the heartbeat and starts no failure.
+            if ($this->heartbeat->beat(count($this->specs), $this->buffer->count()) === null) {
                 $outages->writeSucceeded($this->clock->now());
-            } elseif (OutageTracker::isDatabaseError($error)) {
-                $outages->heartbeatFailed($this->clock->now());
             }
             if ($outages->failingSince() !== null) {
                 $this->expediteDeadlines();
@@ -362,18 +359,39 @@ final class Scheduler
     }
 
     /**
-     * Whether an outcome for this deadline must wait: the database is failing since before it and the failure
-     * still holds deadlines back (see OutageTracker), or it lies in a window whose re-anchoring is still pending.
+     * Whether an outcome for this deadline must wait: it fell due since the start of a database failure that
+     * goes on (see OutageTracker), or inside a window whose re-anchoring is still pending.
      */
-    private function withheld(Deadline $deadline, CarbonImmutable $now): bool
+    private function withheld(Deadline $deadline): bool
     {
-        $at = $deadline->at->getTimestamp();
-        $holdingSince = $this->buffer->outages()->holdingSince($now);
+        $at = $deadline->dueAt->getTimestamp();
+        $holdingSince = $this->buffer->outages()->holdingSince();
         if ($holdingSince !== null && $at >= $holdingSince->getTimestamp()) {
             return true;
         }
         foreach ($this->pendingReanchors as [$from, $to]) {
             if ($at < $to && ($from === null || $at >= $from)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Brings the next evaluation of a monitor forward to $at, unless one is in flight or due earlier.
+     */
+    private function expedite(int $id, int $generation, float $at): void
+    {
+        if (! isset($this->busy[$id]) && $this->isCurrent($id, $generation) && ($this->dueAt[$id] ?? INF) > $at) {
+            $this->schedule($id, $at);
+        }
+    }
+
+    private function hasDeadlineMonitors(): bool
+    {
+        foreach ($this->specs as $spec) {
+            if ($spec->type === MonitorType::Push || $spec->type === MonitorType::Cron) {
                 return true;
             }
         }
@@ -620,14 +638,27 @@ final class Scheduler
 
                 continue;
             }
-            if ($outcome->deadline !== null && $this->withheld($outcome->deadline, $now)) {
+            $retryAt = $nowAt + min($spec->intervalSeconds, self::DEADLINE_RETRY_SECONDS);
+            if ($outcome->deadline !== null && $this->withheld($outcome->deadline)) {
                 // Its reports may have been lost; it is evaluated again once the anchor has been moved.
-                $this->release($id, $generation, $nowAt + min($spec->intervalSeconds, self::DEADLINE_RETRY_SECONDS));
+                $this->release($id, $generation, $retryAt);
 
                 continue;
             }
 
-            $this->buffer->push($spec, $outcome, $now, null, fn () => $this->release($id, $generation, $nextAt));
+            // An outcome handed back unrecorded is evaluated again soon, like one withheld here, rather than
+            // at the next deadline, which may be a whole retry interval away. It may have been released already
+            // when its flush failed; the hand-back then only brings the next evaluation forward.
+            $released = false;
+            $this->buffer->push($spec, $outcome, $now, null, function (?Transition $transition = null, bool $handedBack = false) use (&$released, $id, $generation, $nextAt, $retryAt): void {
+                $soon = max($retryAt, $this->timestamp() + 1);
+                if (! $released) {
+                    $released = true;
+                    $this->release($id, $generation, $handedBack ? $soon : $nextAt);
+                } elseif ($handedBack) {
+                    $this->expedite($id, $generation, $soon);
+                }
+            });
         }
     }
 

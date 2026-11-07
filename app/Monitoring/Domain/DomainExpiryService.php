@@ -11,12 +11,12 @@ use Amp\Sync\LocalKeyedSemaphore;
 use Amp\TimeoutCancellation;
 use App\Enums\MonitorType;
 use App\Models\DomainLookup;
+use App\Monitoring\Engine\DatabaseErrors;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Net\BlockedTarget;
 use App\Monitoring\Types\Hostname;
 use App\Monitoring\Worker\Clock;
 use Closure;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -218,7 +218,7 @@ class DomainExpiryService
 
                 continue;
             } catch (Throwable $e) {
-                if (! self::rejectsData($e)) {
+                if (! DatabaseErrors::rejectsData($e)) {
                     return $this->writeFailed($e);
                 }
             }
@@ -228,7 +228,7 @@ class DomainExpiryService
                 try {
                     $this->upsert([$key => $row]);
                 } catch (Throwable $e) {
-                    if (! self::rejectsData($e)) {
+                    if (! DatabaseErrors::rejectsData($e)) {
                         return $this->writeFailed($e);
                     }
                     Log::error('Dropped a domain lookup the database rejects.', ['domain' => $key, 'exception' => $e::class]);
@@ -253,22 +253,6 @@ class DomainExpiryService
         Log::warning('Domain lookups could not be cached.', ['pending' => count($this->pending), 'exception' => $e::class]);
 
         return false;
-    }
-
-    /**
-     * Whether the database refused the data itself (SQLSTATE class 22, data exception, or 23, integrity
-     * violation), as opposed to being unavailable, which a later attempt can overcome.
-     */
-    private static function rejectsData(Throwable $e): bool
-    {
-        if (! $e instanceof QueryException) {
-            return false;
-        }
-
-        $info = $e->errorInfo;
-        $state = is_array($info) && is_string($info[0] ?? null) ? $info[0] : (string) $e->getCode();
-
-        return str_starts_with($state, '22') || str_starts_with($state, '23');
     }
 
     public function pendingWrites(): int

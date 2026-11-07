@@ -169,6 +169,37 @@ class GroupEvaluatorTest extends TestCase
         Event::assertDispatchedTimes(MonitorStatusChanged::class, 3);
     }
 
+    public function test_the_whole_ancestor_set_is_locked_once_in_id_order(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $root = Monitor::factory()->for($workspace)->group()->create();
+        $middle = Monitor::factory()->for($workspace)->group()->create(['parent_id' => $root->id]);
+        $leaf = Monitor::factory()->for($workspace)->group()->create(['parent_id' => $middle->id]);
+        Monitor::factory()->for($workspace)->create(['parent_id' => $root->id]);
+        Monitor::factory()->for($workspace)->create(['parent_id' => $leaf->id]);
+
+        $stateLocks = [];
+        $groupLocks = [];
+        DB::listen(function ($query) use (&$stateLocks, &$groupLocks): void {
+            if (! str_starts_with(strtolower($query->sql), 'select')) {
+                return;
+            }
+            $ids = array_values(array_map(intval(...), array_filter($query->bindings, is_int(...))));
+            if (preg_match('/from [`"]?monitor_states[`"]?/i', $query->sql) === 1) {
+                $stateLocks[] = $ids;
+            } elseif (preg_match('/from [`"]?monitors[`"]? where [`"]?id[`"]? in .* [`"]?type[`"]? = /i', $query->sql) === 1) {
+                $groupLocks[] = $ids;
+            }
+        });
+
+        // A batch whose parents sit at different depths: a child of the root and a child of the leaf.
+        $this->app->make(GroupEvaluator::class)->recompute([$leaf->id, $root->id]);
+
+        $ancestors = [$root->id, $middle->id, $leaf->id];
+        $this->assertSame([$ancestors], $stateLocks, 'every group state row is locked in one statement, in id order');
+        $this->assertSame($ancestors, $groupLocks[0] ?? null, 'the group rows are share-locked first, in id order');
+    }
+
     public function test_cyclic_data_terminates(): void
     {
         $workspace = Workspace::factory()->create();

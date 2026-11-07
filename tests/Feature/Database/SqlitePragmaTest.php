@@ -10,13 +10,19 @@ use Tests\TestCase;
 
 class SqlitePragmaTest extends TestCase
 {
+    /** The file tempnam() created; the database lives next to it. */
+    private string $base;
+
     private string $path;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->path = tempnam(sys_get_temp_dir(), 'intrawatch-sqlite-').'.sqlite';
+        $base = tempnam(sys_get_temp_dir(), 'intrawatch-sqlite-');
+        $this->assertIsString($base);
+        $this->base = $base;
+        $this->path = $base.'.sqlite';
         touch($this->path);
 
         /** @var array<string, mixed> $config */
@@ -30,6 +36,7 @@ class SqlitePragmaTest extends TestCase
         foreach (['', '-wal', '-shm'] as $suffix) {
             @unlink($this->path.$suffix);
         }
+        @unlink($this->base);
 
         parent::tearDown();
     }

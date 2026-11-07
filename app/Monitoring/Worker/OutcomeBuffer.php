@@ -8,6 +8,7 @@ use Amp\CompositeCancellation;
 use Amp\DeferredCancellation;
 use App\Events\ChecksRecorded;
 use App\Monitoring\Engine\CheckOutcome;
+use App\Monitoring\Engine\DatabaseErrors;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\Engine\RecordedBatch;
@@ -26,13 +27,18 @@ use Throwable;
  * locked or restarting) loses nothing and a committed one is never written again. While the database is
  * unavailable the buffer keeps accepting outcomes up to its capacity and then drops the oldest.
  *
- * Each outcome's callback runs exactly once: after it is recorded, or as soon as recording it has failed
- * (or it is dropped), with a null transition. The early call lets the scheduler keep checking during an
- * outage while the outcome itself stays queued.
+ * Each outcome's callback runs once: after it is recorded, or as soon as recording it has failed (or it is
+ * dropped), with a null transition. The early call lets the scheduler keep checking during an outage while
+ * the outcome itself stays queued. An outcome released early that is later handed back (see below) is
+ * reported once more, so the scheduler learns that it was never written.
+ *
+ * A batch the database rejects for the data it carries (see DatabaseErrors::rejectsData()) is recorded one
+ * outcome at a time at once, and only the outcomes it still rejects are dropped, with an error log. Such an
+ * error is no outage: the database answered.
  *
  * While deadlines are held back during a database failure (see OutageTracker::holdingSince()), queued outcomes
- * for deadlines due since the failure started are not written but handed back to the scheduler, which
- * evaluates them again: the reports they rely on may have been lost.
+ * for deadlines that fell due since the failure started are not written but handed back to the scheduler,
+ * which evaluates them again: the reports they rely on may have been lost.
  *
  * Writes deferred with defer() run after the outcomes of each successful flush, so they never block them. A
  * failed one is retried with the next flush; after MAX_DEFERRED_ATTEMPTS failed attempts it is dropped and
@@ -46,8 +52,6 @@ final class OutcomeBuffer
     private const MAX_BACKOFF_SECONDS = 30;
 
     private const DRAIN_RETRY_SECONDS = 0.5;
-
-    private const MESSAGE_LOG_LENGTH = 500;
 
     /**
      * Consecutive non-database failures of the same batch before its outcomes are recorded one at a time,
@@ -64,7 +68,7 @@ final class OutcomeBuffer
     /**
      * Queued outcomes in arrival order, with the callback that learns the monitor's transition.
      *
-     * @var array<int, array{item: array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}, done: Closure(?Transition): void, notified: bool}>
+     * @var array<int, array{item: array{0: MonitorSpec, 1: CheckOutcome, 2: CarbonImmutable, 3: ?int}, done: Closure(?Transition, bool): void, notified: bool}>
      */
     private array $queue = [];
 
@@ -133,9 +137,11 @@ final class OutcomeBuffer
     }
 
     /**
-     * @param  Closure(?Transition): void  $done  Called once: with the monitor's transition when the outcome is recorded
-     *                                            (null when the recorder skipped it), or with null as soon as recording
-     *                                            it failed or it was dropped.
+     * @param  Closure(?Transition, bool): void  $done  Called with the monitor's transition when the outcome is recorded
+     *                                                  (null when the recorder skipped it), or with null as soon as
+     *                                                  recording it failed or it was dropped. The second argument is
+     *                                                  true when the outcome was handed back unrecorded because its
+     *                                                  deadline is held back; that call can follow an earlier one.
      */
     public function push(MonitorSpec $spec, CheckOutcome $outcome, CarbonImmutable $checkedAt, ?int $driftMs, Closure $done): void
     {
@@ -254,11 +260,14 @@ final class OutcomeBuffer
             try {
                 $batch = $this->recorder->record($this->items($keys), false);
             } catch (Throwable $e) {
-                $this->failed($e, count($keys));
-                if (OutageTracker::isDatabaseError($e)) {
-                    $this->outages->writeFailed($this->clock->now(), $this->earliestDeadline($keys));
+                $rejected = DatabaseErrors::rejectsData($e);
+                $this->failed($e, count($keys), $rejected);
+                if (DatabaseErrors::isDatabaseError($e) && ! $rejected) {
+                    $this->outages->writeFailed($this->clock->now(), $this->earliestDue($keys));
+
+                    return $this->markFailing();
                 }
-                if (OutageTracker::isDatabaseError($e) || ! $this->countBatchFailure($keys[0])) {
+                if (! $rejected && ! $this->countBatchFailure($keys[0])) {
                     return $this->markFailing();
                 }
                 if (! $this->recordOneByOne($keys)) {
@@ -326,6 +335,7 @@ final class OutcomeBuffer
     public function broadcast(bool $force): void
     {
         $now = $this->clock->now();
+        $events = [];
 
         foreach ($this->unbroadcast as $workspaceId => $checks) {
             $last = $this->lastBroadcast[$workspaceId] ?? null;
@@ -333,15 +343,16 @@ final class OutcomeBuffer
                 continue;
             }
 
-            $events = [];
             foreach (array_chunk(array_values($checks), ResultRecorder::BROADCAST_CHUNK) as $chunk) {
                 $events[] = new ChecksRecorded($workspaceId, $chunk);
             }
-            PostCommit::dispatch($events);
 
             $this->lastBroadcast[$workspaceId] = $now;
             unset($this->unbroadcast[$workspaceId]);
         }
+
+        // One queued job for every workspace due now (see PostCommit).
+        PostCommit::dispatch($events);
     }
 
     /**
@@ -395,7 +406,8 @@ final class OutcomeBuffer
     }
 
     /**
-     * Records the outcomes of a failing batch one by one and drops the ones that still fail.
+     * Records the outcomes of a failing batch one by one and drops the ones that still fail, unless the
+     * database is unavailable.
      *
      * @param  list<int>  $keys
      * @return bool False when the database failed meanwhile; the remaining outcomes stay queued.
@@ -406,17 +418,18 @@ final class OutcomeBuffer
             try {
                 $batch = $this->recorder->record($this->items([$key]), false);
             } catch (Throwable $e) {
-                if (OutageTracker::isDatabaseError($e)) {
-                    $this->failed($e, 1);
-                    $this->outages->writeFailed($this->clock->now(), $this->earliestDeadline([$key]));
+                $rejected = DatabaseErrors::rejectsData($e);
+                if (DatabaseErrors::isDatabaseError($e) && ! $rejected) {
+                    $this->failed($e, 1, false);
+                    $this->outages->writeFailed($this->clock->now(), $this->earliestDue([$key]));
 
                     return false;
                 }
 
                 // No message or payload: both can carry data from the checked target.
-                Log::error('Dropped a check outcome the recorder cannot store.', [
+                Log::error($rejected ? 'Dropped a check outcome the database rejects.' : 'Dropped a check outcome the recorder cannot store.', [
                     'monitor_id' => $this->queue[$key]['item'][0]->id,
-                    'exception' => $e::class,
+                    ...DatabaseErrors::context($e),
                 ]);
                 $this->release($key, null);
                 unset($this->queue[$key]);
@@ -447,20 +460,20 @@ final class OutcomeBuffer
     }
 
     /**
-     * Hands the queued outcomes of deadlines due since the start of a database failure back to the scheduler
-     * instead of writing them, while deadlines are held back.
+     * Hands the queued outcomes of deadlines that fell due since the start of a database failure back to the
+     * scheduler instead of writing them, while deadlines are held back.
      */
     private function handBackHeld(): void
     {
-        $since = $this->outages->holdingSince($this->clock->now());
+        $since = $this->outages->holdingSince();
         if ($since === null) {
             return;
         }
 
         foreach ($this->queue as $key => $entry) {
-            $deadline = $entry['item'][1]->deadline?->at;
-            if ($deadline !== null && $deadline->getTimestamp() >= $since->getTimestamp()) {
-                $this->release($key, null);
+            $due = $entry['item'][1]->deadline?->dueAt;
+            if ($due !== null && $due->getTimestamp() >= $since->getTimestamp()) {
+                $this->release($key, null, true);
                 unset($this->queue[$key]);
             }
         }
@@ -485,9 +498,7 @@ final class OutcomeBuffer
                 }
 
                 unset($this->deferred[$key]);
-                Log::error('Dropped a deferred database write after '.self::MAX_DEFERRED_ATTEMPTS.' failed attempts.', [
-                    'exception' => $e::class,
-                ]);
+                Log::error('Dropped a deferred database write after '.self::MAX_DEFERRED_ATTEMPTS.' failed attempts.', DatabaseErrors::context($e));
                 try {
                     ($deferred['dropped'] ?? static fn () => null)();
                 } catch (Throwable $callbackError) {
@@ -502,11 +513,10 @@ final class OutcomeBuffer
 
     private function deferredFailed(Throwable $e, int $attempts): void
     {
-        $database = OutageTracker::isDatabaseError($e);
+        $database = DatabaseErrors::isDatabaseError($e);
 
         Log::log($database ? 'warning' : 'error', 'A deferred database write failed; it is retried with the next flush.', [
-            'exception' => $e::class,
-            'message' => $database ? mb_substr($e->getMessage(), 0, self::MESSAGE_LOG_LENGTH) : null,
+            ...DatabaseErrors::context($e),
             'attempt' => $attempts,
         ]);
 
@@ -516,36 +526,40 @@ final class OutcomeBuffer
     }
 
     /**
-     * The earliest missed deadline among the given outcomes, if any of them reports one.
+     * When the earliest of the given outcomes that report a missed deadline fell due, if any of them does.
      *
      * @param  list<int>  $keys
      */
-    private function earliestDeadline(array $keys): ?CarbonImmutable
+    private function earliestDue(array $keys): ?CarbonImmutable
     {
         $earliest = null;
         foreach ($keys as $key) {
-            $deadline = $this->queue[$key]['item'][1]->deadline?->at;
-            if ($deadline !== null && ($earliest === null || $deadline->lt($earliest))) {
-                $earliest = $deadline;
+            $due = $this->queue[$key]['item'][1]->deadline?->dueAt;
+            if ($due !== null && ($earliest === null || $due->lt($earliest))) {
+                $earliest = $due;
             }
         }
 
         return $earliest;
     }
 
-    private function failed(Throwable $e, int $count): void
+    /**
+     * Logs a failed batch by the class, SQLSTATE and driver code of the error, never its message: driver
+     * messages can quote outcome data.
+     */
+    private function failed(Throwable $e, int $count, bool $rejected): void
     {
-        $database = OutageTracker::isDatabaseError($e);
+        $unavailable = DatabaseErrors::isDatabaseError($e) && ! $rejected;
 
-        Log::log($database ? 'warning' : 'error', 'Flushing check outcomes failed; they stay buffered for a retry.', [
-            'exception' => $e::class,
-            // Only database errors carry a message worth logging; others may echo outcome data.
-            'message' => $database ? mb_substr($e->getMessage(), 0, self::MESSAGE_LOG_LENGTH) : null,
-            'batch' => $count,
-            'buffered' => count($this->queue),
-        ]);
+        Log::log(DatabaseErrors::isDatabaseError($e) ? 'warning' : 'error', $rejected
+            ? 'The database rejected the data of a batch of check outcomes; recording them one by one.'
+            : 'Flushing check outcomes failed; they stay buffered for a retry.', [
+                ...DatabaseErrors::context($e),
+                'batch' => $count,
+                'buffered' => count($this->queue),
+            ]);
 
-        if ($database) {
+        if ($unavailable) {
             $this->reconnectQuietly();
         }
     }
@@ -555,10 +569,7 @@ final class OutcomeBuffer
         try {
             ($this->reconnect)();
         } catch (Throwable $reconnectError) {
-            Log::warning('Reconnecting to the database failed.', [
-                'exception' => $reconnectError::class,
-                'message' => mb_substr($reconnectError->getMessage(), 0, self::MESSAGE_LOG_LENGTH),
-            ]);
+            Log::warning('Reconnecting to the database failed.', DatabaseErrors::context($reconnectError));
         }
     }
 
@@ -576,18 +587,18 @@ final class OutcomeBuffer
     }
 
     /**
-     * Runs the outcome's callback unless it already ran.
+     * Runs the outcome's callback unless it already ran; a hand-back is reported even then.
      */
-    private function release(int $key, ?Transition $transition): void
+    private function release(int $key, ?Transition $transition, bool $handedBack = false): void
     {
         $entry = $this->queue[$key] ?? null;
-        if ($entry === null || $entry['notified']) {
+        if ($entry === null || ($entry['notified'] && ! $handedBack)) {
             return;
         }
         $this->queue[$key]['notified'] = true;
 
         try {
-            ($entry['done'])($transition);
+            ($entry['done'])($transition, $handedBack);
         } catch (Throwable $e) {
             Log::error('A recorded outcome callback failed.', ['exception' => $e::class]);
         }

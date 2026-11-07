@@ -14,7 +14,16 @@ final readonly class CheckOutcome
 
     public string $message;
 
+    /** @var array<string, scalar|list<scalar>|null> */
+    public array $facts;
+
+    /** @var array<string, string> */
+    public array $watch;
+
     /**
+     * Text in the message, the facts and the watched values can come from the checked target, so it is made
+     * storable here (see SafeText) before it reaches any database.
+     *
      * @param  array<string, scalar|list<scalar>|null>  $facts  Structured details stored with the result.
      * @param  array<string, string>  $watch  Values whose changes are reported as monitor events.
      * @param  bool  $final  Whether the failure is definitive and retries are skipped.
@@ -24,12 +33,28 @@ final readonly class CheckOutcome
         public MonitorStatus $status,
         public ?int $latencyMs,
         string $message,
-        public array $facts,
-        public array $watch,
+        array $facts,
+        array $watch,
         public bool $final,
         public ?Deadline $deadline = null,
     ) {
-        $this->message = mb_substr($message, 0, self::MAX_MESSAGE_LENGTH);
+        $this->message = mb_substr(SafeText::clean($message), 0, self::MAX_MESSAGE_LENGTH);
+
+        $cleanFacts = [];
+        foreach ($facts as $key => $value) {
+            $cleanFacts[SafeText::clean($key)] = match (true) {
+                is_string($value) => SafeText::clean($value),
+                is_array($value) => array_map(static fn (mixed $item): mixed => is_string($item) ? SafeText::clean($item) : $item, $value),
+                default => $value,
+            };
+        }
+        $this->facts = $cleanFacts;
+
+        $cleanWatch = [];
+        foreach ($watch as $key => $value) {
+            $cleanWatch[SafeText::clean($key)] = SafeText::clean($value);
+        }
+        $this->watch = $cleanWatch;
     }
 
     /**

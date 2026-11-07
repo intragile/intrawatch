@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Monitoring\Engine\PostCommit;
 use Carbon\CarbonImmutable;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -24,6 +25,14 @@ class MonitorChanged implements ShouldBroadcast
         public readonly string $new,
         public readonly CarbonImmutable $at,
     ) {}
+
+    /**
+     * Broadcast through the batched job of PostCommit when dispatched from there.
+     */
+    public function broadcastWhen(): bool
+    {
+        return PostCommit::broadcastsSeparately();
+    }
 
     /**
      * @return list<PrivateChannel>

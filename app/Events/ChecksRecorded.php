@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Monitoring\Engine\PostCommit;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -22,6 +23,14 @@ class ChecksRecorded implements ShouldBroadcast
         public readonly int $workspaceId,
         public readonly array $checks,
     ) {}
+
+    /**
+     * Broadcast through the batched job of PostCommit when dispatched from there.
+     */
+    public function broadcastWhen(): bool
+    {
+        return PostCommit::broadcastsSeparately();
+    }
 
     /**
      * @return list<PrivateChannel>

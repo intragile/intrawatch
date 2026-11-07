@@ -6,9 +6,11 @@ use App\Enums\MonitorType;
 use App\Http\Controllers\Controller;
 use App\Models\Monitor;
 use App\Monitoring\Engine\CheckOutcome;
+use App\Monitoring\Engine\DatabaseErrors;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\RecordedBatch;
 use App\Monitoring\Engine\ResultRecorder;
+use App\Monitoring\Engine\SafeText;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Database\QueryException;
@@ -27,7 +29,9 @@ use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
  *
  * Every miss (unknown token, inactive monitor, a route the monitor type does not offer) is the same 404, so
  * the response never tells whether a token exists. Misses are also limited per client address; a valid
- * token is never refused because of them. A database error is a 503 that names neither query nor token.
+ * token is never refused because of them. A request that loses a deadlock against a concurrent writer (the
+ * check worker recording the same group, say) is retried up to MAX_DEADLOCK_RETRIES times; any other database
+ * error, or one more deadlock, is a 503 that names neither query nor token.
  */
 class PushController extends Controller
 {
@@ -38,6 +42,8 @@ class PushController extends Controller
     private const MAX_EXIT_CODE = 255;
 
     private const MISSES_PER_MINUTE = 60;
+
+    private const MAX_DEADLOCK_RETRIES = 3;
 
     public function __construct(private readonly ResultRecorder $recorder) {}
 
@@ -143,22 +149,33 @@ class PushController extends Controller
     }
 
     /**
-     * Runs a request body, turning database errors into a 503. Query exceptions carry the SQL and possibly
-     * its bindings, the push token among them, so neither is logged nor rendered.
+     * Runs a request body, retrying it after a deadlock and turning database errors into a 503. Every write
+     * of the body happens in one transaction that the deadlock rolled back, so running it again is safe.
+     * Query exceptions carry the SQL and possibly its bindings, the push token among them, so neither is
+     * logged nor rendered.
      *
      * @param  Closure(): JsonResponse  $handle
      */
     private function guarded(Closure $handle): JsonResponse
     {
-        try {
-            return $handle();
-        } catch (QueryException|PDOException $e) {
-            Log::error('A push request failed on the database.', [
-                'exception' => $e::class,
-                'sqlstate' => (string) $e->getCode(),
-            ]);
+        for ($retries = 0; ; $retries++) {
+            try {
+                return $handle();
+            } catch (QueryException|PDOException $e) {
+                if ($retries < self::MAX_DEADLOCK_RETRIES && DatabaseErrors::isDeadlock($e)) {
+                    // A short random pause keeps the retry from meeting the same writer in the same order.
+                    usleep(random_int(5_000, 25_000));
 
-            throw new ServiceUnavailableHttpException(null, 'The service is temporarily unavailable.');
+                    continue;
+                }
+
+                Log::error('A push request failed on the database.', [
+                    ...DatabaseErrors::context($e),
+                    'retries' => $retries,
+                ]);
+
+                throw new ServiceUnavailableHttpException(null, 'The service is temporarily unavailable.');
+            }
         }
     }
 
@@ -243,10 +260,14 @@ class PushController extends Controller
         return $monitor;
     }
 
+    /**
+     * The reported message, made storable (see SafeText) and cut to MAX_MESSAGE_LENGTH characters.
+     */
     private function message(Request $request): ?string
     {
         $message = $request->input('msg');
-        if (! is_string($message) || trim($message) === '') {
+        $message = is_string($message) ? SafeText::clean($message) : '';
+        if (trim($message) === '') {
             return null;
         }
 

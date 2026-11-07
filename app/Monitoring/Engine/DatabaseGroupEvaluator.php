@@ -8,22 +8,47 @@ use App\Models\MonitorEvent;
 use App\Monitoring\Types\GroupHierarchy;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use stdClass;
 
 /**
  * Derives group statuses from the persisted states of their children and walks up the group chain.
  *
  * A group's result row is written when its status changes, or when its last result is older than the group's
  * interval, so rollups see roughly one sample per interval even though recomputes happen on every flush.
+ *
+ * Lock order: before anything is evaluated, every group the recompute can reach (the given groups and their
+ * ancestors) is locked at once: the group rows (shared) before their state rows (exclusive), each in one
+ * statement in id order. Two recorders whose batches reach overlapping groups at different depths therefore
+ * take the shared locks in the same global order and queue behind each other instead of deadlocking; locking
+ * level by level would lock a deep group before a shallow one in one transaction and the other way round in
+ * the next. The API and the result recorder lock the monitor row before its state row too. On SQLite the
+ * lock clauses compile to nothing and the IMMEDIATE transaction serializes writers.
  */
 final class DatabaseGroupEvaluator implements GroupEvaluator
 {
+    /** @var array<int, stdClass> Locked active group rows by id. */
+    private array $groups = [];
+
+    /** @var array<int, stdClass> Locked group state rows by id, kept current as groups are evaluated. */
+    private array $states = [];
+
     public function recompute(array $groupIds): array
     {
-        $transitions = [];
         $level = array_values(array_unique($groupIds));
+        if ($level === []) {
+            return [];
+        }
 
+        $this->groups = [];
+        $this->states = [];
+        $this->lock($this->reachable($level));
+
+        $transitions = [];
         for ($depth = 0; $depth < GroupHierarchy::MAX_DEPTH && $level !== []; $depth++) {
             sort($level);
+            // A group moved under a new parent since the reachable set was read is locked late, out of order.
+            $this->lock(array_values(array_diff($level, array_keys($this->states))));
+
             $parents = [];
             foreach ($this->evaluateLevel($level) as $parentId => $transition) {
                 if ($parentId !== null) {
@@ -36,42 +61,83 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
             $level = array_keys($parents);
         }
 
+        $this->groups = [];
+        $this->states = [];
+
         return $transitions;
     }
 
     /**
-     * @param  list<int>  $ids  Sorted group ids of one level.
-     * @return iterable<int|null, Transition|null> Parent id keyed transitions; a null transition means nothing changed.
+     * The given groups and the ancestors the level walk can reach from them, read without locks, sorted.
+     *
+     * @param  list<int>  $ids
+     * @return list<int>
      */
-    private function evaluateLevel(array $ids): iterable
+    private function reachable(array $ids): array
     {
-        // Lock order: group rows (shared) before their state rows (exclusive), each in id order, the same order
-        // the API and the result recorder use, so concurrent writers queue instead of deadlocking. On SQLite
-        // the lock clauses compile to nothing and the IMMEDIATE transaction serializes writers.
-        $groups = DB::table('monitors')
+        $seen = array_fill_keys($ids, true);
+        $frontier = $ids;
+        for ($depth = 1; $depth < GroupHierarchy::MAX_DEPTH && $frontier !== []; $depth++) {
+            $next = [];
+            foreach (DB::table('monitors')->whereIn('id', $frontier)->whereNotNull('parent_id')->pluck('parent_id') as $parentId) {
+                $parentId = $this->int($parentId);
+                if (! isset($seen[$parentId])) {
+                    $seen[$parentId] = true;
+                    $next[] = $parentId;
+                }
+            }
+            $frontier = $next;
+        }
+
+        $reachable = array_keys($seen);
+        sort($reachable);
+
+        return $reachable;
+    }
+
+    /**
+     * Locks the active group rows (shared) and then their state rows (exclusive), each in one statement in
+     * id order.
+     *
+     * @param  list<int>  $ids  Sorted group ids.
+     */
+    private function lock(array $ids): void
+    {
+        if ($ids === []) {
+            return;
+        }
+
+        foreach (DB::table('monitors')
             ->whereIn('id', $ids)
             ->where('type', MonitorType::Group->value)
             ->where('active', true)
             ->orderBy('id')
             ->sharedLock()
-            ->get(['id', 'workspace_id', 'parent_id', 'interval_seconds', 'config']);
-
-        $states = [];
-        foreach (DB::table('monitor_states')->whereIn('monitor_id', $ids)->orderBy('monitor_id')->lockForUpdate()
-            ->get(['monitor_id', 'status', 'status_since']) as $row) {
-            $states[$this->int($row->monitor_id)] = $row;
+            ->get(['id', 'workspace_id', 'parent_id', 'interval_seconds', 'config']) as $group) {
+            $this->groups[$this->int($group->id)] = $group;
         }
 
+        foreach (DB::table('monitor_states')->whereIn('monitor_id', $ids)->orderBy('monitor_id')->lockForUpdate()
+            ->get(['monitor_id', 'status', 'status_since']) as $row) {
+            $this->states[$this->int($row->monitor_id)] = $row;
+        }
+    }
+
+    /**
+     * @param  list<int>  $ids  Sorted group ids of one level, all locked.
+     * @return iterable<int|null, Transition|null> Parent id keyed transitions; a null transition means nothing changed.
+     */
+    private function evaluateLevel(array $ids): iterable
+    {
         $counts = $this->childCounts($ids);
         $lastResult = $this->lastResultAt($ids);
         $now = CarbonImmutable::now();
         $stamp = $now->format('Y-m-d H:i:s');
-        $transitions = [];
 
-        foreach ($groups as $group) {
-            $id = $this->int($group->id);
-            $state = $states[$id] ?? null;
-            if ($state === null) {
+        foreach ($ids as $id) {
+            $group = $this->groups[$id] ?? null;
+            $state = $this->states[$id] ?? null;
+            if ($group === null || $state === null) {
                 continue;
             }
 
@@ -98,6 +164,7 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
             }
 
             $message = "{$available}/{$total} children available";
+            $statusSince = $changed ? $stamp : $since->format('Y-m-d H:i:s');
             DB::table('check_results')->insert([
                 'monitor_id' => $id,
                 'status' => $status->value,
@@ -110,13 +177,15 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
             ]);
             DB::table('monitor_states')->where('monitor_id', $id)->update([
                 'status' => $status->value,
-                'status_since' => $changed ? $stamp : $since->format('Y-m-d H:i:s'),
+                'status_since' => $statusSince,
                 'last_checked_at' => $stamp,
                 'consecutive_failures' => 0,
                 'last_latency_ms' => null,
                 'last_message' => $message,
                 'updated_at' => $stamp,
             ]);
+            // A group reached again at a higher level starts from the status written here.
+            $this->states[$id] = (object) ['monitor_id' => $id, 'status' => $status->value, 'status_since' => $statusSince];
 
             if ($changed) {
                 DB::table('monitor_events')->insert([
