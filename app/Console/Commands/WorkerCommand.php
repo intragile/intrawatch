@@ -37,6 +37,10 @@ class WorkerCommand extends Command
             return self::INVALID;
         }
 
+        // Every blocking database wait stalls the event loop; give up on locks quickly, the buffer retries.
+        // Applied before anything else so no part of the worker runs on a connection without these limits.
+        WorkerDatabase::apply();
+
         // Broadcast events go through the queue. The sync driver would run them inline, with blocking HTTP
         // calls to the broadcaster inside the event loop.
         if (config()->string('queue.default') === 'sync') {
@@ -44,9 +48,6 @@ class WorkerCommand extends Command
 
             return self::FAILURE;
         }
-
-        // Every blocking database wait stalls the event loop; give up on locks quickly, the buffer retries.
-        WorkerDatabase::apply();
 
         $scheduler = new Scheduler(
             shard: $shard,

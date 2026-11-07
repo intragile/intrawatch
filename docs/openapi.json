@@ -1926,10 +1926,12 @@
                                                     "type": [
                                                         "string",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "description": "The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the\nmonitors:write ability, and for monitors without a push token."
                                                 },
                                                 "has_push_token": {
-                                                    "type": "boolean"
+                                                    "type": "boolean",
+                                                    "description": "Whether the monitor has a push token (push and cron monitors), also for callers who cannot see push_url."
                                                 },
                                                 "state": {
                                                     "type": "object",
@@ -2258,10 +2260,12 @@
                                                     "type": [
                                                         "string",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "description": "The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the\nmonitors:write ability, and for monitors without a push token."
                                                 },
                                                 "has_push_token": {
-                                                    "type": "boolean"
+                                                    "type": "boolean",
+                                                    "description": "Whether the monitor has a push token (push and cron monitors), also for callers who cannot see push_url."
                                                 },
                                                 "state": {
                                                     "type": "object",
@@ -2504,10 +2508,12 @@
                                                     "type": [
                                                         "string",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "description": "The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the\nmonitors:write ability, and for monitors without a push token."
                                                 },
                                                 "has_push_token": {
-                                                    "type": "boolean"
+                                                    "type": "boolean",
+                                                    "description": "Whether the monitor has a push token (push and cron monitors), also for callers who cannot see push_url."
                                                 },
                                                 "state": {
                                                     "type": "object",
@@ -2938,10 +2944,12 @@
                                                     "type": [
                                                         "string",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "description": "The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the\nmonitors:write ability, and for monitors without a push token."
                                                 },
                                                 "has_push_token": {
-                                                    "type": "boolean"
+                                                    "type": "boolean",
+                                                    "description": "Whether the monitor has a push token (push and cron monitors), also for callers who cannot see push_url."
                                                 },
                                                 "state": {
                                                     "type": "object",
@@ -3343,10 +3351,12 @@
                                                     "type": [
                                                         "string",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "description": "The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the\nmonitors:write ability, and for monitors without a push token."
                                                 },
                                                 "has_push_token": {
-                                                    "type": "boolean"
+                                                    "type": "boolean",
+                                                    "description": "Whether the monitor has a push token (push and cron monitors), also for callers who cannot see push_url."
                                                 },
                                                 "state": {
                                                     "type": "object",

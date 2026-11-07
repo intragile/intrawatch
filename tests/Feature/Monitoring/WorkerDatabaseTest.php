@@ -3,6 +3,7 @@
 namespace Tests\Feature\Monitoring;
 
 use App\Monitoring\Worker\WorkerDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use PDO;
 use Pdo\Mysql;
@@ -42,6 +43,35 @@ class WorkerDatabaseTest extends TestCase
             $this->assertSame(['sqlite' => '500', 'pgsql' => '3s'][$driver] ?? '3', (string) $value);
         } finally {
             config(["database.connections.{$name}" => $original]);
+            DB::purge($name);
+        }
+    }
+
+    /**
+     * Runs without RefreshDatabase: the worker reconnects the default connection, which would discard the
+     * in-memory test database.
+     */
+    public function test_the_worker_command_applies_them_and_refuses_the_sync_queue(): void
+    {
+        $name = config()->string('database.default');
+        $original = config("database.connections.{$name}");
+        $queue = config('queue.default');
+
+        try {
+            // The sync queue makes the worker exit before its scheduler starts, after the connection is set up.
+            config(['queue.default' => 'sync']);
+            $this->assertSame(1, Artisan::call('intrawatch:worker'));
+            $this->assertStringContainsString('QUEUE_CONNECTION is sync', Artisan::output());
+
+            $this->assertIsArray($original);
+            $configured = [];
+            foreach ($original as $key => $value) {
+                $configured[(string) $key] = $value;
+            }
+            $this->assertSame(WorkerDatabase::configure($configured), config("database.connections.{$name}"));
+            $this->assertNotSame($original, config("database.connections.{$name}"));
+        } finally {
+            config(['queue.default' => $queue, "database.connections.{$name}" => $original]);
             DB::purge($name);
         }
     }

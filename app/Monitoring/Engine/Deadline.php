@@ -11,9 +11,10 @@ use Carbon\CarbonImmutable;
 final readonly class Deadline
 {
     /**
-     * The moment this outcome fell due: the deadline itself, or for push miss k the moment that miss was due.
-     * Database failures are measured against it, so an outcome that fell due a moment ago never makes a
-     * short failure look as if it started at a deadline long past.
+     * The moment this outcome fell due: the deadline itself, or for push miss k the moment that miss was due,
+     * but no earlier than one second before it was evaluated. Database failures are measured against it, so
+     * an outcome that fell due a moment ago, or was only noticed a moment ago, never makes a short failure
+     * look as if it started at a deadline long past.
      */
     public CarbonImmutable $dueAt;
 

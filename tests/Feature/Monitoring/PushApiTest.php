@@ -804,6 +804,52 @@ class PushApiTest extends TestCase
         $this->assertStringStartsWith('Missed run expected at', $missed[0]);
     }
 
+    public function test_a_failed_write_of_an_overrun_noticed_late_is_a_blip_not_an_outage_since_its_limit(): void
+    {
+        // The worker learns of a run start only at the next hourly poll, long after the run's limit passed.
+        $overrun = Monitor::factory()->for($this->ws)->cron('0 0 1 1 *', 'UTC', 0)->create([
+            'interval_seconds' => 3600,
+            'config' => ['schedule' => '0 0 1 1 *', 'timezone' => 'UTC', 'grace_seconds' => 0, 'max_runtime_seconds' => 60],
+        ]);
+        // A daily job expected at 11:00:00 with 5 s of grace, due by 11:00:05.
+        $daily = Monitor::factory()->for($this->ws)->cron('0 11 * * *', 'UTC', 5)->create(['interval_seconds' => 60]);
+        $outageWarnings = [];
+        Event::listen(MessageLogged::class, function (MessageLogged $e) use (&$outageWarnings): void {
+            if (str_contains($e->message, 'unavailable')) {
+                $outageWarnings[] = $e->context;
+            }
+        });
+
+        [$stop, $run] = $this->startScheduler();
+        $this->clock->advance(30);
+        $this->postJson("/api/v1/push/{$overrun->push_token}/start")->assertOk();
+
+        // The flush holding the overrun (limit 10:01:30, noticed at the 11:00:00 poll) fails to write once.
+        $deadlocks = new FailureBudget(1);
+        DB::connection()->beforeExecuting(function (string $query) use ($deadlocks): void {
+            if ($deadlocks->remaining > 0 && str_starts_with($query, 'insert into') && str_contains($query, 'check_results')) {
+                $deadlocks->remaining--;
+                throw new QueryException('sqlite', $query, [], new PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock'));
+            }
+        });
+        $this->clock->advance(3570 + 40);
+        $this->stopScheduler($stop, $run);
+
+        $this->assertSame(0, $deadlocks->remaining);
+        $this->assertSame([], $outageWarnings, 'a short blip is no outage');
+        $exceeded = CheckResult::where('monitor_id', $overrun->id)->sole();
+        $this->assertSame('Run exceeded 60 s', $exceeded->message);
+        $this->assertLessThanOrEqual(
+            CarbonImmutable::parse('2026-11-06 11:00:25', 'UTC')->getTimestamp(),
+            CarbonImmutable::instance($exceeded->checked_at)->getTimestamp(),
+            'the overrun is recorded within the retry delay, not a re-anchored runtime later',
+        );
+        $missed = CheckResult::where('monitor_id', $daily->id)->pluck('message')->all();
+        $this->assertCount(1, $missed, 'the run due during the blip is reported');
+        $this->assertIsString($missed[0]);
+        $this->assertStringStartsWith('Missed run expected at', $missed[0]);
+    }
+
     public function test_a_deadline_outcome_handed_back_during_a_blip_is_evaluated_again_within_the_retry_delay(): void
     {
         $push = $this->push(['interval_seconds' => 3600, 'retries' => 1, 'retry_interval_seconds' => 3600], grace: 0);

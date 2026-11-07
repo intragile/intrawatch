@@ -14,7 +14,7 @@ use Throwable;
  * errors are logged by their callers and never tracked, so a query that keeps failing there cannot hold back
  * a down. A failure starts at the earlier of the moment it happened and the moment the earliest outcome
  * whose read or write failed fell due, so a deadline whose own evaluation is the first thing to fail falls
- * inside it.
+ * inside it. The start is never pulled back more than MAX_BACKDATE_SECONDS before the observed failure.
  *
  * A failure ends once a deadline read and a write (an outcome write or the worker heartbeat) have both
  * succeeded since it started, each since its own last failure; it ends at the success that completes the
@@ -36,6 +36,9 @@ use Throwable;
 final class OutageTracker
 {
     public const MIN_SECONDS = 30;
+
+    /** How far before the observed failure its start may be pulled back to the due moment of an outcome. */
+    public const MAX_BACKDATE_SECONDS = 60;
 
     private ?CarbonImmutable $since = null;
 
@@ -132,7 +135,12 @@ final class OutageTracker
 
     private function start(CarbonImmutable $at, ?CarbonImmutable $earliestDue): void
     {
-        $start = ($earliestDue !== null && $earliestDue->lt($at) ? $earliestDue : $at)->startOfSecond();
+        $start = $at;
+        if ($earliestDue !== null && $earliestDue->lt($at)) {
+            $floor = $at->subSeconds(self::MAX_BACKDATE_SECONDS);
+            $start = $earliestDue->lt($floor) ? $floor : $earliestDue;
+        }
+        $start = $start->startOfSecond();
         if ($this->since === null) {
             // Both kinds have to succeed again from here on.
             $this->since = $start;

@@ -59,7 +59,14 @@ final class MonitorPresenter
                 'color' => $tag->color,
                 'value' => self::pivotValue($tag),
             ])->values()->all(),
+            /**
+             * The push endpoint URL, which embeds the push token. Null for viewers and for tokens without the
+             * monitors:write ability, and for monitors without a push token.
+             */
             'push_url' => $revealPushUrl ? self::pushUrl($monitor) : null,
+            /**
+             * Whether the monitor has a push token (push and cron monitors), also for callers who cannot see push_url.
+             */
             'has_push_token' => self::pushUrl($monitor) !== null,
             'state' => [
                 'status' => $state->status->value,

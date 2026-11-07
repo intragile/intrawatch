@@ -214,9 +214,22 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
 
         $silent = $now->getTimestamp() - $anchor->getTimestamp();
         $outcome = CheckOutcome::down("No heartbeat for {$silent} s", facts: ['deadline' => $deadline->toIso8601ZuluString()])
-            ->forDeadline(new Deadline($deadline, $anchor, null, $miss, $origin->addSeconds($miss * $retry)));
+            ->forDeadline(new Deadline($deadline, $anchor, null, $miss, $this->dueAt($origin->addSeconds($miss * $retry), $now)));
 
         return [$outcome, $next];
+    }
+
+    /**
+     * When an outcome evaluated at $now fell due, for database failure accounting: the due moment, but no
+     * earlier than just before the evaluation. A deadline noticed late (an overrun learnt at the next poll, a
+     * maximum runtime lowered during a run) could not have been recorded before it was noticed, so a write
+     * failure of its outcome must not look as if it started at the long-past due moment.
+     */
+    private function dueAt(CarbonImmutable $due, CarbonImmutable $now): CarbonImmutable
+    {
+        $noticed = $now->subSecond();
+
+        return $due->lt($noticed) ? $noticed : $due;
     }
 
     /**
@@ -237,7 +250,7 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
             } elseif (! $state->reported($limit)) {
                 $outcome = CheckOutcome::down("Run exceeded {$maxRuntime} s", facts: ['run_started_at' => $state->runStartedAt->toIso8601ZuluString()])
                     ->final()
-                    ->forDeadline(new Deadline($limit, $anchor, $state->runStartedAt));
+                    ->forDeadline(new Deadline($limit, $anchor, $state->runStartedAt, null, $this->dueAt($limit, $now)));
 
                 return [$outcome, $poll];
             }
@@ -253,7 +266,7 @@ final class DatabaseDeadlineEvaluator implements DeadlineEvaluator
             } elseif (! $state->reported($due)) {
                 $outcome = CheckOutcome::down("Missed run expected at {$expected->toIso8601String()}", facts: ['expected_at' => $expected->toIso8601String()])
                     ->final()
-                    ->forDeadline(new Deadline($due, $anchor));
+                    ->forDeadline(new Deadline($due, $anchor, null, null, $this->dueAt($due, $now)));
 
                 return [$outcome, $poll];
             }

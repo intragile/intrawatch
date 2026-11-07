@@ -253,14 +253,6 @@ class WorkerTest extends TestCase
         $this->assertSame(['monitor_id' => $poison->id, 'exception' => \RuntimeException::class], $drops[0]->context);
     }
 
-    public function test_worker_refuses_the_sync_queue(): void
-    {
-        config(['queue.default' => 'sync']);
-
-        $this->assertSame(1, Artisan::call('intrawatch:worker'));
-        $this->assertStringContainsString('QUEUE_CONNECTION is sync', Artisan::output());
-    }
-
     public function test_buffer_cap_drops_oldest(): void
     {
         $monitor = $this->tcpMonitors(1)[0];
