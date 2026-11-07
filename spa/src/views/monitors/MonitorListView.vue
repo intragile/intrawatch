@@ -143,6 +143,8 @@ const list = useCursorList<Monitor>((cursor) => {
     : 'null')(cursor)
 })
 
+const selected = ref(new Set<number>())
+
 const children = shallowReactive(new Map<number, CursorList<Monitor>>())
 const expanded = ref(new Set<number>())
 // Child lists of collapsed groups that were not refreshed along with the others.
@@ -152,6 +154,10 @@ function toggleGroup(id: number): void {
   const open = new Set(expanded.value)
   if (open.delete(id)) {
     expanded.value = open
+    // Rows that are no longer shown must not stay selected.
+    const hidden = new Set((children.get(id)?.items.value ?? []).map(m => m.id))
+    if ([...selected.value].some(sel => hidden.has(sel)))
+      selected.value = new Set([...selected.value].filter(sel => !hidden.has(sel)))
     return
   }
   open.add(id)
@@ -165,12 +171,16 @@ function toggleGroup(id: number): void {
   else if (stale.delete(id)) {
     void child.reloadLoaded()
   }
+  else if (child.error.value && child.items.value.length === 0) {
+    void child.loadMore()
+  }
 }
 
 interface MonitorEntry { kind: 'monitor', key: string, monitor: Monitor, depth: number }
 interface MoreEntry { kind: 'more', key: string, group: number, loading: boolean }
+interface FailedEntry { kind: 'failed', key: string, group: number, error: ApiError }
 interface EmptyEntry { kind: 'none', key: string, group: number }
-type Entry = MonitorEntry | MoreEntry | EmptyEntry
+type Entry = MonitorEntry | MoreEntry | EmptyEntry | FailedEntry
 
 function resolve(m: Monitor): Monitor {
   return store.items.get(m.id) ?? m
@@ -206,7 +216,15 @@ const entries = computed<Entry[]>(() => {
         loading: child.loading.value,
       })
     }
-    else if (!child.loading.value && child.items.value.length === 0 && !child.error.value) {
+    else if (child.error.value && child.items.value.length === 0) {
+      out.push({
+        kind: 'failed',
+        key: `failed${top.id}`,
+        group: top.id,
+        error: child.error.value,
+      })
+    }
+    else if (!child.loading.value && child.items.value.length === 0) {
       out.push({ kind: 'none', key: `none${top.id}`, group: top.id })
     }
   }
@@ -216,17 +234,7 @@ const shown = computed(() => entries.value.flatMap(e => e.kind === 'monitor'
   ? [e.monitor]
   : []))
 
-const childError = computed<ApiError | null>(() => {
-  for (const id of expanded.value) {
-    const error = children.get(id)?.error.value
-    if (error)
-      return error
-  }
-  return null
-})
-
 // Selection
-const selected = ref(new Set<number>())
 const allSelected = computed(() => shown.value.length > 0 && shown.value.every(m => selected.value.has(m.id)))
 const someSelected = computed(() => selected.value.size > 0 && !allSelected.value)
 
@@ -253,7 +261,9 @@ function prune(): void {
       store.remove(id)
     }
   }
-  const kept = new Set([...selected.value].filter(id => present.has(id)))
+  // Only rows on screen can stay selected.
+  const visible = new Set(shown.value.map(m => m.id))
+  const kept = new Set([...selected.value].filter(id => visible.has(id)))
   if (kept.size !== selected.value.size)
     selected.value = kept
 }
@@ -421,6 +431,8 @@ async function executeBulk(action: BulkAction, target: { tagId?: number, channel
     await reloadAll()
   }
   catch (e) {
+    // Close the dialog so the problem is not hidden behind it.
+    confirmDelete.value = false
     bulkError.value = failure(e)
   }
   finally {
@@ -479,7 +491,7 @@ const columns = computed(() => canManage.value
   />
 
   <ProblemAlert :error="bulkError" />
-  <ProblemAlert :error="list.error.value ?? childError" />
+  <ProblemAlert :error="list.error.value" />
 
   <v-progress-linear v-if="list.loading.value" indeterminate :aria-label="t('monitors.loadingMore')" class="mb-2" />
 
@@ -548,6 +560,14 @@ const columns = computed(() => canManage.value
               @click="children.get(entry.group)?.loadMore()"
             >
               {{ t('monitors.more') }}
+            </v-btn>
+          </td>
+        </tr>
+        <tr v-else-if="entry.kind === 'failed'" :data-test="`failed-${entry.group}`">
+          <td :colspan="columns">
+            <ProblemAlert :error="entry.error" />
+            <v-btn :data-test="`retry-${entry.group}`" variant="tonal" size="small" @click="children.get(entry.group)?.loadMore()">
+              {{ t('monitors.retry') }}
             </v-btn>
           </td>
         </tr>

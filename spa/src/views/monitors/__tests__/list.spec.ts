@@ -1,11 +1,12 @@
 import type { Monitor } from '../../../api/types'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
+import ConfirmDialog from '../../../components/common/ConfirmDialog.vue'
 import { setEchoFactory } from '../../../live/useWorkspaceLive'
 import { useMonitors } from '../../../stores/monitors'
 import { meWith, monitor, viewerCan } from '../../../test/fixtures'
 import { click, fill, mountApp } from '../../../test/mount'
-import { fakeApi, json } from '../../../test/server'
+import { fakeApi, json, problem } from '../../../test/server'
 import { choose, page } from '../../workspace/__tests__/helpers'
 
 const idleEcho = {
@@ -203,5 +204,105 @@ describe('monitor list', () => {
 
     window.dispatchEvent(new Event('focus'))
     await expect.poll(() => server.of('GET /workspaces/acme/monitors')).toHaveLength(2)
+  })
+
+  it('collapsing a group deselects its children so bulk never touches hidden rows', async () => {
+    const { server } = monitorsApi({
+      null: [
+        monitor({ id: 5, name: 'Cluster', type: 'group' }),
+        monitor({ id: 1, name: 'Solo' }),
+      ],
+      5: [
+        monitor({ id: 6, name: 'Child A', parent_id: 5 }),
+      ],
+    }, {
+      'POST /workspaces/acme/monitors/bulk': json({ affected: 1 }),
+    })
+    await mountApp('/w/acme/monitors')
+    await expect.poll(() => document.querySelector('[data-test="expand-5"]')).not.toBeNull()
+    await click('[data-test="expand-5"]')
+    await expect.poll(() => document.querySelector('[data-test="select-6"]')).not.toBeNull()
+
+    await click('[data-test="select-6"]')
+    await click('[data-test="select-1"]')
+    await click('[data-test="expand-5"]')
+    await expect.poll(() => document.querySelector('[data-test="select-6"]')).toBeNull()
+    await click('[data-test="bulk-pause"]')
+
+    await expect.poll(() => server.of('POST /workspaces/acme/monitors/bulk')).toHaveLength(1)
+    expect(server.of('POST /workspaces/acme/monitors/bulk')[0]?.body).toEqual({
+      action: 'pause',
+      ids: [1],
+    })
+  })
+
+  it('a failed child fetch shows an error row and retries', async () => {
+    let calls = 0
+    monitorsApi({
+      null: [
+        monitor({ id: 5, name: 'Cluster', type: 'group' }),
+      ],
+    }, {})
+    // Replace the monitors route: children fail once.
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+      'GET /workspaces/acme/tags': json(page([])),
+      'GET /workspaces/acme/monitors': (req) => {
+        const parent = new URL(req.url).searchParams.get('parent_id')
+        if (parent === '5') {
+          calls++
+          return calls === 1
+            ? problem(500, { title: 'Boom' })
+            : json(page([
+                monitor({ id: 6, name: 'Child A', parent_id: 5 }),
+              ]))
+        }
+        return json(page([
+          monitor({ id: 5, name: 'Cluster', type: 'group' }),
+        ]))
+      },
+    })
+    await mountApp('/w/acme/monitors')
+    await expect.poll(() => document.querySelector('[data-test="expand-5"]')).not.toBeNull()
+    await click('[data-test="expand-5"]')
+    await expect.poll(() => document.querySelector('[data-test="failed-5"]')?.textContent).toContain('Boom')
+
+    await click('[data-test="retry-5"]')
+    await expect.poll(() => text()).toContain('Child A')
+  })
+
+  it('a failed bulk delete closes the dialog and shows the problem', async () => {
+    monitorsApi({
+      null: [
+        monitor({ id: 1, name: 'One' }),
+      ],
+    }, {
+      'POST /workspaces/acme/monitors/bulk': problem(403, { title: 'Forbidden here' }),
+    })
+    const { wrapper } = await mountApp('/w/acme/monitors')
+    await expect.poll(() => text()).toContain('One')
+    await click('[data-test="select-1"]')
+    await click('[data-test="bulk-delete"]')
+    await click('[data-test="confirm"]')
+
+    await expect.poll(() => text()).toContain('Forbidden here')
+    await expect.poll(() => wrapper.findComponent(ConfirmDialog).props('modelValue')).toBe(false)
+  })
+
+  it('search keeps a trailing space while typing', async () => {
+    monitorsApi({
+      null: [
+        monitor({ id: 1, name: 'One' }),
+      ],
+    })
+    const { router } = await mountApp('/w/acme/monitors')
+    await expect.poll(() => text()).toContain('One')
+    fill('input[name="q"]', 'a ')
+    await expect.poll(() => router.currentRoute.value.query.q).toBe('a')
+    await flushPromises()
+    expect(document.querySelector<HTMLInputElement>('input[name="q"]')?.value).toBe('a ')
   })
 })

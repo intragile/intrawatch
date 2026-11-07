@@ -38,7 +38,8 @@ const text = ref(props.modelValue.q)
 let timer: ReturnType<typeof setTimeout> | null = null
 
 watch(() => props.modelValue.q, (q) => {
-  if (q !== text.value)
+  // The applied value is trimmed; keep what the user is still typing (e.g. a trailing space).
+  if (q !== text.value.trim())
     text.value = q
 })
 

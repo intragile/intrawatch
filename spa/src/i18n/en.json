@@ -366,7 +366,8 @@
       "deleteConfirm": "Delete {count} monitors with their history? This cannot be undone."
     },
     "more": "Load more monitors",
-    "loadingMore": "Loading monitors"
+    "loadingMore": "Loading monitors",
+    "retry": "Retry"
   },
   "secret": {
     "set": "Set",

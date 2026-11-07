@@ -366,7 +366,8 @@
       "deleteConfirm": "Törlöd a(z) {count} monitort az előzményeikkel együtt? Ez nem vonható vissza."
     },
     "more": "További monitorok betöltése",
-    "loadingMore": "Monitorok betöltése"
+    "loadingMore": "Monitorok betöltése",
+    "retry": "Újra"
   },
   "secret": {
     "set": "Beállítva",
