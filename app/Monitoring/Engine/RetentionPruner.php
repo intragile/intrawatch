@@ -7,7 +7,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 
 /**
- * Deletes history past its retention: raw results, each rollup level, monitor events and stale domain lookups.
+ * Deletes history past its retention: raw results, each rollup level, monitor events, alert events and their
+ * deliveries, and stale domain lookups.
  * A row exactly at its cutoff is kept.
  */
 final class RetentionPruner
@@ -26,6 +27,7 @@ final class RetentionPruner
         $rawCutoffMinute = intdiv($rawCutoff->getTimestamp(), 60) * 60;
 
         $dayCutoff = $now->subDays(config()->integer('monitoring.retention.day_days', 730));
+        $alertCutoffText = $now->subDays(config()->integer('alerting.retention_days', 90))->utc()->format('Y-m-d H:i:s');
 
         return [
             'results' => $this->deleter->byIdRange(
@@ -39,6 +41,14 @@ final class RetentionPruner
             'events' => $this->deleter->byIdRange(
                 'monitor_events',
                 fn (Builder $q) => $q->where('created_at', '<', $dayCutoff->utc()->format('Y-m-d H:i:s')),
+            ),
+            'alert_deliveries' => $this->deleter->byIdRange(
+                'alert_deliveries',
+                fn (Builder $q) => $q->where('created_at', '<', $alertCutoffText),
+            ),
+            'alert_events' => $this->deleter->byIdRange(
+                'alert_events',
+                fn (Builder $q) => $q->where('created_at', '<', $alertCutoffText),
             ),
             'domain_lookups' => $this->deleter->byKey(
                 'domain_lookups',

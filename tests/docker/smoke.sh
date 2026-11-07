@@ -187,6 +187,12 @@ timeout 30 docker exec "$NAME" php artisan intrawatch:worker:status >/dev/null |
 timeout 30 docker exec "$NAME" /usr/local/bin/healthcheck.sh >/dev/null || fail "container healthcheck failed"
 ok "worker status and healthcheck pass"
 
+status="$(timeout 30 docker exec "$NAME" supervisorctl -c /etc/supervisor/conf.d/supervisord.conf status)" \
+  || fail "supervisorctl status failed: $status"
+echo "$status"
+grep -Eq '^intrawatch:notifications +RUNNING' <<<"$status" || fail "notifications worker is not RUNNING"
+ok "notifications worker running"
+
 [[ "$(timeout 30 docker exec "$NAME" id -u)" == "1000" ]] || fail "docker exec does not run as uid 1000"
 timeout 30 docker exec "$NAME" ping -c1 -W5 127.0.0.1 >/dev/null || fail "ping as uid 1000 failed"
 ok "ping works as uid 1000"
@@ -276,7 +282,8 @@ exit_code="$(wait_for_exit "$NAME" 120)"
 [[ "$exit_code" != "0" ]] || fail "container exited 0 after a worker entered FATAL"
 # Captured first: grep -q closing the pipe early would fail the pipeline under pipefail.
 logs="$(timeout 30 docker logs "$NAME" 2>&1)" || fail "could not read container logs"
-grep -q "program 'queue' could not be kept running" <<<"$logs" || fail "FATAL reason not in the container log"
+# Both default-connection workers fail; whichever reaches FATAL first stops the container.
+grep -Eq "program '(queue|notifications)' could not be kept running" <<<"$logs" || fail "FATAL reason not in the container log"
 ok "a FATAL worker stops the container (exit $exit_code)"
 
 echo "== unwritable /data"

@@ -139,6 +139,36 @@ class RetentionTest extends TestCase
         $this->assertSame(['fresh.example'], DB::table('domain_lookups')->pluck('domain')->all());
     }
 
+    public function test_alert_history_is_pruned(): void
+    {
+        config(['alerting.retention_days' => 90]);
+        $monitor = Monitor::factory()->create();
+        $cutoff = $this->now->subDays(90);
+        $events = [];
+        foreach ([$cutoff->subDays(2), $cutoff->subSecond(), $cutoff, $cutoff->addDay()] as $at) {
+            $id = DB::table('alert_events')->insertGetId([
+                'workspace_id' => $monitor->workspace_id, 'monitor_id' => $monitor->id, 'kind' => 'down',
+                'status' => 'down', 'previous_status' => 'up', 'message' => 'Down', 'created_at' => $at->format('Y-m-d H:i:s'),
+            ]);
+            $events[] = $id;
+            DB::table('alert_deliveries')->insert([
+                'workspace_id' => $monitor->workspace_id, 'notification_channel_id' => null,
+                'alert_event_ids' => json_encode([$id]), 'status' => 'sent', 'attempts' => 1,
+                'created_at' => $at->format('Y-m-d H:i:s'), 'updated_at' => $at->format('Y-m-d H:i:s'),
+            ]);
+        }
+
+        $deleted = app(RetentionPruner::class)->run($this->now);
+
+        $this->assertSame(2, $deleted['alert_events'] ?? null);
+        $this->assertSame(2, $deleted['alert_deliveries'] ?? null);
+        $this->assertSame([$events[2], $events[3]], DB::table('alert_events')->orderBy('id')->pluck('id')->map(fn (mixed $id): int => is_numeric($id) ? (int) $id : 0)->all());
+        $this->assertSame(
+            [$cutoff->format('Y-m-d H:i:s'), $cutoff->addDay()->format('Y-m-d H:i:s')],
+            DB::table('alert_deliveries')->orderBy('id')->pluck('created_at')->map(fn (mixed $v): string => is_string($v) ? substr($v, 0, 19) : '')->all(),
+        );
+    }
+
     public function test_prune_sleeps_between_chunks(): void
     {
         config(['monitoring.retention.chunk_sleep_ms' => 50]);
