@@ -1,8 +1,9 @@
+import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { useMonitors } from '../../stores/monitors'
 import { useSession } from '../../stores/session'
-import { meWith } from '../../test/fixtures'
+import { meWith, monitor } from '../../test/fixtures'
 import { buildEchoOptions } from '../echo'
 import { RESYNC_HIDDEN_MS, setEchoFactory, useWorkspaceLive } from '../useWorkspaceLive'
 
@@ -24,12 +25,12 @@ class FakeEcho {
   channels = new Map<string, FakeChannel>()
   left: string[] = []
   disconnected = false
-  stateHandlers: Array<(change: { current: string }) => void> = []
+  stateHandlers: Array<(change: { previous?: string, current: string }) => void> = []
   connector = {
     pusher: {
       connection: {
         state: 'connecting',
-        bind: (_event: string, cb: (change: { current: string }) => void) => {
+        bind: (_event: string, cb: (change: { previous?: string, current: string }) => void) => {
           this.stateHandlers.push(cb)
         },
         unbind: () => {},
@@ -52,15 +53,16 @@ class FakeEcho {
   }
 
   setState(current: string) {
+    const previous = this.connector.pusher.connection.state
     this.connector.pusher.connection.state = current
-    this.stateHandlers.forEach(h => h({ current }))
+    this.stateHandlers.forEach(h => h({ previous, current }))
   }
 }
 
 function setup(channel: string | null = 'workspace.12') {
   setActivePinia(createPinia())
   const echo = new FakeEcho()
-  setEchoFactory(() => echo as never)
+  setEchoFactory(async () => echo as never)
   const session = useSession()
   session.me = meWith({ slug: 'acme', channel }, { slug: 'beta', channel: 'workspace.99' })
   session.currentSlug = 'acme'
@@ -75,7 +77,7 @@ describe('workspace live', () => {
 
   it('subscribes to the channel from the workspace payload and leaves on switch', async () => {
     const { echo, session, live } = setup()
-    await nextTick()
+    await flushPromises()
 
     expect([
       ...echo.channels.keys(),
@@ -85,28 +87,78 @@ describe('workspace live', () => {
     expect(live.state).toBe('live')
 
     session.currentSlug = 'beta'
-    await nextTick()
+    await flushPromises()
     expect(echo.left).toContain('workspace.12')
     expect([
       ...echo.channels.keys(),
     ]).toEqual(['workspace.12', 'workspace.99'])
 
     session.currentSlug = null
-    await nextTick()
+    await flushPromises()
     expect(echo.left).toContain('workspace.99')
     expect(live.state).toBe('offline')
   })
 
+  it('resyncs after a short reconnect that never reaches unavailable', async () => {
+    const { echo, live } = setup()
+    await flushPromises()
+    const resync = vi.fn()
+    live.onResync(resync)
+
+    echo.setState('connected')
+    expect(resync).not.toHaveBeenCalled()
+    echo.setState('connecting')
+    expect(live.state).toBe('connecting')
+    echo.setState('connected')
+    expect(resync).toHaveBeenCalledTimes(1)
+  })
+
+  it('discards a client that finishes loading after the channel changed', async () => {
+    setActivePinia(createPinia())
+    const echo = new FakeEcho()
+    let release: (e: never) => void = () => {}
+    setEchoFactory(() => new Promise((resolve) => {
+      release = resolve as (e: never) => void
+    }))
+    const session = useSession()
+    session.me = meWith({ slug: 'acme', channel: 'workspace.12' })
+    session.currentSlug = 'acme'
+    const live = useWorkspaceLive()
+    session.currentSlug = null
+    await flushPromises()
+    release(echo as never)
+    await flushPromises()
+
+    expect(echo.disconnected).toBe(true)
+    expect(echo.channels.size).toBe(0)
+    expect(live.state).toBe('offline')
+  })
+
+  it('clears loaded monitors on workspace switch and sign-out', async () => {
+    const { session } = setup()
+    await flushPromises()
+    const store = useMonitors()
+    store.upsert(monitor({ id: 1 }))
+    session.currentSlug = 'beta'
+    await flushPromises()
+    expect(store.items.size).toBe(0)
+
+    store.upsert(monitor({ id: 2 }))
+    session.me = null
+    await flushPromises()
+    expect(store.items.size).toBe(0)
+  })
+
   it('stays offline and never subscribes without a channel', async () => {
     const { echo, live } = setup(null)
-    await nextTick()
+    await flushPromises()
     expect(echo.channels.size).toBe(0)
     expect(live.state).toBe('offline')
   })
 
   it('dispatches broadcast events to listeners', async () => {
     const { echo, live } = setup()
-    await nextTick()
+    await flushPromises()
     const seen: unknown[] = []
     live.on('alert', e => seen.push(e))
     echo.channels.get('workspace.12')?.handlers.get('.alert.raised')?.({
@@ -123,7 +175,7 @@ describe('workspace live', () => {
     vi.useFakeTimers()
     try {
       const { echo, live } = setup()
-      await nextTick()
+      await flushPromises()
       const resync = vi.fn()
       live.onResync(resync)
 

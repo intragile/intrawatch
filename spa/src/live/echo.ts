@@ -1,6 +1,5 @@
+import type Echo from 'laravel-echo'
 import type { ChannelAuthorizationCallback } from 'pusher-js/types/src/core/auth/options'
-import Echo from 'laravel-echo'
-import Pusher from 'pusher-js'
 import { ensureCsrf, readXsrfToken } from '../api'
 
 const AUTH_ENDPOINT = '/broadcasting/auth'
@@ -60,8 +59,12 @@ export function buildEchoOptions(key: string) {
   }
 }
 
-/** Creates the Echo client; opening it connects the socket immediately. */
-export function createEcho(key: string): Echo<'reverb'> {
-  (globalThis as { Pusher?: typeof Pusher }).Pusher = Pusher
-  return new Echo(buildEchoOptions(key) as never)
+/** Creates the Echo client; opening it connects the socket immediately. The libraries load on first use. */
+export async function createEcho(key: string): Promise<Echo<'reverb'>> {
+  const [{ default: EchoClient }, { default: Pusher }] = await Promise.all([
+    import('laravel-echo'),
+    import('pusher-js'),
+  ]);
+  (globalThis as { Pusher?: unknown }).Pusher = Pusher
+  return new EchoClient(buildEchoOptions(key) as never)
 }

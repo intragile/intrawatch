@@ -26,17 +26,19 @@ export interface EchoLike {
     pusher: {
       connection: {
         state: string
-        bind: (event: string, cb: (change: { current: string }) => void) => void
-        unbind: (event: string, cb: (change: { current: string }) => void) => void
+        bind: (event: string, cb: (change: { previous?: string, current: string }) => void) => void
+        unbind: (event: string, cb: (change: { previous?: string, current: string }) => void) => void
       }
     }
   }
 }
 
-let factory: () => EchoLike = () => createEcho(readRuntimeConfig().reverb.key) as unknown as EchoLike
+type EchoFactory = () => EchoLike | Promise<EchoLike>
+
+let factory: EchoFactory = () => createEcho(readRuntimeConfig().reverb.key) as unknown as Promise<EchoLike>
 
 /** Replaces how the Echo client is created (tests inject a fake instead of opening a socket). */
-export function setEchoFactory(next: () => EchoLike): void {
+export function setEchoFactory(next: EchoFactory): void {
   factory = next
 }
 
@@ -68,6 +70,8 @@ export const useWorkspaceLive = defineStore('workspaceLive', () => {
   let channelName: string | null = null
   let dropped = false
   let hiddenAt: number | null = null
+  /** Bumped on every channel change so a client still loading for an old one is discarded. */
+  let generation = 0
 
   function on<K extends keyof LiveEvents>(event: K, cb: (e: LiveEvents[K]) => void): () => void {
     const list = listeners[event]
@@ -98,9 +102,11 @@ export const useWorkspaceLive = defineStore('workspaceLive', () => {
       cb()
   }
 
-  function onConnection(change: { current: string }): void {
+  function onConnection(change: { previous?: string, current: string }): void {
     const next = stateOf(change.current)
-    if (next === 'offline')
+    // pusher-js retries a lost link while still reporting connected, then goes through connecting;
+    // leaving connected for any reason can lose events, whether or not it ever reaches unavailable.
+    if (next === 'offline' || (change.previous === 'connected' && change.current !== 'connected'))
       dropped = true
     if (next === 'live' && dropped) {
       dropped = false
@@ -118,6 +124,7 @@ export const useWorkspaceLive = defineStore('workspaceLive', () => {
   }
 
   function stop(): void {
+    generation++
     leave()
     if (echo) {
       echo.connector.pusher.connection.unbind('state_change', onConnection)
@@ -128,9 +135,24 @@ export const useWorkspaceLive = defineStore('workspaceLive', () => {
     state.value = 'offline'
   }
 
-  function subscribe(name: string): void {
+  async function subscribe(name: string): Promise<void> {
+    const mine = generation
     if (!echo) {
-      echo = factory()
+      state.value = 'connecting'
+      let created: EchoLike
+      try {
+        created = await factory()
+      }
+      catch {
+        if (mine === generation)
+          state.value = 'offline'
+        return
+      }
+      if (mine !== generation) {
+        created.disconnect()
+        return
+      }
+      echo = created
       echo.connector.pusher.connection.bind('state_change', onConnection)
     }
     channelName = name
@@ -152,11 +174,14 @@ export const useWorkspaceLive = defineStore('workspaceLive', () => {
   }
 
   watch(() => session.current?.channel ?? null, (name) => {
+    generation++
     leave()
+    // Loaded monitors belong to the workspace and user that were current.
+    monitors.clear()
     if (name === null)
       stop()
     else
-      subscribe(name)
+      void subscribe(name)
   }, { immediate: true })
 
   if (typeof document !== 'undefined') {
