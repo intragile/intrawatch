@@ -117,6 +117,7 @@ final class OutboundHttp
             "HTTP {$status}",
             permanent: ! $retryable,
             retryAfter: $retryable ? self::retryAfter($response) : null,
+            responseBody: $sink->contents(),
         );
     }
 

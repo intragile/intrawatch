@@ -17,6 +17,7 @@ final class DeliveryFailure extends RuntimeException
         public readonly bool $permanent = false,
         public readonly ?int $retryAfter = null,
         public readonly ?string $detail = null,
+        public readonly ?string $responseBody = null,
     ) {
         parent::__construct(self::compose($reason, $detail));
     }

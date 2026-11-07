@@ -64,6 +64,21 @@ abstract class SenderTestCase extends TestCase
         return new OutgoingNotification($title, $body, 'critical', [$item], false);
     }
 
+    /**
+     * @param  list<array{key: string, old: mixed, new: mixed}>  $changes
+     */
+    protected function notificationOf(AlertKind $kind, string $status = 'down', array $changes = []): OutgoingNotification
+    {
+        $severity = $kind->severity();
+        $item = new AlertMessage(
+            $kind, $severity, 7, 'Acme', 42, 'Web', 'http', 'https://x.test', $status, null,
+            'msg', CarbonImmutable::parse('2026-07-01 10:30:00', 'UTC'), null,
+            $changes, 'https://iw.test/monitors/42', '['.$kind->label().'] Web', 'Web body',
+        );
+
+        return new OutgoingNotification($item->title, $item->body, $severity, [$item], false);
+    }
+
     protected function lastRequest(): RequestInterface
     {
         $request = end($this->history);
