@@ -6,6 +6,8 @@ use Amp\Dns\DnsResolver;
 use App\Alerting\Transport\AddressResolver;
 use App\Alerting\Transport\SystemAddressResolver;
 use App\Enums\MonitorType;
+use App\Events\MonitorStatusChanged;
+use App\Listeners\StampStatusPages;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Checks\DnsChecker;
@@ -142,6 +144,7 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('notification-test', fn (Request $request): Limit => Limit::perMinute(10)->by('user:'.($request->user()->id ?? $request->ip())));
 
+        Event::listen(MonitorStatusChanged::class, StampStatusPages::class);
         Event::listen(Login::class, [RecordAuthEvent::class, 'handleLogin']);
         Event::listen(Failed::class, [RecordAuthEvent::class, 'handleFailed']);
         Event::listen(TwoFactorAuthenticationEnabled::class, [RecordAuthEvent::class, 'handleTwoFactorEnabled']);

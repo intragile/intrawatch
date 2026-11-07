@@ -18,6 +18,8 @@ use App\Http\Controllers\Api\NotificationChannelTypeController;
 use App\Http\Controllers\Api\OpenApiController;
 use App\Http\Controllers\Api\PushController;
 use App\Http\Controllers\Api\SetupController;
+use App\Http\Controllers\Api\StatusPageController;
+use App\Http\Controllers\Api\StatusPageLayoutController;
 use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\WorkspaceController;
@@ -124,6 +126,18 @@ Route::prefix('v1')->group(function (): void {
                 Route::patch('/maintenances/{maintenance}', [MaintenanceController::class, 'update'])->whereNumber('maintenance');
                 Route::delete('/maintenances/{maintenance}', [MaintenanceController::class, 'destroy'])->whereNumber('maintenance');
                 Route::post('/maintenances/{maintenance}/end', [MaintenanceController::class, 'end'])->whereNumber('maintenance');
+            });
+
+            Route::middleware(['ability:status-pages:read', 'can:viewStatusPages,workspace'])->group(function (): void {
+                Route::get('/status-pages', [StatusPageController::class, 'index']);
+                Route::get('/status-pages/{statusPage}', [StatusPageController::class, 'show'])->whereNumber('statusPage');
+            });
+
+            Route::middleware(['ability:status-pages:write', 'can:manageStatusPages,workspace'])->group(function (): void {
+                Route::post('/status-pages', [StatusPageController::class, 'store']);
+                Route::patch('/status-pages/{statusPage}', [StatusPageController::class, 'update'])->whereNumber('statusPage');
+                Route::delete('/status-pages/{statusPage}', [StatusPageController::class, 'destroy'])->whereNumber('statusPage');
+                Route::put('/status-pages/{statusPage}/layout', [StatusPageLayoutController::class, 'update'])->whereNumber('statusPage');
             });
 
             Route::get('/tokens', [TokenController::class, 'index']);

@@ -8,8 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
 use App\Jobs\RebuildDayRollups;
 use App\Models\Membership;
+use App\Models\StatusPage;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Status\Pages\PageStamps;
 use App\Support\Audit;
 use App\Support\CurrentWorkspace;
 use Illuminate\Database\Eloquent\Model;
@@ -94,10 +96,17 @@ class WorkspaceController extends Controller
     {
         Gate::authorize('delete', $workspace);
 
+        $pages = StatusPage::query()->forWorkspace($workspace)->get(['id', 'slug', 'custom_domain']);
+
         DB::transaction(function () use ($workspace): void {
             $workspace->delete();
             Audit::record('workspace.deleted', $workspace, ['name' => [$workspace->name, null]]);
         });
+
+        $stamps = app(PageStamps::class);
+        foreach ($pages as $page) {
+            $stamps->forgetPage($page);
+        }
 
         return response()->noContent();
     }

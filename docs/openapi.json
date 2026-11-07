@@ -6708,6 +6708,1098 @@
                 }
             }
         },
+        "/workspaces/{workspace}/status-pages": {
+            "get": {
+                "operationId": "statusPage.index",
+                "summary": "Lists the status pages of the workspace without their layout",
+                "tags": [
+                    "StatusPage"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "limit": {}
+                                            },
+                                            "required": [
+                                                "next_cursor",
+                                                "limit"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "statusPage.store",
+                "tags": [
+                    "StatusPage"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StatusPageRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "slug": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                },
+                                                "description": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "custom_domain": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "published": {
+                                                    "type": "boolean"
+                                                },
+                                                "locale": {
+                                                    "type": "string"
+                                                },
+                                                "accent_color": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "logo_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "favicon_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "custom_css": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "footer": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "bar_days": {
+                                                    "type": "integer"
+                                                },
+                                                "uptime_days": {
+                                                    "type": "integer"
+                                                },
+                                                "upcoming_maintenance_days": {
+                                                    "type": "integer"
+                                                },
+                                                "incident_history_days": {
+                                                    "type": "integer"
+                                                },
+                                                "show_latency": {
+                                                    "type": "boolean"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "sections": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "position": {
+                                                                "type": "integer"
+                                                            },
+                                                            "items": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "monitor_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "display_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "description": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "position": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "expand_children": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "show_uptime": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "monitor_id",
+                                                                        "display_name",
+                                                                        "description",
+                                                                        "position",
+                                                                        "expand_children",
+                                                                        "show_uptime"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "description",
+                                                            "position",
+                                                            "items"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "slug",
+                                                "title",
+                                                "description",
+                                                "custom_domain",
+                                                "published",
+                                                "locale",
+                                                "accent_color",
+                                                "logo_url",
+                                                "favicon_url",
+                                                "custom_css",
+                                                "footer",
+                                                "bar_days",
+                                                "uptime_days",
+                                                "upcoming_maintenance_days",
+                                                "incident_history_days",
+                                                "show_latency",
+                                                "created_at",
+                                                "updated_at",
+                                                "sections"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/status-pages/{statusPage}": {
+            "get": {
+                "operationId": "statusPage.show",
+                "tags": [
+                    "StatusPage"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "statusPage",
+                        "in": "path",
+                        "required": true,
+                        "description": "The status page ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "slug": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                },
+                                                "description": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "custom_domain": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "published": {
+                                                    "type": "boolean"
+                                                },
+                                                "locale": {
+                                                    "type": "string"
+                                                },
+                                                "accent_color": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "logo_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "favicon_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "custom_css": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "footer": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "bar_days": {
+                                                    "type": "integer"
+                                                },
+                                                "uptime_days": {
+                                                    "type": "integer"
+                                                },
+                                                "upcoming_maintenance_days": {
+                                                    "type": "integer"
+                                                },
+                                                "incident_history_days": {
+                                                    "type": "integer"
+                                                },
+                                                "show_latency": {
+                                                    "type": "boolean"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "sections": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "position": {
+                                                                "type": "integer"
+                                                            },
+                                                            "items": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "monitor_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "display_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "description": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "position": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "expand_children": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "show_uptime": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "monitor_id",
+                                                                        "display_name",
+                                                                        "description",
+                                                                        "position",
+                                                                        "expand_children",
+                                                                        "show_uptime"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "description",
+                                                            "position",
+                                                            "items"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "slug",
+                                                "title",
+                                                "description",
+                                                "custom_domain",
+                                                "published",
+                                                "locale",
+                                                "accent_color",
+                                                "logo_url",
+                                                "favicon_url",
+                                                "custom_css",
+                                                "footer",
+                                                "bar_days",
+                                                "uptime_days",
+                                                "upcoming_maintenance_days",
+                                                "incident_history_days",
+                                                "show_latency",
+                                                "created_at",
+                                                "updated_at",
+                                                "sections"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "statusPage.update",
+                "tags": [
+                    "StatusPage"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "statusPage",
+                        "in": "path",
+                        "required": true,
+                        "description": "The status page ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StatusPageRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "slug": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                },
+                                                "description": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "custom_domain": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "published": {
+                                                    "type": "boolean"
+                                                },
+                                                "locale": {
+                                                    "type": "string"
+                                                },
+                                                "accent_color": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "logo_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "favicon_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "custom_css": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "footer": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "bar_days": {
+                                                    "type": "integer"
+                                                },
+                                                "uptime_days": {
+                                                    "type": "integer"
+                                                },
+                                                "upcoming_maintenance_days": {
+                                                    "type": "integer"
+                                                },
+                                                "incident_history_days": {
+                                                    "type": "integer"
+                                                },
+                                                "show_latency": {
+                                                    "type": "boolean"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "sections": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "position": {
+                                                                "type": "integer"
+                                                            },
+                                                            "items": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "monitor_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "display_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "description": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "position": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "expand_children": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "show_uptime": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "monitor_id",
+                                                                        "display_name",
+                                                                        "description",
+                                                                        "position",
+                                                                        "expand_children",
+                                                                        "show_uptime"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "description",
+                                                            "position",
+                                                            "items"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "slug",
+                                                "title",
+                                                "description",
+                                                "custom_domain",
+                                                "published",
+                                                "locale",
+                                                "accent_color",
+                                                "logo_url",
+                                                "favicon_url",
+                                                "custom_css",
+                                                "footer",
+                                                "bar_days",
+                                                "uptime_days",
+                                                "upcoming_maintenance_days",
+                                                "incident_history_days",
+                                                "show_latency",
+                                                "created_at",
+                                                "updated_at",
+                                                "sections"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "statusPage.destroy",
+                "tags": [
+                    "StatusPage"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "statusPage",
+                        "in": "path",
+                        "required": true,
+                        "description": "The status page ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/status-pages/{statusPage}/layout": {
+            "put": {
+                "operationId": "statusPageLayout.update",
+                "summary": "Replaces all sections and items of the page. The order of the arrays is the display order",
+                "tags": [
+                    "StatusPageLayout"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "statusPage",
+                        "in": "path",
+                        "required": true,
+                        "description": "The status page ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StatusPageLayoutRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "slug": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                },
+                                                "description": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "custom_domain": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "published": {
+                                                    "type": "boolean"
+                                                },
+                                                "locale": {
+                                                    "type": "string"
+                                                },
+                                                "accent_color": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "logo_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "favicon_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "custom_css": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "footer": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "bar_days": {
+                                                    "type": "integer"
+                                                },
+                                                "uptime_days": {
+                                                    "type": "integer"
+                                                },
+                                                "upcoming_maintenance_days": {
+                                                    "type": "integer"
+                                                },
+                                                "incident_history_days": {
+                                                    "type": "integer"
+                                                },
+                                                "show_latency": {
+                                                    "type": "boolean"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "sections": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "position": {
+                                                                "type": "integer"
+                                                            },
+                                                            "items": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "monitor_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "display_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "description": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "position": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "expand_children": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "show_uptime": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "monitor_id",
+                                                                        "display_name",
+                                                                        "description",
+                                                                        "position",
+                                                                        "expand_children",
+                                                                        "show_uptime"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "description",
+                                                            "position",
+                                                            "items"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "slug",
+                                                "title",
+                                                "description",
+                                                "custom_domain",
+                                                "published",
+                                                "locale",
+                                                "accent_color",
+                                                "logo_url",
+                                                "favicon_url",
+                                                "custom_css",
+                                                "footer",
+                                                "bar_days",
+                                                "uptime_days",
+                                                "upcoming_maintenance_days",
+                                                "incident_history_days",
+                                                "show_latency",
+                                                "created_at",
+                                                "updated_at",
+                                                "sections"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/tags": {
             "get": {
                 "operationId": "tag.index",
@@ -7532,6 +8624,181 @@
                     "email"
                 ],
                 "title": "SendPasswordResetLinkRequest"
+            },
+            "StatusPageLayoutRequest": {
+                "type": "object",
+                "description": "Validation of a full layout replacement: at most 50 sections and 250 items in total, each monitor of the\nworkspace at most once on the page.",
+                "properties": {
+                    "sections": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "maxLength": 190
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 500
+                                },
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "monitor_id": {
+                                                "type": "integer"
+                                            },
+                                            "display_name": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "maxLength": 190
+                                            },
+                                            "description": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "maxLength": 500
+                                            },
+                                            "expand_children": {
+                                                "type": "boolean"
+                                            },
+                                            "show_uptime": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "required": [
+                                            "monitor_id"
+                                        ]
+                                    },
+                                    "maxItems": 250,
+                                    "uniqueItems": true
+                                }
+                            },
+                            "required": [
+                                "name"
+                            ]
+                        },
+                        "maxItems": 50
+                    }
+                },
+                "required": [
+                    "sections"
+                ],
+                "title": "StatusPageLayoutRequest"
+            },
+            "StatusPageRequest": {
+                "type": "object",
+                "description": "Validation of status page writes. Creating needs the slug and title; updating accepts any subset. The\ncustom domain is normalised (lower-case, no trailing dot) before it is validated and stored.",
+                "properties": {
+                    "slug": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])$"
+                    },
+                    "title": {
+                        "type": "string",
+                        "maxLength": 190
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 10000
+                    },
+                    "custom_domain": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 253
+                    },
+                    "published": {
+                        "type": "boolean"
+                    },
+                    "locale": {
+                        "type": "string",
+                        "enum": [
+                            "en",
+                            "hu"
+                        ]
+                    },
+                    "accent_color": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^#[0-9a-f]{6}$"
+                    },
+                    "logo_url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2048
+                    },
+                    "favicon_url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2048
+                    },
+                    "custom_css": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 20000
+                    },
+                    "footer": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 2000
+                    },
+                    "bar_days": {
+                        "type": "integer",
+                        "minimum": 7,
+                        "maximum": 365
+                    },
+                    "uptime_days": {
+                        "type": "integer",
+                        "enum": [
+                            "1",
+                            "7",
+                            "30",
+                            "90",
+                            "365"
+                        ]
+                    },
+                    "upcoming_maintenance_days": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 90
+                    },
+                    "incident_history_days": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 90
+                    },
+                    "show_latency": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "slug",
+                    "title"
+                ],
+                "title": "StatusPageRequest"
             },
             "StoreMonitorRequest": {
                 "type": "object",

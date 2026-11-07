@@ -9,6 +9,8 @@ use App\Http\Requests\IncidentRequest;
 use App\Http\Resources\IncidentResource;
 use App\Models\Incident;
 use App\Models\Workspace;
+use App\Status\Pages\AffectedPages;
+use App\Status\Pages\PageStamps;
 use App\Support\Audit;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -23,6 +25,8 @@ class IncidentController extends Controller
     private const CHUNK = 500;
 
     private const STATES = ['open', 'resolved', 'all'];
+
+    public function __construct(private readonly PageStamps $stamps) {}
 
     /**
      * Lists the incidents of the workspace, newest start first.
@@ -78,13 +82,16 @@ class IncidentController extends Controller
 
             return $incident->id;
         });
+        $this->stamps->bumpPage(...AffectedPages::forIncident($id));
 
         return $this->respond($id, 201);
     }
 
     public function update(IncidentRequest $request, Workspace $workspace, Incident $incident): JsonResponse
     {
-        DB::transaction(function () use ($request, $incident): void {
+        $affected = [];
+        DB::transaction(function () use ($request, $incident, &$affected): void {
+            $affected = AffectedPages::forIncident($incident->id);
             $oldMonitorIds = $this->monitorIds($incident);
             $oldStatusPageIds = $this->statusPageIds($incident);
             $old = $incident->only(array_keys($request->incidentAttributes()));
@@ -113,16 +120,20 @@ class IncidentController extends Controller
                 Audit::record('incident.updated', $incident, $diff);
             }
         });
+        $this->stamps->bumpPage(...$affected, ...AffectedPages::forIncident($incident->id));
 
         return $this->respond($incident->id);
     }
 
     public function destroy(Workspace $workspace, Incident $incident): Response
     {
-        DB::transaction(function () use ($incident): void {
+        $affected = [];
+        DB::transaction(function () use ($incident, &$affected): void {
+            $affected = AffectedPages::forIncident($incident->id);
             $incident->delete();
             Audit::record('incident.deleted', $incident, ['title' => [$incident->title, null]]);
         });
+        $this->stamps->bumpPage(...$affected);
 
         return response()->noContent();
     }

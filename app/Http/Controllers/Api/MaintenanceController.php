@@ -13,6 +13,8 @@ use App\Status\Maintenance\CalendarMaintenanceOracle;
 use App\Status\Maintenance\MaintenanceState;
 use App\Status\Maintenance\MaintenanceSync;
 use App\Status\Maintenance\SyncResult;
+use App\Status\Pages\AffectedPages;
+use App\Status\Pages\PageStamps;
 use App\Support\Audit;
 use Carbon\CarbonImmutable;
 use Closure;
@@ -35,6 +37,7 @@ class MaintenanceController extends Controller
     public function __construct(
         private readonly MaintenanceSync $sync,
         private readonly MaintenanceOracle $oracle,
+        private readonly PageStamps $stamps,
     ) {}
 
     /**
@@ -93,13 +96,16 @@ class MaintenanceController extends Controller
         });
         $result->afterCommit();
         $this->oracle->warm();
+        $this->stamps->bumpPage(...AffectedPages::forMaintenance($id));
 
         return $this->respond($workspace, $id, 201);
     }
 
     public function update(MaintenanceRequest $request, Workspace $workspace, Maintenance $maintenance): JsonResponse
     {
-        $result = $this->write(function () use ($request, $workspace, $maintenance): SyncResult {
+        $affected = [];
+        $result = $this->write(function () use ($request, $workspace, $maintenance, &$affected): SyncResult {
+            $affected = AffectedPages::forMaintenance($maintenance->id);
             $oldMonitorIds = $this->monitorIds($maintenance);
             $oldStatusPageIds = $this->statusPageIds($maintenance);
             $before = MaintenanceState::of($maintenance, $workspace->timezone, $oldMonitorIds);
@@ -133,13 +139,16 @@ class MaintenanceController extends Controller
         });
         $result->afterCommit();
         $this->oracle->warm();
+        $this->stamps->bumpPage(...$affected, ...AffectedPages::forMaintenance($maintenance->id));
 
         return $this->respond($workspace, $maintenance->id);
     }
 
     public function destroy(Workspace $workspace, Maintenance $maintenance): Response
     {
-        $result = $this->write(function () use ($workspace, $maintenance): SyncResult {
+        $affected = [];
+        $result = $this->write(function () use ($workspace, $maintenance, &$affected): SyncResult {
+            $affected = AffectedPages::forMaintenance($maintenance->id);
             $before = MaintenanceState::of($maintenance, $workspace->timezone, $this->monitorIds($maintenance));
             $maintenance->monitors()->detach();
             $maintenance->delete();
@@ -149,6 +158,7 @@ class MaintenanceController extends Controller
         });
         $result->afterCommit();
         $this->oracle->warm();
+        $this->stamps->bumpPage(...$affected);
 
         return response()->noContent();
     }
@@ -180,6 +190,7 @@ class MaintenanceController extends Controller
         });
         $result->afterCommit();
         $this->oracle->warm();
+        $this->stamps->bumpPage(...AffectedPages::forMaintenance($maintenance->id));
 
         return $this->respond($workspace, $maintenance->id);
     }

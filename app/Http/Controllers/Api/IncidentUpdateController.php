@@ -9,6 +9,8 @@ use App\Http\Resources\IncidentUpdateResource;
 use App\Models\Incident;
 use App\Models\IncidentUpdate;
 use App\Models\Workspace;
+use App\Status\Pages\AffectedPages;
+use App\Status\Pages\PageStamps;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -17,6 +19,8 @@ use Illuminate\Validation\ValidationException;
 
 class IncidentUpdateController extends Controller
 {
+    public function __construct(private readonly PageStamps $stamps) {}
+
     /**
      * Adds a timeline entry. The incident takes the entry's status; `resolved` stamps the resolution time and
      * any open status after a resolution reopens the incident.
@@ -47,6 +51,7 @@ class IncidentUpdateController extends Controller
 
             return $update;
         });
+        $this->bump($incident);
 
         return response()->json(['data' => IncidentUpdateResource::toArray($update)], 201);
     }
@@ -65,6 +70,7 @@ class IncidentUpdateController extends Controller
                 Audit::record('incident.update_edited', $incident, ['update_id' => [$update->id, $update->id]]);
             }
         });
+        $this->bump($incident);
 
         return response()->json(['data' => IncidentUpdateResource::toArray($update->refresh())]);
     }
@@ -97,8 +103,14 @@ class IncidentUpdateController extends Controller
                 'update_id' => [$update->id, null],
             ]);
         });
+        $this->bump($incident);
 
         return response()->noContent();
+    }
+
+    private function bump(Incident $incident): void
+    {
+        $this->stamps->bumpPage(...AffectedPages::forIncident($incident->id));
     }
 
     private function lock(Incident $incident): Incident
