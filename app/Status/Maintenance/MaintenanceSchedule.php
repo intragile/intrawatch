@@ -50,7 +50,11 @@ final class MaintenanceSchedule
         private readonly ?string $validUntil,
         private readonly ?string $anchorDate,
     ) {
-        $this->zone = new DateTimeZone($timezone);
+        try {
+            $this->zone = new DateTimeZone($timezone);
+        } catch (\Throwable) {
+            throw new InvalidArgumentException("Unknown timezone '{$timezone}'.");
+        }
     }
 
     public static function fromModel(Maintenance $maintenance, string $workspaceTimezone): self
@@ -81,7 +85,15 @@ final class MaintenanceSchedule
     public static function fromArray(array $attributes, string $workspaceTimezone): self
     {
         $strategy = $attributes['strategy'] ?? null;
-        $strategy = $strategy instanceof MaintenanceStrategy ? $strategy : MaintenanceStrategy::from(self::string($strategy) ?? '');
+        $strategy = $strategy instanceof MaintenanceStrategy ? $strategy : MaintenanceStrategy::tryFrom(self::string($strategy) ?? '');
+        if ($strategy === null) {
+            throw new InvalidArgumentException('Unknown or missing maintenance strategy.');
+        }
+
+        $startTime = self::string($attributes['start_time'] ?? null);
+        if ($startTime !== null && preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $startTime) !== 1) {
+            throw new InvalidArgumentException("Invalid start_time '{$startTime}', expected HH:MM.");
+        }
 
         $timezone = self::string($attributes['timezone'] ?? null) ?? $workspaceTimezone;
         $validFrom = self::date($attributes['valid_from'] ?? null);
@@ -101,7 +113,7 @@ final class MaintenanceSchedule
             timezone: $timezone,
             startsAt: self::instant($attributes['starts_at'] ?? null),
             endsAt: self::instant($attributes['ends_at'] ?? null),
-            startTime: self::string($attributes['start_time'] ?? null),
+            startTime: $startTime,
             durationMinutes: self::int($attributes['duration_minutes'] ?? null),
             everyDays: self::int($attributes['every_days'] ?? null),
             weekdays: self::ints($attributes['weekdays'] ?? null),
@@ -184,6 +196,15 @@ final class MaintenanceSchedule
         }
 
         $cursor = $from->subMinutes((int) $this->durationMinutes);
+        if ($this->validFrom !== null) {
+            // One second before local midnight of valid_from, so a run exactly at midnight is still found.
+            $validFromStart = CarbonImmutable::createFromTimestampUTC(
+                (new DateTimeImmutable($this->validFrom.' 00:00:00', $this->zone))->getTimestamp() - 1,
+            );
+            if ($validFromStart->gt($cursor)) {
+                $cursor = $validFromStart;
+            }
+        }
         while (($start = $schedule->nextAfter($cursor)) !== null && $start->lt($to)) {
             $cursor = $start;
             $date = $start->setTimezone($this->zone)->format('Y-m-d');
@@ -193,7 +214,7 @@ final class MaintenanceSchedule
             if ($this->validUntil !== null && $date > $this->validUntil) {
                 return;
             }
-            yield $this->window($start);
+            yield $this->window($start->setTimezone('UTC'));
         }
     }
 

@@ -235,4 +235,50 @@ class MaintenanceScheduleTest extends TestCase
         $this->assertCount(MaintenanceSchedule::MAX_WINDOWS, $windows);
         $this->assertSame('2027-01-01 00:00', $windows[0]->start->format('Y-m-d H:i'));
     }
+
+    public function test_cron_with_future_valid_from_starts_at_valid_from_quickly(): void
+    {
+        $s = $this->schedule(['strategy' => 'cron', 'cron' => '* * * * *', 'duration_minutes' => 1, 'timezone' => 'UTC', 'valid_from' => '2027-12-01']);
+        $started = microtime(true);
+        $next = $s->nextWindow($this->at('2027-01-01 00:00'));
+        $this->assertLessThan(0.5, microtime(true) - $started);
+        $this->assertSame('2027-12-01 00:00', $next?->start->format('Y-m-d H:i'));
+
+        $budapest = $this->schedule(['strategy' => 'cron', 'cron' => '0 0 * * *', 'duration_minutes' => 10, 'valid_from' => '2027-12-01']);
+        $this->assertSame('2027-11-30 23:00', $budapest->nextWindow($this->at('2027-01-01 00:00'))?->start->format('Y-m-d H:i'));
+    }
+
+    public function test_cron_across_dst_in_budapest(): void
+    {
+        $s = $this->schedule(['strategy' => 'cron', 'cron' => '30 2 * * *', 'duration_minutes' => 60]);
+        // Spring forward: the skipped 02:30 runs at the jump, 03:00 CEST.
+        $this->assertSame(
+            ['2027-03-28 01:00/2027-03-28 02:00'],
+            $this->format($s->windowsBetween($this->at('2027-03-28 00:00'), $this->at('2027-03-28 12:00'))),
+        );
+        // Fall back: the repeated 02:30 runs once, at its first occurrence (CEST).
+        $this->assertSame(
+            ['2027-10-31 00:30/2027-10-31 01:30'],
+            $this->format($s->windowsBetween($this->at('2027-10-31 00:00'), $this->at('2027-10-31 12:00'))),
+        );
+    }
+
+    public function test_invalid_definitions_throw_invalid_argument(): void
+    {
+        $bad = [
+            ['strategy' => 'bogus'],
+            ['strategy' => null],
+            ['strategy' => 'weekly', 'timezone' => 'Mars/Base'],
+            ['strategy' => 'weekly', 'start_time' => '25:00'],
+            ['strategy' => 'weekly', 'start_time' => 'noon'],
+        ];
+        foreach ($bad as $attributes) {
+            try {
+                MaintenanceSchedule::fromArray($attributes, 'UTC');
+                $this->fail('Expected InvalidArgumentException for '.json_encode($attributes));
+            } catch (InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
 }
