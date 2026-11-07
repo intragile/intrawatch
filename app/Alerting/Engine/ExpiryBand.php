@@ -2,6 +2,8 @@
 
 namespace App\Alerting\Engine;
 
+use InvalidArgumentException;
+
 /**
  * Orders and describes the expiry bands produced by the certificate and domain checks.
  */
@@ -20,7 +22,9 @@ final readonly class ExpiryBand
     }
 
     /**
-     * A short description of entering a band, such as "Certificate expires within 14 days".
+     * A short description of entering a warning band, such as "Certificate expires within 14 days".
+     *
+     * @throws InvalidArgumentException for `ok` or an unknown band, which no expiry warning enters.
      */
     public static function message(string $key, string $band): string
     {
@@ -29,7 +33,7 @@ final readonly class ExpiryBand
         return match (true) {
             $band === 'expired' => "{$subject} expired",
             ctype_digit($band) => $band === '1' ? "{$subject} expires within 1 day" : "{$subject} expires within {$band} days",
-            default => "{$subject} renewed",
+            default => throw new InvalidArgumentException("Expiry band \"{$band}\" is not a warning band."),
         };
     }
 

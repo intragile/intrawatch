@@ -15,6 +15,7 @@ use App\Alerting\Engine\Signals\TickSignal;
 use App\Enums\AlertKind;
 use App\Enums\MonitorStatus;
 use Carbon\CarbonImmutable;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 class AlertMachineTest extends TestCase
@@ -315,11 +316,13 @@ class AlertMachineTest extends TestCase
         $this->assertSame(MonitorStatus::Up, $flapping->status);
         $this->assertTrue($state->flapping);
         $this->assertEquals($this->at(240), $state->flappingSince);
-        $this->assertEquals($this->at(1800 + 600), $state->dueAt);
+        // The change before the last one leaves the window at 1740 + 601, before the 600 s quiet period ends.
+        $this->assertEquals($this->at(1740 + 601), $state->dueAt);
 
-        $this->assertSame([], $this->tick($policy, $state, 1800 + 599)->alerts);
-        $stable = $this->tick($policy, $state, 1800 + 600);
+        $this->assertSame([], $this->tick($policy, $state, 1740 + 600)->alerts);
+        $stable = $this->tick($policy, $state, 1740 + 601);
         $this->assertSame([AlertKind::Stable], $this->kinds($stable->alerts));
+        $this->assertSame('Fewer than 2 status changes in 10 min', $stable->alerts[0]->message);
         $this->assertSame(MonitorStatus::Up, $stable->alerts[0]->status);
         $this->assertSame(MonitorStatus::Down, $stable->alerts[0]->previousStatus);
         $this->assertFalse($stable->state->flapping);
@@ -347,14 +350,14 @@ class AlertMachineTest extends TestCase
         $this->assertTrue($state->flapping);
         $this->assertSame(AlertClass::Down, $state->notified, 'the last alert before the episode was a down');
 
-        $stable = $this->tick($policy, $state, 300 + 600);
+        $stable = $this->tick($policy, $state, 841);
         $this->assertSame([AlertKind::Stable], $this->kinds($stable->alerts));
         $this->assertSame(MonitorStatus::Down, $stable->alerts[0]->status);
         $this->assertSame(MonitorStatus::Down, $stable->alerts[0]->previousStatus);
         $this->assertSame(AlertClass::Down, $stable->state->notified);
         $this->assertEquals($this->at(300), $stable->state->problemSince);
-        $this->assertEquals($this->at(900), $stable->state->lastNotifiedAt);
-        $this->assertEquals($this->at(900 + 1800), $stable->state->dueAt);
+        $this->assertEquals($this->at(841), $stable->state->lastNotifiedAt);
+        $this->assertEquals($this->at(841 + 1800), $stable->state->dueAt);
 
         $up = $this->statusChange($policy, $stable->state, MonitorStatus::Down, MonitorStatus::Up, 1000);
         $this->assertSame([AlertKind::Up], $this->kinds($up->alerts));
@@ -389,17 +392,17 @@ class AlertMachineTest extends TestCase
         $this->assertEquals($this->at(0), $caughtUp->state->problemSince);
         $this->assertNull($caughtUp->state->dueAt);
 
-        // A recovery while suppressed is withheld and caught up with its duration.
+        // Recovery from a delivered down is never held back by a suppressing ancestor.
         $up = $this->statusChange($policy, $caughtUp->state, MonitorStatus::Down, MonitorStatus::Up, 600, suppressed: true);
         $this->assertSame([AlertKind::Up], $this->kinds($up->alerts));
-        $this->assertTrue($up->alerts[0]->suppressed);
-        $this->assertSame(AlertClass::Down, $up->state->notified);
-        $this->assertSame([], $this->tick($policy, $up->state, 650, suppressed: true)->alerts, 'no reminder for a recovered monitor');
-        $upCaughtUp = $this->tick($policy, $up->state, 660);
-        $this->assertSame([AlertKind::Up], $this->kinds($upCaughtUp->alerts));
-        $this->assertFalse($upCaughtUp->alerts[0]->suppressed);
-        $this->assertSame(660, $upCaughtUp->alerts[0]->durationSeconds);
-        $this->assertSame(AlertClass::Ok, $upCaughtUp->state->notified);
+        $this->assertFalse($up->alerts[0]->suppressed);
+        $this->assertSame(600, $up->alerts[0]->durationSeconds);
+        $this->assertSame(AlertClass::Ok, $up->state->notified);
+        $this->assertFalse($up->state->suppressed);
+        $degraded = $this->statusChange($policy, $caughtUp->state, MonitorStatus::Down, MonitorStatus::Degraded, 600, suppressed: true);
+        $this->assertSame([AlertKind::Degraded], $this->kinds($degraded->alerts));
+        $this->assertFalse($degraded->alerts[0]->suppressed);
+        $this->assertSame(AlertClass::Degraded, $degraded->state->notified);
 
         // Down and back up entirely while suppressed: the catch-up has nothing to tell.
         $quiet = $this->statusChange($policy, $down->state, MonitorStatus::Down, MonitorStatus::Up, 30, suppressed: true);
@@ -436,6 +439,37 @@ class AlertMachineTest extends TestCase
         $this->assertSame('Certificate renewed', $renewed->alerts[0]->message);
         $this->assertSame($renewal, $renewed->alerts[0]->changes);
 
+        // One renewal per improved band, each with its own changes; other keys keep their own alerts.
+        $mixed = $this->change($policy, $state, 0, [
+            ['key' => 'tls.expiry_band', 'old' => '7', 'new' => 'ok'],
+            ['key' => 'tls.fingerprint', 'old' => 'aa', 'new' => 'bb'],
+            ['key' => 'dns.records', 'old' => '1.1.1.1', 'new' => '2.2.2.2'],
+            ['key' => 'domain.expiry_band', 'old' => '14', 'new' => 'ok'],
+        ]);
+        $this->assertSame([AlertKind::Renewed, AlertKind::Changed, AlertKind::Renewed], $this->kinds($mixed->alerts));
+        $this->assertSame(['tls.expiry_band', 'tls.fingerprint'], array_column($mixed->alerts[0]->changes, 'key'));
+        $this->assertSame('DNS records changed', $mixed->alerts[1]->message);
+        $this->assertSame(['dns.records'], array_column($mixed->alerts[1]->changes, 'key'));
+        $this->assertSame('Domain renewed', $mixed->alerts[2]->message);
+        $this->assertSame(['domain.expiry_band'], array_column($mixed->alerts[2]->changes, 'key'));
+
+        $renewedWithNewIssuer = $this->change($policy, $state, 0, [
+            ['key' => 'tls.expiry_band', 'old' => '7', 'new' => 'ok'],
+            ['key' => 'tls.issuer', 'old' => 'CA One', 'new' => 'CA Two'],
+            ['key' => 'tls.fingerprint', 'old' => 'aa', 'new' => 'bb'],
+        ]);
+        $this->assertSame([AlertKind::Renewed, AlertKind::Changed], $this->kinds($renewedWithNewIssuer->alerts));
+        $this->assertSame(['tls.expiry_band', 'tls.fingerprint'], array_column($renewedWithNewIssuer->alerts[0]->changes, 'key'));
+        $this->assertSame('Certificate issuer changed', $renewedWithNewIssuer->alerts[1]->message);
+
+        // A domain renewal does not absorb a certificate change.
+        $domainOnly = $this->change($policy, $state, 0, [
+            ['key' => 'domain.expiry_band', 'old' => '7', 'new' => 'ok'],
+            ['key' => 'tls.fingerprint', 'old' => 'aa', 'new' => 'bb'],
+        ]);
+        $this->assertSame([AlertKind::Renewed, AlertKind::Changed], $this->kinds($domainOnly->alerts));
+        $this->assertSame('Certificate changed', $domainOnly->alerts[1]->message);
+
         $issuer = $this->change($policy, $state, 0, [
             ['key' => 'tls.issuer', 'old' => 'CA One', 'new' => 'CA Two'],
             ['key' => 'tls.fingerprint', 'old' => 'aa', 'new' => 'bb'],
@@ -471,6 +505,10 @@ class AlertMachineTest extends TestCase
         $this->assertSame(PHP_INT_MAX, ExpiryBand::rank('ok'));
         $this->assertSame('Certificate expires within 14 days', ExpiryBand::message('tls.expiry_band', '14'));
         $this->assertSame('Domain expired', ExpiryBand::message('domain.expiry_band', 'expired'));
+        $this->assertSame('Certificate expires within 1 day', ExpiryBand::message('tls.expiry_band', '1'));
+
+        $this->expectException(InvalidArgumentException::class);
+        ExpiryBand::message('tls.expiry_band', 'ok');
     }
 
     public function test_due_at_is_the_earliest_pending_decision(): void
@@ -512,5 +550,172 @@ class AlertMachineTest extends TestCase
         $stable = $this->tick($policy, $released->state, 270 + 600);
         $this->assertSame([AlertKind::Stable], $this->kinds($stable->alerts));
         $this->assertSame(AlertClass::Down, $stable->state->notified);
+    }
+
+    public function test_suppression_catch_up_waits_for_the_end_of_maintenance(): void
+    {
+        $policy = $this->policy();
+        $down = $this->statusChange($policy, $this->upMonitor($policy), MonitorStatus::Up, MonitorStatus::Down, 0, suppressed: true);
+        $this->assertTrue($down->alerts[0]->suppressed);
+        $maintenance = $this->statusChange($policy, $down->state, MonitorStatus::Down, MonitorStatus::Maintenance, 30);
+
+        $released = $this->tick($policy, $maintenance->state, 90);
+        $this->assertSame([], $released->alerts, 'no down while in maintenance');
+        $this->assertFalse($released->state->suppressed);
+        $this->assertNull($released->state->dueAt);
+
+        $back = $this->statusChange($policy, $released->state, MonitorStatus::Maintenance, MonitorStatus::Down, 600);
+        $this->assertSame([AlertKind::Down], $this->kinds($back->alerts));
+        $this->assertFalse($back->alerts[0]->suppressed);
+        $this->assertSame(AlertClass::Down, $back->state->notified);
+        $this->assertSame([], $this->tick($policy, $back->state, 660)->alerts);
+    }
+
+    public function test_flap_end_is_deferred_while_muted(): void
+    {
+        $policy = $this->policy();
+        $state = $this->upMonitor($policy);
+        $current = MonitorStatus::Up;
+        for ($i = 1; $i <= 4; $i++) {
+            $next = $i % 2 === 1 ? MonitorStatus::Down : MonitorStatus::Up;
+            $state = $this->statusChange($policy, $state, $current, $next, $i * 60)->state;
+            $current = $next;
+        }
+        $this->assertTrue($state->flapping);
+
+        $muted = $this->statusChange($policy, $state, MonitorStatus::Up, MonitorStatus::Maintenance, 300);
+        $this->assertNull($muted->state->dueAt, 'nothing to evaluate while muted');
+        $inside = $this->tick($policy, $muted->state, 2000);
+        $this->assertSame([], $inside->alerts);
+        $this->assertTrue($inside->state->flapping);
+
+        // The status that ends maintenance makes the overdue flap end due at once.
+        $back = $this->statusChange($policy, $inside->state, MonitorStatus::Maintenance, MonitorStatus::Up, 3000);
+        $this->assertSame([], $back->alerts);
+        $this->assertNotNull($back->state->dueAt);
+        $this->assertTrue($back->state->dueAt->lessThanOrEqualTo($this->at(3000)));
+        $stable = $this->tick($policy, $back->state, 3000);
+        $this->assertSame([AlertKind::Stable], $this->kinds($stable->alerts));
+        $this->assertSame('No status change for 10 min', $stable->alerts[0]->message);
+        $this->assertFalse($stable->state->flapping);
+        $this->assertNull($stable->state->dueAt);
+    }
+
+    public function test_flapping_and_stable_are_recorded_but_not_sent_while_suppressed(): void
+    {
+        $policy = $this->policy();
+        $state = $this->upMonitor($policy);
+        $alerts = [];
+        $current = MonitorStatus::Up;
+        for ($i = 1; $i <= 5; $i++) {
+            $next = $i % 2 === 1 ? MonitorStatus::Down : MonitorStatus::Up;
+            $decision = $this->statusChange($policy, $state, $current, $next, $i * 60, suppressed: true);
+            $alerts = [...$alerts, ...$decision->alerts];
+            $state = $decision->state;
+            $current = $next;
+        }
+
+        $flapping = array_values(array_filter($alerts, static fn (PlannedAlert $a): bool => $a->kind === AlertKind::Flapping));
+        $this->assertCount(1, $flapping);
+        $this->assertTrue($flapping[0]->suppressed);
+        $this->assertTrue($state->suppressed);
+
+        $stable = $this->tick($policy, $state, 1000, suppressed: true);
+        $this->assertSame([AlertKind::Stable], $this->kinds($stable->alerts));
+        $this->assertTrue($stable->alerts[0]->suppressed);
+        $this->assertSame(AlertClass::Ok, $stable->state->notified, 'the withheld down is not marked as notified');
+
+        $caughtUp = $this->tick($policy, $stable->state, 1060);
+        $this->assertSame([AlertKind::Down], $this->kinds($caughtUp->alerts));
+        $this->assertFalse($caughtUp->alerts[0]->suppressed);
+
+        // A flapping episode that started after a delivered down and settles up sends the recovery at once.
+        $delivered = $this->statusChange($policy, $this->upMonitor($policy), MonitorStatus::Up, MonitorStatus::Down, 0)->state;
+        $current = MonitorStatus::Down;
+        for ($i = 1; $i <= 4; $i++) {
+            $next = $i % 2 === 1 ? MonitorStatus::Up : MonitorStatus::Down;
+            $delivered = $this->statusChange($policy, $delivered, $current, $next, $i * 60)->state;
+            $current = $next;
+        }
+        $settledUp = $this->statusChange($policy, $delivered, MonitorStatus::Down, MonitorStatus::Up, 300)->state;
+        $this->assertTrue($settledUp->flapping);
+        $this->assertSame(AlertClass::Down, $settledUp->notified);
+        $end = $this->tick($policy, $settledUp, 1000, suppressed: true);
+        $this->assertSame([AlertKind::Stable, AlertKind::Up], $this->kinds($end->alerts));
+        $this->assertTrue($end->alerts[0]->suppressed);
+        $this->assertFalse($end->alerts[1]->suppressed);
+        $this->assertSame(AlertClass::Ok, $end->state->notified);
+    }
+
+    public function test_slow_flapping_ends_by_rate_and_alerts_resume(): void
+    {
+        $policy = $this->policy();
+        $state = $this->upMonitor($policy);
+        $current = MonitorStatus::Up;
+        for ($i = 1; $i <= 4; $i++) {
+            $next = $i % 2 === 1 ? MonitorStatus::Down : MonitorStatus::Up;
+            $state = $this->statusChange($policy, $state, $current, $next, $i * 60)->state;
+            $current = $next;
+        }
+        $this->assertTrue($state->flapping);
+        $this->assertEquals($this->at(240), $state->flappingSince);
+
+        // From here the class changes every 9 minutes: never 600 s of quiet, but well below the flap rate.
+        $alerts = [];
+        $stableAt = null;
+        for ($t = 241; $t <= 240 + 6 * 540; $t++) {
+            if (($t - 240) % 540 === 0) {
+                $next = $current === MonitorStatus::Up ? MonitorStatus::Down : MonitorStatus::Up;
+                $decision = $this->statusChange($policy, $state, $current, $next, $t);
+                $current = $next;
+            } elseif ($state->dueAt !== null && $this->at($t)->greaterThanOrEqualTo($state->dueAt)) {
+                $decision = $this->tick($policy, $state, $t);
+            } else {
+                continue;
+            }
+            foreach ($decision->alerts as $alert) {
+                $alerts[] = $alert->kind;
+                if ($alert->kind === AlertKind::Stable) {
+                    $stableAt = $t;
+                }
+            }
+            $state = $decision->state;
+        }
+
+        // Changes at 240 and 780: the window holds fewer than two once 240 has left it, at 841.
+        $this->assertSame(841, $stableAt);
+        $this->assertSame([AlertKind::Stable, AlertKind::Up, AlertKind::Down, AlertKind::Up, AlertKind::Down, AlertKind::Up], $alerts);
+        $this->assertFalse($state->flapping);
+    }
+
+    public function test_degraded_hold_respects_notify_degraded_turned_off(): void
+    {
+        $stored = new AlertSnapshot(AlertClass::Ok, AlertClass::Degraded, MonitorStatus::Degraded, null, null, $this->at(0), false, null, [], null, 0, false, $this->at(0), $this->at(300));
+        $off = $this->policy(notifyDegraded: false);
+        $decision = $this->tick($off, $stored, 600);
+        $this->assertSame([], $decision->alerts);
+        $this->assertNull($decision->state->dueAt);
+        $this->assertSame([AlertKind::Degraded], $this->kinds($this->tick($this->policy(), $stored, 600)->alerts));
+    }
+
+    public function test_withheld_degraded_is_recorded_after_a_withheld_down(): void
+    {
+        $policy = $this->policy();
+        $down = $this->statusChange($policy, $this->upMonitor($policy), MonitorStatus::Up, MonitorStatus::Down, 0, suppressed: true);
+        $degraded = $this->statusChange($policy, $down->state, MonitorStatus::Down, MonitorStatus::Degraded, 100, suppressed: true);
+        $this->assertSame([], $degraded->alerts, 'the hold has not ended');
+        $this->assertEquals($this->at(160), $degraded->state->dueAt, 'suppression recheck before the hold end');
+
+        $held = $this->tick($policy, $degraded->state, 400, suppressed: true);
+        $this->assertSame([AlertKind::Degraded], $this->kinds($held->alerts));
+        $this->assertTrue($held->alerts[0]->suppressed);
+        $this->assertSame(AlertClass::Ok, $held->state->notified);
+        $this->assertSame([], $this->tick($policy, $held->state, 460, suppressed: true)->alerts, 'recorded once');
+
+        $released = $this->tick($policy, $held->state, 520);
+        $this->assertSame([AlertKind::Degraded], $this->kinds($released->alerts));
+        $this->assertFalse($released->alerts[0]->suppressed);
+        $this->assertSame(AlertClass::Degraded, $released->state->notified);
+        $this->assertEquals($this->at(100), $released->state->problemSince);
     }
 }

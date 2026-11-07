@@ -138,12 +138,15 @@ final class AlertMachine
         if (count($this->recentChanges) >= $this->policy->flapThreshold) {
             $this->flapping = true;
             $this->flappingSince = $t;
+            $this->stateSuppressed = $this->stateSuppressed || $this->suppressed;
             $this->alerts[] = $this->alert(
                 AlertKind::Flapping,
                 $signal->to,
                 self::statusOf($this->notified),
                 count($this->recentChanges).' status changes in '.self::minutes($this->policy->flapWindowSeconds).' min',
                 null,
+                [],
+                $this->suppressed,
             );
 
             return;
@@ -152,7 +155,7 @@ final class AlertMachine
         // A withheld alert is recorded once; a replay of the same class adds no second record.
         $this->transition($cls, $t, $signal->message, $changed);
         if ($cls === AlertClass::Degraded && $this->notifiedIsOk() && $this->policy->degradedAlertAfterSeconds === 0) {
-            $this->degradedHold($t, $signal->message, $changed);
+            $this->degradedHold($t, $signal->message);
         }
     }
 
@@ -160,20 +163,20 @@ final class AlertMachine
     {
         $this->lastSignalAt = $signal->at;
 
-        if (! $this->policy->notifyChanges || ($this->current !== null && self::isMuted($this->current))) {
+        if (! $this->policy->notifyChanges || $this->isCurrentlyMuted()) {
             return;
         }
 
         $issuerChange = null;
         $fingerprintChange = null;
-        $improved = null;
+        $tlsRenewed = false;
         foreach ($signal->changes as $change) {
             if ($change['key'] === 'tls.issuer') {
                 $issuerChange = $change;
             } elseif ($change['key'] === 'tls.fingerprint') {
                 $fingerprintChange = $change;
-            } elseif ($improved === null && self::bandDirection($change) > 0) {
-                $improved = $change;
+            } elseif ($change['key'] === 'tls.expiry_band' && self::bandDirection($change) > 0) {
+                $tlsRenewed = true;
             }
         }
 
@@ -183,15 +186,16 @@ final class AlertMachine
                 $direction = self::bandDirection($change);
                 if ($direction < 0) {
                     $this->alerts[] = $this->alert(AlertKind::Expiring, null, null, ExpiryBand::message($key, $change['new']), null, [$change]);
-                } elseif ($change === $improved) {
-                    // A renewal also changes the fingerprint: one alert carries every change of the check.
-                    $this->alerts[] = $this->alert(AlertKind::Renewed, null, null, ExpiryBand::renewedMessage($key), null, $signal->changes);
+                } elseif ($direction > 0) {
+                    // A certificate renewal also changes the fingerprint: one alert carries both.
+                    $changes = $key === 'tls.expiry_band' && $fingerprintChange !== null ? [$change, $fingerprintChange] : [$change];
+                    $this->alerts[] = $this->alert(AlertKind::Renewed, null, null, ExpiryBand::renewedMessage($key), null, $changes);
                 }
             } elseif ($key === 'tls.issuer') {
                 $changes = $fingerprintChange === null ? [$change] : [$change, $fingerprintChange];
                 $this->alerts[] = $this->alert(AlertKind::Changed, null, null, 'Certificate issuer changed', null, $changes);
             } elseif ($key === 'tls.fingerprint') {
-                if ($issuerChange === null && $improved === null) {
+                if ($issuerChange === null && ! $tlsRenewed) {
                     $this->alerts[] = $this->alert(AlertKind::Changed, null, null, 'Certificate changed', null, [$change]);
                 }
             } elseif ($key === 'dns.records') {
@@ -204,33 +208,13 @@ final class AlertMachine
 
     private function onTick(CarbonImmutable $now): void
     {
-        $lastChange = $this->recentChanges === [] ? null : max($this->recentChanges);
-        if ($this->flapping && ($lastChange === null || $now->getTimestamp() >= $lastChange + $this->policy->flapStableSeconds)) {
-            $this->alerts[] = $this->alert(
-                AlertKind::Stable,
-                $this->current,
-                self::statusOf($this->notified),
-                'No status change for '.self::minutes($this->policy->flapStableSeconds).' min',
-                null,
-            );
-            $this->flapping = false;
-            $this->recentChanges = [];
-            $this->notified = $this->observed;
-            if ($this->observed === AlertClass::Down) {
-                $this->problemSince = $this->downSince;
-                $this->lastNotifiedAt = $now;
-                $this->remindersSent = 0;
-            } elseif ($this->observed === AlertClass::Degraded) {
-                $this->problemSince ??= $this->degradedSince;
-            } else {
-                $this->problemSince = null;
-            }
+        $flapEnd = $this->flapEnd();
+        if ($flapEnd !== null && $now->greaterThanOrEqualTo($flapEnd)) {
+            $this->endFlapping($now);
         }
 
         if ($this->degradedHoldEnd() !== null && $now->greaterThanOrEqualTo($this->degradedHoldEnd())) {
-            // While suppressed, the withheld alert is recorded only the first time.
-            $message = 'Degraded for '.self::minutes($this->secondsSince($this->degradedSince, $now) ?? 0).' min';
-            $this->degradedHold($now, $message, ! $this->stateSuppressed);
+            $this->degradedHold($now, 'Degraded for '.self::minutes($this->secondsSince($this->degradedSince, $now) ?? 0).' min');
         }
 
         $reminderAt = $this->nextReminder();
@@ -249,10 +233,74 @@ final class AlertMachine
 
         if ($this->stateSuppressed && ! $this->suppressed) {
             $this->stateSuppressed = false;
-            // A flapping episode reports itself; its end aligns the notified class.
-            if (! $this->flapping && $this->observed !== null && $this->observed !== $this->notified) {
+            // A flapping episode reports itself and its end aligns the notified class. Nothing is caught up while
+            // muted: the status that ends maintenance or the pause is applied through the normal path.
+            if (! $this->flapping && ! $this->isCurrentlyMuted() && $this->observed !== null && $this->observed !== $this->notified) {
                 $this->transition($this->observed, $now, self::caughtUpMessage($this->observed), true);
             }
+        }
+    }
+
+    /**
+     * The moment the current flapping episode ends, or null when not flapping or while muted (the episode is
+     * then ended by the first tick after the status that ends the maintenance or pause).
+     *
+     * An episode ends after flapStable seconds without a class change, or once it has lasted a full window and
+     * fewer than two class changes fall within the last window.
+     */
+    private function flapEnd(): ?CarbonImmutable
+    {
+        if (! $this->flapping || $this->isCurrentlyMuted()) {
+            return null;
+        }
+        if ($this->recentChanges === [] || $this->flappingSince === null) {
+            return $this->flappingSince ?? CarbonImmutable::createFromTimestampUTC(0);
+        }
+
+        $window = $this->policy->flapWindowSeconds;
+        $changes = $this->recentChanges;
+        sort($changes);
+        $last = $changes[count($changes) - 1];
+        $quiet = $last + $this->policy->flapStableSeconds;
+
+        // The window [now - window, now] holds fewer than two changes once the second latest one has left it.
+        $secondLast = count($changes) >= 2 ? $changes[count($changes) - 2] : null;
+        $rate = max($this->flappingSince->getTimestamp() + $window, $secondLast === null ? 0 : $secondLast + $window + 1);
+
+        return CarbonImmutable::createFromTimestampUTC(min($quiet, $rate));
+    }
+
+    private function endFlapping(CarbonImmutable $now): void
+    {
+        $changes = $this->recentChanges;
+        $quiet = $changes === [] || $now->getTimestamp() >= max($changes) + $this->policy->flapStableSeconds;
+        $message = $quiet
+            ? 'No status change for '.self::minutes($this->policy->flapStableSeconds).' min'
+            : 'Fewer than 2 status changes in '.self::minutes($this->policy->flapWindowSeconds).' min';
+
+        $this->alerts[] = $this->alert(AlertKind::Stable, $this->current, self::statusOf($this->notified), $message, null, [], $this->suppressed);
+        $this->flapping = false;
+        $this->recentChanges = [];
+
+        if ($this->suppressed) {
+            // Only a recovery from a delivered down is sent now; anything else is caught up after the suppression.
+            $this->stateSuppressed = true;
+            if ($this->observed !== null && $this->observed !== $this->notified) {
+                $this->transition($this->observed, $now, self::caughtUpMessage($this->observed), false);
+            }
+
+            return;
+        }
+
+        $this->notified = $this->observed;
+        if ($this->observed === AlertClass::Down) {
+            $this->problemSince = $this->downSince;
+            $this->lastNotifiedAt = $now;
+            $this->remindersSent = 0;
+        } elseif ($this->observed === AlertClass::Degraded) {
+            $this->problemSince ??= $this->degradedSince;
+        } else {
+            $this->problemSince = null;
         }
     }
 
@@ -279,8 +327,9 @@ final class AlertMachine
                 $this->lastNotifiedAt = $at;
             });
         } elseif ($cls === AlertClass::Ok) {
-            // A new monitor's first up is not news.
+            // A new monitor's first up is not news. Any withheld degraded problem is over.
             $this->notified = AlertClass::Ok;
+            $this->problemSince = null;
         } elseif ($cls === AlertClass::Degraded && $notified === AlertClass::Down) {
             $this->emit(AlertKind::Degraded, MonitorStatus::Degraded, $message, $this->secondsSince($this->problemSince, $at), $recordWithheld, function () use ($at): void {
                 $this->notified = AlertClass::Degraded;
@@ -292,14 +341,21 @@ final class AlertMachine
 
     /**
      * Report degraded once it has persisted for the configured hold.
+     *
+     * While the notified class is ok, a non-null problemSince marks a withheld degraded alert that has already
+     * been recorded, so it is recorded once however many ticks or replays follow.
      */
-    private function degradedHold(CarbonImmutable $at, string $message, bool $recordWithheld): void
+    private function degradedHold(CarbonImmutable $at, string $message): void
     {
-        $this->emit(AlertKind::Degraded, MonitorStatus::Degraded, $message, $this->secondsSince($this->degradedSince, $at), $recordWithheld, function () use ($at): void {
+        $this->emit(AlertKind::Degraded, MonitorStatus::Degraded, $message, $this->secondsSince($this->degradedSince, $at), $this->problemSince === null, function () use ($at): void {
             $this->notified = AlertClass::Degraded;
             $this->problemSince = $this->degradedSince;
             $this->lastNotifiedAt = $at;
         });
+
+        if ($this->suppressed) {
+            $this->problemSince = $this->degradedSince;
+        }
     }
 
     /**
@@ -312,7 +368,10 @@ final class AlertMachine
     {
         $previous = self::statusOf($this->notified);
 
-        if ($this->suppressed) {
+        // Recovery from a down users were told about is never held back.
+        $closesDeliveredDown = ($kind === AlertKind::Up || $kind === AlertKind::Degraded) && $this->notified === AlertClass::Down;
+
+        if ($this->suppressed && ! $closesDeliveredDown) {
             $this->stateSuppressed = true;
             if ($recordWithheld) {
                 $this->alerts[] = $this->alert($kind, $status, $previous, $message, $duration, [], true);
@@ -335,8 +394,8 @@ final class AlertMachine
 
     private function degradedHoldEnd(): ?CarbonImmutable
     {
-        if ($this->flapping || $this->observed !== AlertClass::Degraded || ! $this->notifiedIsOk()
-            || $this->degradedSince === null || ($this->current !== null && self::isMuted($this->current))) {
+        if (! $this->policy->notifyDegraded || $this->flapping || $this->observed !== AlertClass::Degraded
+            || ! $this->notifiedIsOk() || $this->degradedSince === null || $this->isCurrentlyMuted()) {
             return null;
         }
 
@@ -346,8 +405,7 @@ final class AlertMachine
     private function nextReminder(): ?CarbonImmutable
     {
         if ($this->flapping || $this->notified !== AlertClass::Down || $this->observed !== AlertClass::Down
-            || $this->policy->resendIntervalMinutes <= 0 || $this->lastNotifiedAt === null
-            || ($this->current !== null && self::isMuted($this->current))) {
+            || $this->policy->resendIntervalMinutes <= 0 || $this->lastNotifiedAt === null || $this->isCurrentlyMuted()) {
             return null;
         }
 
@@ -357,12 +415,10 @@ final class AlertMachine
     private function snapshot(CarbonImmutable $at): AlertSnapshot
     {
         $candidates = [
-            // While suppressed the recheck covers a hold that has ended but cannot be sent yet.
-            $this->stateSuppressed ? null : $this->degradedHoldEnd(),
+            // Once a withheld degraded alert is recorded, the suppression recheck takes over.
+            $this->stateSuppressed && $this->problemSince !== null ? null : $this->degradedHoldEnd(),
             $this->nextReminder(),
-            $this->flapping && $this->recentChanges !== []
-                ? CarbonImmutable::createFromTimestampUTC(max($this->recentChanges) + $this->policy->flapStableSeconds)
-                : null,
+            $this->flapEnd(),
             $this->stateSuppressed ? $at->addSeconds($this->policy->suppressionRecheckSeconds) : null,
         ];
 
@@ -404,6 +460,11 @@ final class AlertMachine
         bool $suppressed = false,
     ): PlannedAlert {
         return new PlannedAlert($kind, $status, $previous, $message, $duration, $changes, $suppressed);
+    }
+
+    private function isCurrentlyMuted(): bool
+    {
+        return $this->current !== null && self::isMuted($this->current);
     }
 
     private function notifiedIsOk(): bool

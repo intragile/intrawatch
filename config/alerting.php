@@ -10,9 +10,9 @@ return [
     'flap' => [
         // Class changes within the window that mark a monitor as flapping.
         'threshold' => max(2, (int) env('ALERT_FLAP_THRESHOLD', 4)),
-        'window_seconds' => max(1, (int) env('ALERT_FLAP_WINDOW_SECONDS', 600)),
+        'window_seconds' => max(60, (int) env('ALERT_FLAP_WINDOW_SECONDS', 600)),
         // A flapping monitor is stable again after this long without a class change.
-        'stable_seconds' => max(1, (int) env('ALERT_FLAP_STABLE_SECONDS', 600)),
+        'stable_seconds' => max(60, (int) env('ALERT_FLAP_STABLE_SECONDS', 600)),
     ],
 
     /*
