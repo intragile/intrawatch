@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Status;
 
+use App\Http\Middleware\ResolveStatusHost;
 use App\Models\StatusPage;
 use App\Status\Pages\CachedPage;
 use App\Status\Pages\PageRenderer;
 use App\Status\Pages\PageView;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -36,10 +38,14 @@ final class StatusPageController
     }
 
     /**
-     * The root of a custom domain; nothing on any other host.
+     * The root of a custom domain; on any other host, the way into the admin.
      */
     public function home(Request $request): Response
     {
+        if (! $request->attributes->has(ResolveStatusHost::PAGE_ATTRIBUTE)) {
+            return new RedirectResponse('/admin/');
+        }
+
         return $this->serve($request, null);
     }
 

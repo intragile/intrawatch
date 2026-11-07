@@ -198,7 +198,7 @@ class PublicStatusPageTest extends TestCase
         // Any other host is the normal application.
         $this->get('http://other.test/status/acme')->assertOk()->assertSee('Acme status');
         $this->getJson('http://other.test/api/v1/setup')->assertOk();
-        $this->get('http://other.test/')->assertNotFound();
+        $this->get('http://other.test/')->assertRedirect('/admin/');
         $this->get('http://192.168.1.10/status/acme')->assertOk();
     }
 
@@ -207,7 +207,7 @@ class PublicStatusPageTest extends TestCase
         $this->page->update(['custom_domain' => 'status.example.test', 'published' => false]);
         app(PageStamps::class)->forgetPage($this->page);
 
-        $this->get('http://status.example.test/')->assertNotFound();
+        $this->get('http://status.example.test/')->assertRedirect('/admin/');
         $this->getJson('http://status.example.test/api/v1/setup')->assertOk();
     }
 
@@ -415,7 +415,7 @@ class PublicStatusPageTest extends TestCase
 
     public function test_custom_domain_change_takes_effect_at_once(): void
     {
-        $this->get('http://status.example.test/')->assertNotFound();
+        $this->get('http://status.example.test/')->assertRedirect('/admin/');
 
         $this->page->update(['custom_domain' => 'status.example.test']);
         app(PageStamps::class)->forgetPage($this->page);
@@ -425,7 +425,7 @@ class PublicStatusPageTest extends TestCase
         $this->page->update(['custom_domain' => 'new.example.test']);
         app(PageStamps::class)->forgetKeys($this->page->id, $this->page->slug, $oldDomain);
         app(PageStamps::class)->forgetPage($this->page);
-        $this->get('http://status.example.test/')->assertNotFound();
+        $this->get('http://status.example.test/')->assertRedirect('/admin/');
         $this->get('http://new.example.test/')->assertOk();
     }
 
