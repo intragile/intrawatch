@@ -23,6 +23,7 @@ use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\ResultRecorder;
 use Carbon\CarbonImmutable;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\Jobs\FakeJob;
 use Illuminate\Queue\TimeoutExceededException;
@@ -261,6 +262,67 @@ class DeliveryTest extends SenderTestCase
             fn (string $message, array $context): bool => str_contains($message, 'not found') && ($context['delivery_id'] ?? null) === 424242,
         );
         $this->assertCount(0, $this->history);
+    }
+
+    public function test_a_concurrent_claim_stops_the_duplicate_send(): void
+    {
+        $delivery = $this->delivery($this->slack());
+        $this->mockHttp([new Response(200, [], 'ok')]);
+
+        // Another job claims the delivery after this one has read it and before it claims it.
+        $bumped = false;
+        DB::listen(function (QueryExecuted $query) use (&$bumped, $delivery): void {
+            if (! $bumped && preg_match('/from [`"]alert_events[`"]/i', $query->sql) === 1) {
+                $bumped = true;
+                DB::table('alert_deliveries')->where('id', $delivery->id)->increment('attempts');
+            }
+        });
+
+        $job = $this->runJob($delivery);
+
+        $this->assertTrue($bumped);
+        $job->assertNotReleased();
+        $job->assertNotFailed();
+        $this->assertCount(0, $this->history, 'only the job that won the claim sends');
+        $fresh = $this->reload($delivery);
+        $this->assertSame(DeliveryStatus::Queued, $fresh->status);
+        $this->assertSame(1, $fresh->attempts);
+    }
+
+    public function test_abandoned_delivery_records_channel_health(): void
+    {
+        $channel = $this->slack();
+        $delivery = $this->delivery($channel);
+        CarbonImmutable::setTestNow($this->t0->addMinute());
+
+        (new SendNotification($delivery->id))->failed(new TimeoutExceededException('SendNotification has timed out.'));
+
+        $this->assertSame(DeliveryStatus::Failed, $this->reload($delivery)->status);
+        $health = $this->reloadChannel($channel);
+        $this->assertTrue($this->t0->addMinute()->equalTo($health->last_failure_at ?? $this->t0));
+        $this->assertSame('Unexpected error: TimeoutExceededException', $health->last_error);
+
+        // A delivery that already finished is left alone, and so is its channel.
+        CarbonImmutable::setTestNow($this->t0->addMinutes(5));
+        (new SendNotification($delivery->id))->failed(new RuntimeException('late'));
+        $this->assertSame('Unexpected error: TimeoutExceededException', $this->reload($delivery)->last_error);
+        $this->assertTrue($this->t0->addMinute()->equalTo($this->reloadChannel($channel)->last_failure_at ?? $this->t0));
+    }
+
+    public function test_backoff_setting_accepts_whole_seconds_as_strings_and_rejects_anything_else(): void
+    {
+        config(['alerting.send.backoff_seconds' => ['10', 30, ' 120 ', '300']]);
+        $this->assertSame([10, 30, 120, 300], (new SendNotification(1))->backoff());
+
+        foreach ([['10', 'soon'], [10, -5], [10, 2.5], [], 'often'] as $invalid) {
+            config(['alerting.send.backoff_seconds' => $invalid]);
+            try {
+                DeliveryRunner::backoffs();
+                $this->fail('accepted '.json_encode($invalid));
+            } catch (\InvalidArgumentException $e) {
+                $this->assertStringContainsString('alerting.send.backoff_seconds', $e->getMessage());
+            }
+        }
     }
 
     public function test_queue_payload_holds_no_secrets(): void

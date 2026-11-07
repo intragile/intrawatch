@@ -3,6 +3,8 @@
 namespace Tests\Feature\Alerting\Senders;
 
 use App\Alerting\Channels\Senders\SmtpTransportFactory;
+use App\Jobs\SendNotification;
+use Illuminate\Support\Facades\Mail;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
@@ -17,6 +19,18 @@ class SmtpTransportFactoryTest extends TestCase
     {
         // encryption, implicit TLS, STARTTLS required
         return ['starttls' => ['starttls', false, true], 'tls' => ['tls', true, false], 'none' => ['none', false, false]];
+    }
+
+    public function test_app_mailer_smtp_timeout_stays_below_the_send_job_timeout(): void
+    {
+        // E-mail channels without an SMTP server of their own send through the application mailer.
+        $transport = Mail::mailer('smtp')->getSymfonyTransport();
+
+        $this->assertInstanceOf(EsmtpTransport::class, $transport);
+        $stream = $transport->getStream();
+        $this->assertInstanceOf(SocketStream::class, $stream);
+        $this->assertSame(10.0, $stream->getTimeout());
+        $this->assertLessThan((new SendNotification(1))->timeout, $stream->getTimeout());
     }
 
     #[DataProvider('modes')]

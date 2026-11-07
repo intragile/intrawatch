@@ -78,6 +78,11 @@ final class DeliveryRunner
             return;
         }
 
+        // Only the job that wins this claim sends; a concurrent duplicate that read the same row stops here.
+        if (! $this->claim($delivery)) {
+            return;
+        }
+
         $spec = ChannelSpec::fromModel($channel);
 
         try {
@@ -109,10 +114,17 @@ final class DeliveryRunner
      */
     public function abandon(int $deliveryId, string $error): void
     {
-        AlertDelivery::query()
+        $error = mb_substr($error, 0, self::MAX_ERROR_LENGTH);
+        $channelId = AlertDelivery::query()->whereKey($deliveryId)->value('notification_channel_id');
+        $updated = AlertDelivery::query()
             ->whereKey($deliveryId)
             ->where('status', DeliveryStatus::Queued->value)
-            ->update(['status' => DeliveryStatus::Failed->value, 'last_error' => mb_substr($error, 0, self::MAX_ERROR_LENGTH)]);
+            ->update(['status' => DeliveryStatus::Failed->value, 'last_error' => $error]);
+
+        if ($updated === 1 && is_numeric($channelId)) {
+            NotificationChannel::query()->whereKey((int) $channelId)->toBase()
+                ->update(['last_failure_at' => CarbonImmutable::now(), 'last_error' => $error]);
+        }
     }
 
     /**
@@ -133,7 +145,20 @@ final class DeliveryRunner
     }
 
     /**
-     * Records the attempt. Guarded on the queued status so that a concurrent duplicate cannot overwrite a result.
+     * Counts the attempt with a compare-and-set on the attempt counter that was read. Exactly one of several
+     * jobs racing for the same queued delivery affects the row.
+     */
+    private function claim(AlertDelivery $delivery): bool
+    {
+        return AlertDelivery::query()
+            ->whereKey($delivery->id)
+            ->where('status', DeliveryStatus::Queued->value)
+            ->where('attempts', $delivery->attempts)
+            ->increment('attempts') === 1;
+    }
+
+    /**
+     * Records the outcome. Guarded on the queued status so that a concurrent duplicate cannot overwrite a result.
      */
     private function finish(AlertDelivery $delivery, DeliveryStatus $status, ?string $error, ?CarbonImmutable $sentAt = null): void
     {
@@ -142,7 +167,6 @@ final class DeliveryRunner
             ->where('status', DeliveryStatus::Queued->value)
             ->update([
                 'status' => $status->value,
-                'attempts' => $delivery->attempts + 1,
                 'last_error' => $error,
                 'sent_at' => $sentAt,
             ]);
@@ -164,14 +188,32 @@ final class DeliveryRunner
     }
 
     /**
+     * Seconds to wait before each retry. Whole numbers given as strings (from the environment) are accepted.
+     *
      * @return list<int>
+     *
+     * @throws \InvalidArgumentException When the setting is not a non-empty list of whole seconds.
      */
     public static function backoffs(): array
     {
         $configured = config('alerting.send.backoff_seconds', [10, 30, 120, 300]);
-        $values = is_array($configured) ? array_values(array_filter($configured, 'is_int')) : [];
+        $invalid = new \InvalidArgumentException('alerting.send.backoff_seconds must be a non-empty list of whole seconds (0 or more).');
+        if (! is_array($configured) || $configured === []) {
+            throw $invalid;
+        }
 
-        return $values === [] ? [10] : $values;
+        $values = [];
+        foreach ($configured as $value) {
+            if (is_string($value) && ctype_digit(trim($value))) {
+                $value = (int) trim($value);
+            }
+            if (! is_int($value) || $value < 0) {
+                throw $invalid;
+            }
+            $values[] = $value;
+        }
+
+        return $values;
     }
 
     private static function backoff(int $attempt): int

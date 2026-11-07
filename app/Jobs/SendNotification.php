@@ -25,6 +25,10 @@ class SendNotification implements ShouldQueue
 
     public int $timeout = 30;
 
+    /**
+     * A send that outlives the timeout is not retried: every outbound transport ends far sooner (HTTP 10 s, SMTP
+     * 10 s), so a timeout means a hung worker, and a retry could deliver the same alert twice.
+     */
     public bool $failOnTimeout = true;
 
     public function __construct(public int $deliveryId)
@@ -55,7 +59,8 @@ class SendNotification implements ShouldQueue
     }
 
     /**
-     * The queue gave up (a timeout or an exception on the last attempt): the delivery must not stay queued.
+     * The queue gave up: a timeout (with failOnTimeout this fails the job on any attempt, not only the last) or
+     * an exception on the last attempt. The delivery must not stay queued.
      */
     public function failed(Throwable $e): void
     {
