@@ -89,22 +89,22 @@ const workspaceRoutes: RouteRecordRaw[] = [
   {
     path: 'settings',
     name: 'ws.settings',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/workspace/WorkspaceSettingsView.vue'),
   },
   {
     path: 'members',
     name: 'ws.members',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/workspace/MembersView.vue'),
   },
   {
     path: 'tokens',
     name: 'ws.tokens',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/workspace/TokensView.vue'),
   },
   {
     path: 'audit',
     name: 'ws.audit',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/workspace/AuditView.vue'),
   },
 ]
 

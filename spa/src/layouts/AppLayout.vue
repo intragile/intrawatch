@@ -11,6 +11,7 @@ import {
   mdiKeyVariant,
   mdiLogout,
   mdiMonitorDashboard,
+  mdiPlus,
   mdiShieldAccountOutline,
   mdiTrafficCone,
   mdiWeatherNight,
@@ -26,6 +27,7 @@ import { useNotify } from '../composables/useNotify'
 import { usePreferences } from '../composables/usePreferences'
 import { WORKSPACE_LIST_ROUTES } from '../router'
 import { useSession } from '../stores/session'
+import CreateWorkspaceDialog from '../views/workspace/CreateWorkspaceDialog.vue'
 
 interface NavItem {
   route: string
@@ -44,6 +46,7 @@ const { isDark, toggleTheme, locale, locales, setLocale } = usePreferences()
 
 // Null lets Vuetify open the drawer on wide screens and keep it closed on narrow ones.
 const drawer = ref<boolean | null>(null)
+const createDialog = ref(false)
 const workspace = computed(() => session.current)
 
 const items = computed<NavItem[]>(() => [
@@ -189,6 +192,18 @@ watch(() => session.me, (current) => {
       class="workspace-switcher mx-2"
       @update:model-value="switchWorkspace"
     />
+    <v-btn
+      v-if="session.workspaces.length > 0"
+      data-test="create-workspace"
+      icon
+      size="small"
+      variant="text"
+      :aria-label="t('nav.createWorkspace')"
+      :title="t('nav.createWorkspace')"
+      @click="createDialog = true"
+    >
+      <v-icon :icon="mdiPlus" />
+    </v-btn>
 
     <div class="mx-2 d-flex align-center">
       <slot name="status" />
@@ -255,6 +270,8 @@ watch(() => session.me, (current) => {
       />
     </v-list>
   </v-navigation-drawer>
+
+  <CreateWorkspaceDialog v-model="createDialog" />
 
   <v-main>
     <v-container fluid>

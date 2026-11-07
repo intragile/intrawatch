@@ -13,7 +13,14 @@
     "copied": "Copied to the clipboard.",
     "copyFailed": "Could not copy. Select the text and copy it manually.",
     "download": "Download",
-    "downloadFailed": "The download could not be started."
+    "downloadFailed": "The download could not be started.",
+    "save": "Save",
+    "delete": "Delete",
+    "remove": "Remove",
+    "loadMore": "Load more",
+    "clear": "Clear",
+    "noAccess": "You do not have access to this screen.",
+    "never": "Never"
   },
   "problem": {
     "network": "Cannot reach the server. Check your connection and try again.",
@@ -51,7 +58,8 @@
     "mainMenu": "Main menu",
     "toggleMenu": "Show or hide the menu",
     "signOut": "Sign out",
-    "signOutFailed": "Signing out failed. Try again."
+    "signOutFailed": "Signing out failed. Try again.",
+    "createWorkspace": "Create workspace"
   },
   "auth": {
     "fields": {
@@ -158,5 +166,121 @@
     "maintenance": "Maintenance",
     "pending": "Pending",
     "paused": "Paused"
+  },
+  "roles": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "editor": "Editor",
+    "viewer": "Viewer"
+  },
+  "settings": {
+    "title": "Workspace settings",
+    "name": "Name",
+    "slug": "Slug (cannot be changed)",
+    "timezone": "Time zone",
+    "readOnly": "You can view these settings but not change them.",
+    "saved": "The workspace was saved.",
+    "danger": {
+      "title": "Delete workspace",
+      "text": "Deleting the workspace permanently removes its monitors, channels, status pages and history.",
+      "action": "Delete this workspace",
+      "confirmText": "Type the workspace name {name} to confirm.",
+      "confirmField": "Workspace name",
+      "deleted": "The workspace was deleted."
+    }
+  },
+  "members": {
+    "title": "Members",
+    "add": {
+      "title": "Add a member",
+      "hint": "The person must already have an account on this instance.",
+      "email": "E-mail",
+      "role": "Role",
+      "submit": "Add member"
+    },
+    "name": "Name",
+    "email": "E-mail",
+    "role": "Role",
+    "actions": "Actions",
+    "roleOf": "Role of {name}",
+    "you": "you",
+    "added": "{name} was added.",
+    "roleChanged": "The role of {name} is now {role}.",
+    "removed": "{name} was removed.",
+    "remove": "Remove member",
+    "removeConfirm": "{name} loses access to this workspace.",
+    "empty": "There are no members yet.",
+    "list": "Workspace members"
+  },
+  "tokens": {
+    "title": "API tokens",
+    "intro": "A token lets a script or integration call the API as you, limited to this workspace and the abilities you pick.",
+    "create": {
+      "title": "Create a token",
+      "name": "Name",
+      "abilities": "Abilities",
+      "expires": "Expires at (optional, your local time)",
+      "submit": "Create token",
+      "abilitiesRequired": "Select at least one ability."
+    },
+    "ability": {
+      "workspaceRead": "Read the workspace",
+      "workspaceManage": "Manage the workspace",
+      "membersManage": "Manage members",
+      "auditRead": "Read the audit log",
+      "monitorsRead": "Read monitors",
+      "monitorsWrite": "Change monitors",
+      "notificationsRead": "Read notification channels",
+      "notificationsWrite": "Change notification channels",
+      "incidentsRead": "Read incidents and maintenance",
+      "incidentsWrite": "Change incidents and maintenance",
+      "statusPagesRead": "Read status pages",
+      "statusPagesWrite": "Change status pages"
+    },
+    "name": "Name",
+    "abilitiesColumn": "Abilities",
+    "lastUsed": "Last used",
+    "expiresColumn": "Expires",
+    "created": "Created",
+    "actions": "Actions",
+    "neverUsed": "Never used",
+    "noExpiry": "No expiry",
+    "expired": "Expired",
+    "list": "Your tokens in this workspace",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke token",
+    "revokeConfirm": "Anything using {name} stops working immediately.",
+    "revoked": "The token was revoked.",
+    "empty": "You have no tokens in this workspace.",
+    "plain": {
+      "title": "Your new token",
+      "warning": "Copy it now. It is shown only once and cannot be retrieved later.",
+      "field": "Token",
+      "done": "I have copied it"
+    }
+  },
+  "audit": {
+    "title": "Audit log",
+    "filters": "Filters",
+    "action": "Action",
+    "actorType": "Actor type",
+    "actorUser": "User ID",
+    "actorId": "Actor ID",
+    "apply": "Apply filters",
+    "actorTypes": {
+      "user": "User",
+      "token": "API token",
+      "system": "System"
+    },
+    "time": "Time",
+    "actor": "Actor",
+    "subject": "Subject",
+    "ip": "IP address",
+    "changes": "Changes",
+    "empty": "No audit events match.",
+    "list": "Audit events",
+    "actorUserLabel": "User {id}",
+    "actorTokenLabel": "Token {id}, owner: user {owner}",
+    "actorSystemLabel": "System"
   }
 }

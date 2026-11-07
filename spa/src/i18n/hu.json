@@ -13,7 +13,14 @@
     "copied": "Vágólapra másolva.",
     "copyFailed": "Nem sikerült másolni. Jelölje ki a szöveget, és másolja ki kézzel.",
     "download": "Letöltés",
-    "downloadFailed": "A letöltést nem sikerült elindítani."
+    "downloadFailed": "A letöltést nem sikerült elindítani.",
+    "save": "Mentés",
+    "delete": "Törlés",
+    "remove": "Eltávolítás",
+    "loadMore": "További elemek betöltése",
+    "clear": "Törlés",
+    "noAccess": "Ehhez a képernyőhöz nincs hozzáférése.",
+    "never": "Soha"
   },
   "problem": {
     "network": "A szerver nem érhető el. Ellenőrizze a kapcsolatot, és próbálja újra.",
@@ -51,7 +58,8 @@
     "mainMenu": "Főmenü",
     "toggleMenu": "Menü megjelenítése vagy elrejtése",
     "signOut": "Kijelentkezés",
-    "signOutFailed": "A kijelentkezés nem sikerült. Próbálja újra."
+    "signOutFailed": "A kijelentkezés nem sikerült. Próbálja újra.",
+    "createWorkspace": "Munkaterület létrehozása"
   },
   "auth": {
     "fields": {
@@ -158,5 +166,121 @@
     "maintenance": "Karbantartás",
     "pending": "Függőben",
     "paused": "Szünetel"
+  },
+  "roles": {
+    "owner": "Tulajdonos",
+    "admin": "Adminisztrátor",
+    "editor": "Szerkesztő",
+    "viewer": "Megtekintő"
+  },
+  "settings": {
+    "title": "Munkaterület beállításai",
+    "name": "Név",
+    "slug": "Azonosító (nem módosítható)",
+    "timezone": "Időzóna",
+    "readOnly": "Ezeket a beállításokat megtekintheti, de nem módosíthatja.",
+    "saved": "A munkaterület mentve.",
+    "danger": {
+      "title": "Munkaterület törlése",
+      "text": "A munkaterület törlésével a monitorok, csatornák, státuszoldalak és az előzmények véglegesen elvesznek.",
+      "action": "Munkaterület törlése",
+      "confirmText": "A megerősítéshez írja be a munkaterület nevét: {name}.",
+      "confirmField": "Munkaterület neve",
+      "deleted": "A munkaterület törölve."
+    }
+  },
+  "members": {
+    "title": "Tagok",
+    "add": {
+      "title": "Tag hozzáadása",
+      "hint": "A személynek már rendelkeznie kell fiókkal ezen a példányon.",
+      "email": "E-mail-cím",
+      "role": "Szerepkör",
+      "submit": "Tag hozzáadása"
+    },
+    "name": "Név",
+    "email": "E-mail-cím",
+    "role": "Szerepkör",
+    "actions": "Műveletek",
+    "roleOf": "{name} szerepköre",
+    "you": "Ön",
+    "added": "{name} hozzáadva.",
+    "roleChanged": "{name} új szerepköre: {role}.",
+    "removed": "{name} eltávolítva.",
+    "remove": "Tag eltávolítása",
+    "removeConfirm": "{name} elveszíti a hozzáférését ehhez a munkaterülethez.",
+    "empty": "Még nincsenek tagok.",
+    "list": "A munkaterület tagjai"
+  },
+  "tokens": {
+    "title": "API-tokenek",
+    "intro": "A token lehetővé teszi, hogy egy szkript vagy integráció az Ön nevében hívja az API-t, a munkaterületre és a kiválasztott jogosultságokra korlátozva.",
+    "create": {
+      "title": "Token létrehozása",
+      "name": "Név",
+      "abilities": "Jogosultságok",
+      "expires": "Lejárat (nem kötelező, helyi idő szerint)",
+      "submit": "Token létrehozása",
+      "abilitiesRequired": "Válasszon ki legalább egy jogosultságot."
+    },
+    "ability": {
+      "workspaceRead": "Munkaterület olvasása",
+      "workspaceManage": "Munkaterület kezelése",
+      "membersManage": "Tagok kezelése",
+      "auditRead": "Eseménynapló olvasása",
+      "monitorsRead": "Monitorok olvasása",
+      "monitorsWrite": "Monitorok módosítása",
+      "notificationsRead": "Értesítési csatornák olvasása",
+      "notificationsWrite": "Értesítési csatornák módosítása",
+      "incidentsRead": "Incidensek és karbantartások olvasása",
+      "incidentsWrite": "Incidensek és karbantartások módosítása",
+      "statusPagesRead": "Státuszoldalak olvasása",
+      "statusPagesWrite": "Státuszoldalak módosítása"
+    },
+    "name": "Név",
+    "abilitiesColumn": "Jogosultságok",
+    "lastUsed": "Utoljára használva",
+    "expiresColumn": "Lejárat",
+    "created": "Létrehozva",
+    "actions": "Műveletek",
+    "neverUsed": "Még nem használták",
+    "noExpiry": "Nem jár le",
+    "expired": "Lejárt",
+    "list": "Az Ön tokenjei ebben a munkaterületben",
+    "revoke": "Visszavonás",
+    "revokeTitle": "Token visszavonása",
+    "revokeConfirm": "Minden, ami a(z) {name} tokent használja, azonnal leáll.",
+    "revoked": "A token visszavonva.",
+    "empty": "Nincs tokenje ebben a munkaterületben.",
+    "plain": {
+      "title": "Az új token",
+      "warning": "Másolja ki most. Csak egyszer jelenik meg, később nem kérhető le újra.",
+      "field": "Token",
+      "done": "Kimásoltam"
+    }
+  },
+  "audit": {
+    "title": "Eseménynapló",
+    "filters": "Szűrők",
+    "action": "Művelet",
+    "actorType": "Végrehajtó típusa",
+    "actorUser": "Felhasználó azonosítója",
+    "actorId": "Végrehajtó azonosítója",
+    "apply": "Szűrők alkalmazása",
+    "actorTypes": {
+      "user": "Felhasználó",
+      "token": "API-token",
+      "system": "Rendszer"
+    },
+    "time": "Időpont",
+    "actor": "Végrehajtó",
+    "subject": "Érintett elem",
+    "ip": "IP-cím",
+    "changes": "Változások",
+    "empty": "Nincs a szűrőknek megfelelő esemény.",
+    "list": "Naplóesemények",
+    "actorUserLabel": "{id}. felhasználó",
+    "actorTokenLabel": "{id}. token, tulajdonosa: {owner}. felhasználó",
+    "actorSystemLabel": "Rendszer"
   }
 }

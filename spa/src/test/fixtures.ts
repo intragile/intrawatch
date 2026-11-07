@@ -58,3 +58,10 @@ export function me(overrides: Partial<SessionUser> = {}): SessionUser {
     ...overrides,
   }
 }
+
+/** A `/me` payload listing the given workspaces (the first one is the current one in most tests). */
+export function meWith(...workspaces: Array<Parameters<typeof workspace>[0]>): SessionUser {
+  return me({
+    workspaces: workspaces.map(w => workspace(w)),
+  })
+}
