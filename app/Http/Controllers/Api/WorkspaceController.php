@@ -24,6 +24,9 @@ use Illuminate\Support\Facades\Gate;
 
 class WorkspaceController extends Controller
 {
+    /**
+     * @response array{data: list<array{id: string, name: string, slug: string, timezone: string, role: \App\Enums\WorkspaceRole|null, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}>, meta: array{next_cursor: string|null, limit: int}}
+     */
     public function index(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -58,6 +61,9 @@ class WorkspaceController extends Controller
         return response()->json(['data' => $this->payload($user, $workspace, WorkspaceRole::Owner)], 201);
     }
 
+    /**
+     * @response array{data: array{id: string, name: string, slug: string, timezone: string, role: \App\Enums\WorkspaceRole|null, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}}
+     */
     public function update(Request $request, Workspace $workspace): JsonResponse
     {
         Gate::authorize('update', $workspace);
@@ -116,7 +122,7 @@ class WorkspaceController extends Controller
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{id: string, name: string, slug: string, timezone: string, role: string|null, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}
      */
     private function payload(User $user, Workspace $workspace, ?WorkspaceRole $role): array
     {

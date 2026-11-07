@@ -13,6 +13,9 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 class MeController extends Controller
 {
+    /**
+     * @response array{data: array{id: int, name: string, email: string, two_factor_enabled: bool, workspaces: list<array{id: string, name: string, slug: string, timezone: string, role: \App\Enums\WorkspaceRole, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}>}|array{id: int, name: string, workspaces: list<array{id: string, name: string, slug: string, timezone: string, role: \App\Enums\WorkspaceRole, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}>, token: array{name: string, abilities: list<string>|null, expires_at: string|null}}}
+     */
     public function __invoke(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -59,7 +62,7 @@ class MeController extends Controller
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<array{id: string, name: string, slug: string, timezone: string, role: string, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}>
      */
     private static function workspaces(User $user, ?int $onlyWorkspaceId = null): array
     {
@@ -78,6 +81,7 @@ class MeController extends Controller
                     'id' => $workspace->public_id,
                     'name' => $workspace->name,
                     'slug' => $workspace->slug,
+                    'timezone' => $workspace->timezone,
                     'role' => $pivot->role->value,
                     'channel' => WorkspaceAbilities::channel($user, $workspace),
                     'can' => WorkspaceAbilities::for($user, $workspace),

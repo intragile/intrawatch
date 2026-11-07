@@ -35,7 +35,7 @@ final class WorkspaceAbilities
     ];
 
     /**
-     * @return array<string, bool>
+     * @return array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}
      */
     public static function for(User $user, Workspace $workspace): array
     {

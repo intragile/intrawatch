@@ -513,9 +513,239 @@
                                                         "name": {
                                                             "type": "string"
                                                         },
+                                                        "email": {
+                                                            "type": "string"
+                                                        },
+                                                        "two_factor_enabled": {
+                                                            "type": "boolean"
+                                                        },
                                                         "workspaces": {
                                                             "type": "array",
-                                                            "items": {}
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "slug": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "timezone": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "role": {
+                                                                        "$ref": "#/components/schemas/WorkspaceRole"
+                                                                    },
+                                                                    "channel": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "can": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "view": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "update": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "delete": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewMembers": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageMembers": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewAudit": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewMonitors": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageMonitors": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewNotifications": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageNotifications": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewIncidents": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageIncidents": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewStatusPages": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageStatusPages": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageCustomDomains": {
+                                                                                "type": "boolean"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "view",
+                                                                            "update",
+                                                                            "delete",
+                                                                            "viewMembers",
+                                                                            "manageMembers",
+                                                                            "viewAudit",
+                                                                            "viewMonitors",
+                                                                            "manageMonitors",
+                                                                            "viewNotifications",
+                                                                            "manageNotifications",
+                                                                            "viewIncidents",
+                                                                            "manageIncidents",
+                                                                            "viewStatusPages",
+                                                                            "manageStatusPages",
+                                                                            "manageCustomDomains"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name",
+                                                                    "slug",
+                                                                    "timezone",
+                                                                    "role",
+                                                                    "channel",
+                                                                    "can"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name",
+                                                        "email",
+                                                        "two_factor_enabled",
+                                                        "workspaces"
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "workspaces": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "slug": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "timezone": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "role": {
+                                                                        "$ref": "#/components/schemas/WorkspaceRole"
+                                                                    },
+                                                                    "channel": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "can": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "view": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "update": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "delete": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewMembers": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageMembers": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewAudit": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewMonitors": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageMonitors": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewNotifications": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageNotifications": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewIncidents": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageIncidents": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "viewStatusPages": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageStatusPages": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "manageCustomDomains": {
+                                                                                "type": "boolean"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "view",
+                                                                            "update",
+                                                                            "delete",
+                                                                            "viewMembers",
+                                                                            "manageMembers",
+                                                                            "viewAudit",
+                                                                            "viewMonitors",
+                                                                            "manageMonitors",
+                                                                            "viewNotifications",
+                                                                            "manageNotifications",
+                                                                            "viewIncidents",
+                                                                            "manageIncidents",
+                                                                            "viewStatusPages",
+                                                                            "manageStatusPages",
+                                                                            "manageCustomDomains"
+                                                                        ]
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "id",
+                                                                    "name",
+                                                                    "slug",
+                                                                    "timezone",
+                                                                    "role",
+                                                                    "channel",
+                                                                    "can"
+                                                                ]
+                                                            }
                                                         },
                                                         "token": {
                                                             "type": "object",
@@ -528,7 +758,9 @@
                                                                         "array",
                                                                         "null"
                                                                     ],
-                                                                    "items": {}
+                                                                    "items": {
+                                                                        "type": "string"
+                                                                    }
                                                                 },
                                                                 "expires_at": {
                                                                     "type": [
@@ -549,34 +781,6 @@
                                                         "name",
                                                         "workspaces",
                                                         "token"
-                                                    ]
-                                                },
-                                                {
-                                                    "type": "object",
-                                                    "properties": {
-                                                        "id": {
-                                                            "type": "integer"
-                                                        },
-                                                        "name": {
-                                                            "type": "string"
-                                                        },
-                                                        "email": {
-                                                            "type": "string"
-                                                        },
-                                                        "two_factor_enabled": {
-                                                            "type": "boolean"
-                                                        },
-                                                        "workspaces": {
-                                                            "type": "array",
-                                                            "items": {}
-                                                        }
-                                                    },
-                                                    "required": [
-                                                        "id",
-                                                        "name",
-                                                        "email",
-                                                        "two_factor_enabled",
-                                                        "workspaces"
                                                     ]
                                                 }
                                             ]
@@ -1025,7 +1229,16 @@
                                                     "timezone": {
                                                         "type": "string"
                                                     },
-                                                    "role": {},
+                                                    "role": {
+                                                        "anyOf": [
+                                                            {
+                                                                "$ref": "#/components/schemas/WorkspaceRole"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
+                                                    },
                                                     "channel": {
                                                         "type": [
                                                             "string",
@@ -1034,9 +1247,70 @@
                                                     },
                                                     "can": {
                                                         "type": "object",
-                                                        "additionalProperties": {
-                                                            "type": "boolean"
-                                                        }
+                                                        "properties": {
+                                                            "view": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "update": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "delete": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "viewMembers": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "manageMembers": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "viewAudit": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "viewMonitors": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "manageMonitors": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "viewNotifications": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "manageNotifications": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "viewIncidents": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "manageIncidents": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "viewStatusPages": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "manageStatusPages": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "manageCustomDomains": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "view",
+                                                            "update",
+                                                            "delete",
+                                                            "viewMembers",
+                                                            "manageMembers",
+                                                            "viewAudit",
+                                                            "viewMonitors",
+                                                            "manageMonitors",
+                                                            "viewNotifications",
+                                                            "manageNotifications",
+                                                            "viewIncidents",
+                                                            "manageIncidents",
+                                                            "viewStatusPages",
+                                                            "manageStatusPages",
+                                                            "manageCustomDomains"
+                                                        ]
                                                     }
                                                 },
                                                 "required": [
@@ -1141,9 +1415,70 @@
                                                 },
                                                 "can": {
                                                     "type": "object",
-                                                    "additionalProperties": {
-                                                        "type": "boolean"
-                                                    }
+                                                    "properties": {
+                                                        "view": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "update": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "delete": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewMembers": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageMembers": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewAudit": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewMonitors": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageMonitors": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewNotifications": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageNotifications": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewIncidents": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageIncidents": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewStatusPages": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageStatusPages": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageCustomDomains": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "view",
+                                                        "update",
+                                                        "delete",
+                                                        "viewMembers",
+                                                        "manageMembers",
+                                                        "viewAudit",
+                                                        "viewMonitors",
+                                                        "manageMonitors",
+                                                        "viewNotifications",
+                                                        "manageNotifications",
+                                                        "viewIncidents",
+                                                        "manageIncidents",
+                                                        "viewStatusPages",
+                                                        "manageStatusPages",
+                                                        "manageCustomDomains"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -1258,9 +1593,13 @@
                                                     "type": "string"
                                                 },
                                                 "role": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
+                                                    "anyOf": [
+                                                        {
+                                                            "$ref": "#/components/schemas/WorkspaceRole"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
                                                     ]
                                                 },
                                                 "channel": {
@@ -1271,9 +1610,70 @@
                                                 },
                                                 "can": {
                                                     "type": "object",
-                                                    "additionalProperties": {
-                                                        "type": "boolean"
-                                                    }
+                                                    "properties": {
+                                                        "view": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "update": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "delete": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewMembers": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageMembers": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewAudit": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewMonitors": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageMonitors": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewNotifications": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageNotifications": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewIncidents": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageIncidents": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewStatusPages": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageStatusPages": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageCustomDomains": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "view",
+                                                        "update",
+                                                        "delete",
+                                                        "viewMembers",
+                                                        "manageMembers",
+                                                        "viewAudit",
+                                                        "viewMonitors",
+                                                        "manageMonitors",
+                                                        "viewNotifications",
+                                                        "manageNotifications",
+                                                        "viewIncidents",
+                                                        "manageIncidents",
+                                                        "viewStatusPages",
+                                                        "manageStatusPages",
+                                                        "manageCustomDomains"
+                                                    ]
                                                 }
                                             },
                                             "required": [

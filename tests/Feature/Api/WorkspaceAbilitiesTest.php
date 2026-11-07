@@ -49,6 +49,7 @@ class WorkspaceAbilitiesTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.workspaces.0.id', $owned->public_id)
             ->assertJsonPath('data.workspaces.0.channel', 'workspace.'.$owned->id)
+            ->assertJsonPath('data.workspaces.0.timezone', $owned->fresh()?->timezone)
             ->assertJsonPath('data.workspaces.1.id', $viewed->public_id)
             ->assertJsonPath('data.workspaces.1.channel', 'workspace.'.$viewed->id)
             ->assertJsonPath('data.workspaces.1.can.viewMonitors', true)
@@ -70,6 +71,7 @@ class WorkspaceAbilitiesTest extends TestCase
         $this->withToken($token)->getJson('/api/v1/me')
             ->assertOk()
             ->assertJsonPath('data.workspaces.0.channel', 'workspace.'.$workspace->id)
+            ->assertJsonPath('data.workspaces.0.timezone', $workspace->fresh()?->timezone)
             ->assertJsonPath('data.workspaces.0.can.viewMonitors', true)
             ->assertJsonPath('data.workspaces.0.can.manageMonitors', false)
             ->assertJsonPath('data.workspaces.0.can.view', false)
@@ -89,7 +91,7 @@ class WorkspaceAbilitiesTest extends TestCase
             ->assertJsonPath('data.workspaces.0.can.viewMonitors', false);
     }
 
-    public function test_workspace_show_and_update_return_channel_and_can(): void
+    public function test_workspace_index_store_and_update_return_channel_and_can(): void
     {
         $workspace = Workspace::factory()->create();
         $editor = User::factory()->memberOf($workspace, WorkspaceRole::Editor)->create();
