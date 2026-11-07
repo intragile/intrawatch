@@ -63,7 +63,7 @@ final class EmailSender implements ChannelSender
         if ($addresses === []) {
             throw new DeliveryFailure('DNS resolution failed');
         }
-        $policy = NetworkPolicy::fromConfig();
+        $policy = NetworkPolicy::forNotifications();
         foreach ($addresses as $address) {
             if (! $policy->allows($address)) {
                 throw new DeliveryFailure('Blocked target', permanent: true);

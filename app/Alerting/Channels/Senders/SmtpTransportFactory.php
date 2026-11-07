@@ -25,14 +25,14 @@ class SmtpTransportFactory
         ?string $username,
         #[\SensitiveParameter] ?string $password,
     ): TransportInterface {
-        $transport = new EsmtpTransport($connectAddress, $port, $encryption === 'tls');
+        $transport = new EsmtpTransport(filter_var($connectAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false ? "[{$connectAddress}]" : $connectAddress, $port, $encryption === 'tls');
         $transport->setAutoTls($encryption === 'starttls');
         $transport->setRequireTls($encryption === 'starttls');
 
         $stream = $transport->getStream();
         if ($stream instanceof SocketStream) {
             $stream->setTimeout(self::TIMEOUT_SECONDS);
-            $stream->setStreamOptions(['ssl' => ['peer_name' => $hostName, 'SNI_enabled' => true, 'verify_peer' => true, 'verify_peer_name' => true]]);
+            $stream->setStreamOptions(['ssl' => ['crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT, 'peer_name' => $hostName, 'SNI_enabled' => true, 'verify_peer' => true, 'verify_peer_name' => true]]);
         }
 
         if ($username !== null && $password !== null) {

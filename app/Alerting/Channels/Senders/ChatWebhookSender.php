@@ -40,7 +40,15 @@ abstract class ChatWebhookSender implements ChannelSender
 
     protected static function text(OutgoingNotification $n): string
     {
-        return $n->title."\n".$n->body;
+        return self::neutraliseMentions($n->title."\n".$n->body);
+    }
+
+    /**
+     * Inserts a zero-width space after every "@" so no plain-text mention (@channel, @here, @everyone) can fire.
+     */
+    protected static function neutraliseMentions(string $text): string
+    {
+        return str_replace('@', "@\u{200B}", $text);
     }
 
     /**

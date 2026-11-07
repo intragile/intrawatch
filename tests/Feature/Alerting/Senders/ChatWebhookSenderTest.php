@@ -124,4 +124,47 @@ class ChatWebhookSenderTest extends SenderTestCase
         $this->assertInstanceOf(SlackSender::class, $registry->for(ChannelType::Slack));
         $this->assertInstanceOf(TeamsSender::class, $registry->for(ChannelType::Teams));
     }
+
+    public function test_google_chat_text_is_inert(): void
+    {
+        $n = $this->notification(body: '<users/all> <https://evil.test|label> *bold* _it_ ~s~ `c`');
+        (new GoogleChatSender($this->http([new Response(200)])))->send($this->spec(ChannelType::GoogleChat, [], ['webhook_url' => self::URL]), $n, 'iw-1');
+
+        $text = $this->lastJsonText('text');
+        $this->assertStringNotContainsString('<', $text);
+        $this->assertStringContainsString('&lt;users/all&gt;', $text);
+        $this->assertStringContainsString("\u{200B}*bold\u{200B}*", $text);
+        $this->assertStringContainsString("\u{200B}_it\u{200B}_", $text);
+        $this->assertStringContainsString("\u{200B}~s\u{200B}~", $text);
+        $this->assertStringContainsString("\u{200B}`c\u{200B}`", $text);
+    }
+
+    public function test_plain_mentions_cannot_fire_on_any_chat_channel(): void
+    {
+        $n = $this->notification(title: '@here down', body: '@channel @all @here @everyone');
+        $secrets = ['webhook_url' => self::URL];
+        $senders = [
+            [ChannelType::Slack, SlackSender::class],
+            [ChannelType::Mattermost, MattermostSender::class],
+            [ChannelType::Discord, DiscordSender::class],
+            [ChannelType::GoogleChat, GoogleChatSender::class],
+        ];
+
+        foreach ($senders as [$type, $class]) {
+            (new $class($this->http([new Response(200)])))->send($this->spec($type, [], $secrets), $n, 'iw-1');
+            $text = $this->lastJsonText($type === ChannelType::Discord ? 'content' : 'text');
+            $this->assertMentionsInert($text, $type->value);
+        }
+
+        (new TeamsSender($this->http([new Response(200)])))->send($this->spec(ChannelType::Teams, [], $secrets), $n, 'iw-1');
+        $this->assertMentionsInert((string) json_encode($this->lastJson(), JSON_UNESCAPED_UNICODE), 'teams');
+    }
+
+    private function assertMentionsInert(string $text, string $label): void
+    {
+        foreach (['@channel', '@all', '@here', '@everyone'] as $mention) {
+            $this->assertStringNotContainsString($mention, $text, "{$label}: {$mention}");
+        }
+        $this->assertStringContainsString("@\u{200B}", $text);
+    }
 }

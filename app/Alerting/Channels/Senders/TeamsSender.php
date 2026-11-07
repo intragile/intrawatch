@@ -17,8 +17,8 @@ final class TeamsSender extends ChatWebhookSender
                     'type' => 'AdaptiveCard',
                     'version' => '1.4',
                     'body' => [
-                        ['type' => 'TextBlock', 'text' => $n->title, 'weight' => 'Bolder', 'wrap' => true],
-                        ['type' => 'TextBlock', 'text' => $n->body, 'wrap' => true],
+                        ['type' => 'TextBlock', 'text' => self::neutraliseMentions($n->title), 'weight' => 'Bolder', 'wrap' => true],
+                        ['type' => 'TextBlock', 'text' => self::neutraliseMentions($n->body), 'wrap' => true],
                     ],
                 ],
             ]],

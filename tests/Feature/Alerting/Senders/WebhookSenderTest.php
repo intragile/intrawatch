@@ -77,4 +77,24 @@ class WebhookSenderTest extends SenderTestCase
             $this->assertTrue($e->permanent);
         }
     }
+
+    public function test_custom_headers_cannot_duplicate_or_override_framework_headers(): void
+    {
+        $sender = new WebhookSender($this->http([new Response(200)]));
+        $spec = $this->spec(
+            ChannelType::Webhook,
+            ['url' => 'https://hooks.example.test/in', 'headers' => ['content-type' => 'text/plain', 'x-intrawatch-event' => 'fake', 'X-Keep' => 'yes']],
+            ['signing_secret' => 'a-long-signing-secret', 'secret_headers' => ['X-INTRAWATCH-SIGNATURE' => 'forged', 'X-IntraWatch-Delivery' => 'forged']],
+        );
+
+        $sender->send($spec, $this->notification(), 'iw-9');
+
+        $request = $this->lastRequest();
+        $this->assertSame(['application/json'], $request->getHeader('Content-Type'));
+        $this->assertSame(['down'], $request->getHeader('X-IntraWatch-Event'));
+        $this->assertSame(['iw-9'], $request->getHeader('X-IntraWatch-Delivery'));
+        $this->assertCount(1, $request->getHeader('X-IntraWatch-Signature'));
+        $this->assertStringStartsWith('t=', $request->getHeaderLine('X-IntraWatch-Signature'));
+        $this->assertSame('yes', $request->getHeaderLine('X-Keep'));
+    }
 }

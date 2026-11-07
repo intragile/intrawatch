@@ -27,8 +27,9 @@ final class WebhookSender implements ChannelSender
             ? http_build_query($payload)
             : json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
 
-        $headers = self::stringMap($channel->config['headers'] ?? null)
-            + self::stringMap($channel->secrets['secret_headers'] ?? null);
+        $headers = self::withoutFrameworkHeaders(
+            self::stringMap($channel->config['headers'] ?? null) + self::stringMap($channel->secrets['secret_headers'] ?? null),
+        );
         $headers['Content-Type'] = $form ? 'application/x-www-form-urlencoded' : 'application/json';
         $headers['X-IntraWatch-Event'] = $item->kind->value;
         $headers['X-IntraWatch-Delivery'] = $idempotencyKey;
@@ -71,6 +72,19 @@ final class WebhookSender implements ChannelSender
             ),
             'workspace' => ['id' => $item->workspaceId, 'name' => $item->workspaceName],
         ];
+    }
+
+    /**
+     * Drops custom headers the sender sets itself, whatever their capitalisation.
+     *
+     * @param  array<string, string>  $headers
+     * @return array<string, string>
+     */
+    private static function withoutFrameworkHeaders(array $headers): array
+    {
+        $reserved = ['content-type', 'x-intrawatch-event', 'x-intrawatch-delivery', 'x-intrawatch-signature'];
+
+        return array_filter($headers, fn (string $name): bool => ! in_array(strtolower($name), $reserved, true), ARRAY_FILTER_USE_KEY);
     }
 
     /**
