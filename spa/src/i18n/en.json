@@ -288,5 +288,84 @@
     "actorUserLabel": "User {id}",
     "actorTokenLabel": "Token {id}, owner: user {owner}",
     "actorSystemLabel": "System"
+  },
+  "monitors": {
+    "title": "Monitors",
+    "new": "New monitor",
+    "empty": "No monitors yet.",
+    "emptyFiltered": "No monitors match these filters.",
+    "loadError": "The monitors could not be loaded.",
+    "columns": {
+      "select": "Select",
+      "status": "Status",
+      "name": "Name",
+      "type": "Type",
+      "latency": "Latency",
+      "since": "Since",
+      "tags": "Tags",
+      "beats": "Recent checks"
+    },
+    "list": "Monitors",
+    "selectAll": "Select all loaded monitors",
+    "selectRow": "Select {name}",
+    "expand": "Show members of {name}",
+    "collapse": "Hide members of {name}",
+    "noChildren": "This group has no members.",
+    "latencyMs": "{ms} ms",
+    "noLatency": "—",
+    "since": "since {time}",
+    "filters": {
+      "label": "Filters",
+      "type": "Type",
+      "status": "Status",
+      "tag": "Tag",
+      "search": "Search",
+      "active": "Activity",
+      "all": "All",
+      "activeOnly": "Active",
+      "pausedOnly": "Paused",
+      "reset": "Clear filters"
+    },
+    "types": {
+      "http": "HTTP",
+      "tcp": "TCP",
+      "ping": "Ping",
+      "dns": "DNS",
+      "tls": "TLS certificate",
+      "domain": "Domain expiry",
+      "push": "Push",
+      "cron": "Cron",
+      "group": "Group"
+    },
+    "beats": {
+      "label": "Last {count} checks: {up} up, {down} down, {other} other",
+      "none": "No checks received yet"
+    },
+    "summary": {
+      "label": "Status of loaded monitors",
+      "ofLoaded": "{count} of {total} loaded",
+      "note": "Counts cover the loaded monitors only."
+    },
+    "bulk": {
+      "label": "Bulk actions",
+      "selected": "{count} selected",
+      "clear": "Clear selection",
+      "limit": "At most {max} monitors can be changed at once. Deselect {extra} to continue.",
+      "pause": "Pause",
+      "resume": "Resume",
+      "delete": "Delete",
+      "tag": "Tag",
+      "tagLabel": "Tag to apply",
+      "addTag": "Add tag",
+      "removeTag": "Remove tag",
+      "channelLabel": "Notification channel",
+      "notify": "Notify",
+      "unnotify": "Stop notifying",
+      "done": "{count} monitors updated.",
+      "deleteTitle": "Delete selected monitors",
+      "deleteConfirm": "Delete {count} monitors with their history? This cannot be undone."
+    },
+    "more": "Load more monitors",
+    "loadingMore": "Loading monitors"
   }
 }

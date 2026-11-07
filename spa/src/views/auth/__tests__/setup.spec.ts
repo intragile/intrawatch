@@ -27,6 +27,14 @@ describe('setup wizard', () => {
       'PATCH /workspaces/acme': json({
         data: workspace({ timezone: browserZone }),
       }),
+      'GET /workspaces/acme/monitors': json({
+        data: [],
+        meta: { next_cursor: null, limit: 100 },
+      }),
+      'GET /workspaces/acme/tags': json({
+        data: [],
+        meta: { next_cursor: null, limit: 100 },
+      }),
     })
     const { router } = await mountApp('/')
     expect(router.currentRoute.value.name).toBe('setup')

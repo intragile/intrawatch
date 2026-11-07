@@ -288,5 +288,84 @@
     "actorUserLabel": "{id}. felhasználó",
     "actorTokenLabel": "{id}. token, tulajdonosa: {owner}. felhasználó",
     "actorSystemLabel": "Rendszer"
+  },
+  "monitors": {
+    "title": "Monitorok",
+    "new": "Új monitor",
+    "empty": "Még nincs monitor.",
+    "emptyFiltered": "Egy monitor sem felel meg a szűrőknek.",
+    "loadError": "A monitorokat nem sikerült betölteni.",
+    "columns": {
+      "select": "Kijelölés",
+      "status": "Állapot",
+      "name": "Név",
+      "type": "Típus",
+      "latency": "Válaszidő",
+      "since": "Mióta",
+      "tags": "Címkék",
+      "beats": "Legutóbbi ellenőrzések"
+    },
+    "list": "Monitorok",
+    "selectAll": "Az összes betöltött monitor kijelölése",
+    "selectRow": "{name} kijelölése",
+    "expand": "{name} tagjainak megjelenítése",
+    "collapse": "{name} tagjainak elrejtése",
+    "noChildren": "A csoportnak nincsenek tagjai.",
+    "latencyMs": "{ms} ms",
+    "noLatency": "—",
+    "since": "{time} óta",
+    "filters": {
+      "label": "Szűrők",
+      "type": "Típus",
+      "status": "Állapot",
+      "tag": "Címke",
+      "search": "Keresés",
+      "active": "Aktivitás",
+      "all": "Mind",
+      "activeOnly": "Aktív",
+      "pausedOnly": "Szüneteltetett",
+      "reset": "Szűrők törlése"
+    },
+    "types": {
+      "http": "HTTP",
+      "tcp": "TCP",
+      "ping": "Ping",
+      "dns": "DNS",
+      "tls": "TLS-tanúsítvány",
+      "domain": "Domain lejárata",
+      "push": "Push",
+      "cron": "Cron",
+      "group": "Csoport"
+    },
+    "beats": {
+      "label": "Utolsó {count} ellenőrzés: {up} sikeres, {down} hibás, {other} egyéb",
+      "none": "Még nem érkezett ellenőrzés"
+    },
+    "summary": {
+      "label": "A betöltött monitorok állapota",
+      "ofLoaded": "{count} / {total} betöltött",
+      "note": "A számok csak a betöltött monitorokra vonatkoznak."
+    },
+    "bulk": {
+      "label": "Tömeges műveletek",
+      "selected": "{count} kijelölve",
+      "clear": "Kijelölés megszüntetése",
+      "limit": "Egyszerre legfeljebb {max} monitor módosítható. Szüntess meg {extra} kijelölést a folytatáshoz.",
+      "pause": "Szüneteltetés",
+      "resume": "Folytatás",
+      "delete": "Törlés",
+      "tag": "Címke",
+      "tagLabel": "Alkalmazandó címke",
+      "addTag": "Címke hozzáadása",
+      "removeTag": "Címke eltávolítása",
+      "channelLabel": "Értesítési csatorna",
+      "notify": "Értesítés bekapcsolása",
+      "unnotify": "Értesítés kikapcsolása",
+      "done": "{count} monitor frissítve.",
+      "deleteTitle": "A kijelölt monitorok törlése",
+      "deleteConfirm": "Törlöd a(z) {count} monitort az előzményeikkel együtt? Ez nem vonható vissza."
+    },
+    "more": "További monitorok betöltése",
+    "loadingMore": "Monitorok betöltése"
   }
 }
