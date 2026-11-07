@@ -15,6 +15,9 @@ class HttpDefinition extends AbstractDefinition
      */
     public const KEYWORD_CASE_SENSITIVE = true;
 
+    /** Header names, lower-cased, that carry credentials and belong in secret_headers. */
+    private const CREDENTIAL_HEADERS = ['authorization', 'proxy-authorization', 'cookie', 'x-api-key', 'x-auth-token'];
+
     private const HEADER_NAME = '/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/';
 
     public function type(): MonitorType
@@ -126,6 +129,11 @@ class HttpDefinition extends AbstractDefinition
             foreach (array_keys($headers) as $name) {
                 if (! is_string($name) || preg_match(self::HEADER_NAME, $name) !== 1) {
                     $errors->add('config.headers', 'Header names may only contain token characters.');
+                    break;
+                }
+                // Plain headers are returned by the API and kept in the audit trail; credentials are not.
+                if (in_array(strtolower($name), self::CREDENTIAL_HEADERS, true)) {
+                    $errors->add('config.headers', "The {$name} header carries a credential; use secret_headers instead.");
                     break;
                 }
             }

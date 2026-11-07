@@ -59,4 +59,19 @@ class BroadcastChannelTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->withToken($token->plainTextToken)->authorize($b)->assertForbidden();
     }
+
+    public function test_a_token_needs_the_monitors_read_ability_to_listen(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $member = User::factory()->memberOf($workspace, WorkspaceRole::Admin)->create();
+
+        $audit = $member->createToken('audit-only', ['audit:read']);
+        $audit->accessToken->forceFill(['workspace_id' => $workspace->id])->save();
+        $this->withToken($audit->plainTextToken)->authorize($workspace)->assertForbidden();
+
+        $monitors = $member->createToken('dashboard', ['monitors:read']);
+        $monitors->accessToken->forceFill(['workspace_id' => $workspace->id])->save();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($monitors->plainTextToken)->authorize($workspace)->assertOk();
+    }
 }

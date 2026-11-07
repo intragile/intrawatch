@@ -43,4 +43,16 @@ class NetworkPolicyTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         new NetworkPolicy(['10.0.0.0/33']);
     }
+
+    public function test_the_registries_policy_covers_special_purpose_ranges(): void
+    {
+        $policy = new NetworkPolicy(NetworkPolicy::NON_PUBLIC_NETWORKS);
+
+        foreach (['192.0.0.8', '198.18.0.1', '198.19.255.254', '224.0.0.1', '239.255.255.250', '240.0.0.1', '255.255.255.255', '64:ff9b::a00:1', '2002:a00:1::1', 'ff02::1'] as $ip) {
+            $this->assertFalse($policy->allows($ip), "{$ip} is not a public registry address");
+        }
+        foreach (['8.8.8.8', '198.20.0.1', '223.255.255.254', '2001:4860:4860::8888'] as $ip) {
+            $this->assertTrue($policy->allows($ip), "{$ip} is public");
+        }
+    }
 }

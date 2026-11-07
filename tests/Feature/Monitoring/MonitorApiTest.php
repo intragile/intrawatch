@@ -304,6 +304,57 @@ class MonitorApiTest extends TestCase
             ->assertOk()->assertJsonPath('data.state.status', 'paused');
     }
 
+    public function test_push_url_is_shown_only_to_callers_who_may_manage_monitors(): void
+    {
+        $push = Monitor::factory()->for($this->ws)->push()->create();
+        $url = rtrim(config()->string('app.url'), '/')."/api/v1/push/{$push->push_token}";
+        $viewer = User::factory()->memberOf($this->ws, WorkspaceRole::Viewer)->create();
+
+        $this->actingAs($viewer)->getJson($this->url("/{$push->id}"))->assertOk()
+            ->assertJsonPath('data.push_url', null)
+            ->assertJsonPath('data.has_push_token', true);
+        $this->actingAs($viewer)->getJson($this->url())->assertOk()
+            ->assertJsonPath('data.0.push_url', null)
+            ->assertJsonPath('data.0.has_push_token', true);
+        $this->actingAs($this->editor)->getJson($this->url("/{$push->id}"))->assertOk()
+            ->assertJsonPath('data.push_url', $url);
+        $this->actingAs($this->editor)->getJson($this->url())->assertOk()
+            ->assertJsonPath('data.0.push_url', $url);
+
+        $read = $this->editor->createToken('read', ['monitors:read']);
+        $read->accessToken->forceFill(['workspace_id' => $this->ws->id])->save();
+        $write = $this->editor->createToken('write', ['monitors:read', 'monitors:write']);
+        $write->accessToken->forceFill(['workspace_id' => $this->ws->id])->save();
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($read->plainTextToken)->getJson($this->url("/{$push->id}"))->assertOk()
+            ->assertJsonPath('data.push_url', null)
+            ->assertJsonPath('data.has_push_token', true);
+        $this->app['auth']->forgetGuards();
+        $this->withToken($write->plainTextToken)->getJson($this->url("/{$push->id}"))->assertOk()
+            ->assertJsonPath('data.push_url', $url);
+
+        $http = Monitor::factory()->for($this->ws)->http()->create();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($write->plainTextToken)->getJson($this->url("/{$http->id}"))->assertOk()
+            ->assertJsonPath('data.push_url', null)
+            ->assertJsonPath('data.has_push_token', false);
+    }
+
+    public function test_credential_headers_are_refused_in_plain_headers(): void
+    {
+        foreach (['Authorization', 'cookie', 'Proxy-Authorization', 'X-Api-Key'] as $name) {
+            $this->actingAs($this->editor)->postJson($this->url(), $this->http([
+                'config' => ['url' => 'https://example.test', 'headers' => [$name => 'value']],
+            ]))->assertUnprocessable()->assertJsonValidationErrors('config.headers');
+        }
+
+        $this->actingAs($this->editor)->postJson($this->url(), $this->http([
+            'config' => ['url' => 'https://example.test', 'headers' => ['Accept' => 'text/html']],
+            'secrets' => ['secret_headers' => ['Authorization' => 'Bearer x']],
+        ]))->assertCreated();
+    }
+
     public function test_push_token_rotation(): void
     {
         $push = Monitor::factory()->for($this->ws)->push()->create();

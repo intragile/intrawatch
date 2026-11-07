@@ -64,7 +64,9 @@ class MonitorController extends Controller
         });
         $query->when($request->has('active'), fn (Builder $q) => $q->where('monitors.active', $request->boolean('active')));
 
-        return CursorPage::from($query, $request, fn (Model $m): array => MonitorPresenter::toArray($this->monitor($m)));
+        $reveal = MonitorPresenter::revealsPushUrl($request->user(), $workspace);
+
+        return CursorPage::from($query, $request, fn (Model $m): array => MonitorPresenter::toArray($this->monitor($m), $reveal));
     }
 
     public function store(StoreMonitorRequest $request, Workspace $workspace): JsonResponse
@@ -93,12 +95,12 @@ class MonitorController extends Controller
         });
         PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
 
-        return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor))], 201);
+        return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor), true)], 201);
     }
 
-    public function show(Workspace $workspace, Monitor $monitor): JsonResponse
+    public function show(Request $request, Workspace $workspace, Monitor $monitor): JsonResponse
     {
-        return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor))]);
+        return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor), MonitorPresenter::revealsPushUrl($request->user(), $workspace))]);
     }
 
     public function update(UpdateMonitorRequest $request, Workspace $workspace, Monitor $monitor): JsonResponse
@@ -173,7 +175,7 @@ class MonitorController extends Controller
         });
         PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
 
-        return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor))]);
+        return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor), true)]);
     }
 
     public function destroy(Workspace $workspace, Monitor $monitor): Response

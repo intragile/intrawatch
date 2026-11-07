@@ -22,10 +22,15 @@ final class NetworkPolicy
         }
     }
 
-    /** Loopback, private, shared (CGNAT), link-local and unique-local networks; registries are never there. */
+    /**
+     * Loopback, private, shared (CGNAT), link-local, unique-local, IETF protocol assignment, benchmarking,
+     * multicast and reserved networks, and the IPv6 translation prefixes that can embed any IPv4 address
+     * (NAT64 and 6to4); registries are never there.
+     */
     public const NON_PUBLIC_NETWORKS = [
-        '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12', '192.168.0.0/16',
-        '::/128', '::1/128', 'fc00::/7', 'fe80::/10',
+        '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12', '192.0.0.0/24',
+        '192.168.0.0/16', '198.18.0.0/15', '224.0.0.0/4', '240.0.0.0/4',
+        '::/128', '::1/128', '64:ff9b::/96', '2002::/16', 'fc00::/7', 'fe80::/10', 'ff00::/8',
     ];
 
     /**
