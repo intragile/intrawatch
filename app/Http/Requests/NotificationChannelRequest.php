@@ -244,6 +244,16 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
         return $changes;
     }
 
+    /**
+     * The validated input of a create: the column values with defaults applied, plus `apply_to_existing`.
+     *
+     * @return array<string, mixed>
+     */
+    public function validatedChannel(): array
+    {
+        return $this->channelAttributes() + ['apply_to_existing' => $this->applyToExisting()];
+    }
+
     public function applyToExisting(): bool
     {
         return $this->boolean('apply_to_existing');

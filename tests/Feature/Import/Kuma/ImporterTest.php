@@ -90,7 +90,7 @@ final class ImporterTest extends TestCase
         $tag = Tag::where('workspace_id', $ws->id)->sole();
         $this->assertSame('prod', $tag->name);
         $this->assertSame('#059669', $tag->color);
-        $mapping = ImportMapping::sole();
+        $mapping = ImportMapping::where('entity', 'tag')->sole();
         $this->assertSame($ws->id, $mapping->workspace_id);
         $this->assertSame('uptime_kuma', $mapping->source);
         $this->assertSame('tag', $mapping->entity);
@@ -112,7 +112,7 @@ final class ImporterTest extends TestCase
         $this->assertSame('tag_reused', $entry['notes'][0]['code']);
         $this->assertSame(1, Tag::count());
         $this->assertSame('#111111', $local->fresh()?->color);
-        $this->assertSame($local->id, ImportMapping::sole()->target_id);
+        $this->assertSame($local->id, ImportMapping::where('entity', 'tag')->sole()->target_id);
     }
 
     public function test_rerun_reports_existing_and_creates_nothing(): void
@@ -126,7 +126,7 @@ final class ImporterTest extends TestCase
         $this->assertSame(['existing' => 1], $report['counts']['tag']);
         $this->assertSame('already_imported', $this->tagEntries($report)[0]['notes'][0]['code']);
         $this->assertSame(1, Tag::count());
-        $this->assertSame(1, ImportMapping::count());
+        $this->assertSame(1, ImportMapping::where('entity', 'tag')->count());
         $this->assertSame('#222222', Tag::sole()->color);
 
         Tag::query()->delete();
@@ -146,7 +146,7 @@ final class ImporterTest extends TestCase
 
         $this->assertSame(['created' => 1], $report['counts']['tag']);
         $this->assertSame(1, Tag::where('workspace_id', $b->id)->count());
-        $this->assertSame(2, ImportMapping::count());
+        $this->assertSame(2, ImportMapping::where('entity', 'tag')->count());
     }
 
     public function test_json_then_db_warns_about_other_instance_kind(): void

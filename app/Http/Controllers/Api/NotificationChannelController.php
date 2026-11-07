@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Notifications\CreateNotificationChannel;
 use App\Enums\ChannelType;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
@@ -22,8 +23,6 @@ use Illuminate\Validation\Rule;
 
 class NotificationChannelController extends Controller
 {
-    private const ATTACH_CHUNK = 500;
-
     public function index(Request $request, Workspace $workspace): JsonResponse
     {
         $request->validate([
@@ -41,27 +40,9 @@ class NotificationChannelController extends Controller
         return CursorPage::from($query, $request, fn (Model $m): array => NotificationChannelPresenter::toArray($this->channel($m)));
     }
 
-    public function store(NotificationChannelRequest $request, Workspace $workspace): JsonResponse
+    public function store(NotificationChannelRequest $request, Workspace $workspace, CreateNotificationChannel $create): JsonResponse
     {
-        $channel = DB::transaction(function () use ($request, $workspace): NotificationChannel {
-            $channel = $workspace->notificationChannels()->create($request->channelAttributes());
-
-            $changes = [
-                'name' => [null, $channel->name],
-                'type' => [null, $channel->type->value],
-                'config' => [null, $channel->config],
-                'secret_keys' => [[], $this->secretKeys($channel->secrets)],
-                'templates' => [null, $channel->templates],
-                'is_default' => [null, $channel->is_default],
-                'active' => [null, $channel->active],
-            ];
-            if ($request->applyToExisting() && ($attached = $this->attachToMonitors($workspace, $channel)) > 0) {
-                $changes['applied_to_existing'] = [null, $attached];
-            }
-            Audit::record('notification_channel.created', $channel, $changes);
-
-            return $channel;
-        });
+        $channel = $create->handle($workspace, $request->validatedChannel(), null);
 
         return response()->json(['data' => NotificationChannelPresenter::toArray($this->fresh($channel))], 201);
     }
@@ -118,23 +99,9 @@ class NotificationChannelController extends Controller
         return response()->noContent();
     }
 
-    /**
-     * Attaches the channel to every monitor of the workspace that does not have it yet.
-     *
-     * @return int The number of monitors newly attached.
-     */
     private function attachToMonitors(Workspace $workspace, NotificationChannel $channel): int
     {
-        $attached = 0;
-        $workspace->monitors()->select('monitors.id')->chunkById(self::ATTACH_CHUNK, function ($monitors) use ($channel, &$attached): void {
-            $rows = [];
-            foreach ($monitors as $monitor) {
-                $rows[] = ['monitor_id' => $monitor->id, 'notification_channel_id' => $channel->id];
-            }
-            $attached += DB::table('monitor_notification')->insertOrIgnore($rows);
-        }, 'monitors.id', 'id');
-
-        return $attached;
+        return app(CreateNotificationChannel::class)->attachToMonitors($workspace, $channel);
     }
 
     /**
