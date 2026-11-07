@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Amp\Dns\DnsResolver;
+use App\Alerting\Transport\AddressResolver;
+use App\Alerting\Transport\SystemAddressResolver;
 use App\Enums\MonitorType;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
@@ -73,6 +75,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(DnsResolver::class, fn (): DnsResolver => \Amp\Dns\dnsResolver());
         $this->app->singleton(NetworkPolicy::class, fn (): NetworkPolicy => NetworkPolicy::fromConfig());
         $this->app->singleton(GuardedConnector::class);
+        $this->app->bind(AddressResolver::class, SystemAddressResolver::class);
         $this->app->bind(TlsFactsProvider::class, CertificateFacts::class);
         $this->app->singleton(RegistrableDomains::class, fn (): RegistrableDomains => RegistrableDomains::load());
         $this->app->singleton(RdapBootstrap::class, fn (): RdapBootstrap => RdapBootstrap::load());
