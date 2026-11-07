@@ -15,7 +15,9 @@ COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --no-progress --no-scripts \
     --prefer-dist --optimize-autoloader --ignore-platform-reqs
 COPY . .
-RUN composer dump-autoload --no-dev --optimize --no-scripts --ignore-platform-reqs
+# The SPA sources stay out of the runtime image; only the build from the spa stage is shipped.
+RUN rm -rf spa \
+    && composer dump-autoload --no-dev --optimize --no-scripts --ignore-platform-reqs
 
 FROM dunglas/frankenphp:1-php8.5
 

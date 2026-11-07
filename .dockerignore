@@ -1,13 +1,15 @@
 .git
 .github
 .superpowers/
-.env
-.env.*
+**/.env
+**/.env.*
 !.env.example
 .phpunit.result.cache
 .phpunit.cache
 **/node_modules
 spa/dist
+spa/test-results
+spa/playwright-report
 vendor
 storage/logs/*
 storage/framework/cache/*
