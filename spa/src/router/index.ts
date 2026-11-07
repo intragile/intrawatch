@@ -59,22 +59,22 @@ const workspaceRoutes: RouteRecordRaw[] = [
   {
     path: 'incidents',
     name: 'ws.incidents',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/incidents/IncidentListView.vue'),
   },
   {
     path: 'incidents/:incident(\\d+)',
     name: 'ws.incident',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/incidents/IncidentView.vue'),
   },
   {
     path: 'maintenances',
     name: 'ws.maintenances',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/maintenances/MaintenanceListView.vue'),
   },
   {
     path: 'maintenances/:maintenance(new|\\d+)',
     name: 'ws.maintenance',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/maintenances/MaintenanceEditView.vue'),
   },
   {
     path: 'status-pages',

@@ -841,5 +841,216 @@
     "seconds": "{n} mp",
     "minutes": "{n} perc {s} mp",
     "hours": "{n} óra {m} perc"
+  },
+  "incidents": {
+    "title": "Incidensek",
+    "new": "Új incidens",
+    "newTitle": "Új incidens",
+    "loading": "Az incidens betöltése",
+    "retry": "Újra",
+    "back": "Összes incidens",
+    "empty": {
+      "title": "Nincs incidens",
+      "text": "Jelents egy incidenst, hogy a státuszoldalak és a feliratkozók tájékozottak maradjanak."
+    },
+    "filter": {
+      "label": "Incidensek megjelenítése",
+      "all": "Mind",
+      "open": "Nyitott",
+      "resolved": "Megoldott"
+    },
+    "columns": {
+      "title": "Incidens",
+      "impact": "Hatás",
+      "status": "Állapot",
+      "started": "Kezdete",
+      "resolved": "Megoldva",
+      "actions": "Műveletek"
+    },
+    "impact": {
+      "none": "Nincs hatás",
+      "minor": "Kisebb",
+      "major": "Jelentős",
+      "critical": "Kritikus"
+    },
+    "status": {
+      "investigating": "Vizsgálat alatt",
+      "identified": "Azonosítva",
+      "monitoring": "Megfigyelés alatt",
+      "resolved": "Megoldva"
+    },
+    "fields": {
+      "title": "Cím",
+      "impact": "Hatás",
+      "status": "Állapot",
+      "message": "Üzenet",
+      "started": "Kezdete",
+      "resolved": "Megoldva"
+    },
+    "create": {
+      "submit": "Incidens létrehozása",
+      "firstUpdate": "Első frissítés",
+      "created": "Az incidens létrejött."
+    },
+    "details": {
+      "title": "Részletek",
+      "save": "Részletek mentése",
+      "saved": "Az incidens frissült.",
+      "noChanges": "Nincs módosítás."
+    },
+    "affected": {
+      "title": "Érintettek",
+      "monitors": "Érintett figyelők",
+      "statusPages": "Megjelenik a státuszoldalakon",
+      "searchMonitors": "Figyelők keresése",
+      "monitorById": "{id}. figyelő",
+      "statusPageById": "{id}. státuszoldal",
+      "hint": "Nem kötelező. A státuszoldal csak akkor mutatja az incidenst, ha itt ki van választva."
+    },
+    "timeline": {
+      "title": "Idővonal",
+      "empty": "Még nincs frissítés.",
+      "edited": "szerkesztve",
+      "edit": "Frissítés szerkesztése",
+      "delete": "Frissítés törlése"
+    },
+    "composer": {
+      "title": "Frissítés közzététele",
+      "submit": "Frissítés küldése",
+      "posted": "A frissítés közzétéve.",
+      "hint": "Az incidens a legújabb frissítés állapotát veszi fel. A Megoldva állapot lezárja."
+    },
+    "updateEdit": {
+      "title": "Frissítés szerkesztése",
+      "text": "Csak az üzenet módosítható, az állapot és az időpont marad.",
+      "saved": "A frissítés mentve."
+    },
+    "updateDelete": {
+      "title": "Törlöd ezt a frissítést?",
+      "text": "Az incidens állapota a legújabb megmaradó frissítésből számolódik újra.",
+      "deleted": "A frissítés törölve."
+    },
+    "delete": {
+      "title": "Törlöd az incidenst?",
+      "text": "A(z) „{title}” és az idővonala eltűnik a státuszoldalakról.",
+      "deleted": "Az incidens törölve."
+    },
+    "readOnly": "Az incidenst megtekintheted, de nem módosíthatod.",
+    "staleNote": "A nyilvános státuszoldalakon a változás akár 60 másodperc késéssel jelenhet meg.",
+    "leave": {
+      "title": "Elveted a módosításokat?",
+      "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "confirm": "Módosítások elvetése"
+    }
+  },
+  "maintenances": {
+    "title": "Karbantartás",
+    "new": "Karbantartás ütemezése",
+    "newTitle": "Új karbantartás",
+    "editTitle": "Karbantartás szerkesztése",
+    "loading": "A karbantartás betöltése",
+    "retry": "Újra",
+    "empty": {
+      "title": "Nincs karbantartási ablak",
+      "text": "Ütemezz egyet, hogy a riasztások elnémuljanak, a látogatók pedig értesüljenek a tervezett munkáról."
+    },
+    "filter": {
+      "label": "Karbantartások megjelenítése",
+      "all": "Mind",
+      "active": "Folyamatban",
+      "upcoming": "Következő",
+      "past": "Lezárult"
+    },
+    "columns": {
+      "title": "Karbantartás",
+      "strategy": "Ütemezés",
+      "state": "Állapot",
+      "window": "Ablak",
+      "monitors": "Figyelők",
+      "actions": "Műveletek"
+    },
+    "strategy": {
+      "once": "Egyszeri",
+      "interval": "N naponta",
+      "weekly": "Hetente",
+      "monthly": "Havonta",
+      "cron": "Cron kifejezés"
+    },
+    "state": {
+      "inProgress": "Folyamatban",
+      "upcoming": "Következő",
+      "ended": "Lezárult",
+      "inactive": "Inaktív"
+    },
+    "fields": {
+      "title": "Cím",
+      "description": "Leírás",
+      "strategy": "Ütemezés típusa",
+      "timezone": "Időzóna",
+      "active": "Aktív",
+      "startsAt": "Kezdete",
+      "endsAt": "Vége",
+      "startTime": "Kezdési időpont",
+      "duration": "Időtartam (perc)",
+      "everyDays": "Ismétlés (naponta)",
+      "weekdays": "Hétköznapok",
+      "monthDays": "A hónap napjai",
+      "cron": "Cron kifejezés",
+      "validFrom": "Érvényes ettől",
+      "validUntil": "Érvényes eddig"
+    },
+    "hints": {
+      "timezone": "Az alábbi időpontok ebben az időzónában értendők.",
+      "endsAt": "Hagyd üresen, ha nincs vége az ablaknak; később a Befejezés most gombbal zárhatod le.",
+      "cron": "Öt mező: perc óra nap hónap hétköznap.",
+      "monthDays": "A 29–31. nap a rövidebb hónapokban kimarad; az Utolsó nap mindig lefut.",
+      "validity": "Nem kötelező. Korlátozza, mely napokon él az ütemezés.",
+      "active": "Az inaktív karbantartás sosem indul el."
+    },
+    "weekday": {
+      "1": "H",
+      "2": "K",
+      "3": "Sze",
+      "4": "Cs",
+      "5": "P",
+      "6": "Szo",
+      "7": "V"
+    },
+    "lastDay": "Utolsó nap",
+    "targets": {
+      "title": "Érintett figyelők és státuszoldalak",
+      "monitorsRequired": "Válassz ki legalább egy figyelőt.",
+      "statusPagesHint": "Nem kötelező. A státuszoldal csak akkor mutatja a karbantartást, ha itt ki van választva."
+    },
+    "preview": {
+      "title": "Ablak",
+      "current": "Éppen folyamatban",
+      "next": "Következő ablak",
+      "none": "Nincs közelgő ablak.",
+      "saved": "A szerver számolja a mentett ütemezésből."
+    },
+    "endNow": "Befejezés most",
+    "endNowDialog": {
+      "title": "Befejezed most a karbantartást?",
+      "text": "A(z) „{title}” azonnal véget ér, a figyelők újra riasztanak.",
+      "confirm": "Befejezés most",
+      "ended": "A karbantartás befejeződött.",
+      "recurring": "Az ismétlődő karbantartást nem lehet befejezni; kapcsold ki az Aktív kapcsolóval."
+    },
+    "delete": {
+      "title": "Törlöd a karbantartást?",
+      "text": "A(z) „{title}” törlődik. Ha éppen fut, a figyelők újra riasztanak.",
+      "deleted": "A karbantartás törölve."
+    },
+    "created": "A karbantartás beütemezve.",
+    "updated": "A karbantartás frissült.",
+    "noChanges": "Nincs módosítás.",
+    "readOnly": "A karbantartást megtekintheted, de nem módosíthatod; a szerkesztő csak olvasható.",
+    "staleNote": "A nyilvános státuszoldalakon a változás akár 60 másodperc késéssel jelenhet meg.",
+    "leave": {
+      "title": "Elveted a módosításokat?",
+      "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "confirm": "Módosítások elvetése"
+    }
   }
 }

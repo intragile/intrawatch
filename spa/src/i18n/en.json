@@ -841,5 +841,216 @@
     "seconds": "{n} s",
     "minutes": "{n} min {s} s",
     "hours": "{n} h {m} min"
+  },
+  "incidents": {
+    "title": "Incidents",
+    "new": "New incident",
+    "newTitle": "New incident",
+    "loading": "Loading the incident",
+    "retry": "Try again",
+    "back": "All incidents",
+    "empty": {
+      "title": "No incidents",
+      "text": "Report an incident to keep your status pages and subscribers informed."
+    },
+    "filter": {
+      "label": "Show incidents",
+      "all": "All",
+      "open": "Open",
+      "resolved": "Resolved"
+    },
+    "columns": {
+      "title": "Incident",
+      "impact": "Impact",
+      "status": "Status",
+      "started": "Started",
+      "resolved": "Resolved",
+      "actions": "Actions"
+    },
+    "impact": {
+      "none": "No impact",
+      "minor": "Minor",
+      "major": "Major",
+      "critical": "Critical"
+    },
+    "status": {
+      "investigating": "Investigating",
+      "identified": "Identified",
+      "monitoring": "Monitoring",
+      "resolved": "Resolved"
+    },
+    "fields": {
+      "title": "Title",
+      "impact": "Impact",
+      "status": "Status",
+      "message": "Message",
+      "started": "Started",
+      "resolved": "Resolved"
+    },
+    "create": {
+      "submit": "Create incident",
+      "firstUpdate": "First update",
+      "created": "Incident created."
+    },
+    "details": {
+      "title": "Details",
+      "save": "Save details",
+      "saved": "Incident updated.",
+      "noChanges": "Nothing has changed."
+    },
+    "affected": {
+      "title": "Affected",
+      "monitors": "Affected monitors",
+      "statusPages": "Shown on status pages",
+      "searchMonitors": "Search monitors",
+      "monitorById": "Monitor #{id}",
+      "statusPageById": "Status page #{id}",
+      "hint": "Optional. Status pages show the incident only when they are selected here."
+    },
+    "timeline": {
+      "title": "Timeline",
+      "empty": "No updates yet.",
+      "edited": "edited",
+      "edit": "Edit update",
+      "delete": "Delete update"
+    },
+    "composer": {
+      "title": "Post an update",
+      "submit": "Post update",
+      "posted": "Update posted.",
+      "hint": "The incident takes the status of the newest update. Posting Resolved closes it."
+    },
+    "updateEdit": {
+      "title": "Edit update",
+      "text": "Only the message can change; the status and the time stay as recorded.",
+      "saved": "Update saved."
+    },
+    "updateDelete": {
+      "title": "Delete this update?",
+      "text": "The incident status is recomputed from the newest remaining update.",
+      "deleted": "Update deleted."
+    },
+    "delete": {
+      "title": "Delete incident?",
+      "text": "\"{title}\" and its timeline are removed from your status pages.",
+      "deleted": "Incident deleted."
+    },
+    "readOnly": "You can view this incident but not change it.",
+    "staleNote": "Public status pages may show changes after up to 60 s.",
+    "leave": {
+      "title": "Discard changes?",
+      "text": "You have unsaved changes. If you leave this page they are lost.",
+      "confirm": "Discard changes"
+    }
+  },
+  "maintenances": {
+    "title": "Maintenance",
+    "new": "Schedule maintenance",
+    "newTitle": "New maintenance",
+    "editTitle": "Edit maintenance",
+    "loading": "Loading the maintenance",
+    "retry": "Try again",
+    "empty": {
+      "title": "No maintenance windows",
+      "text": "Schedule one to silence alerts and tell visitors about planned work."
+    },
+    "filter": {
+      "label": "Show maintenance",
+      "all": "All",
+      "active": "In progress",
+      "upcoming": "Upcoming",
+      "past": "Ended"
+    },
+    "columns": {
+      "title": "Maintenance",
+      "strategy": "Schedule",
+      "state": "State",
+      "window": "Window",
+      "monitors": "Monitors",
+      "actions": "Actions"
+    },
+    "strategy": {
+      "once": "One-off",
+      "interval": "Every N days",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "cron": "Cron expression"
+    },
+    "state": {
+      "inProgress": "In progress",
+      "upcoming": "Upcoming",
+      "ended": "Ended",
+      "inactive": "Inactive"
+    },
+    "fields": {
+      "title": "Title",
+      "description": "Description",
+      "strategy": "Schedule type",
+      "timezone": "Time zone",
+      "active": "Active",
+      "startsAt": "Starts",
+      "endsAt": "Ends",
+      "startTime": "Start time",
+      "duration": "Duration (minutes)",
+      "everyDays": "Repeat every (days)",
+      "weekdays": "Weekdays",
+      "monthDays": "Days of the month",
+      "cron": "Cron expression",
+      "validFrom": "Valid from",
+      "validUntil": "Valid until"
+    },
+    "hints": {
+      "timezone": "Times below are in this time zone.",
+      "endsAt": "Leave empty for a window without an end; end it later with End now.",
+      "cron": "Five fields: minute hour day month weekday.",
+      "monthDays": "Days 29 to 31 are skipped in shorter months; Last day always runs.",
+      "validity": "Optional. Limits the dates on which the schedule applies.",
+      "active": "An inactive maintenance never starts."
+    },
+    "weekday": {
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat",
+      "7": "Sun"
+    },
+    "lastDay": "Last day",
+    "targets": {
+      "title": "Affected monitors and status pages",
+      "monitorsRequired": "Select at least one monitor.",
+      "statusPagesHint": "Optional. Status pages show this maintenance only when they are selected here."
+    },
+    "preview": {
+      "title": "Window",
+      "current": "In progress now",
+      "next": "Next window",
+      "none": "No upcoming window.",
+      "saved": "Calculated by the server from the saved schedule."
+    },
+    "endNow": "End now",
+    "endNowDialog": {
+      "title": "End this maintenance now?",
+      "text": "\"{title}\" stops immediately and monitors resume alerting.",
+      "confirm": "End now",
+      "ended": "Maintenance ended.",
+      "recurring": "A recurring maintenance cannot be ended; switch it off with Active instead."
+    },
+    "delete": {
+      "title": "Delete maintenance?",
+      "text": "\"{title}\" is removed. Monitors resume alerting if it is running.",
+      "deleted": "Maintenance deleted."
+    },
+    "created": "Maintenance scheduled.",
+    "updated": "Maintenance updated.",
+    "noChanges": "Nothing has changed.",
+    "readOnly": "You can view this maintenance but not change it; the editor is read-only.",
+    "staleNote": "Public status pages may show changes after up to 60 s.",
+    "leave": {
+      "title": "Discard changes?",
+      "text": "You have unsaved changes. If you leave this page they are lost.",
+      "confirm": "Discard changes"
+    }
   }
 }
