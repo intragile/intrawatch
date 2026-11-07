@@ -85,6 +85,14 @@ class Workspace extends Model
     }
 
     /**
+     * @return HasMany<NotificationChannel, $this>
+     */
+    public function notificationChannels(): HasMany
+    {
+        return $this->hasMany(NotificationChannel::class);
+    }
+
+    /**
      * Build a slug from the name that is not yet used by another workspace.
      */
     public static function uniqueSlug(string $name): string

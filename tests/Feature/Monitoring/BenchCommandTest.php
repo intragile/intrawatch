@@ -67,7 +67,7 @@ class BenchCommandTest extends TestCase
         $this->assertStringContainsString('--force', Artisan::output());
         $this->assertSame(1, Workspace::query()->count());
 
-        $this->assertSame(0, Artisan::call('intrawatch:bench', ['--monitors' => '10', '--interval' => '20', '--duration' => '2', '--force' => true]), Artisan::output());
+        $this->assertSame(0, Artisan::call('intrawatch:bench', ['--monitors' => '40', '--interval' => '20', '--duration' => '4', '--force' => true]), Artisan::output());
         $this->assertSame([$existing->id], Workspace::query()->pluck('id')->all());
         $this->assertSame(0, DB::table('monitors')->count());
     }

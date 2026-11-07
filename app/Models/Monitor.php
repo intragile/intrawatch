@@ -34,16 +34,21 @@ use Illuminate\Support\Carbon;
  * @property array<string, mixed>|null $secrets
  * @property int|null $parent_id
  * @property string|null $push_token
+ * @property int $resend_interval_minutes
+ * @property bool $notify_degraded
+ * @property int $degraded_alert_after_seconds
+ * @property bool $notify_changes
  * @property Carbon|null $check_requested_at
  * @property-read MonitorState $state
  * @property-read Monitor|null $parent
  * @property-read Collection<int, Monitor> $children
  * @property-read Collection<int, Tag> $tags
+ * @property-read Collection<int, NotificationChannel> $notificationChannels
  */
 #[Fillable([
     'workspace_id', 'name', 'description', 'type', 'active', 'interval_seconds', 'timeout_seconds', 'retries',
     'retry_interval_seconds', 'degraded_threshold_ms', 'inverted', 'config', 'secrets', 'parent_id', 'push_token',
-    'check_requested_at',
+    'check_requested_at', 'resend_interval_minutes', 'notify_degraded', 'degraded_alert_after_seconds', 'notify_changes',
 ])]
 #[Hidden(['secrets', 'push_token'])]
 class Monitor extends Model
@@ -60,6 +65,10 @@ class Monitor extends Model
         'active' => true,
         'inverted' => false,
         'config' => '[]',
+        'resend_interval_minutes' => 0,
+        'notify_degraded' => true,
+        'degraded_alert_after_seconds' => 300,
+        'notify_changes' => true,
     ];
 
     protected static function booted(): void
@@ -85,6 +94,10 @@ class Monitor extends Model
             'config' => 'array',
             'secrets' => 'encrypted:array',
             'check_requested_at' => 'datetime',
+            'resend_interval_minutes' => 'integer',
+            'notify_degraded' => 'boolean',
+            'degraded_alert_after_seconds' => 'integer',
+            'notify_changes' => 'boolean',
         ];
     }
 
@@ -134,5 +147,13 @@ class Monitor extends Model
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class)->withPivot('value');
+    }
+
+    /**
+     * @return BelongsToMany<NotificationChannel, $this>
+     */
+    public function notificationChannels(): BelongsToMany
+    {
+        return $this->belongsToMany(NotificationChannel::class, 'monitor_notification');
     }
 }
