@@ -802,7 +802,12 @@
       "subscribe": "Subscribe",
       "unsubscribe": "Unsubscribe",
       "subscribed": "{count} monitors subscribed.",
-      "unsubscribed": "{count} monitors unsubscribed."
+      "unsubscribed": "{count} monitors unsubscribed.",
+      "bound": "subscribed"
+    },
+    "hints": {
+      "appriseKey": "Key of a configuration stored on the Apprise server. Needed unless you give notification URLs.",
+      "appriseUrls": "One URL per line. Needed unless you give a config key."
     }
   },
   "alerts": {

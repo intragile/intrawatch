@@ -68,6 +68,8 @@ function label(spec: FieldSpec): string {
 }
 
 function hint(spec: FieldSpec): string | undefined {
+  if (spec.hint !== undefined)
+    return t(`channels.hints.${spec.hint}`)
   if (spec.min !== undefined && spec.max !== undefined)
     return t('channels.range', { min: spec.min, max: spec.max })
   return spec.min === undefined
@@ -129,6 +131,8 @@ function listValue(key: string): string[] {
       :name="`config_${spec.key}`"
       :label="label(spec)"
       :type="spec.kind === 'url' ? 'url' : 'text'"
+      :hint="hint(spec)"
+      :persistent-hint="spec.hint !== undefined"
       :error-messages="cf.err(spec.key)"
       autocomplete="off"
       @update:model-value="text(spec, $event)"
@@ -238,7 +242,7 @@ function listValue(key: string): string[] {
       :name="spec.key"
       :label="label(spec)"
       :multiline="spec.multiline"
-      :hint="spec.key === 'secret_headers' ? t('channels.mapHint') : undefined"
+      :hint="spec.key === 'secret_headers' ? t('channels.mapHint') : hint(spec)"
       :clearable="!spec.required"
       :is-set="secretKeys.includes(spec.key)"
       :error="secretErrors[spec.key]"

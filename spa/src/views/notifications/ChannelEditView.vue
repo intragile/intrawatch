@@ -21,6 +21,7 @@ import {
   newChannelForm,
   patchBody,
   pruneSecrets,
+  withSmtpSecretCleared,
 } from '../../components/notifications/model'
 import TemplateFields from '../../components/notifications/TemplateFields.vue'
 import TestSendButton from '../../components/notifications/TestSendButton.vue'
@@ -197,7 +198,10 @@ function onTypeChange(next: ChannelType): void {
 /** The secrets to send, or null when a client-side check failed. */
 function checkedSecrets(current: ChannelForm): SecretDraft | null {
   clientSecretErrors.value = {}
-  const draft = pruneSecrets(type.value, current.config, secrets.value)
+  const pruned = pruneSecrets(type.value, current.config, secrets.value)
+  const draft = isEdit.value && initial.value !== null
+    ? withSmtpSecretCleared(type.value, initial.value.config, current.config, secretKeys.value, pruned)
+    : pruned
   const headerDraft = draft.secret_headers
   if (typeof headerDraft === 'string') {
     const bad = invalidHeaderLines(headerDraft)
@@ -264,6 +268,8 @@ async function save(): Promise<void> {
           channel: String(result.id),
         },
       })
+      // The editor now shows the saved channel, so later edits are guarded again.
+      saved = false
     }
   }
   catch (e) {
@@ -314,7 +320,13 @@ async function sendTest(): Promise<void> {
 }
 
 // Monitor binding: the API has no per-channel listing of bound monitors, so the picker applies a change.
-const monitorOptions = ref<Array<Pick<Monitor, 'id' | 'name'>>>([])
+const monitorOptions = ref<Array<Pick<Monitor, 'id' | 'name'> & { bound: boolean }>>([])
+const monitorItems = computed(() => monitorOptions.value.map(m => ({
+  id: m.id,
+  name: m.bound
+    ? `${m.name} (${t('channels.binding.bound')})`
+    : m.name,
+})))
 const pickedMonitors = ref<number[]>([])
 const monitorSearch = ref('')
 const monitorsLoading = ref(false)
@@ -339,11 +351,17 @@ async function searchMonitors(q: string): Promise<void> {
     }))
     if (mine !== searchSeq)
       return
-    const keep = monitorOptions.value.filter(m => pickedMonitors.value.includes(m.id))
-    const fresh = result.data.filter(m => !keep.some(k => k.id === m.id))
+    const channel = channelId.value
+    const options = result.data.map(m => ({
+      id: m.id,
+      name: m.name,
+      bound: channel !== null && m.notification_channel_ids.map(Number).includes(channel),
+    }))
+    // Picked monitors stay selectable even when the new search no longer lists them.
+    const keep = monitorOptions.value.filter(m => pickedMonitors.value.includes(m.id) && !options.some(o => o.id === m.id))
     monitorOptions.value = [
       ...keep,
-      ...fresh.map(m => ({ id: m.id, name: m.name })),
+      ...options,
     ]
   }
   catch {
@@ -378,12 +396,7 @@ async function bind(action: 'notify' | 'unnotify'): Promise<void> {
       ? 'channels.binding.subscribed'
       : 'channels.binding.unsubscribed', { count: result.affected }))
     pickedMonitors.value = []
-    const fresh = await unwrap<ChannelSummary>(api.GET('/workspaces/{workspace}/notification-channels/{channel}', {
-      params: {
-        path: { workspace: slug.value, channel: id },
-      },
-    }))
-    monitorCount.value = fresh.monitor_count
+    void refreshBinding(id)
   }
   catch (e) {
     bindError.value = failure(e)
@@ -391,6 +404,22 @@ async function bind(action: 'notify' | 'unnotify'): Promise<void> {
   finally {
     binding.value = false
   }
+}
+
+/** Updates the subscribed count and the markers; the change itself already succeeded, so failures stay quiet. */
+async function refreshBinding(id: number): Promise<void> {
+  try {
+    const fresh = await unwrap<ChannelSummary>(api.GET('/workspaces/{workspace}/notification-channels/{channel}', {
+      params: {
+        path: { workspace: slug.value, channel: id },
+      },
+    }))
+    monitorCount.value = fresh.monitor_count
+  }
+  catch {
+    // The count refreshes on the next visit.
+  }
+  await searchMonitors(monitorSearch.value)
 }
 
 function cancel(): void {
@@ -569,7 +598,7 @@ watch(leaveOpen, (open) => {
             v-model:search="monitorSearch"
             data-test="binding-monitors"
             name="binding_monitors"
-            :items="monitorOptions"
+            :items="monitorItems"
             item-title="name"
             item-value="id"
             :loading="monitorsLoading"

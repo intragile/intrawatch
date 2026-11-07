@@ -37,19 +37,49 @@ const kind = ref<AlertKind | null>(null)
 const monitorId = ref<number | null>(null)
 const since = ref('')
 
-const list = useCursorList(cursor => bodyOf(api.GET('/workspaces/{workspace}/alerts', {
-  params: {
-    path: { workspace: slug.value },
-    query: {
-      cursor: cursor ?? undefined,
-      kind: kind.value ?? undefined,
-      monitor_id: monitorId.value ?? undefined,
-      since: since.value === ''
-        ? undefined
-        : new Date(since.value).toISOString(),
+/** The API accepts ISO 8601 without fractional seconds only. */
+function sinceParam(): string | undefined {
+  if (since.value === '')
+    return undefined
+  const date = new Date(since.value)
+  return Number.isNaN(date.getTime())
+    ? undefined
+    : date.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+function fetchPage(cursor: string | null) {
+  return bodyOf(api.GET('/workspaces/{workspace}/alerts', {
+    params: {
+      path: { workspace: slug.value },
+      query: {
+        cursor: cursor ?? undefined,
+        kind: kind.value ?? undefined,
+        monitor_id: monitorId.value ?? undefined,
+        since: sinceParam(),
+      },
     },
-  },
-})))
+  }))
+}
+
+const list = useCursorList(fetchPage)
+
+/** Fetches the first page again and merges it by id, keeping the older pages already loaded. */
+async function refreshFirstPage(): Promise<void> {
+  const token = `${slug.value}|${kind.value}|${monitorId.value}|${since.value}`
+  try {
+    const fresh = await fetchPage(null)
+    if (token !== `${slug.value}|${kind.value}|${monitorId.value}|${since.value}`)
+      return
+    const ids = new Set(fresh.data.map(row => row.id))
+    list.items.value = [
+      ...fresh.data,
+      ...list.items.value.filter(row => !ids.has(row.id)),
+    ]
+  }
+  catch {
+    // The next event or a manual reload recovers; the table keeps what it shows.
+  }
+}
 
 watch([slug, kind, monitorId, since], () => {
   void list.reload()
@@ -59,7 +89,7 @@ void list.loadMore()
 // A new alert goes to the top, so the first page is fetched again instead of patching rows.
 const stops = [
   live.on('alert', () => {
-    void list.reload()
+    void refreshFirstPage()
   }),
   live.onResync(() => {
     void list.reloadLoaded()
@@ -238,7 +268,7 @@ function duration(seconds: number | null): string {
     :title="t('alerts.empty')"
   />
   <div class="d-flex justify-center mt-2">
-    <v-btn v-if="list.hasMore.value && list.items.value.length > 0" :loading="list.loading.value" variant="text" @click="list.loadMore()">
+    <v-btn v-if="list.hasMore.value && list.items.value.length > 0" data-test="alerts-more" :loading="list.loading.value" variant="text" @click="list.loadMore()">
       {{ t('common.loadMore') }}
     </v-btn>
   </div>

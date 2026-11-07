@@ -802,7 +802,12 @@
       "subscribe": "Feliratkoztatás",
       "unsubscribe": "Leiratkoztatás",
       "subscribed": "{count} monitor feliratkozott.",
-      "unsubscribed": "{count} monitor leiratkozott."
+      "unsubscribed": "{count} monitor leiratkozott.",
+      "bound": "feliratkozva"
+    },
+    "hints": {
+      "appriseKey": "Az Apprise-kiszolgálón tárolt konfiguráció kulcsa. Kötelező, ha nem adsz meg értesítési URL-eket.",
+      "appriseUrls": "Soronként egy URL. Kötelező, ha nem adsz meg konfigurációs kulcsot."
     }
   },
   "alerts": {

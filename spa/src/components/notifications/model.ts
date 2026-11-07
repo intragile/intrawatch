@@ -57,6 +57,18 @@ export function pruneSecrets(type: ChannelType, config: ChannelConfig, draft: Se
   return Object.fromEntries(Object.entries(draft).filter(([key]) => allowed.has(key)))
 }
 
+/**
+ * Turning the custom SMTP server off also removes its stored password, so no orphaned secret stays behind.
+ * Only applies when the server was on at load time and the password is stored.
+ */
+export function withSmtpSecretCleared(type: ChannelType, initial: ChannelConfig, config: ChannelConfig, storedKeys: string[], draft: SecretDraft): SecretDraft {
+  const wasOn = initial.smtp !== null && initial.smtp !== undefined
+  const isOff = config.smtp === null || config.smtp === undefined
+  if (type !== 'email' || !wasOn || !isOff || !storedKeys.includes('smtp_password'))
+    return draft
+  return { ...draft, smtp_password: null }
+}
+
 /** Whether any secret has been touched. */
 export function hasSecretDraft(draft: SecretDraft): boolean {
   return Object.values(draft).some(v => v !== undefined && v !== '')

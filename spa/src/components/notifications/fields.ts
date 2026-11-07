@@ -16,6 +16,8 @@ export interface FieldSpec {
   max?: number
   /** Members of an `object`, rendered as an optional group. */
   fields?: FieldSpec[]
+  /** Suffix of the `channels.hints.*` message shown under the control. */
+  hint?: string
   /** A secret that only has a control while the named config key holds a value. */
   requires?: string
 }
@@ -143,8 +145,13 @@ export const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
   ],
   apprise: [
     { key: 'server_url', kind: 'url', required: true },
-    { key: 'config_key', kind: 'text' },
-    { key: 'urls', kind: 'secret', multiline: true },
+    { key: 'config_key', kind: 'text', hint: 'appriseKey' },
+    {
+      key: 'urls',
+      kind: 'secret',
+      multiline: true,
+      hint: 'appriseUrls',
+    },
   ],
 }
 
