@@ -8,6 +8,12 @@ const backend = process.env.VITE_BACKEND ?? 'http://127.0.0.1:8000'
 
 export default defineConfig({
   base: '/admin/',
+  // vue-i18n feature flags: Composition API only, no devtools in production.
+  define: {
+    __VUE_I18N_FULL_INSTALL__: true,
+    __VUE_I18N_LEGACY_API__: false,
+    __INTLIFY_PROD_DEVTOOLS__: false,
+  },
   plugins: [
     vue(),
     vuetify({ autoImport: true }),

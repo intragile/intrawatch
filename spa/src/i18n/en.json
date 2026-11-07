@@ -1,0 +1,161 @@
+{
+  "app": {
+    "name": "IntraWatch"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "create": "Create",
+    "copy": "Copy",
+    "copied": "Copied to the clipboard.",
+    "copyFailed": "Could not copy. Select the text and copy it manually.",
+    "download": "Download",
+    "downloadFailed": "The download could not be started."
+  },
+  "problem": {
+    "network": "Cannot reach the server. Check your connection and try again.",
+    "generic": "Something went wrong."
+  },
+  "validation": {
+    "required": "This field is required.",
+    "email": "Enter a valid e-mail address.",
+    "passwordMin": "At least {min} characters.",
+    "passwordMatch": "The passwords do not match."
+  },
+  "theme": {
+    "toLight": "Switch to light theme",
+    "toDark": "Switch to dark theme"
+  },
+  "locale": {
+    "label": "Language",
+    "en": "English",
+    "hu": "Magyar"
+  },
+  "nav": {
+    "monitors": "Monitors",
+    "channels": "Notification channels",
+    "alerts": "Alert history",
+    "incidents": "Incidents",
+    "maintenances": "Maintenance",
+    "statusPages": "Status pages",
+    "settings": "Workspace settings",
+    "members": "Members",
+    "tokens": "API tokens",
+    "audit": "Audit log",
+    "account": "Account and security",
+    "workspace": "Workspace",
+    "accountMenu": "Account menu",
+    "mainMenu": "Main menu",
+    "toggleMenu": "Show or hide the menu",
+    "signOut": "Sign out",
+    "signOutFailed": "Signing out failed. Try again."
+  },
+  "auth": {
+    "fields": {
+      "name": "Name",
+      "email": "E-mail",
+      "password": "Password",
+      "newPassword": "New password",
+      "passwordConfirmation": "Repeat the password"
+    },
+    "login": {
+      "title": "Sign in",
+      "remember": "Keep me signed in",
+      "forgot": "Forgot your password?",
+      "submit": "Sign in"
+    },
+    "twoFactor": {
+      "title": "Two-factor authentication",
+      "intro": "Enter the code from your authenticator app, or one of your recovery codes.",
+      "code": "Authentication code",
+      "codeHint": "The 6-digit code shown in your authenticator app.",
+      "recoveryCode": "Recovery code",
+      "recoveryHint": "Each recovery code works only once.",
+      "useRecovery": "Use a recovery code instead",
+      "useCode": "Use an authentication code instead",
+      "submit": "Verify"
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "intro": "Enter the e-mail address of your account and we will send you a link to set a new password.",
+      "submit": "Send reset link",
+      "sent": "If an account exists for that address, a reset link is on its way. Check your inbox.",
+      "back": "Back to sign in"
+    },
+    "reset": {
+      "title": "Set a new password",
+      "submit": "Save password",
+      "done": "Your password was changed. Sign in with the new one."
+    },
+    "setup": {
+      "title": "Welcome to IntraWatch",
+      "step": "Step {step} of {total}",
+      "owner": "Owner account",
+      "workspace": "First workspace",
+      "intro": "Create the owner account. It can manage everything in this instance.",
+      "workspaceName": "Workspace name",
+      "workspaceHint": "For example your company or team name. You can rename it later.",
+      "timezone": "Timezone",
+      "timezoneHint": "Used for dates, maintenance windows and reports.",
+      "submit": "Finish setup",
+      "done": "Setup complete. You are signed in."
+    },
+    "relogin": {
+      "title": "Your session has expired",
+      "intro": "Sign in again to continue. Your unsaved changes stay on the page and are sent once you are back.",
+      "leave": "Go to sign-in page",
+      "submit": "Sign in"
+    },
+    "confirmPassword": {
+      "title": "Confirm your password",
+      "intro": "This is a sensitive action. Enter your password to continue.",
+      "submit": "Confirm"
+    }
+  },
+  "account": {
+    "title": "Account and security",
+    "profile": "Profile",
+    "twoFactor": {
+      "title": "Two-factor authentication",
+      "on": "On",
+      "off": "Off",
+      "enabledText": "Signing in requires a code from your authenticator app.",
+      "disabledText": "Protect your account with a time-based code from an authenticator app.",
+      "enable": "Turn on",
+      "scan": "Scan this QR code with your authenticator app, then enter the 6-digit code it shows.",
+      "qrAlt": "QR code for setting up the authenticator app",
+      "secret": "Cannot scan it? Enter this key manually:",
+      "confirm": "Confirm and turn on",
+      "codesTitle": "Recovery codes",
+      "codesIntro": "Save these recovery codes somewhere safe. Each one lets you sign in once without your phone. They are shown only now.",
+      "codesDone": "I have saved them",
+      "regenerate": "New recovery codes",
+      "regenerateConfirm": "Your current recovery codes stop working and new ones are shown once.",
+      "disable": "Turn off",
+      "disableConfirm": "Signing in will only need your password. You can turn it on again at any time.",
+      "disabledNotice": "Two-factor authentication is off."
+    }
+  },
+  "home": {
+    "empty": {
+      "title": "No workspace yet",
+      "text": "You are not a member of any workspace. Create one, or ask an owner to invite you."
+    },
+    "create": "Create workspace"
+  },
+  "placeholder": {
+    "title": "Coming soon",
+    "text": "This screen is not available yet."
+  },
+  "status": {
+    "up": "Up",
+    "down": "Down",
+    "degraded": "Degraded",
+    "maintenance": "Maintenance",
+    "pending": "Pending",
+    "paused": "Paused"
+  }
+}

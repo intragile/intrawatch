@@ -1,0 +1,161 @@
+{
+  "app": {
+    "name": "IntraWatch"
+  },
+  "common": {
+    "cancel": "Mégse",
+    "confirm": "Megerősítés",
+    "close": "Bezárás",
+    "back": "Vissza",
+    "next": "Tovább",
+    "create": "Létrehozás",
+    "copy": "Másolás",
+    "copied": "Vágólapra másolva.",
+    "copyFailed": "Nem sikerült másolni. Jelölje ki a szöveget, és másolja ki kézzel.",
+    "download": "Letöltés",
+    "downloadFailed": "A letöltést nem sikerült elindítani."
+  },
+  "problem": {
+    "network": "A szerver nem érhető el. Ellenőrizze a kapcsolatot, és próbálja újra.",
+    "generic": "Hiba történt."
+  },
+  "validation": {
+    "required": "A mező kitöltése kötelező.",
+    "email": "Adjon meg érvényes e-mail-címet.",
+    "passwordMin": "Legalább {min} karakter.",
+    "passwordMatch": "A két jelszó nem egyezik."
+  },
+  "theme": {
+    "toLight": "Váltás világos témára",
+    "toDark": "Váltás sötét témára"
+  },
+  "locale": {
+    "label": "Nyelv",
+    "en": "English",
+    "hu": "Magyar"
+  },
+  "nav": {
+    "monitors": "Monitorok",
+    "channels": "Értesítési csatornák",
+    "alerts": "Riasztási napló",
+    "incidents": "Incidensek",
+    "maintenances": "Karbantartás",
+    "statusPages": "Státuszoldalak",
+    "settings": "Munkaterület beállításai",
+    "members": "Tagok",
+    "tokens": "API-tokenek",
+    "audit": "Eseménynapló",
+    "account": "Fiók és biztonság",
+    "workspace": "Munkaterület",
+    "accountMenu": "Fiókmenü",
+    "mainMenu": "Főmenü",
+    "toggleMenu": "Menü megjelenítése vagy elrejtése",
+    "signOut": "Kijelentkezés",
+    "signOutFailed": "A kijelentkezés nem sikerült. Próbálja újra."
+  },
+  "auth": {
+    "fields": {
+      "name": "Név",
+      "email": "E-mail-cím",
+      "password": "Jelszó",
+      "newPassword": "Új jelszó",
+      "passwordConfirmation": "Jelszó még egyszer"
+    },
+    "login": {
+      "title": "Bejelentkezés",
+      "remember": "Maradjak bejelentkezve",
+      "forgot": "Elfelejtette a jelszavát?",
+      "submit": "Bejelentkezés"
+    },
+    "twoFactor": {
+      "title": "Kétlépcsős azonosítás",
+      "intro": "Írja be a hitelesítő alkalmazásban látható kódot vagy valamelyik helyreállítási kódját.",
+      "code": "Hitelesítő kód",
+      "codeHint": "A hitelesítő alkalmazásban látható hatjegyű kód.",
+      "recoveryCode": "Helyreállítási kód",
+      "recoveryHint": "Minden helyreállítási kód csak egyszer használható.",
+      "useRecovery": "Inkább helyreállítási kódot használok",
+      "useCode": "Inkább hitelesítő kódot használok",
+      "submit": "Ellenőrzés"
+    },
+    "forgot": {
+      "title": "Jelszó visszaállítása",
+      "intro": "Adja meg a fiókjához tartozó e-mail-címet, és küldünk egy linket, amellyel új jelszót állíthat be.",
+      "submit": "Link küldése",
+      "sent": "Ha ehhez a címhez tartozik fiók, hamarosan megérkezik a visszaállító link. Nézze meg a postafiókját.",
+      "back": "Vissza a bejelentkezéshez"
+    },
+    "reset": {
+      "title": "Új jelszó beállítása",
+      "submit": "Jelszó mentése",
+      "done": "A jelszava megváltozott. Jelentkezzen be az újjal."
+    },
+    "setup": {
+      "title": "Üdvözli az IntraWatch",
+      "step": "{step}. lépés / {total}",
+      "owner": "Tulajdonosi fiók",
+      "workspace": "Első munkaterület",
+      "intro": "Hozza létre a tulajdonosi fiókot. Ez a fiók mindent kezelhet ebben a példányban.",
+      "workspaceName": "Munkaterület neve",
+      "workspaceHint": "Például a cége vagy a csapata neve. Később átnevezheti.",
+      "timezone": "Időzóna",
+      "timezoneHint": "Ebben jelennek meg a dátumok, a karbantartási időablakok és a jelentések.",
+      "submit": "Beállítás befejezése",
+      "done": "A beállítás kész, be is jelentkezett."
+    },
+    "relogin": {
+      "title": "Lejárt a munkamenet",
+      "intro": "A folytatáshoz jelentkezzen be újra. A nem mentett módosítások az oldalon maradnak, és a bejelentkezés után elküldjük őket.",
+      "leave": "Ugrás a bejelentkezési oldalra",
+      "submit": "Bejelentkezés"
+    },
+    "confirmPassword": {
+      "title": "Jelszó megerősítése",
+      "intro": "Ez érzékeny művelet. A folytatáshoz adja meg a jelszavát.",
+      "submit": "Megerősítés"
+    }
+  },
+  "account": {
+    "title": "Fiók és biztonság",
+    "profile": "Profil",
+    "twoFactor": {
+      "title": "Kétlépcsős azonosítás",
+      "on": "Bekapcsolva",
+      "off": "Kikapcsolva",
+      "enabledText": "A bejelentkezéshez a hitelesítő alkalmazás kódja is kell.",
+      "disabledText": "Védje a fiókját egy hitelesítő alkalmazás időalapú kódjával.",
+      "enable": "Bekapcsolás",
+      "scan": "Olvassa be ezt a QR-kódot a hitelesítő alkalmazással, majd írja be a megjelenő hatjegyű kódot.",
+      "qrAlt": "QR-kód a hitelesítő alkalmazás beállításához",
+      "secret": "Nem tudja beolvasni? Írja be kézzel ezt a kulcsot:",
+      "confirm": "Megerősítés és bekapcsolás",
+      "codesTitle": "Helyreállítási kódok",
+      "codesIntro": "Tegye el biztonságos helyre ezeket a helyreállítási kódokat. Mindegyikkel egyszer bejelentkezhet a telefonja nélkül. Csak most látja őket.",
+      "codesDone": "Elmentettem őket",
+      "regenerate": "Új helyreállítási kódok",
+      "regenerateConfirm": "A mostani helyreállítási kódok érvénytelenné válnak, az újakat pedig egyszer mutatjuk meg.",
+      "disable": "Kikapcsolás",
+      "disableConfirm": "A bejelentkezéshez ezután elég lesz a jelszó. Bármikor újra bekapcsolhatja.",
+      "disabledNotice": "A kétlépcsős azonosítás ki van kapcsolva."
+    }
+  },
+  "home": {
+    "empty": {
+      "title": "Még nincs munkaterület",
+      "text": "Egyetlen munkaterületnek sem tagja. Hozzon létre egyet, vagy kérje meg egy tulajdonost, hogy hívja meg."
+    },
+    "create": "Munkaterület létrehozása"
+  },
+  "placeholder": {
+    "title": "Hamarosan",
+    "text": "Ez a képernyő még nem érhető el."
+  },
+  "status": {
+    "up": "Működik",
+    "down": "Leállt",
+    "degraded": "Akadozik",
+    "maintenance": "Karbantartás",
+    "pending": "Függőben",
+    "paused": "Szünetel"
+  }
+}

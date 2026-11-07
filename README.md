@@ -691,6 +691,10 @@ websocket to `VITE_BACKEND` (default `http://127.0.0.1:8000`, i.e.
 Reverb proxy as well. `npm run build` writes `spa/dist`, the directory the
 `intrawatch.spa_path` setting points to.
 
+Signing in through the dev server uses the cookie session, so the backend must
+treat the Vite origin as stateful: add it to Sanctum's list, for example
+`SANCTUM_STATEFUL_DOMAINS=localhost:5173,localhost:3000`.
+
 The image builds the application in a Node.js stage of `docker/Dockerfile`
 (`npm ci` and `npm run build`) and copies only `spa/dist` into the runtime
 image; Node.js is not part of the final image.
