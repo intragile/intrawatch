@@ -11,7 +11,13 @@ use App\Status\Pages\PageStamps;
  */
 final class StampStatusPages
 {
-    /** @var array<int, int> */
+    /**
+     * Last wall-clock second a workspace was stamped in this process. A change that lands in the same second as
+     * an earlier bump is not stamped again, so a page cached between the two can stay up to one HTML TTL stale
+     * (bounded, since the cache entry expires on its own) in exchange for at most one file write per second.
+     *
+     * @var array<int, int>
+     */
     private static array $stamped = [];
 
     public function __construct(private readonly PageStamps $stamps) {}

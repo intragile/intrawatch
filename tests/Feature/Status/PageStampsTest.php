@@ -48,6 +48,17 @@ class PageStampsTest extends TestCase
         return new MonitorStatusChanged($workspaceId, 1, MonitorStatus::Up, MonitorStatus::Down, $now, $now, 'down');
     }
 
+    public function test_tests_use_a_private_status_page_store(): void
+    {
+        $path = config('cache.stores.status_pages.path');
+        $this->assertIsString($path);
+        $this->assertNotSame(storage_path('framework/cache/status-pages'), $path);
+        $this->assertStringContainsString((string) getmypid(), $path);
+
+        $this->stamps->bumpPage(1);
+        $this->assertDirectoryExists($path);
+    }
+
     public function test_versions_are_stable_until_bumped(): void
     {
         $first = $this->stamps->pageVersion(7);
