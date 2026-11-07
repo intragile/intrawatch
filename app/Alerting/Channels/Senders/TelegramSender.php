@@ -36,14 +36,14 @@ final class TelegramSender extends PushServiceSender
             $decoded = $e->responseBody !== null ? json_decode($e->responseBody, true) : null;
             $description = is_array($decoded) ? ($decoded['description'] ?? null) : null;
             if (! is_string($description) || $description === '') {
-                throw $e;
+                throw new DeliveryFailure($e->reason, $e->permanent, $e->retryAfter);
             }
 
             throw new DeliveryFailure(
                 $e->reason,
                 $e->permanent,
                 $e->retryAfter,
-                Redactor::redact(TextLimit::cut($description, 300), $channel->secrets),
+                TextLimit::cut(Redactor::redact($description, $channel->secrets), 300),
             );
         }
     }

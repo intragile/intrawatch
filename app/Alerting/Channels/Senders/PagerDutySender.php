@@ -13,6 +13,8 @@ final class PagerDutySender extends IncidentToolSender
 {
     private const ENDPOINT = 'https://events.pagerduty.com/v2/enqueue';
 
+    private const CHANGE_ENDPOINT = 'https://events.pagerduty.com/v2/change/enqueue';
+
     public function send(ChannelSpec $channel, OutgoingNotification $n, string $idempotencyKey): void
     {
         $routingKey = self::requireSecret($channel, 'routing_key');
@@ -29,9 +31,29 @@ final class PagerDutySender extends IncidentToolSender
             return;
         }
 
+        if ($item->kind === AlertKind::Changed) {
+            $this->changeEvent($routingKey, $item);
+
+            return;
+        }
+
         $opens = self::opens($item);
         $severity = in_array($item->kind, [AlertKind::Down, AlertKind::StillDown, AlertKind::Stable], true) ? 'critical' : 'warning';
         $this->event($routingKey, $opens ? 'trigger' : 'resolve', self::incidentKey($item), $item, $severity);
+    }
+
+    private function changeEvent(string $routingKey, AlertMessage $item): void
+    {
+        $this->http->send('POST', self::CHANGE_ENDPOINT, ['json' => [
+            'routing_key' => $routingKey,
+            'payload' => [
+                'summary' => TextLimit::cut($item->title, 1024),
+                'source' => $item->target !== '' ? $item->target : $item->monitorName,
+                'timestamp' => $item->at->utc()->format('Y-m-d\TH:i:s\Z'),
+                'custom_details' => ['changes' => $item->changes],
+            ],
+            'links' => [['href' => $item->url, 'text' => 'IntraWatch']],
+        ]]);
     }
 
     private function event(string $routingKey, string $action, string $dedupKey, AlertMessage $item, string $severity): void

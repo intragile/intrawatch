@@ -38,7 +38,7 @@ abstract class PushServiceSender implements ChannelSender
     }
 
     /**
-     * Picks the value for a severity; unknown severities fall back to the last entry.
+     * Picks the value for a severity; unknown severities use the info value.
      *
      * @param  array{critical: int, warning: int, ok: int, info: int}  $map
      */

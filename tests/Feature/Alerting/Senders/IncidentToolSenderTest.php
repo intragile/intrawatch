@@ -70,7 +70,6 @@ class IncidentToolSenderTest extends SenderTestCase
             [AlertKind::Stable, 'degraded', [], 'resolve', 'intrawatch-7-42', null],
             [AlertKind::Stable, 'down', [], 'trigger', 'intrawatch-7-42', 'critical'],
             [AlertKind::Expiring, 'up', [['key' => 'cert_expiry', 'old' => 1, 'new' => 2]], 'trigger', 'intrawatch-7-42-cert_expiry', 'warning'],
-            [AlertKind::Changed, 'up', [['key' => 'dns', 'old' => 1, 'new' => 2]], 'trigger', 'intrawatch-7-42-dns', 'warning'],
             [AlertKind::Renewed, 'up', [['key' => 'cert_expiry', 'old' => 1, 'new' => 2]], 'resolve', 'intrawatch-7-42-cert_expiry', null],
         ];
         foreach ($cases as [$kind, $status, $changes, $action, $key, $severity]) {
@@ -115,5 +114,26 @@ class IncidentToolSenderTest extends SenderTestCase
         } catch (DeliveryFailure $e) {
             $this->assertTrue($e->permanent);
         }
+    }
+
+    public function test_changed_alerts_use_the_change_events_api(): void
+    {
+        $spec = $this->spec(ChannelType::PagerDuty, [], ['routing_key' => self::ROUTING_KEY]);
+        $changes = [['key' => 'dns', 'old' => 'a', 'new' => 'b']];
+
+        (new PagerDutySender($this->http([new Response(202)])))->send($spec, $this->notificationOf(AlertKind::Changed, 'up', $changes), 'k');
+
+        $this->assertCount(1, $this->history);
+        $this->assertSame('https://events.pagerduty.com/v2/change/enqueue', (string) $this->lastRequest()->getUri());
+        $this->assertSame([
+            'routing_key' => self::ROUTING_KEY,
+            'payload' => [
+                'summary' => '[CHANGED] Web',
+                'source' => 'https://x.test',
+                'timestamp' => '2026-07-01T10:30:00Z',
+                'custom_details' => ['changes' => $changes],
+            ],
+            'links' => [['href' => 'https://iw.test/monitors/42', 'text' => 'IntraWatch']],
+        ], $this->lastJson());
     }
 }

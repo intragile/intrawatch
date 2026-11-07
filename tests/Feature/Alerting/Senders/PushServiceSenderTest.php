@@ -169,4 +169,29 @@ class PushServiceSenderTest extends SenderTestCase
         }
         $this->assertInstanceOf(TelegramSender::class, $registry->for(ChannelType::Telegram));
     }
+
+    public function test_telegram_redacts_before_cutting_and_drops_the_body(): void
+    {
+        $description = str_repeat('p', 290).' '.self::TOKEN.' tail';
+        $body = json_encode(['ok' => false, 'description' => $description], JSON_THROW_ON_ERROR);
+        $spec = $this->spec(ChannelType::Telegram, ['chat_id' => '-1'], ['bot_token' => self::TOKEN]);
+
+        try {
+            (new TelegramSender($this->http([new Response(400, [], $body)])))->send($spec, $this->notification(), 'k');
+            $this->fail('Expected DeliveryFailure');
+        } catch (DeliveryFailure $e) {
+            for ($i = 0; $i + 6 <= strlen(self::TOKEN); $i++) {
+                $this->assertStringNotContainsString(substr(self::TOKEN, $i, 6), $e->getMessage());
+            }
+            $this->assertNull($e->responseBody);
+        }
+
+        try {
+            (new TelegramSender($this->http([new Response(400, [], '{"ok":false}')])))->send($spec, $this->notification(), 'k');
+            $this->fail('Expected DeliveryFailure');
+        } catch (DeliveryFailure $e) {
+            $this->assertSame('HTTP 400', $e->getMessage());
+            $this->assertNull($e->responseBody);
+        }
+    }
 }
