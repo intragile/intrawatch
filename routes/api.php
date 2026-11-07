@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\MemberController;
@@ -86,6 +87,9 @@ Route::prefix('v1')->group(function (): void {
             Route::middleware(['ability:notifications:read', 'can:viewNotifications,workspace'])->group(function (): void {
                 Route::get('/notification-channels', [NotificationChannelController::class, 'index']);
                 Route::get('/notification-channels/{channel}', [NotificationChannelController::class, 'show'])->whereNumber('channel');
+                Route::get('/alerts', [AlertController::class, 'index']);
+                Route::get('/monitors/{monitor}/alerts', [AlertController::class, 'monitor'])->whereNumber('monitor')
+                    ->middleware(['ability:monitors:read', 'can:viewMonitors,workspace']);
             });
 
             Route::middleware(['ability:notifications:write', 'can:manageNotifications,workspace'])->group(function (): void {

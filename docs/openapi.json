@@ -1274,6 +1274,74 @@
                 }
             }
         },
+        "/workspaces/{workspace}/alerts": {
+            "get": {
+                "operationId": "alert.index",
+                "summary": "List the workspace's alerts, newest first. Filters: `monitor_id`, `kind`, `since` (ISO 8601, inclusive)",
+                "tags": [
+                    "Alert"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "monitor_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "kind",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/AlertKind"
+                        }
+                    },
+                    {
+                        "name": "since",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[+-]\\d{2}:\\d{2}))?$"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/audit": {
             "get": {
                 "operationId": "audit",
@@ -2767,6 +2835,75 @@
                 "responses": {
                     "204": {
                         "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/monitors/{monitor}/alerts": {
+            "get": {
+                "operationId": "alert.monitor",
+                "summary": "List one monitor's alerts, newest first. Filters: `kind`, `since` (ISO 8601, inclusive)",
+                "tags": [
+                    "Alert"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "monitor",
+                        "in": "path",
+                        "required": true,
+                        "description": "The monitor ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "kind",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/AlertKind"
+                        }
+                    },
+                    {
+                        "name": "since",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[+-]\\d{2}:\\d{2}))?$"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
@@ -5072,6 +5209,22 @@
     },
     "components": {
         "schemas": {
+            "AlertKind": {
+                "type": "string",
+                "enum": [
+                    "down",
+                    "up",
+                    "degraded",
+                    "still_down",
+                    "flapping",
+                    "stable",
+                    "expiring",
+                    "renewed",
+                    "changed",
+                    "test"
+                ],
+                "title": "AlertKind"
+            },
             "ChannelType": {
                 "type": "string",
                 "enum": [

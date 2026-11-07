@@ -2,7 +2,8 @@
 # Builds the image, boots it with a fresh volume and exercises the setup and
 # session flow over HTTP, a restart, an upgrade (new container, same volume),
 # a non-localhost APP_URL, a permanently failing worker and an unwritable
-# /data, plus monitors checked by the in-image worker and a timed docker
+# /data, plus monitors checked by the in-image worker, down and up alerts
+# delivered to a webhook receiver inside the container, and a timed docker
 # stop. Usage: bash tests/docker/smoke.sh [--pgsql]
 set -euo pipefail
 
@@ -148,7 +149,7 @@ WS_URL="$BASE/api/v1/workspaces/smoke-ops"
 load_xsrf
 token_json="$(curl -fsS --max-time 10 -c "$JAR" -b "$JAR" "${STATEFUL[@]}" -H "X-XSRF-TOKEN: $XSRF" \
   -H 'Content-Type: application/json' -X POST "$WS_URL/tokens" \
-  -d '{"name":"smoke","abilities":["monitors:write","monitors:read"]}')" || fail "token creation failed"
+  -d '{"name":"smoke","abilities":["monitors:write","monitors:read","notifications:write","notifications:read"]}')" || fail "token creation failed"
 API_TOKEN="$(jq -r '.token // empty' <<<"$token_json")"
 [[ -n "$API_TOKEN" ]] || fail "no token in response: $token_json"
 AUTH=(-H "Authorization: Bearer $API_TOKEN" -H 'Accept: application/json' -H 'Content-Type: application/json')
@@ -192,6 +193,70 @@ status="$(timeout 30 docker exec "$NAME" supervisorctl -c /etc/supervisor/conf.d
 echo "$status"
 grep -Eq '^intrawatch:notifications +RUNNING' <<<"$status" || fail "notifications worker is not RUNNING"
 ok "notifications worker running"
+
+echo "== alerts to a webhook"
+# A tiny receiver inside the container appends every request body to a file. CHECK_BLOCKED_NETWORKS keeps
+# its default, which allows loopback targets.
+timeout 30 docker exec "$NAME" sh -c 'mkdir -p /tmp/smoke-alerts /tmp/smoke-target && : > /tmp/smoke-alerts/received.log &&
+  printf "%s\n" "<?php" "file_put_contents(\"/tmp/smoke-alerts/received.log\", file_get_contents(\"php://input\").PHP_EOL, FILE_APPEND | LOCK_EX);" "echo \"ok\";" \
+  > /tmp/smoke-alerts/router.php' || fail "could not write the webhook receiver"
+timeout 30 docker exec -d "$NAME" sh -c 'echo $$ > /tmp/smoke-alerts/receiver.pid; exec php -S 127.0.0.1:39999 /tmp/smoke-alerts/router.php >/dev/null 2>&1' \
+  || fail "could not start the webhook receiver"
+deadline=$((SECONDS + 15))
+until timeout 10 docker exec "$NAME" php -r 'exit(@fsockopen("127.0.0.1", 39999, $e, $s, 2) ? 0 : 1);'; do
+  ((SECONDS < deadline)) || fail "webhook receiver not listening within 15s"
+  sleep 1
+done
+
+channel_json="$(curl -fsS --max-time 10 "${AUTH[@]}" -X POST "$WS_URL/notification-channels" \
+  -d '{"name":"smoke hook","type":"webhook","config":{"url":"http://127.0.0.1:39999/hook"}}')" \
+  || fail "webhook channel creation failed"
+CHANNEL_ID="$(jq -r '.data.id // empty' <<<"$channel_json")"
+[[ -n "$CHANNEL_ID" ]] || fail "no channel id: $channel_json"
+# Nothing listens on 39998 yet, so the TCP check is refused and the monitor goes down on its first check.
+tcp_json="$(curl -fsS --max-time 10 "${AUTH[@]}" -X POST "$WS_URL/monitors" \
+  -d "{\"name\":\"closed port\",\"type\":\"tcp\",\"interval_seconds\":20,\"timeout_seconds\":5,\"retries\":0,\"config\":{\"host\":\"127.0.0.1\",\"port\":39998},\"notification_channel_ids\":[${CHANNEL_ID}]}")" \
+  || fail "tcp monitor creation failed"
+TCP_ID="$(jq -r '.data.id // empty' <<<"$tcp_json")"
+[[ -n "$TCP_ID" ]] || fail "no tcp monitor id: $tcp_json"
+ok "webhook channel and tcp monitor created"
+
+# wait_for_alert <event> <seconds>: waits until the receiver holds a JSON payload with that event.
+wait_for_alert() {
+  local event="$1" seconds="$2" deadline=$((SECONDS + $2)) received
+  while true; do
+    received="$(timeout 10 docker exec "$NAME" cat /tmp/smoke-alerts/received.log 2>/dev/null || true)"
+    if jq -e --arg event "$event" --argjson monitor "$TCP_ID" 'select(.event == $event and .monitor.id == $monitor)' \
+      <<<"$received" >/dev/null 2>&1; then
+      return 0
+    fi
+    ((SECONDS < deadline)) || fail "no \"$event\" alert within ${seconds}s (received: ${received:-nothing})"
+    sleep 1
+  done
+}
+wait_for_alert down 90
+grep -q '"event":"down"' <<<"$(timeout 10 docker exec "$NAME" cat /tmp/smoke-alerts/received.log)" \
+  || fail "down payload is not compact JSON"
+ok "down alert delivered to the webhook"
+
+# The target comes back: something now listens on the monitored port.
+timeout 30 docker exec -d "$NAME" sh -c 'echo $$ > /tmp/smoke-alerts/target.pid; exec php -S 127.0.0.1:39998 -t /tmp/smoke-target >/dev/null 2>&1' \
+  || fail "could not start the tcp target"
+curl -fsS --max-time 10 "${AUTH[@]}" -X POST "$WS_URL/monitors/$TCP_ID/check" -o /dev/null || true
+wait_for_alert up 90
+ok "up alert delivered to the webhook"
+
+deadline=$((SECONDS + 30))
+while true; do
+  alerts_json="$(curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/monitors/$TCP_ID/alerts" 2>/dev/null || true)"
+  jq -e '[.data[] | select((.kind == "down" or .kind == "up") and any(.deliveries[]; .status == "sent"))] | length >= 2' \
+    <<<"$alerts_json" >/dev/null 2>&1 && break
+  ((SECONDS < deadline)) || fail "alert history does not show sent down and up deliveries: ${alerts_json:-nothing}"
+  sleep 1
+done
+ok "alert history lists both alerts with sent deliveries"
+
+timeout 30 docker exec "$NAME" sh -c 'kill $(cat /tmp/smoke-alerts/receiver.pid /tmp/smoke-alerts/target.pid) 2>/dev/null; rm -rf /tmp/smoke-alerts /tmp/smoke-target' || true
 
 [[ "$(timeout 30 docker exec "$NAME" id -u)" == "1000" ]] || fail "docker exec does not run as uid 1000"
 timeout 30 docker exec "$NAME" ping -c1 -W5 127.0.0.1 >/dev/null || fail "ping as uid 1000 failed"

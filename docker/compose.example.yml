@@ -24,6 +24,7 @@ services:
       # MAIL_USERNAME: alerts@example.com
       # MAIL_PASSWORD: change-me
       # MAIL_FROM_ADDRESS: alerts@example.com
+      # MAIL_TIMEOUT: 10        # SMTP timeout in seconds; keep below the 30 s send job timeout
       # DB_SQLITE_JOURNAL_MODE: DELETE  # when /data is on NFS or another network file system
       # --- PostgreSQL instead of SQLite ---
       # DB_CONNECTION: pgsql

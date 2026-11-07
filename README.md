@@ -212,14 +212,17 @@ useful for monitoring the whole cluster from one place.
 
 ### Queues
 
-Two queue workers run in the container: one for regular jobs (such as live
-update broadcasts) and one for the `long` queue connection, which runs the day
-rollup rebuilds after a timezone change (up to 900 seconds each, with
-`retry_after` 960 seconds). The separate worker keeps a long rebuild from
-delaying regular jobs. Outside the image, run both:
+Three queue workers run in the container: one for regular jobs (such as live
+update broadcasts and alert evaluation), one for the `notifications` queue,
+which sends alerts to notification channels, and one for the `long` queue
+connection, which runs the day rollup rebuilds after a timezone change (up to
+900 seconds each, with `retry_after` 960 seconds). The separate workers keep a
+slow notification provider or a long rebuild from delaying regular jobs.
+Outside the image, run all three:
 
 ```bash
 php artisan queue:work
+php artisan queue:work --queue=notifications --tries=5 --timeout=30
 php artisan queue:work long --queue=long --timeout=900
 ```
 
@@ -256,6 +259,7 @@ them, so it never locks the result tables for long.
 | `RETENTION_MINUTE_HOURS` | `48` | Minute rollups |
 | `RETENTION_HOUR_DAYS` | `90` | Hour rollups |
 | `RETENTION_DAY_DAYS` | `730` | Day rollups and monitor events |
+| `RETENTION_ALERT_DAYS` | `90` | Alert history and deliveries |
 | `RETENTION_CHUNK_SIZE` | `5000` | Rows deleted per statement while pruning |
 | `RETENTION_CHUNK_SLEEP_MS` | `50` | Pause between delete statements |
 
@@ -295,6 +299,155 @@ for it (see Queues).
 
 Availability is `(up + degraded + pending) / (total - maintenance)`; it is
 empty when every check of the period fell into a maintenance window.
+
+### Notifications
+
+Monitors alert through notification channels. A channel belongs to a
+workspace; a monitor is bound to channels with `notification_channel_ids`
+(up to 50). A new monitor created without that field is bound to every active
+channel marked `is_default`; `apply_to_existing: true` on a channel create or
+update binds it to every existing monitor of the workspace.
+
+| Endpoint | Ability |
+| --- | --- |
+| `GET /api/v1/notification-channel-types` | any signed-in user |
+| `GET /workspaces/{workspace}/notification-channels`, `GET …/notification-channels/{channel}` | `notifications:read` |
+| `POST …/notification-channels`, `PATCH`/`DELETE …/notification-channels/{channel}` | `notifications:write` |
+| `POST …/notification-channels/test` (unsaved), `POST …/notification-channels/{channel}/test` | `notifications:write` (10 per minute per user) |
+| `GET /workspaces/{workspace}/alerts` | `notifications:read` |
+| `GET /workspaces/{workspace}/monitors/{monitor}/alerts` | `monitors:read` and `notifications:read` |
+
+API tokens need `notifications:read` (Viewers and above) to read channels and
+the alert history, and `notifications:write` (Editors and above) to manage and
+test channels. Binding channels to monitors is part of the monitor API
+(`monitors:write`).
+
+#### Channels
+
+Keys marked * are required. Secrets are write-only: the API returns only their
+names in `secret_keys`, and the audit log records only those names. On an
+update, omitted secrets are kept and a secret set to `null` is removed.
+`GET /api/v1/notification-channel-types` lists every type with its fields and
+defaults.
+
+| Type | `config` | `secrets` |
+| --- | --- | --- |
+| `email` | `to`* (list of addresses), `smtp` (`host`, `port`, `encryption`: `starttls`, `tls` or `none`, `username`, `from_address`, `from_name`) | `smtp_password` |
+| `webhook` | `url`*, `method` (`POST` or `PUT`), `format` (`json` or `form`), `headers` | `secret_headers`, `signing_secret` (HMAC-SHA256 in `X-IntraWatch-Signature: t=…,v1=…`) |
+| `slack` | | `webhook_url`* |
+| `discord` | `username`, `thread_id` | `webhook_url`* |
+| `teams` | | `webhook_url`* |
+| `mattermost` | `channel`, `username` | `webhook_url`* |
+| `google_chat` | | `webhook_url`* |
+| `telegram` | `chat_id`*, `message_thread_id`, `server_url` (`https://api.telegram.org`), `silent` | `bot_token`* |
+| `ntfy` | `server_url`*, `topic`*, `priority` | `access_token` |
+| `gotify` | `server_url`*, `priority` | `app_token`* |
+| `pushover` | `priority`, `sound`, `device` | `user_key`*, `app_token`* |
+| `matrix` | `homeserver_url`*, `room_id`* | `access_token`* |
+| `pagerduty` | | `routing_key`* (Events API v2) |
+| `opsgenie` | `region`* (`us` or `eu`), `priority` (`P1` to `P5`) | `api_key`* |
+| `apprise` | `server_url`*, `config_key` | `urls` (either `config_key` or `urls` is required) |
+
+A webhook receives one JSON (or form) request per alert with `event` (the
+alert kind), `severity`, `title`, `body`, `monitor` (`id`, `name`, `type`,
+`target`, `url`), `status`, `previous_status`, `message`, `at`,
+`duration_seconds`, `changes` and `workspace`, plus the headers
+`X-IntraWatch-Event` and `X-IntraWatch-Delivery` (a stable id per delivery, for
+deduplication).
+
+E-mail channels without their own `smtp` block send through the application
+mailer, configured with the usual Laravel variables:
+
+```bash
+-e MAIL_MAILER=smtp -e MAIL_HOST=smtp.example.com -e MAIL_PORT=587 \
+-e MAIL_USERNAME=alerts@example.com -e MAIL_PASSWORD=… -e MAIL_SCHEME=smtp \
+-e MAIL_FROM_ADDRESS=alerts@example.com -e MAIL_FROM_NAME=IntraWatch
+```
+
+`MAIL_TIMEOUT` (default `10`) is the application mailer's SMTP timeout in
+seconds per socket operation. Keep it well below the 30-second timeout of the
+notification send job, or a slow SMTP server makes the job time out instead of
+failing and retrying cleanly.
+
+The `apprise` channel needs an Apprise API server, which fans out to the
+services Apprise supports, for example `docker run -d -p 8000:8000
+caronc/apprise` and `server_url: http://apprise:8000`.
+
+#### Alerts
+
+Alert kinds: `down`, `up`, `degraded`, `still_down` (a reminder), `flapping`,
+`stable`, `expiring` and `renewed` (certificate and domain expiry bands),
+`changed` (certificate, DNS or other watched values) and `test`.
+
+Per monitor, the `alerting` object sets:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `resend_interval_minutes` | `0` | Reminder (`still_down`) while down, 0 to 10 080; 0 turns reminders off |
+| `notify_degraded` | `true` | Alert when the monitor is degraded |
+| `degraded_alert_after_seconds` | `300` | How long degraded must persist before it alerts, 0 to 86 400 |
+| `notify_changes` | `true` | Alert on certificate, DNS and expiry band changes |
+
+A monitor that changes between up and down too often is flapping: it sends one
+`flapping` alert, no further status alerts or reminders, and one `stable`
+alert once it settles. A monitor whose parent group is down (and that group
+alerts through an active channel) is suppressed: its alerts are recorded with
+`suppressed_by_monitor_id` but not sent.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ALERT_FLAP_THRESHOLD` | `4` | Status class changes within the window that start flapping |
+| `ALERT_FLAP_WINDOW_SECONDS` | `600` | The flap detection window |
+| `ALERT_FLAP_STABLE_SECONDS` | `600` | Time without a class change that ends flapping |
+| `ALERT_DIGEST_THRESHOLD` | `5` | More alerts than this for one channel in one evaluation are sent as one digest (up to 200 alerts per message) |
+| `RETENTION_ALERT_DAYS` | `90` | Alert history and delivery records |
+
+PagerDuty, Opsgenie and webhook channels never receive digests: they always get
+one event per alert, since they deduplicate per monitor. A send times out after
+5 seconds to connect and 10 seconds in total, and failures are retried up to 5
+times (after 10, 30, 120 and 300 seconds; a `Retry-After` of up to 300 seconds
+on a 429 is honoured). A 4xx response other than 408 and 429 fails at once.
+Error text from a provider is stored with every channel secret removed.
+
+Alerts are transactional: the evaluation job is queued in the same database
+transaction that records the check results, and the alert, its deliveries and
+their send jobs are written in one transaction too. A committed result is
+therefore always evaluated and a rolled-back one never alerts, and a retried
+evaluation does not send an alert twice. This holds with the default database
+queue on the application database; with any other queue the jobs are pushed
+after commit, so a crash in between can lose them (a warning is logged once
+per process).
+
+#### Templates
+
+A channel's optional `templates` (`title` up to 200 characters, `body` up to
+4 000) replace the default text. They use logic-free `{{ variable }}`
+substitution; unknown variables are rejected. Variables: `kind`, `kind_label`,
+`severity`, `status`, `previous_status`, `message`, `at`, `at_local`,
+`duration`, `duration_seconds`, `changes`, `monitor.id`, `monitor.name`,
+`monitor.type`, `monitor.target`, `monitor.url` and `workspace.name`. Values
+are escaped for each channel's format, so text from a checked target cannot
+mention users (`@everyone`, `<!channel>`) or inject markup.
+
+#### Alert history
+
+`GET /workspaces/{workspace}/alerts` lists alerts newest first, with the
+filters `monitor_id`, `kind` and `since` (ISO 8601, inclusive), and each
+alert's `deliveries` (`channel`, `status`: `queued`, `sent` or `failed`,
+`attempts`, `last_error`, `sent_at`). `monitor` is `null` once the monitor is
+deleted and `channel` is `null` once the channel is deleted.
+`GET /workspaces/{workspace}/monitors/{monitor}/alerts` is the same list for
+one monitor.
+
+#### Notification targets and SSRF
+
+`CHECK_BLOCKED_NETWORKS` applies to notification targets as well as checks: a
+channel URL that resolves into a blocked network is refused when it is sent
+(the address is resolved once and the connection pinned to it, and redirects
+are never followed). The default blocks only the cloud metadata
+addresses, so workspace members can point webhooks at internal services. To
+forbid that, add the internal ranges, for example
+`CHECK_BLOCKED_NETWORKS=169.254.169.254/32,fd00:ec2::254/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128,fc00::/7`.
 
 ## Development
 
