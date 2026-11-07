@@ -73,6 +73,37 @@ final class CalendarMaintenanceOracle implements MaintenanceOracle
         }
     }
 
+    /**
+     * Reloads the calendar now, ignoring the check interval. Unlike warm() it may run inside the transaction that
+     * has just changed a maintenance, so the reload sees that transaction's own writes.
+     */
+    public function refresh(): void
+    {
+        $this->checkedAt = null;
+        $this->stamp = null;
+        $this->warm();
+    }
+
+    /**
+     * Forgets the loaded calendar, so the next use loads the committed state again.
+     */
+    public function invalidate(): void
+    {
+        $this->calendar = null;
+        $this->stamp = null;
+        $this->checkedAt = null;
+        $this->loadedAt = null;
+        $this->attempted = false;
+    }
+
+    /**
+     * @return list<int> Monitors with a window start or end in `(from, to]` in the loaded calendar.
+     */
+    public function monitorsWithBoundaryIn(CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        return $this->calendar?->monitorsWithBoundaryIn($from, $to) ?? [];
+    }
+
     public function underMaintenance(array $monitorIds, CarbonImmutable $at): array
     {
         if ($this->calendar === null) {

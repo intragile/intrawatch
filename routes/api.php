@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\AuditController;
+use App\Http\Controllers\Api\MaintenanceController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\MonitorActionController;
@@ -101,6 +102,18 @@ Route::prefix('v1')->group(function (): void {
                     Route::post('/notification-channels/test', [NotificationChannelTestController::class, 'draft']);
                     Route::post('/notification-channels/{channel}/test', [NotificationChannelTestController::class, 'saved'])->whereNumber('channel');
                 });
+            });
+
+            Route::middleware(['ability:incidents:read', 'can:viewIncidents,workspace'])->group(function (): void {
+                Route::get('/maintenances', [MaintenanceController::class, 'index']);
+                Route::get('/maintenances/{maintenance}', [MaintenanceController::class, 'show'])->whereNumber('maintenance');
+            });
+
+            Route::middleware(['ability:incidents:write', 'can:manageIncidents,workspace'])->group(function (): void {
+                Route::post('/maintenances', [MaintenanceController::class, 'store']);
+                Route::patch('/maintenances/{maintenance}', [MaintenanceController::class, 'update'])->whereNumber('maintenance');
+                Route::delete('/maintenances/{maintenance}', [MaintenanceController::class, 'destroy'])->whereNumber('maintenance');
+                Route::post('/maintenances/{maintenance}/end', [MaintenanceController::class, 'end'])->whereNumber('maintenance');
             });
 
             Route::get('/tokens', [TokenController::class, 'index']);

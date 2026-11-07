@@ -457,6 +457,59 @@ forbid that, add the internal ranges, for example
 Notification targets are always refused in `0.0.0.0/8` and `::/128`, which
 connect to the local host; the last two entries extend that to checks.
 
+### Maintenance windows
+
+A maintenance mutes the monitors it targets for a period: their checks keep
+running, but their status is `maintenance`, no alert is sent and the period does
+not count as downtime. A maintenance belongs to a workspace and targets 1 to
+1 000 of its monitors; targeting a group covers its children. It can also be
+shown on up to 100 of the workspace's status pages (`status_page_ids`).
+
+| Endpoint | Ability |
+| --- | --- |
+| `GET /api/v1/workspaces/{workspace}/maintenances` (`?state=active\|upcoming\|past\|all`), `GET /api/v1/workspaces/{workspace}/maintenances/{maintenance}` | `incidents:read` |
+| `POST /api/v1/workspaces/{workspace}/maintenances`, `PATCH`/`DELETE /api/v1/workspaces/{workspace}/maintenances/{maintenance}`, `POST /api/v1/workspaces/{workspace}/maintenances/{maintenance}/end` | `incidents:write` |
+
+| `strategy` | Fields | Window |
+| --- | --- | --- |
+| `once` | `starts_at`, optional `ends_at` | One window; without `ends_at` it stays open until `POST .../end` sets it to now |
+| `interval` | `every_days` (1 to 3650), `start_time`, `duration_minutes`, optional `valid_from`/`valid_until` | Every N days, counted from `valid_from` (or the creation date) |
+| `weekly` | `weekdays` (1 Monday to 7 Sunday), `start_time`, `duration_minutes` | On the given weekdays |
+| `monthly` | `month_days` (1 to 31, or -1 for the last day), `start_time`, `duration_minutes` | On the given days of each month |
+| `cron` | `cron`, `duration_minutes` | At every run of the cron expression |
+
+`start_time` is a local `HH:MM`, `duration_minutes` is 1 to 10 080, and
+`valid_from` / `valid_until` are local dates (`valid_until` inclusive).
+Fields of other strategies are stored as null. A definition that could never
+produce a window (a recurring one without start time or duration, an invalid
+cron expression, empty `weekdays` or `month_days`, an `ends_at` that is not
+after `starts_at`) is refused with a 422. `active: false` switches a
+maintenance off without deleting it; only `once` maintenances can be ended
+with `POST .../end`.
+
+Times are interpreted in the maintenance's `timezone`, falling back to the
+workspace timezone when it is null. Across daylight saving time a local start
+time that does not exist (the spring-forward gap) moves forward by the gap, a
+local time that occurs twice uses its first occurrence, and a window always
+lasts its duration in elapsed minutes. Overlapping windows on one monitor mute
+it for their union.
+
+Each maintenance in the API carries `in_progress` and `next_window`
+(`starts_at`, `ends_at`: the window in progress, or else the next one, looking
+400 days ahead; null when none is left). The `state` filter uses the same
+computation, so a listing narrowed by `state` selects the matching ids first and
+then paginates them.
+
+When a window starts or ends, or a maintenance is created, edited, ended or
+deleted while it is in progress, scheduled monitors (HTTP, TCP, ping, DNS, TLS,
+domain) are checked immediately and groups are recomputed, within seconds
+(`intrawatch:maintenance:sync` runs every 15 seconds). Push and cron monitors
+change status at their next ping or deadline check. Alerts are muted for the
+whole window. An outage that is still going on when the window ends is alerted
+after it: the monitor goes from maintenance to down on its first check after
+the end, a `Down` alert is sent if none was sent for that outage yet, and
+reminders (`STILL DOWN`) resume.
+
 ## Development
 
 ```bash

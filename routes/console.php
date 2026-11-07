@@ -21,3 +21,7 @@ Schedule::command('intrawatch:prune')->hourlyAt(30)->withoutOverlapping(180)->on
 // Degraded holds, reminders, flap ends and suppression re-checks. Signals from the checker are evaluated by queued
 // jobs; this only covers what falls due with time.
 Schedule::command('intrawatch:alerts:tick')->everyFifteenSeconds()->withoutOverlapping(2)->onOneServer();
+
+// Window starts and ends: scheduled monitors are checked at once and groups recomputed, so a boundary takes effect
+// within seconds instead of at each monitor's next interval.
+Schedule::command('intrawatch:maintenance:sync')->everyFifteenSeconds()->withoutOverlapping(2)->onOneServer();
