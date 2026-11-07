@@ -24,11 +24,18 @@ Keep the restart policy: when one of the internal programs (web server, queue
 workers, check workers, scheduler, websocket server) cannot be kept running,
 the container exits with a non-zero status so that Docker replaces it.
 
-Then finish the first-run setup, which creates the owner account and the first
-workspace. The endpoint accepts a single use only, and it logs you in with a
-cookie session, so it is called like the web frontend would: fetch the CSRF
-cookie first, then send it back as `X-XSRF-TOKEN` with an `Origin` that matches
-`APP_URL`:
+Then open `http://localhost:3000/` in a browser. It redirects to the admin
+interface at `/admin/`, which starts with the first-run setup wizard: the owner
+account first, then the first workspace and its timezone. See [Admin](#admin)
+for what the interface covers. When the container is published on another host
+or port, set `APP_URL` to the address the browser uses (for example
+`-e APP_URL=http://monitor.example.com:8080`): the cookie session only works
+for that origin.
+
+The same setup can be scripted against the API. The endpoint accepts a single
+use only, and it logs you in with a cookie session, so it is called like the web
+frontend would: fetch the CSRF cookie first, then send it back as
+`X-XSRF-TOKEN` with an `Origin` that matches `APP_URL`:
 
 ```bash
 curl -s -c jar.txt -b jar.txt -H 'Origin: http://localhost:3000' \
@@ -73,6 +80,39 @@ reports unhealthy, although the workers keep checking and buffer up to 10 000
 results until it is back. A restart discards that buffer, so do not use this
 healthcheck as a restart (liveness) trigger in an orchestrator, or give it a
 failure threshold longer than the database outages you want to ride out.
+
+### Admin
+
+The admin interface is served at `/admin/` on the `APP_URL` host (`/` redirects
+there). After the setup wizard it opens the first workspace's monitor list.
+
+- **Monitors**: a list with server-side search and filters, groups that expand
+  on demand, bulk actions, and a detail page with uptime, latency, check
+  results, events and alerts. The editor covers every monitor type (HTTP with
+  keyword, JSON and header assertions, TCP, ping, DNS, TLS, domain expiry,
+  push, cron and groups).
+- **Notification channels**: one editor per provider, with write-only secrets,
+  message templates, a test send of the unsaved draft, and binding a channel to
+  monitors in bulk. **Alert history** lists every alert and its deliveries.
+- **Incidents** with an update timeline, and **maintenance windows** (one-off,
+  interval, weekly, monthly or cron) with a preview of the next window.
+- **Status pages**: settings, sections and their monitors, publishing and a
+  custom domain.
+- **Workspace**: settings, members and roles, API tokens and the audit log;
+  further workspaces can be created from the workspace switcher.
+- **Account and security**: two-factor authentication with recovery codes.
+  The interface is available in English and Hungarian (the browser language,
+  or the account menu).
+
+Updates are live: monitor status changes, check results and alerts arrive over
+the workspace's private websocket channel (Reverb at `/app`, authorised with
+the cookie session at `/broadcasting/auth`), so the monitor list and detail
+pages change without a reload. Monitors created or deleted elsewhere appear
+when the window regains focus or the connection comes back.
+
+Controls follow the caller's role (`can` in `/api/v1/me`); the API enforces the
+same rules on its own. On a custom status domain only the status page is
+served: `/admin/`, `/api/` and `/sanctum/` answer 404 there.
 
 ### Recovery
 
@@ -682,7 +722,17 @@ cd spa
 npm ci
 npm run dev       # Vite dev server on http://localhost:5173/admin/
 npm run verify    # lint, type check, unit tests and production build
+npm run e2e       # end-to-end run in Chromium against a freshly built image
 ```
+
+`npm run e2e` (`spa/e2e/run.sh`) builds the image as `intrawatch:smoke-spa`,
+starts it on port 33300 with a fresh volume (`APP_URL=http://localhost:33300`)
+and runs the Playwright flow in `spa/e2e/`: the setup wizard, an HTTP monitor
+that turns up live, a webhook test send, a maintenance window, a published
+status page, two-factor sign-in and the custom-domain 404 for `/admin/`. The
+container and its volume are always removed. Install the browser once with
+`npx playwright install chromium`; `E2E_SKIP_BUILD=1` reuses an existing image.
+It is not part of `npm run verify`.
 
 The dev server proxies `/api`, `/sanctum`, `/broadcasting` and the `/app`
 websocket to `VITE_BACKEND` (default `http://127.0.0.1:8000`, i.e.
