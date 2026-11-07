@@ -10,6 +10,7 @@ use App\Models\Maintenance;
 use App\Models\Workspace;
 use App\Monitoring\Engine\MaintenanceOracle;
 use App\Status\Maintenance\CalendarMaintenanceOracle;
+use App\Status\Maintenance\MaintenanceCalendarLoader;
 use App\Status\Maintenance\MaintenanceState;
 use App\Status\Maintenance\MaintenanceSync;
 use App\Status\Maintenance\SyncResult;
@@ -139,7 +140,9 @@ class MaintenanceController extends Controller
         });
         $result->afterCommit();
         $this->oracle->warm();
-        $this->stamps->bumpPage(...$affected, ...AffectedPages::forMaintenance($maintenance->id));
+        // An edit can remove what a page showed (a page unlinked, a title reworded), so no last good copy of
+        // the earlier content may be served during an outage.
+        $this->stamps->forgetRenderings(...$affected, ...AffectedPages::forMaintenance($maintenance->id));
 
         return $this->respond($workspace, $maintenance->id);
     }
@@ -158,13 +161,15 @@ class MaintenanceController extends Controller
         });
         $result->afterCommit();
         $this->oracle->warm();
-        $this->stamps->bumpPage(...$affected);
+        $this->stamps->forgetRenderings(...$affected);
 
         return response()->noContent();
     }
 
     /**
      * Ends a one-off maintenance now. Recurring ones are switched off with `active: false` instead.
+     *
+     * @throws ValidationException when the maintenance is recurring, has not started yet or has already ended
      */
     public function end(Workspace $workspace, Maintenance $maintenance): JsonResponse
     {
@@ -203,7 +208,11 @@ class MaintenanceController extends Controller
     private function write(Closure $work): SyncResult
     {
         try {
-            return DB::transaction($work);
+            return DB::transaction(function () use ($work): SyncResult {
+                MaintenanceCalendarLoader::bumpRevision();
+
+                return $work();
+            });
         } catch (Throwable $e) {
             if ($this->oracle instanceof CalendarMaintenanceOracle) {
                 $this->oracle->invalidate();

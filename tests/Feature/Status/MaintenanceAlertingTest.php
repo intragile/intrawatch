@@ -4,6 +4,7 @@ namespace Tests\Feature\Status;
 
 use App\Enums\AlertKind;
 use App\Enums\MonitorStatus;
+use App\Enums\MonitorType;
 use App\Enums\WorkspaceRole;
 use App\Jobs\EvaluateAlerts;
 use App\Jobs\SendNotification;
@@ -14,10 +15,12 @@ use App\Models\NotificationChannel;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Monitoring\Engine\CheckOutcome;
+use App\Monitoring\Engine\DatabaseDeadlineEvaluator;
 use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\ResultRecorder;
+use App\Status\Maintenance\MaintenanceSync;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -241,5 +244,71 @@ class MaintenanceAlertingTest extends TestCase
         // The evaluation finds an outage that was already notified: no second Down, and no Up in between.
         $this->runEvaluationJobs();
         $this->assertSame(['down'], $this->kinds($group));
+    }
+
+    /**
+     * Runs the push and cron deadlines the worker would evaluate at the given time and records their outcomes.
+     */
+    private function evaluateDeadline(Monitor $monitor, string $time): void
+    {
+        $at = $this->at($time);
+        CarbonImmutable::setTestNow($at);
+        $spec = MonitorSpec::fromModel($monitor->fresh() ?? $monitor);
+        [$outcome] = (new DatabaseDeadlineEvaluator)->evaluate($spec, $at);
+        if ($outcome !== null) {
+            $this->app->make(ResultRecorder::class)->record([[$spec, $outcome, $at, null]]);
+        }
+    }
+
+    private function syncBoundaries(string $from, string $to): void
+    {
+        CarbonImmutable::setTestNow($this->at($to));
+        $this->app->make(MaintenanceSync::class)->run($this->at($from), $this->at($to));
+    }
+
+    public function test_a_down_push_monitor_is_muted_when_a_window_starts_and_alerts_again_after_it(): void
+    {
+        $push = $this->monitor(['type' => MonitorType::Push, 'push_token' => str_repeat('p', 48), 'config' => ['grace_seconds' => 30], 'interval_seconds' => 60, 'retry_interval_seconds' => 60, 'resend_interval_minutes' => 5]);
+        $this->evaluateDeadline($push, '09:40:00');
+        $this->assertSame(MonitorStatus::Down, $this->stateOf($push));
+        $this->assertSame(['down'], $this->kinds($push));
+        // Reported: the deadline evaluator has nothing more to say about this outage.
+        $this->evaluateDeadline($push, '09:55:00');
+
+        $this->window($push, '10:00:00', '10:30:00');
+        $this->syncBoundaries('09:59:45', '10:00:00');
+        $this->assertSame(MonitorStatus::Maintenance, $this->stateOf($push), 'the window start brings the reported outage into maintenance');
+
+        foreach (['10:06:00', '10:12:00', '10:20:00', '10:29:00'] as $time) {
+            $this->evaluateDeadline($push, $time);
+            $this->tick($time);
+            $this->assertSame(MonitorStatus::Maintenance, $this->stateOf($push), $time);
+        }
+        $this->assertSame(['down'], $this->kinds($push), 'no reminder inside the window');
+
+        $this->syncBoundaries('10:29:45', '10:30:00');
+        $this->assertSame(MonitorStatus::Maintenance, $this->stateOf($push), 'the end itself records nothing for a push monitor');
+        $this->evaluateDeadline($push, '10:31:01');
+        $this->assertSame(MonitorStatus::Down, $this->stateOf($push), 'the next deadline evaluation records the real status');
+        $this->assertSame(['down'], $this->kinds($push), 'neither an Up nor a second Down after the window');
+
+        $this->tick('10:37:00');
+        $this->assertSame(['down', 'still_down'], $this->kinds($push));
+    }
+
+    public function test_creating_an_active_window_mutes_a_down_cron_monitor(): void
+    {
+        $cron = $this->monitor(['type' => MonitorType::Cron, 'push_token' => str_repeat('c', 48), 'config' => ['schedule' => '*/5 * * * *', 'timezone' => 'UTC', 'grace_seconds' => 60], 'resend_interval_minutes' => 5]);
+        $this->evaluateDeadline($cron, '09:20:00');
+        $this->assertSame(MonitorStatus::Down, $this->stateOf($cron));
+
+        CarbonImmutable::setTestNow($this->at('09:30:00'));
+        $this->actingAs($this->editor())->postJson($this->url(), [
+            'title' => 'Fixing the job', 'strategy' => 'once', 'starts_at' => '2026-11-06T09:00:00Z', 'ends_at' => '2026-11-06T12:00:00Z', 'monitor_ids' => [$cron->id],
+        ])->assertCreated();
+
+        $this->assertSame(MonitorStatus::Maintenance, $this->stateOf($cron));
+        $this->tick('09:45:00');
+        $this->assertSame(['down'], $this->kinds($cron));
     }
 }

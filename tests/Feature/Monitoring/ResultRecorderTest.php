@@ -196,7 +196,7 @@ class ResultRecorderTest extends TestCase
                 return $at->greaterThanOrEqualTo($this->from) && in_array($this->id, $monitorIds, true) ? [$this->id] : [];
             }
 
-            public function warm(): void {}
+            public function warm(bool $force = false): void {}
         });
 
         $this->recorder()->record([

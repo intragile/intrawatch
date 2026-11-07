@@ -14,5 +14,5 @@ final class NoMaintenance implements MaintenanceOracle
         return [];
     }
 
-    public function warm(): void {}
+    public function warm(bool $force = false): void {}
 }

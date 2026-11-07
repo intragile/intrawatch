@@ -20,7 +20,8 @@ use PDOException;
  * A fresh entry is served from the file cache alone, without touching the database. On a miss one process
  * renders under a lock while the others serve the last good copy; when the render fails because the database
  * does, the last good copy is served marked stale, kept for `status.cache.stale_seconds`, and the database is
- * not tried again for 30 s.
+ * not tried again for 30 s. A failure also sets the shared `DatabaseOutage` marker; while it is set, no render
+ * of any page is attempted.
  */
 final class PageCache
 {
@@ -39,6 +40,7 @@ final class PageCache
      */
     public function __construct(
         private readonly PageStamps $stamps,
+        private readonly DatabaseOutage $outage,
         private readonly int $lockWaitSeconds = 3,
     ) {}
 
@@ -95,9 +97,13 @@ final class PageCache
     {
         $store = $this->store();
         try {
+            $this->outage->guard();
             $pageView = $build();
             $html = $view($pageView);
         } catch (QueryException|PDOException $e) {
+            if (! $this->outage->active()) {
+                $this->outage->record();
+            }
             $last = self::entry($store->get($lastKey));
             if ($last === null) {
                 throw PageUnavailable::because($e);

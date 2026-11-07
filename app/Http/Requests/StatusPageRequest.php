@@ -4,13 +4,17 @@ namespace App\Http\Requests;
 
 use App\Models\StatusPage;
 use App\Monitoring\Types\Hostname;
+use App\Status\Pages\PageResolver;
+use App\Support\CurrentWorkspace;
 use Closure;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
  * Validation of status page writes. Creating needs the slug and title; updating accepts any subset. The
- * custom domain is normalised (lower-case, no trailing dot) before it is validated and stored.
+ * custom domain is normalised (lower-case, no trailing dot) before it is validated and stored, and only a
+ * workspace admin may set or change it: a custom domain takes over that host for every workspace.
  */
 class StatusPageRequest extends FormRequest
 {
@@ -24,9 +28,22 @@ class StatusPageRequest extends FormRequest
         'incident_history_days', 'show_latency',
     ];
 
+    /**
+     * Runs after prepareForValidation(), so it compares the normalised domain. Resending the stored value is
+     * not a change.
+     */
     public function authorize(): bool
     {
-        return true;
+        if (! $this->exists('custom_domain') || $this->input('custom_domain') === $this->stored()?->custom_domain) {
+            return true;
+        }
+
+        return $this->user()?->can('manageCustomDomains', app(CurrentWorkspace::class)->get()) ?? false;
+    }
+
+    protected function failedAuthorization(): never
+    {
+        throw new AuthorizationException('Only a workspace admin can set or change the custom domain.');
     }
 
     private function stored(): ?StatusPage
@@ -98,7 +115,9 @@ class StatusPageRequest extends FormRequest
 
     private function domainRule(): Closure
     {
-        return static function (string $attribute, mixed $value, Closure $fail): void {
+        $requestHost = PageResolver::normalizeHost($this->getHost());
+
+        return static function (string $attribute, mixed $value, Closure $fail) use ($requestHost): void {
             if (! is_string($value)) {
                 return;
             }
@@ -113,7 +132,8 @@ class StatusPageRequest extends FormRequest
                 return;
             }
             $own = parse_url(config()->string('app.url', ''), PHP_URL_HOST);
-            if (is_string($own) && strtolower(rtrim($own, '.')) === $value) {
+            if ((is_string($own) && strtolower(rtrim($own, '.')) === $value) || $requestHost === $value) {
+                // The host would then serve only the status page, locking everyone out of the API on it.
                 $fail('The custom domain must not be the host of this installation.');
             }
         };

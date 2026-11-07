@@ -120,7 +120,9 @@ class IncidentController extends Controller
                 Audit::record('incident.updated', $incident, $diff);
             }
         });
-        $this->stamps->bumpPage(...$affected, ...AffectedPages::forIncident($incident->id));
+        // An edit can remove what a page showed (a page unlinked, a title reworded), so no last good copy of
+        // the earlier content may be served during an outage.
+        $this->stamps->forgetRenderings(...$affected, ...AffectedPages::forIncident($incident->id));
 
         return $this->respond($incident->id);
     }
@@ -133,7 +135,7 @@ class IncidentController extends Controller
             $incident->delete();
             Audit::record('incident.deleted', $incident, ['title' => [$incident->title, null]]);
         });
-        $this->stamps->bumpPage(...$affected);
+        $this->stamps->forgetRenderings(...$affected);
 
         return response()->noContent();
     }

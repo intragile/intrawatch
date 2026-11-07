@@ -282,8 +282,9 @@ final class Scheduler
                 return;
             }
 
+            $changes = null;
             try {
-                $this->apply($this->loader->changesSince($this->shard, $this->shards));
+                $changes = $this->loader->changesSince($this->shard, $this->shards);
             } catch (Throwable $e) {
                 Log::warning('Polling monitor changes failed; retrying on the next poll.', [
                     'shard' => $this->shard,
@@ -291,13 +292,19 @@ final class Scheduler
                 ]);
             }
 
+            // A maintenance write commits together with the checks it requests. Its calendar change is read
+            // before those checks start, so none of them is recorded against the calendar without the window.
             try {
-                $this->maintenance?->warm();
+                $this->maintenance?->warm($changes !== null && $changes->requested !== []);
             } catch (Throwable $e) {
                 Log::warning('Refreshing the maintenance calendar failed; retrying on the next poll.', [
                     'shard' => $this->shard,
                     'exception' => $e::class,
                 ]);
+            }
+
+            if ($changes !== null) {
+                $this->apply($changes);
             }
         }
     }

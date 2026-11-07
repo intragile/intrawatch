@@ -228,7 +228,7 @@ class CalendarMaintenanceOracleTest extends TestCase
                 return [];
             }
 
-            public function warm(): void
+            public function warm(bool $force = false): void
             {
                 $this->level = DB::transactionLevel();
             }

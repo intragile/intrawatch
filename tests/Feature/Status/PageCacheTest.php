@@ -3,6 +3,7 @@
 namespace Tests\Feature\Status;
 
 use App\Enums\DisplayStatus;
+use App\Status\Pages\DatabaseOutage;
 use App\Status\Pages\PageCache;
 use App\Status\Pages\PageStamps;
 use App\Status\Pages\PageUnavailable;
@@ -234,7 +235,7 @@ class PageCacheTest extends TestCase
 
     private function cache(int $lockWaitSeconds = 3): PageCache
     {
-        return new PageCache($this->stamps, $lockWaitSeconds);
+        return new PageCache($this->stamps, new DatabaseOutage, $lockWaitSeconds);
     }
 
     /**

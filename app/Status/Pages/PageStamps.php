@@ -3,14 +3,20 @@
 namespace App\Status\Pages;
 
 use App\Models\StatusPage;
+use Closure;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Version stamps in the file cache that cached public pages validate against. A page version moves when the
  * page itself or something it shows is edited; the workspace stamp moves when a monitor's status changes.
  * Everything here is file I/O only, so it is safe in the worker and never touches the database.
+ *
+ * The writes run after the data they describe has committed. A failing write (a full or unwritable cache
+ * directory) is reported and swallowed rather than failing a request whose data is already stored; the cache
+ * TTL then bounds how long a page shows the earlier content.
  */
 final class PageStamps
 {
@@ -62,9 +68,11 @@ final class PageStamps
 
     public function bumpPage(int ...$pageIds): void
     {
-        foreach (array_unique($pageIds) as $pageId) {
-            $this->store()->forever('status:page:'.$pageId.':v', self::token());
-        }
+        $this->attempt(function () use ($pageIds): void {
+            foreach (array_unique($pageIds) as $pageId) {
+                $this->store()->forever('status:page:'.$pageId.':v', self::token());
+            }
+        });
     }
 
     public function workspaceStamp(int $workspaceId): string
@@ -74,7 +82,7 @@ final class PageStamps
 
     public function bumpWorkspace(int $workspaceId): void
     {
-        $this->store()->forever('status:ws:'.$workspaceId.':stamp', self::token());
+        $this->attempt(fn () => $this->store()->forever('status:ws:'.$workspaceId.':stamp', self::token()));
     }
 
     /**
@@ -90,21 +98,57 @@ final class PageStamps
      */
     public function forgetKeys(int $pageId, ?string $slug, ?string $domain): void
     {
-        $store = $this->store();
+        $this->attempt(function () use ($pageId, $slug, $domain): void {
+            $store = $this->store();
+            $this->dropRenderings($store, $pageId);
+            if ($slug !== null && $slug !== '') {
+                $store->forget(self::slugKey($slug));
+            }
+            if ($domain !== null && $domain !== '') {
+                $store->forget(self::domainKey($domain));
+            }
+            $store->forget(self::domainsKey());
+        });
+        $this->bumpPage($pageId);
+    }
+
+    /**
+     * Drops every rendering of the pages, last good copies included, and moves their versions; slug and domain
+     * resolution is kept. For edits that remove content: an outage before the next render must answer without
+     * a copy rather than bring the removed content back.
+     */
+    public function forgetRenderings(int ...$pageIds): void
+    {
+        $pageIds = array_values(array_unique($pageIds));
+        $this->attempt(function () use ($pageIds): void {
+            $store = $this->store();
+            foreach ($pageIds as $pageId) {
+                $this->dropRenderings($store, $pageId);
+            }
+        });
+        $this->bumpPage(...$pageIds);
+    }
+
+    private function dropRenderings(Repository $store, int $pageId): void
+    {
         $store->forget(self::htmlKey($pageId));
         $store->forget(self::lastGoodKey($pageId));
         foreach (PageCache::VARIANTS as $variant) {
             $store->forget(self::variantKey($pageId, $variant));
             $store->forget(self::variantLastGoodKey($pageId, $variant));
         }
-        if ($slug !== null && $slug !== '') {
-            $store->forget(self::slugKey($slug));
+    }
+
+    /**
+     * @param  Closure(): mixed  $write
+     */
+    private function attempt(Closure $write): void
+    {
+        try {
+            $write();
+        } catch (Throwable $e) {
+            report($e);
         }
-        if ($domain !== null && $domain !== '') {
-            $store->forget(self::domainKey($domain));
-        }
-        $store->forget(self::domainsKey());
-        $this->bumpPage($pageId);
     }
 
     private function current(string $key): string

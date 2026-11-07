@@ -17,6 +17,8 @@ interface MaintenanceOracle
 
     /**
      * Refreshes whatever the oracle answers from. Never call it inside a transaction; it may read the database.
+     *
+     * @param  bool  $force  Check for changes now, ignoring any interval the oracle keeps between checks.
      */
-    public function warm(): void;
+    public function warm(bool $force = false): void;
 }

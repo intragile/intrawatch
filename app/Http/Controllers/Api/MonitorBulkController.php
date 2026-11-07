@@ -14,6 +14,8 @@ use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\MonitorActivation;
 use App\Monitoring\Types\GroupHierarchy;
+use App\Status\Pages\AffectedPages;
+use App\Status\Pages\PageStamps;
 use App\Support\Audit;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -25,7 +27,10 @@ class MonitorBulkController extends Controller
 {
     private const ACTIONS = ['pause', 'resume', 'delete', 'tag', 'untag', 'notify', 'unnotify'];
 
-    public function __construct(private readonly GroupEvaluator $groups) {}
+    public function __construct(
+        private readonly GroupEvaluator $groups,
+        private readonly PageStamps $stamps,
+    ) {}
 
     public function __invoke(Request $request, Workspace $workspace): JsonResponse
     {
@@ -50,11 +55,20 @@ class MonitorBulkController extends Controller
         $deleted = [];
         $events = [];
         $jobs = [];
-        $affected = DB::transaction(function () use ($workspace, $ids, $action, $tag, $channel, &$deleted, &$events, &$jobs): int {
+        $pages = [];
+        $affected = DB::transaction(function () use ($workspace, $ids, $action, $tag, $channel, &$deleted, &$events, &$jobs, &$pages): int {
             $deleted = [];
             $events = [];
             $jobs = [];
             $monitors = $workspace->monitors()->whereIn('id', $ids)->with('state')->orderBy('id')->get();
+            $pages = [];
+            if ($action === 'delete') {
+                $monitorIds = [];
+                foreach ($monitors as $monitor) {
+                    $monitorIds[] = $monitor->id;
+                }
+                $pages = AffectedPages::showingMonitors($monitorIds);
+            }
 
             $regroup = [];
             foreach ($monitors as $monitor) {
@@ -83,6 +97,8 @@ class MonitorBulkController extends Controller
 
         PostCommit::dispatch($events);
         PostCommit::queue($jobs);
+        // Deleted monitors must not come back from a page's last good copy during an outage.
+        $this->stamps->forgetRenderings(...$pages);
 
         foreach ($deleted as $id) {
             PurgeMonitorData::dispatch($id);

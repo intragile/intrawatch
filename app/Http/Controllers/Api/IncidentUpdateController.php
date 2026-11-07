@@ -67,10 +67,14 @@ class IncidentUpdateController extends Controller
             $update->save();
 
             if ($old !== $update->message) {
-                Audit::record('incident.update_edited', $incident, ['update_id' => [$update->id, $update->id]]);
+                // The message itself stays out of the trail; its length shows that and how much it changed.
+                Audit::record('incident.update_edited', $incident, [
+                    'update_id' => [$update->id, $update->id],
+                    'message' => [strlen($old).' bytes', strlen($update->message).' bytes'],
+                ]);
             }
         });
-        $this->bump($incident);
+        $this->forget($incident);
 
         return response()->json(['data' => IncidentUpdateResource::toArray($update->refresh())]);
     }
@@ -103,7 +107,7 @@ class IncidentUpdateController extends Controller
                 'update_id' => [$update->id, null],
             ]);
         });
-        $this->bump($incident);
+        $this->forget($incident);
 
         return response()->noContent();
     }
@@ -111,6 +115,14 @@ class IncidentUpdateController extends Controller
     private function bump(Incident $incident): void
     {
         $this->stamps->bumpPage(...AffectedPages::forIncident($incident->id));
+    }
+
+    /**
+     * For edits and deletions, which can remove text a page showed: no last good copy of it may be served.
+     */
+    private function forget(Incident $incident): void
+    {
+        $this->stamps->forgetRenderings(...AffectedPages::forIncident($incident->id));
     }
 
     private function lock(Incident $incident): Incident

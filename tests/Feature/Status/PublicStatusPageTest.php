@@ -6,6 +6,7 @@ use App\Enums\DisplayStatus;
 use App\Enums\IncidentImpact;
 use App\Enums\IncidentStatus;
 use App\Enums\MonitorStatus;
+use App\Enums\WorkspaceRole;
 use App\Events\MonitorStatusChanged;
 use App\Models\CheckRollup;
 use App\Models\Incident;
@@ -14,6 +15,7 @@ use App\Models\Monitor;
 use App\Models\StatusPage;
 use App\Models\StatusPageItem;
 use App\Models\StatusPageSection;
+use App\Models\User;
 use App\Models\Workspace;
 use App\Status\Pages\DayBar;
 use App\Status\Pages\ItemView;
@@ -347,6 +349,46 @@ class PublicStatusPageTest extends TestCase
         });
     }
 
+    public function test_a_failed_connection_stops_every_uncached_request_from_reconnecting_for_30_seconds(): void
+    {
+        StatusPage::factory()->create(['workspace_id' => $this->workspace->id, 'slug' => 'other', 'published' => true]);
+
+        $this->withDeadDatabase(function (\Closure $attempts): void {
+            $this->get('/status/acme')->assertStatus(503)->assertHeader('Retry-After', '30');
+            $tried = $attempts();
+            $this->assertGreaterThan(0, $tried);
+
+            // Other pages and endpoints know nothing either, yet none of them tries the database again.
+            $this->get('/status/other')->assertStatus(503);
+            $this->get('/status/acme/summary.json')->assertStatus(503);
+            $this->get('/status/acme/feed.rss')->assertStatus(503);
+            $this->travel(29)->seconds();
+            $this->get('/status/other')->assertStatus(503);
+            $this->assertSame($tried, $attempts(), 'no request reconnected while the marker was set');
+
+            $this->travel(2)->seconds();
+            $this->get('/status/other')->assertStatus(503);
+            $this->assertGreaterThan($tried, $attempts(), 'the database is tried again once the marker expired');
+        });
+
+        // Back up: the next request after the marker renders normally.
+        $this->travel(31)->seconds();
+        $this->get('/status/acme')->assertOk()->assertSee('Acme status');
+    }
+
+    public function test_a_failed_connection_keeps_serving_cached_copies(): void
+    {
+        $this->get('/status/acme')->assertOk();
+        $this->travel(2)->minutes();
+
+        $this->withDeadDatabase(function (\Closure $attempts): void {
+            $this->get('/status/no-such-page')->assertStatus(503);
+            $tried = $attempts();
+            $this->get('/status/acme')->assertOk()->assertHeader('X-Status-Stale', '1')->assertSee('Acme status');
+            $this->assertSame($tried, $attempts());
+        });
+    }
+
     public function test_unknown_hosts_cost_no_query_and_no_cache_entry(): void
     {
         $this->page->update(['custom_domain' => 'status.example.test']);
@@ -447,6 +489,138 @@ class PublicStatusPageTest extends TestCase
                 ->assertHeader('X-Content-Type-Options', 'nosniff')
                 ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
         });
+    }
+
+    private function editor(): User
+    {
+        return User::factory()->memberOf($this->workspace, WorkspaceRole::Editor)->create();
+    }
+
+    private function api(string $path): string
+    {
+        return "/api/v1/workspaces/{$this->workspace->slug}{$path}";
+    }
+
+    /**
+     * The page as a visitor gets it while the database is down: never with content that was removed before.
+     */
+    private function assertOutageHides(string $removed): void
+    {
+        $this->withDeadDatabase(function () use ($removed): void {
+            $response = $this->get('/status/acme');
+            $this->assertContains($response->getStatusCode(), [200, 503]);
+            $this->assertStringNotContainsString($removed, (string) $response->getContent());
+            foreach (['/status/acme/feed.atom', '/status/acme/summary.json'] as $path) {
+                $this->assertStringNotContainsString($removed, (string) $this->get($path)->getContent(), $path);
+            }
+        });
+    }
+
+    private function warmEverything(string $expected): void
+    {
+        $this->get('/status/acme')->assertOk()->assertSee($expected);
+        $this->get('/status/acme/feed.atom')->assertOk();
+        $this->get('/status/acme/summary.json')->assertOk();
+    }
+
+    public function test_a_replaced_layout_is_never_served_from_the_last_good_copy(): void
+    {
+        $this->warmEverything('Website');
+
+        $this->actingAs($this->editor())->putJson($this->api("/status-pages/{$this->page->id}/layout"), ['sections' => [['name' => 'Public', 'items' => []]]])->assertOk();
+
+        $this->assertOutageHides('Website');
+    }
+
+    public function test_a_deleted_incident_is_never_served_from_the_last_good_copy(): void
+    {
+        $id = $this->actingAs($this->editor())->postJson($this->api('/incidents'), [
+            'title' => 'Leaked internal hostname', 'impact' => 'minor', 'status' => 'investigating', 'message' => 'db-7.internal is down', 'status_page_ids' => [$this->page->id],
+        ])->assertCreated()->json('data.id');
+        $this->assertIsInt($id);
+        $this->warmEverything('Leaked internal hostname');
+
+        $this->actingAs($this->editor())->deleteJson($this->api("/incidents/{$id}"))->assertNoContent();
+
+        $this->assertOutageHides('Leaked internal hostname');
+    }
+
+    public function test_an_unlinked_incident_is_never_served_from_the_last_good_copy(): void
+    {
+        $id = $this->actingAs($this->editor())->postJson($this->api('/incidents'), [
+            'title' => 'Posted on the wrong page', 'impact' => 'minor', 'status' => 'investigating', 'message' => 'oops', 'status_page_ids' => [$this->page->id],
+        ])->assertCreated()->json('data.id');
+        $this->assertIsInt($id);
+        $this->warmEverything('Posted on the wrong page');
+
+        $this->actingAs($this->editor())->patchJson($this->api("/incidents/{$id}"), ['status_page_ids' => []])->assertOk();
+
+        $this->assertOutageHides('Posted on the wrong page');
+    }
+
+    public function test_a_deleted_maintenance_is_never_served_from_the_last_good_copy(): void
+    {
+        $id = $this->actingAs($this->editor())->postJson($this->api('/maintenances'), [
+            'title' => 'Secret migration', 'strategy' => 'once', 'starts_at' => '2026-11-08T10:00:00Z', 'ends_at' => '2026-11-08T11:00:00Z',
+            'monitor_ids' => [$this->monitor->id], 'status_page_ids' => [$this->page->id],
+        ])->assertCreated()->json('data.id');
+        $this->assertIsInt($id);
+        $this->warmEverything('Secret migration');
+
+        $this->actingAs($this->editor())->deleteJson($this->api("/maintenances/{$id}"))->assertNoContent();
+
+        $this->assertOutageHides('Secret migration');
+    }
+
+    public function test_a_deleted_monitor_is_never_served_from_the_last_good_copy(): void
+    {
+        $this->monitor->update(['name' => 'Internal billing host']);
+        $this->warmEverything('Internal billing host');
+
+        $this->actingAs($this->editor())->deleteJson($this->api("/monitors/{$this->monitor->id}"))->assertNoContent();
+
+        $this->assertOutageHides('Internal billing host');
+    }
+
+    public function test_a_bulk_deleted_monitor_is_never_served_from_the_last_good_copy(): void
+    {
+        $this->monitor->update(['name' => 'Internal billing host']);
+        $this->warmEverything('Internal billing host');
+
+        $this->actingAs($this->editor())->postJson($this->api('/monitors/bulk'), ['action' => 'delete', 'ids' => [$this->monitor->id]])->assertOk();
+
+        $this->assertOutageHides('Internal billing host');
+    }
+
+    public function test_maintenance_writes_reach_the_page_at_once(): void
+    {
+        $this->get('/status/acme')->assertOk()->assertDontSee('Router firmware');
+
+        $id = $this->actingAs($this->editor())->postJson($this->api('/maintenances'), [
+            'title' => 'Router firmware', 'strategy' => 'once', 'starts_at' => '2026-11-08T10:00:00Z', 'ends_at' => '2026-11-08T11:00:00Z',
+            'monitor_ids' => [$this->monitor->id],
+        ])->assertCreated()->json('data.id');
+        $this->assertIsInt($id);
+        $this->get('/status/acme')->assertOk()->assertSee('Router firmware');
+
+        $this->actingAs($this->editor())->patchJson($this->api("/maintenances/{$id}"), ['title' => 'Switch firmware'])->assertOk();
+        $this->get('/status/acme')->assertOk()->assertSee('Switch firmware')->assertDontSee('Router firmware');
+
+        $this->actingAs($this->editor())->deleteJson($this->api("/maintenances/{$id}"))->assertNoContent();
+        $this->get('/status/acme')->assertOk()->assertDontSee('Switch firmware');
+    }
+
+    public function test_the_publish_toggle_takes_effect_at_once(): void
+    {
+        $this->get('/status/acme')->assertOk();
+        $this->get('/status/acme/summary.json')->assertOk();
+
+        $this->actingAs($this->editor())->patchJson($this->api("/status-pages/{$this->page->id}"), ['published' => false])->assertOk();
+        $this->get('/status/acme')->assertNotFound();
+        $this->get('/status/acme/summary.json')->assertNotFound();
+
+        $this->actingAs($this->editor())->patchJson($this->api("/status-pages/{$this->page->id}"), ['published' => true])->assertOk();
+        $this->get('/status/acme')->assertOk()->assertSee('Acme status');
     }
 
     /**

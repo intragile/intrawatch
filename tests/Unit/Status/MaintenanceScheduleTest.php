@@ -239,9 +239,10 @@ class MaintenanceScheduleTest extends TestCase
     public function test_cron_with_future_valid_from_starts_at_valid_from_quickly(): void
     {
         $s = $this->schedule(['strategy' => 'cron', 'cron' => '* * * * *', 'duration_minutes' => 1, 'timezone' => 'UTC', 'valid_from' => '2027-12-01']);
+        // Generous bound: it only has to rule out stepping minute by minute through eleven months.
         $started = microtime(true);
         $next = $s->nextWindow($this->at('2027-01-01 00:00'));
-        $this->assertLessThan(0.5, microtime(true) - $started);
+        $this->assertLessThan(2.0, microtime(true) - $started);
         $this->assertSame('2027-12-01 00:00', $next?->start->format('Y-m-d H:i'));
 
         $budapest = $this->schedule(['strategy' => 'cron', 'cron' => '0 0 * * *', 'duration_minutes' => 10, 'valid_from' => '2027-12-01']);

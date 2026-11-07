@@ -3,10 +3,16 @@
 namespace App\Status\Maintenance;
 
 use App\Alerting\Engine\AlertSignals;
+use App\Enums\MonitorStatus;
 use App\Enums\MonitorType;
+use App\Models\Monitor;
+use App\Models\MonitorState;
+use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\MaintenanceOracle;
+use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\PostCommit;
+use App\Monitoring\Engine\ResultRecorder;
 use App\Monitoring\Types\GroupHierarchy;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -16,8 +22,12 @@ use Illuminate\Support\Facades\DB;
  *
  * A monitor that enters or leaves a window changes status only when it is next evaluated. At a boundary the
  * scheduled monitors are asked to check right away and the groups are recomputed, both through the paths the
- * engine and the alerting contract already use; push and cron monitors are evaluated at their next ping or
- * deadline.
+ * engine and the alerting contract already use.
+ *
+ * Push and cron monitors have no check to request, and one whose outage is already reported has no deadline
+ * left either. Those that a window has just muted get a result recorded through the ResultRecorder once the
+ * transaction has committed; the recorder turns it into Maintenance. When the window ends nothing is recorded:
+ * a monitor in Maintenance has no reported outage, so its next deadline evaluation records the real status.
  */
 final class MaintenanceSync
 {
@@ -26,6 +36,7 @@ final class MaintenanceSync
     public function __construct(
         private readonly GroupEvaluator $groups,
         private readonly MaintenanceOracle $oracle,
+        private readonly ResultRecorder $recorder,
     ) {}
 
     /**
@@ -130,6 +141,7 @@ final class MaintenanceSync
     {
         $now = CarbonImmutable::now();
         $leaves = [];
+        $deadlineLeaves = [];
         $groups = [];
         foreach (array_chunk($ids, self::CHUNK) as $chunk) {
             foreach (DB::table('monitors')->whereIn('id', $chunk)->where('active', true)->get(['id', 'type']) as $row) {
@@ -139,6 +151,8 @@ final class MaintenanceSync
                     $groups[] = $id;
                 } elseif ($type !== null && $type->definition()->isScheduled()) {
                     $leaves[] = $id;
+                } elseif ($type !== null) {
+                    $deadlineLeaves[] = $id;
                 }
             }
         }
@@ -159,6 +173,49 @@ final class MaintenanceSync
             $jobs = AlertSignals::queue($events);
         }
 
-        return new SyncResult(count($leaves), count($groups), $events, $jobs);
+        $mute = null;
+        if ($deadlineLeaves !== []) {
+            sort($deadlineLeaves);
+            $mute = fn () => $this->mute($deadlineLeaves);
+        }
+
+        return new SyncResult(count($leaves), count($groups), $events, $jobs, $mute);
+    }
+
+    /**
+     * Records a result for the push and cron monitors among the given ones that are inside a window now and not
+     * in Maintenance yet. The result repeats the stored status, so it changes nothing should the window have
+     * ended in between; inside the window the recorder replaces it with Maintenance. Runs after commit, outside
+     * any transaction, because the recorder warms the oracle and opens its own.
+     *
+     * @param  list<int>  $ids
+     */
+    private function mute(array $ids): void
+    {
+        $now = CarbonImmutable::now();
+        $this->oracle->warm();
+        $muted = $this->oracle->underMaintenance($ids, $now);
+        foreach (array_chunk($muted, self::CHUNK) as $chunk) {
+            $items = [];
+            foreach (Monitor::query()->whereIn('id', $chunk)->where('active', true)->with('state')->orderBy('id')->get() as $monitor) {
+                $state = $monitor->getRelationValue('state');
+                if (! $state instanceof MonitorState || $state->status === MonitorStatus::Maintenance) {
+                    continue;
+                }
+                $items[] = [MonitorSpec::fromModel($monitor), self::repeat($state), $now, null];
+            }
+            $this->recorder->record($items);
+        }
+    }
+
+    private static function repeat(MonitorState $state): CheckOutcome
+    {
+        $message = $state->last_message ?? '';
+
+        return match ($state->status) {
+            MonitorStatus::Up => CheckOutcome::up($state->last_latency_ms, $message),
+            MonitorStatus::Degraded => CheckOutcome::degraded($message, $state->last_latency_ms),
+            default => CheckOutcome::down($message, $state->last_latency_ms),
+        };
     }
 }

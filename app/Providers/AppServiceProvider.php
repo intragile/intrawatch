@@ -35,6 +35,7 @@ use App\Monitoring\Net\GuardedConnector;
 use App\Monitoring\Net\NetworkPolicy;
 use App\Monitoring\Worker\Clock;
 use App\Monitoring\Worker\SystemClock;
+use App\OpenApi\CursorPageReturnType;
 use App\Policies\WorkspacePolicy;
 use App\Status\Maintenance\CalendarMaintenanceOracle;
 use App\Status\Maintenance\MaintenanceCalendarLoader;
@@ -155,6 +156,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(TwoFactorAuthenticationDisabled::class, [RecordAuthEvent::class, 'handleTwoFactorDisabled']);
 
         // The spec is served from the API itself; Scramble's own UI and JSON routes stay off.
+        Scramble::registerExtension(CursorPageReturnType::class);
         Scramble::configure()
             ->expose(false)
             ->withDocumentTransformers(function (OpenApi $openApi): void {

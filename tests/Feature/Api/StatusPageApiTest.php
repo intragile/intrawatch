@@ -138,18 +138,19 @@ class StatusPageApiTest extends TestCase
         }
         $this->actingAs($this->editor)->postJson($this->url(), $this->body())->assertUnprocessable()->assertJsonValidationErrors('slug');
 
-        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['custom_domain' => 'Status.Example.ORG.'])
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $this->actingAs($admin)->patchJson($this->url("/{$id}"), ['custom_domain' => 'Status.Example.ORG.'])
             ->assertOk()->assertJsonPath('data.custom_domain', 'status.example.org');
         $this->assertSame('status.example.org', StatusPage::query()->findOrFail($id)->custom_domain);
 
         $other = $this->createPage('other');
-        $this->actingAs($this->editor)->patchJson($this->url("/{$other}"), ['custom_domain' => 'STATUS.example.org'])->assertUnprocessable()->assertJsonValidationErrors('custom_domain');
+        $this->actingAs($admin)->patchJson($this->url("/{$other}"), ['custom_domain' => 'STATUS.example.org'])->assertUnprocessable()->assertJsonValidationErrors('custom_domain');
 
         config(['app.url' => 'https://monitor.example.net']);
         foreach (['10.0.0.1', '2001:db8::1', 'localhost', 'monitor.example.net', 'Monitor.Example.Net.', 'bad_host.example.org', 'http://x.example.org'] as $bad) {
-            $this->actingAs($this->editor)->patchJson($this->url("/{$other}"), ['custom_domain' => $bad])->assertUnprocessable()->assertJsonValidationErrors('custom_domain');
+            $this->actingAs($admin)->patchJson($this->url("/{$other}"), ['custom_domain' => $bad])->assertUnprocessable()->assertJsonValidationErrors('custom_domain');
         }
-        $this->actingAs($this->editor)->patchJson($this->url("/{$other}"), ['custom_domain' => null])->assertOk()->assertJsonPath('data.custom_domain', null);
+        $this->actingAs($admin)->patchJson($this->url("/{$other}"), ['custom_domain' => null])->assertOk()->assertJsonPath('data.custom_domain', null);
 
         $this->actingAs($this->editor)->patchJson($this->url("/{$other}"), ['slug' => 'acme'])->assertUnprocessable()->assertJsonValidationErrors('slug');
         $this->actingAs($this->editor)->patchJson($this->url("/{$other}"), ['slug' => 'other'])->assertOk();
@@ -191,5 +192,37 @@ class StatusPageApiTest extends TestCase
         $this->assertCrossWorkspaceNotFound($actor, 'GET', "/api/v1/workspaces/{$own->slug}/status-pages/{$page->id}");
         $this->assertCrossWorkspaceNotFound($actor, 'PATCH', "/api/v1/workspaces/{$own->slug}/status-pages/{$page->id}", ['title' => 'x']);
         $this->assertCrossWorkspaceNotFound($actor, 'DELETE', "/api/v1/workspaces/{$own->slug}/status-pages/{$page->id}");
+    }
+
+    public function test_only_admins_set_or_change_the_custom_domain(): void
+    {
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $id = $this->createPage();
+
+        $this->actingAs($this->editor)->postJson($this->url(), $this->body(['slug' => 'second', 'custom_domain' => 'second.example.org']))
+            ->assertForbidden()->assertHeader('Content-Type', 'application/problem+json');
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['custom_domain' => 'status.example.org'])->assertForbidden();
+        $this->assertNull(StatusPage::query()->findOrFail($id)->custom_domain);
+
+        $this->actingAs($admin)->patchJson($this->url("/{$id}"), ['custom_domain' => 'status.example.org'])->assertOk();
+
+        // Editors keep editing everything else, and may resend the domain unchanged.
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['title' => 'New title', 'custom_domain' => 'Status.Example.org'])->assertOk();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['custom_domain' => null])->assertForbidden();
+        $this->actingAs($this->editor)->postJson($this->url(), $this->body(['slug' => 'third', 'custom_domain' => null]))->assertCreated();
+        $this->assertSame('status.example.org', StatusPage::query()->findOrFail($id)->custom_domain);
+    }
+
+    public function test_the_custom_domain_cannot_be_the_host_the_api_is_reached_on(): void
+    {
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $id = $this->createPage();
+        config(['app.url' => 'https://monitor.example.net']);
+
+        $this->actingAs($admin)->patchJson("http://admin.example.net{$this->url("/{$id}")}", ['custom_domain' => 'admin.example.net'])
+            ->assertUnprocessable()->assertJsonValidationErrors('custom_domain');
+        $this->actingAs($admin)->patchJson("http://ADMIN.example.net:8443{$this->url("/{$id}")}", ['custom_domain' => 'Admin.Example.Net.'])
+            ->assertUnprocessable()->assertJsonValidationErrors('custom_domain');
+        $this->actingAs($admin)->patchJson("http://admin.example.net{$this->url("/{$id}")}", ['custom_domain' => 'status.example.org'])->assertOk();
     }
 }

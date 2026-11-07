@@ -58,7 +58,8 @@ class StatusPageLayoutController extends Controller
                 'items' => [$oldItems, $items],
             ]);
         });
-        $this->stamps->bumpPage($statusPage->id);
+        // Removed components must not come back from the last good copy during an outage.
+        $this->stamps->forgetPage($statusPage);
 
         $fresh = StatusPage::query()->with('sections.items')->findOrFail($statusPage->id);
 

@@ -44,9 +44,13 @@ final class IncidentResource
      */
     private static function ids(array $ids): array
     {
-        $ids = array_values(array_map(static fn (mixed $id): int => is_numeric($id) ? (int) $id : 0, $ids));
-        sort($ids);
+        // A loop rather than array_map, so the generated API schema can tell the items are integers.
+        $list = [];
+        foreach ($ids as $id) {
+            $list[] = is_numeric($id) ? (int) $id : 0;
+        }
+        sort($list);
 
-        return $ids;
+        return $list;
     }
 }

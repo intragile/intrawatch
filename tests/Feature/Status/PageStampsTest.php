@@ -5,6 +5,7 @@ namespace Tests\Feature\Status;
 use App\Enums\MonitorStatus;
 use App\Enums\WorkspaceRole;
 use App\Events\MonitorStatusChanged;
+use App\Jobs\BroadcastEvents;
 use App\Listeners\StampStatusPages;
 use App\Models\Incident;
 use App\Models\Monitor;
@@ -13,12 +14,16 @@ use App\Models\StatusPageItem;
 use App\Models\StatusPageSection;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Monitoring\Engine\PostCommit;
 use App\Status\Pages\AffectedPages;
 use App\Status\Pages\PageStamps;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class PageStampsTest extends TestCase
@@ -186,5 +191,52 @@ class PageStampsTest extends TestCase
     {
         $section = StatusPageSection::factory()->create(['status_page_id' => $page->id]);
         StatusPageItem::factory()->create(['status_page_section_id' => $section->id, 'monitor_id' => $monitor->id, 'expand_children' => $expand]);
+    }
+
+    /**
+     * Points the status page store at a path below a regular file, so every write to it fails.
+     */
+    private function breakStore(): void
+    {
+        $file = tempnam(sys_get_temp_dir(), 'iw-broken-');
+        $this->assertIsString($file);
+        $this->beforeApplicationDestroyed(fn () => @unlink($file));
+        config(['cache.stores.status_pages.path' => $file.'/cache', 'cache.stores.status_pages.lock_path' => $file.'/locks']);
+        Cache::forgetDriver('status_pages');
+        $this->stamps = app(PageStamps::class);
+    }
+
+    public function test_a_failing_stamp_write_does_not_silence_the_status_broadcast(): void
+    {
+        $this->breakStore();
+        Exceptions::fake();
+        Queue::fake();
+        $later = 0;
+        Event::listen(MonitorStatusChanged::class, function () use (&$later): void {
+            $later++;
+        });
+
+        PostCommit::dispatch([$this->event(1)]);
+
+        $this->assertSame(1, $later, 'listeners after the stamp still run');
+        Queue::assertPushed(BroadcastEvents::class);
+        Exceptions::assertReported(\ErrorException::class);
+    }
+
+    public function test_a_failing_stamp_write_does_not_fail_a_committed_write(): void
+    {
+        $ws = Workspace::factory()->create();
+        $editor = User::factory()->memberOf($ws, WorkspaceRole::Editor)->create();
+        $page = StatusPage::factory()->create(['workspace_id' => $ws->id]);
+        $this->breakStore();
+        Exceptions::fake();
+
+        $this->actingAs($editor)->postJson("/api/v1/workspaces/{$ws->slug}/incidents", [
+            'title' => 'Outage', 'impact' => 'minor', 'status' => 'investigating', 'message' => 'Looking', 'status_page_ids' => [$page->id],
+        ])->assertCreated();
+        $this->actingAs($editor)->patchJson("/api/v1/workspaces/{$ws->slug}/status-pages/{$page->id}", ['title' => 'Renamed'])->assertOk();
+
+        $this->assertSame(1, Incident::query()->count());
+        Exceptions::assertReported(\ErrorException::class);
     }
 }

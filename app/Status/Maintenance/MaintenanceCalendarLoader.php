@@ -90,19 +90,32 @@ class MaintenanceCalendarLoader
 
     /**
      * Changes whenever a maintenance is created, edited or deleted, or a monitor changes (a reparented
-     * monitor changes a group expansion).
+     * monitor changes a group expansion). The revision counter tells apart writes within the same second.
      */
     public function stamp(): string
     {
+        $revision = DB::table('maintenance_revisions')->where('id', 1)->value('revision');
         $maintenances = DB::table('maintenances')->selectRaw('count(*) as total, max(id) as last_id, max(updated_at) as last_update')->first();
         $monitors = DB::table('monitors')->selectRaw('max(updated_at) as last_update')->first();
 
         return implode('|', [
+            self::text($revision),
             self::text($maintenances->total ?? null),
             self::text($maintenances->last_id ?? null),
             self::text($maintenances->last_update ?? null),
             self::text($monitors->last_update ?? null),
         ]);
+    }
+
+    /**
+     * Moves the change stamp. Call it inside the transaction that writes a maintenance or its targets; the row
+     * lock it takes also orders concurrent maintenance writes.
+     */
+    public static function bumpRevision(): void
+    {
+        if (DB::table('maintenance_revisions')->where('id', 1)->increment('revision') === 0) {
+            DB::table('maintenance_revisions')->insertOrIgnore(['id' => 1, 'revision' => 1]);
+        }
     }
 
     /**

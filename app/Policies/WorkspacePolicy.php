@@ -88,4 +88,12 @@ class WorkspacePolicy
     {
         return $this->atLeast($user, $workspace, WorkspaceRole::Editor);
     }
+
+    /**
+     * A custom domain routes a host name to a page for every visitor of the installation, so only admins set it.
+     */
+    public function manageCustomDomains(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Admin);
+    }
 }

@@ -201,6 +201,22 @@ class IncidentApiTest extends TestCase
             ->assertOk()->assertJsonPath('data.message', 'Edited')->assertJsonPath('data.status', 'investigating');
         $this->assertSame('investigating', Incident::query()->findOrFail($id)->status->value);
         $this->actingAs($this->editor)->patchJson($this->url("/{$id}/updates/{$update}"), [])->assertUnprocessable()->assertJsonValidationErrors(['message']);
+
+        $audit = AuditEvent::query()->where('action', 'incident.update_edited')->sole();
+        // MySQL reorders the keys of a stored JSON object, so they are compared without their order.
+        $changes = $audit->changes;
+        $this->assertIsArray($changes);
+        ksort($changes);
+        $this->assertSame(['message' => ['23 bytes', '6 bytes'], 'update_id' => [$update, $update]], $changes);
+    }
+
+    public function test_a_start_before_1970_is_rejected(): void
+    {
+        $this->actingAs($this->editor)->postJson($this->url(), $this->body(['started_at' => '1969-12-31T00:00:00Z']))
+            ->assertUnprocessable()->assertJsonValidationErrors(['started_at']);
+        $id = $this->openIncident();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['started_at' => '1960-01-01T00:00:00Z'])
+            ->assertUnprocessable()->assertJsonValidationErrors(['started_at']);
     }
 
     public function test_markdown_is_stored_verbatim(): void

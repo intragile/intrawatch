@@ -566,7 +566,23 @@ and a strong `ETag` (`If-None-Match` gives a 304). If the database fails during
 a render, the last good copy is served with `X-Status-Stale: 1` and the
 database is tried again at most every 30 seconds; the copy is kept
 for 7 days (`status.cache.stale_seconds`). With no copy at all the page answers
-503 with `Retry-After: 30`.
+503 with `Retry-After: 30`. A failed database connection also stops every other
+public request that would need the database from trying it for 30 seconds:
+those answer from their cached copy or with the 503 at once. Database
+connections give up after 3 seconds (`DB_CONNECT_TIMEOUT`), so an unreachable
+database host cannot hold requests for minutes.
+
+Editing or deleting an incident, an incident update, a maintenance, a monitor
+or a page layout drops the affected pages' last good copies as well, so removed
+content never reappears during an outage; such a page answers 503 until it can
+be rendered again.
+
+Two changes reach a cached page only through the 60 second TTL: a maintenance
+that targets an ancestor group of a monitor on the page (rather than the
+monitor or its direct group), and a change of the workspace timezone.
+
+Only workspace admins can set or change a page's custom domain, and it can be
+neither the host of `APP_URL` nor the host the API request was sent to.
 
 #### Badges
 
@@ -608,6 +624,9 @@ and maintenance windows of the page, each with every update in order and a
 link of the form `{page address}#incident-{id}` or `#maintenance-{id}`. The
 feeds cover incidents open or resolved within the page's history setting and
 maintenance that is in progress, upcoming within its window setting, or ended within the last 30 days.
+A maintenance is a single entry: its window in progress or upcoming, otherwise
+its latest window that ended within those 30 days. Earlier windows of a
+recurring maintenance are not listed.
 
 `summary.json` is meant for status widgets on other sites and is sent with
 `Access-Control-Allow-Origin: *`:

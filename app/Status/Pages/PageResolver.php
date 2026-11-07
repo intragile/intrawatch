@@ -18,7 +18,8 @@ use PDOException;
  *
  * Known entries and the domain map are kept for the last-good period: while the database is down they still
  * resolve, so the last good copy of a page can be served, and the database is retried at most once every
- * 30 s per entry instead of on every request. Unpublished pages resolve exactly like missing ones.
+ * 30 s per entry instead of on every request. A failure also sets the shared `DatabaseOutage` marker, which
+ * keeps every other uncached lookup off the database for 30 s. Unpublished pages resolve exactly like missing ones.
  */
 final class PageResolver
 {
@@ -29,6 +30,8 @@ final class PageResolver
     private const DOMAINS_SECONDS = 60;
 
     private const RETRY_SECONDS = 30;
+
+    public function __construct(private readonly DatabaseOutage $outage) {}
 
     /**
      * @return array{id: int, workspace_id: int}|null
@@ -54,11 +57,13 @@ final class PageResolver
         }
 
         try {
+            $this->outage->guard();
             $row = DB::table('status_pages')
                 ->where('slug', $slug)
                 ->where('published', true)
                 ->first(['id', 'workspace_id']);
         } catch (QueryException|PDOException $e) {
+            $this->failed();
             if ($known === null) {
                 throw $e;
             }
@@ -131,11 +136,13 @@ final class PageResolver
         }
 
         try {
+            $this->outage->guard();
             $rows = DB::table('status_pages')
                 ->whereNotNull('custom_domain')
                 ->where('published', true)
                 ->get(['id', 'workspace_id', 'custom_domain']);
         } catch (QueryException|PDOException $e) {
+            $this->failed();
             if ($known === null) {
                 throw $e;
             }
@@ -153,6 +160,16 @@ final class PageResolver
         $this->putMap($domains, $now + self::DOMAINS_SECONDS);
 
         return $domains;
+    }
+
+    /**
+     * Sets the shared marker on a real failure; one raised by the marker itself leaves its expiry alone.
+     */
+    private function failed(): void
+    {
+        if (! $this->outage->active()) {
+            $this->outage->record();
+        }
     }
 
     /**

@@ -341,4 +341,35 @@ class MaintenanceApiTest extends TestCase
         $this->assertSame(0, DB::table('maintenance_monitor')->count());
         $this->assertSame(0, AuditEvent::query()->where('action', 'maintenance.created')->count());
     }
+
+    public function test_every_write_moves_the_calendar_stamp_even_within_one_second(): void
+    {
+        $a = $this->monitor();
+        $b = $this->monitor();
+        $loader = new MaintenanceCalendarLoader;
+        $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), $this->oneOff($a))->assertCreated()->json('data.id'));
+        $stamps = [$loader->stamp()];
+
+        // The clock is frozen: every write below lands in the same second as the create.
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['monitor_ids' => [$a->id, $b->id]])->assertOk();
+        $stamps[] = $loader->stamp();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['title' => 'Renamed'])->assertOk();
+        $stamps[] = $loader->stamp();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['monitor_ids' => [$a->id]])->assertOk();
+        $stamps[] = $loader->stamp();
+        $this->actingAs($this->editor)->deleteJson($this->url("/{$id}"))->assertNoContent();
+        $stamps[] = $loader->stamp();
+
+        $this->assertCount(5, array_unique($stamps));
+    }
+
+    public function test_dates_outside_the_portable_timestamp_range_are_rejected(): void
+    {
+        $monitor = $this->monitor();
+        foreach ([['2040-01-01T00:00:00Z', null, 'starts_at'], ['1969-12-31T00:00:00Z', null, 'starts_at'], ['2026-11-06T11:00:00Z', '2038-02-01T00:00:00Z', 'ends_at']] as [$from, $to, $field]) {
+            $this->actingAs($this->editor)->postJson($this->url(), $this->oneOff($monitor, $from, $to))
+                ->assertUnprocessable()->assertJsonValidationErrors([$field]);
+        }
+        $this->actingAs($this->editor)->postJson($this->url(), $this->oneOff($monitor, '2026-11-06T11:00:00Z', '2037-12-31T00:00:00Z'))->assertCreated();
+    }
 }

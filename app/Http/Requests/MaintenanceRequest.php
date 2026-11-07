@@ -38,6 +38,11 @@ class MaintenanceRequest extends FormRequest
 
     private const CHUNK = 500;
 
+    /**
+     * Dates every supported database stores in a timestamp column: MySQL's ends in January 2038.
+     */
+    public const TIMESTAMP_RANGE = ['after_or_equal:1970-01-02', 'before_or_equal:2037-12-31 23:59:59'];
+
     public function authorize(): bool
     {
         return true;
@@ -83,8 +88,8 @@ class MaintenanceRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:5000'],
             'strategy' => ['required', Rule::enum(MaintenanceStrategy::class)],
             'timezone' => ['nullable', 'string', 'timezone:all'],
-            'starts_at' => [$strategy === 'once' ? 'required' : 'nullable', 'date'],
-            'ends_at' => ['nullable', 'date'],
+            'starts_at' => [$strategy === 'once' ? 'required' : 'nullable', 'date', ...self::TIMESTAMP_RANGE],
+            'ends_at' => ['nullable', 'date', ...self::TIMESTAMP_RANGE],
             'start_time' => ['nullable', 'date_format:H:i'],
             'duration_minutes' => ['nullable', 'integer', 'between:1,10080'],
             'every_days' => [$strategy === 'interval' ? 'required' : 'nullable', 'integer', 'between:1,3650'],

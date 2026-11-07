@@ -45,12 +45,12 @@ final class CalendarMaintenanceOracle implements MaintenanceOracle
         private readonly ?Closure $transactionLevel = null,
     ) {}
 
-    public function warm(): void
+    public function warm(bool $force = false): void
     {
         $this->attempted = true;
         $now = $this->clock->now();
 
-        if ($this->calendar !== null && $this->checkedAt !== null && $now->diffInSeconds($this->checkedAt, true) < $this->stampSeconds) {
+        if (! $force && $this->calendar !== null && $this->checkedAt !== null && $now->diffInSeconds($this->checkedAt, true) < $this->stampSeconds) {
             return;
         }
         $this->checkedAt = $now;

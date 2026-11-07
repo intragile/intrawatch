@@ -3,6 +3,9 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
+// Seconds to wait for a MySQL, MariaDB or PostgreSQL server to accept a connection.
+$connectTimeout = max(1, (int) env('DB_CONNECT_TIMEOUT', 3));
+
 return [
 
     /*
@@ -67,6 +70,8 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                // Fail fast on an unreachable host instead of waiting for the TCP connect timeout.
+                PDO::ATTR_TIMEOUT => $connectTimeout,
             ]) : [],
         ],
 
@@ -89,6 +94,8 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                // Fail fast on an unreachable host instead of waiting for the TCP connect timeout.
+                PDO::ATTR_TIMEOUT => $connectTimeout,
             ]) : [],
         ],
 
@@ -107,6 +114,8 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Fail fast on an unreachable host: pdo_pgsql passes this to libpq as `connect_timeout`.
+            'options' => [PDO::ATTR_TIMEOUT => $connectTimeout],
         ],
 
         'sqlsrv' => [

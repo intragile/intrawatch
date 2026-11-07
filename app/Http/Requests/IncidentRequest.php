@@ -43,7 +43,7 @@ class IncidentRequest extends FormRequest
         $rules = [
             'title' => [$presence, 'string', 'max:190'],
             'impact' => [$presence, Rule::enum(IncidentImpact::class)],
-            'started_at' => ['sometimes', 'nullable', 'date', 'before_or_equal:now'],
+            'started_at' => ['sometimes', 'nullable', 'date', 'before_or_equal:now', 'after_or_equal:1970-01-02'],
             'monitor_ids' => ['sometimes', 'array', 'max:1000'],
             'monitor_ids.*' => ['integer', 'distinct'],
             'status_page_ids' => ['sometimes', 'array', 'max:100'],

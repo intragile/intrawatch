@@ -2,6 +2,9 @@
 
 use Illuminate\Support\Str;
 
+// Rendered public status pages and their version stamps; shared by every web process of one instance.
+$statusPageCachePath = env('STATUS_PAGE_CACHE_PATH', storage_path('framework/cache/status-pages'));
+
 return [
 
     /*
@@ -55,8 +58,8 @@ return [
 
         'status_pages' => [
             'driver' => 'file',
-            'path' => env('STATUS_PAGE_CACHE_PATH', storage_path('framework/cache/status-pages')),
-            'lock_path' => env('STATUS_PAGE_CACHE_PATH', storage_path('framework/cache/status-pages')).'/locks',
+            'path' => $statusPageCachePath,
+            'lock_path' => $statusPageCachePath.'/locks',
         ],
 
         'storage' => [

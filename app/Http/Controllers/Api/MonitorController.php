@@ -20,6 +20,8 @@ use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\MonitorActivation;
 use App\Monitoring\Types\GroupHierarchy;
+use App\Status\Pages\AffectedPages;
+use App\Status\Pages\PageStamps;
 use App\Support\Audit;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -34,7 +36,10 @@ use Illuminate\Validation\ValidationException;
 
 class MonitorController extends Controller
 {
-    public function __construct(private readonly GroupEvaluator $groups) {}
+    public function __construct(
+        private readonly GroupEvaluator $groups,
+        private readonly PageStamps $stamps,
+    ) {}
 
     public function index(Request $request, Workspace $workspace): JsonResponse
     {
@@ -210,9 +215,11 @@ class MonitorController extends Controller
     {
         $events = [];
         $jobs = [];
-        DB::transaction(function () use ($monitor, &$events, &$jobs): void {
+        $pages = [];
+        DB::transaction(function () use ($monitor, &$events, &$jobs, &$pages): void {
             $events = [];
             $jobs = [];
+            $pages = AffectedPages::showingMonitors([$monitor->id]);
             GroupHierarchy::detachChildren($monitor);
             $monitor->delete();
             Audit::record('monitor.deleted', $monitor, ['name' => [$monitor->name, null]]);
@@ -222,6 +229,8 @@ class MonitorController extends Controller
         });
         PostCommit::dispatch($events);
         PostCommit::queue($jobs);
+        // The deleted monitor must not come back from a page's last good copy during an outage.
+        $this->stamps->forgetRenderings(...$pages);
         PurgeMonitorData::dispatch($monitor->id)->afterCommit();
 
         return response()->noContent();

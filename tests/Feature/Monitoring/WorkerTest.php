@@ -4,6 +4,7 @@ namespace Tests\Feature\Monitoring;
 
 use Amp\DeferredCancellation;
 use Amp\Future;
+use App\Enums\MonitorStatus;
 use App\Enums\MonitorType;
 use App\Enums\WorkspaceRole;
 use App\Events\ChecksRecorded;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Engine\CheckOutcome;
+use App\Monitoring\Engine\DatabaseGroupEvaluator;
 use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\NullDeadlineEvaluator;
@@ -24,6 +26,8 @@ use App\Monitoring\Worker\Heartbeat;
 use App\Monitoring\Worker\MonitorLoader;
 use App\Monitoring\Worker\OutcomeBuffer;
 use App\Monitoring\Worker\Scheduler;
+use App\Status\Maintenance\CalendarMaintenanceOracle;
+use App\Status\Maintenance\MaintenanceCalendarLoader;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -117,7 +121,7 @@ class WorkerTest extends TestCase
                 return [];
             }
 
-            public function warm(): void
+            public function warm(bool $force = false): void
             {
                 $this->warms++;
 
@@ -136,6 +140,37 @@ class WorkerTest extends TestCase
         $logged = array_filter($this->logs, fn (MessageLogged $e): bool => str_contains($e->message, 'Refreshing the maintenance calendar failed'));
         $this->assertNotEmpty($logged);
         $this->assertNotEmpty($this->checker->callsFor($added->id), 'polling still applies new monitors');
+    }
+
+    public function test_a_check_requested_by_a_new_window_is_recorded_with_the_new_calendar(): void
+    {
+        // The worker's own calendar, throttled so that it makes no stamp check of its own during the test.
+        $oracle = new CalendarMaintenanceOracle(MaintenanceCalendarLoader::fromConfig(), $this->clock, 600, 1200);
+        $recorder = new ResultRecorder(new StatusMachine, $oracle, new DatabaseGroupEvaluator($oracle));
+        $buffer = new OutcomeBuffer(recorder: $recorder, clock: $this->clock, capacity: 10_000, flushSeconds: 1.0, reconnect: function (): void {});
+        $group = Monitor::factory()->for($this->ws)->group('all')->create();
+        $leaf = Monitor::factory()->for($this->ws)->tcp('example.test', 443)->create(['parent_id' => $group->id, 'interval_seconds' => 60, 'retry_interval_seconds' => 60]);
+        $editor = User::factory()->memberOf($this->ws, WorkspaceRole::Editor)->create();
+
+        [$stop, $run] = $this->start($this->scheduler(buffer: $buffer, maintenance: $oracle));
+        $this->clock->advance(65);
+        $this->assertCount(1, $this->checker->callsFor($leaf->id));
+        $this->assertSame(MonitorStatus::Up, $group->state()->firstOrFail()->status);
+
+        $now = $this->clock->now();
+        $this->actingAs($editor)->postJson("/api/v1/workspaces/{$this->ws->slug}/maintenances", [
+            'title' => 'Now', 'strategy' => 'once', 'monitor_ids' => [$group->id],
+            'starts_at' => $now->subMinute()->toIso8601ZuluString(), 'ends_at' => $now->addHour()->toIso8601ZuluString(),
+        ])->assertCreated();
+        $this->assertSame(MonitorStatus::Maintenance, $group->state()->firstOrFail()->status);
+
+        // The next poll sees the requested check; it must be recorded against the calendar that has the window.
+        $this->clock->advance(10);
+        $this->stop($stop, $run);
+
+        $this->assertCount(2, $this->checker->callsFor($leaf->id), 'the requested check ran');
+        $this->assertSame(MonitorStatus::Maintenance, CheckResult::where('monitor_id', $leaf->id)->orderByDesc('id')->firstOrFail()->status);
+        $this->assertSame(MonitorStatus::Maintenance, $group->state()->firstOrFail()->status, 'the group the API muted stays muted');
     }
 
     public function test_monitor_changes_apply_without_restart(): void

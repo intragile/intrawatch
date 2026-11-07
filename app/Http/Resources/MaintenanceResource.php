@@ -21,15 +21,11 @@ final class MaintenanceResource
     }
 
     /**
-     * @param  list<int>|null  $monitorIds  Taken from the loaded relation when null.
-     * @param  list<int>|null  $statusPageIds
      * @return array<string, mixed>
      */
-    public static function toArray(Maintenance $maintenance, string $workspaceTimezone, CarbonImmutable $now, ?array $monitorIds = null, ?array $statusPageIds = null): array
+    public static function toArray(Maintenance $maintenance, string $workspaceTimezone, CarbonImmutable $now): array
     {
         $window = self::window($maintenance, $workspaceTimezone, $now);
-        $monitorIds ??= self::ids($maintenance->monitors->pluck('id')->all());
-        $statusPageIds ??= self::ids($maintenance->statusPages->pluck('id')->all());
 
         return [
             'id' => $maintenance->id,
@@ -48,8 +44,8 @@ final class MaintenanceResource
             'valid_from' => $maintenance->valid_from,
             'valid_until' => $maintenance->valid_until,
             'active' => $maintenance->active,
-            'monitor_ids' => $monitorIds,
-            'status_page_ids' => $statusPageIds,
+            'monitor_ids' => self::ids($maintenance->monitors->pluck('id')->all()),
+            'status_page_ids' => self::ids($maintenance->statusPages->pluck('id')->all()),
             'in_progress' => $window !== null && $window->contains($now),
             'next_window' => $window === null ? null : [
                 'starts_at' => $window->start->toIso8601String(),
@@ -66,9 +62,13 @@ final class MaintenanceResource
      */
     private static function ids(array $ids): array
     {
-        $ids = array_values(array_map(static fn (mixed $id): int => is_numeric($id) ? (int) $id : 0, $ids));
-        sort($ids);
+        // A loop rather than array_map, so the generated API schema can tell the items are integers.
+        $list = [];
+        foreach ($ids as $id) {
+            $list[] = is_numeric($id) ? (int) $id : 0;
+        }
+        sort($list);
 
-        return $ids;
+        return $list;
     }
 }

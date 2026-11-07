@@ -4,10 +4,14 @@ namespace App\Listeners;
 
 use App\Events\MonitorStatusChanged;
 use App\Status\Pages\PageStamps;
+use Throwable;
 
 /**
  * Moves the workspace stamp when a monitor's status changes, so cached public pages re-render. A burst of
  * changes inside one second costs one file write per workspace.
+ *
+ * A failure is reported and swallowed: an exception here would stop the event's later listeners and its
+ * broadcast, and the page TTL bounds how long a missed stamp leaves a page stale.
  */
 final class StampStatusPages
 {
@@ -30,7 +34,11 @@ final class StampStatusPages
         }
         self::$stamped[$event->workspaceId] = $second;
 
-        $this->stamps->bumpWorkspace($event->workspaceId);
+        try {
+            $this->stamps->bumpWorkspace($event->workspaceId);
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 
     public static function reset(): void
