@@ -1,0 +1,188 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Enums\IncidentStatus;
+use App\Http\Controllers\Controller;
+use App\Http\Pagination\CursorPage;
+use App\Http\Requests\IncidentRequest;
+use App\Http\Resources\IncidentResource;
+use App\Models\Incident;
+use App\Models\Workspace;
+use App\Support\Audit;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+
+class IncidentController extends Controller
+{
+    private const CHUNK = 500;
+
+    private const STATES = ['open', 'resolved', 'all'];
+
+    /**
+     * Lists the incidents of the workspace, newest start first.
+     *
+     * `state` narrows the list to `open` (not yet resolved), `resolved`, or `all` (default). The timeline of
+     * each incident is only included when a single incident is fetched.
+     */
+    public function index(Request $request, Workspace $workspace): JsonResponse
+    {
+        $request->validate(['state' => ['sometimes', Rule::in(self::STATES)]]);
+        $state = $request->string('state', 'all')->toString();
+
+        $query = $workspace->incidents()->with(['monitors:id', 'statusPages:id'])
+            ->orderByDesc('incidents.started_at')->orderByDesc('incidents.id');
+        if ($state === 'open') {
+            $query->where('incidents.status', '!=', IncidentStatus::Resolved->value);
+        } elseif ($state === 'resolved') {
+            $query->where('incidents.status', IncidentStatus::Resolved->value);
+        }
+
+        return CursorPage::from($query, $request, fn (Model $m): array => IncidentResource::toArray($this->incident($m)));
+    }
+
+    public function show(Workspace $workspace, Incident $incident): JsonResponse
+    {
+        return $this->respond($incident->id);
+    }
+
+    public function store(IncidentRequest $request, Workspace $workspace): JsonResponse
+    {
+        $monitorIds = $request->monitorIds() ?? [];
+        $statusPageIds = $request->statusPageIds() ?? [];
+        $status = IncidentStatus::from($request->string('status')->toString());
+        $now = CarbonImmutable::now();
+
+        $id = DB::transaction(function () use ($request, $workspace, $monitorIds, $statusPageIds, $status, $now): int {
+            $incident = $workspace->incidents()->create($request->incidentAttributes() + [
+                'status' => $status,
+                'started_at' => $now,
+                'resolved_at' => $status->isOpen() ? null : $now,
+            ]);
+            $incident->updates()->create(['status' => $status, 'message' => $request->string('message')->toString()]);
+            $incident->monitors()->sync($monitorIds);
+            $this->syncStatusPages($incident, $statusPageIds);
+
+            Audit::record('incident.created', $incident, [
+                'title' => [null, $incident->title],
+                'impact' => [null, $incident->impact->value],
+                'status' => [null, $status->value],
+                'monitor_ids' => [[], $monitorIds],
+                'status_page_ids' => [[], $statusPageIds],
+            ]);
+
+            return $incident->id;
+        });
+
+        return $this->respond($id, 201);
+    }
+
+    public function update(IncidentRequest $request, Workspace $workspace, Incident $incident): JsonResponse
+    {
+        DB::transaction(function () use ($request, $incident): void {
+            $oldMonitorIds = $this->monitorIds($incident);
+            $oldStatusPageIds = $this->statusPageIds($incident);
+            $old = $incident->only(array_keys($request->incidentAttributes()));
+
+            $incident->fill($request->incidentAttributes());
+            $diff = [];
+            foreach ($incident->getDirty() as $field => $_) {
+                $diff[$field] = [$this->plain($old[$field] ?? null), $this->plain($incident->getAttribute($field))];
+            }
+
+            $monitorIds = $request->monitorIds() ?? $oldMonitorIds;
+            $statusPageIds = $request->statusPageIds() ?? $oldStatusPageIds;
+            sort($monitorIds);
+            sort($statusPageIds);
+            if ($monitorIds !== $oldMonitorIds) {
+                $incident->monitors()->sync($monitorIds);
+                $diff['monitor_ids'] = [$oldMonitorIds, $monitorIds];
+            }
+            if ($statusPageIds !== $oldStatusPageIds) {
+                $this->syncStatusPages($incident, $statusPageIds);
+                $diff['status_page_ids'] = [$oldStatusPageIds, $statusPageIds];
+            }
+            $incident->save();
+
+            if ($diff !== []) {
+                Audit::record('incident.updated', $incident, $diff);
+            }
+        });
+
+        return $this->respond($incident->id);
+    }
+
+    public function destroy(Workspace $workspace, Incident $incident): Response
+    {
+        DB::transaction(function () use ($incident): void {
+            $incident->delete();
+            Audit::record('incident.deleted', $incident, ['title' => [$incident->title, null]]);
+        });
+
+        return response()->noContent();
+    }
+
+    private function respond(int $id, int $status = 200): JsonResponse
+    {
+        $fresh = Incident::query()->with(['monitors:id', 'statusPages:id', 'updates'])->findOrFail($id);
+
+        return response()->json(['data' => IncidentResource::toArray($fresh)], $status);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function monitorIds(Incident $incident): array
+    {
+        $ids = DB::table('incident_monitor')->where('incident_id', $incident->id)->pluck('monitor_id')
+            ->map(static fn (mixed $id): int => is_numeric($id) ? (int) $id : 0)->all();
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function statusPageIds(Incident $incident): array
+    {
+        $ids = DB::table('status_page_links')->where('linkable_type', 'incident')->where('linkable_id', $incident->id)->pluck('status_page_id')
+            ->map(static fn (mixed $id): int => is_numeric($id) ? (int) $id : 0)->all();
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
+     * @param  list<int>  $ids
+     */
+    private function syncStatusPages(Incident $incident, array $ids): void
+    {
+        DB::table('status_page_links')->where('linkable_type', 'incident')->where('linkable_id', $incident->id)->delete();
+        foreach (array_chunk($ids, self::CHUNK) as $chunk) {
+            DB::table('status_page_links')->insert(array_map(
+                static fn (int $id): array => ['status_page_id' => $id, 'linkable_type' => 'incident', 'linkable_id' => $incident->id],
+                $chunk,
+            ));
+        }
+    }
+
+    private function plain(mixed $value): mixed
+    {
+        return match (true) {
+            $value instanceof \BackedEnum => $value->value,
+            $value instanceof \DateTimeInterface => $value->format('Y-m-d\TH:i:s\Z'),
+            default => $value,
+        };
+    }
+
+    private function incident(Model $model): Incident
+    {
+        return $model instanceof Incident ? $model : throw new \LogicException('Expected an incident.');
+    }
+}

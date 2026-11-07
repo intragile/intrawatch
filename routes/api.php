@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\AuditController;
+use App\Http\Controllers\Api\IncidentController;
+use App\Http\Controllers\Api\IncidentUpdateController;
 use App\Http\Controllers\Api\MaintenanceController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\MemberController;
@@ -105,11 +107,19 @@ Route::prefix('v1')->group(function (): void {
             });
 
             Route::middleware(['ability:incidents:read', 'can:viewIncidents,workspace'])->group(function (): void {
+                Route::get('/incidents', [IncidentController::class, 'index']);
+                Route::get('/incidents/{incident}', [IncidentController::class, 'show'])->whereNumber('incident');
                 Route::get('/maintenances', [MaintenanceController::class, 'index']);
                 Route::get('/maintenances/{maintenance}', [MaintenanceController::class, 'show'])->whereNumber('maintenance');
             });
 
             Route::middleware(['ability:incidents:write', 'can:manageIncidents,workspace'])->group(function (): void {
+                Route::post('/incidents', [IncidentController::class, 'store']);
+                Route::patch('/incidents/{incident}', [IncidentController::class, 'update'])->whereNumber('incident');
+                Route::delete('/incidents/{incident}', [IncidentController::class, 'destroy'])->whereNumber('incident');
+                Route::post('/incidents/{incident}/updates', [IncidentUpdateController::class, 'store'])->whereNumber('incident');
+                Route::patch('/incidents/{incident}/updates/{update}', [IncidentUpdateController::class, 'update'])->whereNumber(['incident', 'update']);
+                Route::delete('/incidents/{incident}/updates/{update}', [IncidentUpdateController::class, 'destroy'])->whereNumber(['incident', 'update']);
                 Route::post('/maintenances', [MaintenanceController::class, 'store']);
                 Route::patch('/maintenances/{maintenance}', [MaintenanceController::class, 'update'])->whereNumber('maintenance');
                 Route::delete('/maintenances/{maintenance}', [MaintenanceController::class, 'destroy'])->whereNumber('maintenance');
