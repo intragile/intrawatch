@@ -22,6 +22,8 @@ class AuditController extends Controller
      *
      * `actor_user_id` is the person behind the action: the user for session actors and the owner of the
      * token for token actors; it is null for system actions.
+     *
+     * @response array{data: list<array{id: int, action: string, actor_type: string, actor_id: int|null, actor_user_id: int|null, subject_type: string|null, subject_id: string|null, changes: array<string, array{0: mixed, 1: mixed}>|null, ip: string|null, created_at: string}>, meta: array{next_cursor: string|null, limit: int}}
      */
     public function __invoke(Request $request, Workspace $workspace): JsonResponse
     {

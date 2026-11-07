@@ -33,6 +33,8 @@ class AlertController extends Controller
 
     /**
      * List the workspace's alerts, newest first. Filters: `monitor_id`, `kind`, `since` (ISO 8601, inclusive).
+     *
+     * @response array{data: list<array{id: int, kind: \App\Enums\AlertKind, monitor: array{id: int, name: string}|null, status: \App\Enums\MonitorStatus|null, previous_status: \App\Enums\MonitorStatus|null, message: string, duration_seconds: int|null, changes: list<array{key: string, old: mixed, new: mixed}>|null, suppressed_by_monitor_id: int|null, created_at: string, deliveries: list<array{id: int, channel: array{id: int, name: string, type: \App\Enums\ChannelType}|null, status: \App\Enums\DeliveryStatus, attempts: int, last_error: string|null, sent_at: string|null}>}>, meta: array{next_cursor: string|null, limit: int}}
      */
     public function index(Request $request, Workspace $workspace): JsonResponse
     {
@@ -49,6 +51,8 @@ class AlertController extends Controller
 
     /**
      * List one monitor's alerts, newest first. Filters: `kind`, `since` (ISO 8601, inclusive).
+     *
+     * @response array{data: list<array{id: int, kind: \App\Enums\AlertKind, monitor: array{id: int, name: string}|null, status: \App\Enums\MonitorStatus|null, previous_status: \App\Enums\MonitorStatus|null, message: string, duration_seconds: int|null, changes: list<array{key: string, old: mixed, new: mixed}>|null, suppressed_by_monitor_id: int|null, created_at: string, deliveries: list<array{id: int, channel: array{id: int, name: string, type: \App\Enums\ChannelType}|null, status: \App\Enums\DeliveryStatus, attempts: int, last_error: string|null, sent_at: string|null}>}>, meta: array{next_cursor: string|null, limit: int}}
      */
     public function monitor(Request $request, Workspace $workspace, Monitor $monitor): JsonResponse
     {

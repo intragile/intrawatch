@@ -35,7 +35,9 @@ use App\Monitoring\Net\GuardedConnector;
 use App\Monitoring\Net\NetworkPolicy;
 use App\Monitoring\Worker\Clock;
 use App\Monitoring\Worker\SystemClock;
+use App\OpenApi\CursorPageParameters;
 use App\OpenApi\CursorPageReturnType;
+use App\OpenApi\JsonObjectReturnType;
 use App\Policies\WorkspacePolicy;
 use App\Status\Maintenance\CalendarMaintenanceOracle;
 use App\Status\Maintenance\MaintenanceCalendarLoader;
@@ -157,8 +159,10 @@ class AppServiceProvider extends ServiceProvider
 
         // The spec is served from the API itself; Scramble's own UI and JSON routes stay off.
         Scramble::registerExtension(CursorPageReturnType::class);
+        Scramble::registerExtension(JsonObjectReturnType::class);
         Scramble::configure()
             ->expose(false)
+            ->withOperationTransformers(new CursorPageParameters)
             ->withDocumentTransformers(function (OpenApi $openApi): void {
                 $openApi->info->title = config()->string('app.name');
                 $openApi->info->version = config()->string('app.version');

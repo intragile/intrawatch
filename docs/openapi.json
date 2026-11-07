@@ -1204,6 +1204,27 @@
                 "tags": [
                     "Workspace"
                 ],
+                "parameters": [
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "",
@@ -1780,6 +1801,25 @@
                             "format": "date-time",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2}))?$"
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -1795,37 +1835,148 @@
                                             "items": {
                                                 "type": "object",
                                                 "properties": {
-                                                    "id": {},
-                                                    "kind": {},
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "kind": {
+                                                        "$ref": "#/components/schemas/AlertKind"
+                                                    },
                                                     "monitor": {
                                                         "type": [
                                                             "object",
                                                             "null"
                                                         ],
                                                         "properties": {
-                                                            "id": {},
-                                                            "name": {}
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
                                                         },
                                                         "required": [
                                                             "id",
                                                             "name"
                                                         ]
                                                     },
-                                                    "status": {},
-                                                    "previous_status": {},
-                                                    "message": {},
-                                                    "duration_seconds": {},
+                                                    "status": {
+                                                        "anyOf": [
+                                                            {
+                                                                "$ref": "#/components/schemas/MonitorStatus"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
+                                                    },
+                                                    "previous_status": {
+                                                        "anyOf": [
+                                                            {
+                                                                "$ref": "#/components/schemas/MonitorStatus"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
+                                                    },
+                                                    "message": {
+                                                        "type": "string"
+                                                    },
+                                                    "duration_seconds": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
                                                     "changes": {
                                                         "type": [
                                                             "array",
                                                             "null"
                                                         ],
-                                                        "description": "Rebuilt in a fixed key order: MySQL hands JSON objects back with its own key order.",
-                                                        "items": {}
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "key": {
+                                                                    "type": "string"
+                                                                },
+                                                                "old": {},
+                                                                "new": {}
+                                                            },
+                                                            "required": [
+                                                                "key",
+                                                                "old",
+                                                                "new"
+                                                            ]
+                                                        }
                                                     },
-                                                    "suppressed_by_monitor_id": {},
-                                                    "created_at": {},
-                                                    "deliveries": {}
+                                                    "suppressed_by_monitor_id": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "deliveries": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "channel": {
+                                                                    "type": [
+                                                                        "object",
+                                                                        "null"
+                                                                    ],
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "$ref": "#/components/schemas/ChannelType"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "name",
+                                                                        "type"
+                                                                    ]
+                                                                },
+                                                                "status": {
+                                                                    "$ref": "#/components/schemas/DeliveryStatus"
+                                                                },
+                                                                "attempts": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "last_error": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "sent_at": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "id",
+                                                                "channel",
+                                                                "status",
+                                                                "attempts",
+                                                                "last_error",
+                                                                "sent_at"
+                                                            ]
+                                                        }
+                                                    }
                                                 },
                                                 "required": [
                                                     "id",
@@ -1937,6 +2088,25 @@
                             "type": "integer",
                             "minimum": 1
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -1952,16 +2122,63 @@
                                             "items": {
                                                 "type": "object",
                                                 "properties": {
-                                                    "id": {},
-                                                    "action": {},
-                                                    "actor_type": {},
-                                                    "actor_id": {},
-                                                    "actor_user_id": {},
-                                                    "subject_type": {},
-                                                    "subject_id": {},
-                                                    "changes": {},
-                                                    "ip": {},
-                                                    "created_at": {}
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "action": {
+                                                        "type": "string"
+                                                    },
+                                                    "actor_type": {
+                                                        "type": "string"
+                                                    },
+                                                    "actor_id": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "actor_user_id": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "subject_type": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "subject_id": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "changes": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "additionalProperties": {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {},
+                                                                {}
+                                                            ],
+                                                            "minItems": 2,
+                                                            "maxItems": 2
+                                                        }
+                                                    },
+                                                    "ip": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "required": [
                                                     "id",
@@ -2048,6 +2265,25 @@
                                 "all"
                             ]
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -2123,40 +2359,7 @@
                                                     "updates": {
                                                         "type": "array",
                                                         "items": {
-                                                            "type": "object",
-                                                            "properties": {
-                                                                "id": {
-                                                                    "type": "integer"
-                                                                },
-                                                                "status": {
-                                                                    "type": "string",
-                                                                    "enum": [
-                                                                        "investigating",
-                                                                        "identified",
-                                                                        "monitoring",
-                                                                        "resolved"
-                                                                    ]
-                                                                },
-                                                                "message": {
-                                                                    "type": "string"
-                                                                },
-                                                                "created_at": {
-                                                                    "type": "string"
-                                                                },
-                                                                "updated_at": {
-                                                                    "type": [
-                                                                        "string",
-                                                                        "null"
-                                                                    ]
-                                                                }
-                                                            },
-                                                            "required": [
-                                                                "id",
-                                                                "status",
-                                                                "message",
-                                                                "created_at",
-                                                                "updated_at"
-                                                            ]
+                                                            "type": "string"
                                                         }
                                                     }
                                                 },
@@ -2313,40 +2516,7 @@
                                                 "updates": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "status": {
-                                                                "type": "string",
-                                                                "enum": [
-                                                                    "investigating",
-                                                                    "identified",
-                                                                    "monitoring",
-                                                                    "resolved"
-                                                                ]
-                                                            },
-                                                            "message": {
-                                                                "type": "string"
-                                                            },
-                                                            "created_at": {
-                                                                "type": "string"
-                                                            },
-                                                            "updated_at": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "status",
-                                                            "message",
-                                                            "created_at",
-                                                            "updated_at"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -2484,40 +2654,7 @@
                                                 "updates": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "status": {
-                                                                "type": "string",
-                                                                "enum": [
-                                                                    "investigating",
-                                                                    "identified",
-                                                                    "monitoring",
-                                                                    "resolved"
-                                                                ]
-                                                            },
-                                                            "message": {
-                                                                "type": "string"
-                                                            },
-                                                            "created_at": {
-                                                                "type": "string"
-                                                            },
-                                                            "updated_at": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "status",
-                                                            "message",
-                                                            "created_at",
-                                                            "updated_at"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -2660,40 +2797,7 @@
                                                 "updates": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "status": {
-                                                                "type": "string",
-                                                                "enum": [
-                                                                    "investigating",
-                                                                    "identified",
-                                                                    "monitoring",
-                                                                    "resolved"
-                                                                ]
-                                                            },
-                                                            "message": {
-                                                                "type": "string"
-                                                            },
-                                                            "created_at": {
-                                                                "type": "string"
-                                                            },
-                                                            "updated_at": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "status",
-                                                            "message",
-                                                            "created_at",
-                                                            "updated_at"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -3070,6 +3174,25 @@
                                 "past",
                                 "all"
                             ]
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
                         }
                     }
                 ],
@@ -4284,6 +4407,25 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -4675,6 +4817,25 @@
                                 "0"
                             ]
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -4752,13 +4913,25 @@
                                                     },
                                                     "secret_keys": {
                                                         "type": "array",
-                                                        "items": {}
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
                                                     },
                                                     "notification_channel_ids": {
-                                                        "type": "array",
-                                                        "items": {
-                                                            "type": "integer"
-                                                        }
+                                                        "anyOf": [
+                                                            {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "integer"
+                                                                }
+                                                            }
+                                                        ]
                                                     },
                                                     "alerting": {
                                                         "type": "object",
@@ -4786,30 +4959,7 @@
                                                     "tags": {
                                                         "type": "array",
                                                         "items": {
-                                                            "type": "object",
-                                                            "properties": {
-                                                                "id": {
-                                                                    "type": "integer"
-                                                                },
-                                                                "name": {
-                                                                    "type": "string"
-                                                                },
-                                                                "color": {
-                                                                    "type": "string"
-                                                                },
-                                                                "value": {
-                                                                    "type": [
-                                                                        "string",
-                                                                        "null"
-                                                                    ]
-                                                                }
-                                                            },
-                                                            "required": [
-                                                                "id",
-                                                                "name",
-                                                                "color",
-                                                                "value"
-                                                            ]
+                                                            "type": "string"
                                                         }
                                                     },
                                                     "push_url": {
@@ -5046,13 +5196,25 @@
                                                 },
                                                 "secret_keys": {
                                                     "type": "array",
-                                                    "items": {}
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "notification_channel_ids": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "integer"
-                                                    }
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "integer"
+                                                            }
+                                                        }
+                                                    ]
                                                 },
                                                 "alerting": {
                                                     "type": "object",
@@ -5080,30 +5242,7 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "color": {
-                                                                "type": "string"
-                                                            },
-                                                            "value": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "name",
-                                                            "color",
-                                                            "value"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 },
                                                 "push_url": {
@@ -5416,13 +5555,25 @@
                                                 },
                                                 "secret_keys": {
                                                     "type": "array",
-                                                    "items": {}
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "notification_channel_ids": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "integer"
-                                                    }
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "integer"
+                                                            }
+                                                        }
+                                                    ]
                                                 },
                                                 "alerting": {
                                                     "type": "object",
@@ -5450,30 +5601,7 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "color": {
-                                                                "type": "string"
-                                                            },
-                                                            "value": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "name",
-                                                            "color",
-                                                            "value"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 },
                                                 "push_url": {
@@ -5695,13 +5823,25 @@
                                                 },
                                                 "secret_keys": {
                                                     "type": "array",
-                                                    "items": {}
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "notification_channel_ids": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "integer"
-                                                    }
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "integer"
+                                                            }
+                                                        }
+                                                    ]
                                                 },
                                                 "alerting": {
                                                     "type": "object",
@@ -5729,30 +5869,7 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "color": {
-                                                                "type": "string"
-                                                            },
-                                                            "value": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "name",
-                                                            "color",
-                                                            "value"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 },
                                                 "push_url": {
@@ -5952,6 +6069,25 @@
                             "format": "date-time",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2}))?$"
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -5967,37 +6103,148 @@
                                             "items": {
                                                 "type": "object",
                                                 "properties": {
-                                                    "id": {},
-                                                    "kind": {},
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "kind": {
+                                                        "$ref": "#/components/schemas/AlertKind"
+                                                    },
                                                     "monitor": {
                                                         "type": [
                                                             "object",
                                                             "null"
                                                         ],
                                                         "properties": {
-                                                            "id": {},
-                                                            "name": {}
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
                                                         },
                                                         "required": [
                                                             "id",
                                                             "name"
                                                         ]
                                                     },
-                                                    "status": {},
-                                                    "previous_status": {},
-                                                    "message": {},
-                                                    "duration_seconds": {},
+                                                    "status": {
+                                                        "anyOf": [
+                                                            {
+                                                                "$ref": "#/components/schemas/MonitorStatus"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
+                                                    },
+                                                    "previous_status": {
+                                                        "anyOf": [
+                                                            {
+                                                                "$ref": "#/components/schemas/MonitorStatus"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
+                                                    },
+                                                    "message": {
+                                                        "type": "string"
+                                                    },
+                                                    "duration_seconds": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
                                                     "changes": {
                                                         "type": [
                                                             "array",
                                                             "null"
                                                         ],
-                                                        "description": "Rebuilt in a fixed key order: MySQL hands JSON objects back with its own key order.",
-                                                        "items": {}
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "key": {
+                                                                    "type": "string"
+                                                                },
+                                                                "old": {},
+                                                                "new": {}
+                                                            },
+                                                            "required": [
+                                                                "key",
+                                                                "old",
+                                                                "new"
+                                                            ]
+                                                        }
                                                     },
-                                                    "suppressed_by_monitor_id": {},
-                                                    "created_at": {},
-                                                    "deliveries": {}
+                                                    "suppressed_by_monitor_id": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "deliveries": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "channel": {
+                                                                    "type": [
+                                                                        "object",
+                                                                        "null"
+                                                                    ],
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": {
+                                                                            "$ref": "#/components/schemas/ChannelType"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "name",
+                                                                        "type"
+                                                                    ]
+                                                                },
+                                                                "status": {
+                                                                    "$ref": "#/components/schemas/DeliveryStatus"
+                                                                },
+                                                                "attempts": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "last_error": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "sent_at": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "id",
+                                                                "channel",
+                                                                "status",
+                                                                "attempts",
+                                                                "last_error",
+                                                                "sent_at"
+                                                            ]
+                                                        }
+                                                    }
                                                 },
                                                 "required": [
                                                     "id",
@@ -6152,6 +6399,25 @@
                                 "changed"
                             ]
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -6167,15 +6433,56 @@
                                             "items": {
                                                 "type": "object",
                                                 "properties": {
-                                                    "id": {},
-                                                    "kind": {},
-                                                    "from_status": {},
-                                                    "to_status": {},
-                                                    "key": {},
-                                                    "old_value": {},
-                                                    "new_value": {},
-                                                    "message": {},
-                                                    "created_at": {}
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
+                                                    "from_status": {
+                                                        "anyOf": [
+                                                            {
+                                                                "$ref": "#/components/schemas/MonitorStatus"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
+                                                    },
+                                                    "to_status": {
+                                                        "anyOf": [
+                                                            {
+                                                                "$ref": "#/components/schemas/MonitorStatus"
+                                                            },
+                                                            {
+                                                                "type": "null"
+                                                            }
+                                                        ]
+                                                    },
+                                                    "key": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "old_value": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "new_value": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "message": {
+                                                        "type": "string"
+                                                    },
+                                                    "created_at": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "required": [
                                                     "id",
@@ -6331,13 +6638,25 @@
                                                 },
                                                 "secret_keys": {
                                                     "type": "array",
-                                                    "items": {}
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "notification_channel_ids": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "integer"
-                                                    }
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "integer"
+                                                            }
+                                                        }
+                                                    ]
                                                 },
                                                 "alerting": {
                                                     "type": "object",
@@ -6365,30 +6684,7 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "color": {
-                                                                "type": "string"
-                                                            },
-                                                            "value": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "name",
-                                                            "color",
-                                                            "value"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 },
                                                 "push_url": {
@@ -6614,6 +6910,25 @@
                         "schema": {
                             "$ref": "#/components/schemas/MonitorStatus"
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -6629,12 +6944,34 @@
                                             "items": {
                                                 "type": "object",
                                                 "properties": {
-                                                    "id": {},
-                                                    "status": {},
-                                                    "latency_ms": {},
-                                                    "message": {},
-                                                    "facts": {},
-                                                    "checked_at": {}
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "status": {
+                                                        "$ref": "#/components/schemas/MonitorStatus"
+                                                    },
+                                                    "latency_ms": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "message": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "facts": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "additionalProperties": {}
+                                                    },
+                                                    "checked_at": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "required": [
                                                     "id",
@@ -6787,13 +7124,25 @@
                                                 },
                                                 "secret_keys": {
                                                     "type": "array",
-                                                    "items": {}
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "notification_channel_ids": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "integer"
-                                                    }
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "integer"
+                                                            }
+                                                        }
+                                                    ]
                                                 },
                                                 "alerting": {
                                                     "type": "object",
@@ -6821,30 +7170,7 @@
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "color": {
-                                                                "type": "string"
-                                                            },
-                                                            "value": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "name",
-                                                            "color",
-                                                            "value"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 },
                                                 "push_url": {
@@ -7016,6 +7342,25 @@
                             "format": "date-time",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[+-]\\d{2}:\\d{2}))?$"
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -7031,19 +7376,51 @@
                                             "items": {
                                                 "type": "object",
                                                 "properties": {
-                                                    "bucket_start": {},
-                                                    "total": {},
-                                                    "up": {},
-                                                    "down": {},
-                                                    "degraded": {},
-                                                    "pending": {},
-                                                    "maintenance": {},
-                                                    "availability": {
+                                                    "bucket_start": {
                                                         "type": "string"
                                                     },
-                                                    "latency_min": {},
-                                                    "latency_max": {},
-                                                    "latency_avg": {}
+                                                    "total": {
+                                                        "type": "integer"
+                                                    },
+                                                    "up": {
+                                                        "type": "integer"
+                                                    },
+                                                    "down": {
+                                                        "type": "integer"
+                                                    },
+                                                    "degraded": {
+                                                        "type": "integer"
+                                                    },
+                                                    "pending": {
+                                                        "type": "integer"
+                                                    },
+                                                    "maintenance": {
+                                                        "type": "integer"
+                                                    },
+                                                    "availability": {
+                                                        "type": [
+                                                            "number",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "latency_min": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "latency_max": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "latency_avg": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    }
                                                 },
                                                 "required": [
                                                     "bucket_start",
@@ -7132,6 +7509,25 @@
                             "type": "string",
                             "maxLength": 120
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -7173,12 +7569,30 @@
                                                             "apprise"
                                                         ]
                                                     },
-                                                    "config": {},
+                                                    "config": {
+                                                        "type": "object",
+                                                        "additionalProperties": {}
+                                                    },
                                                     "secret_keys": {
                                                         "type": "array",
-                                                        "items": {}
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
                                                     },
-                                                    "templates": {},
+                                                    "templates": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "properties": {
+                                                            "title": {
+                                                                "type": "string"
+                                                            },
+                                                            "body": {
+                                                                "type": "string"
+                                                            }
+                                                        }
+                                                    },
                                                     "is_default": {
                                                         "type": "boolean"
                                                     },
@@ -7350,17 +7764,28 @@
                                                     ]
                                                 },
                                                 "config": {
-                                                    "type": "string"
+                                                    "type": "object",
+                                                    "additionalProperties": {}
                                                 },
                                                 "secret_keys": {
                                                     "type": "array",
-                                                    "items": {}
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "templates": {
                                                     "type": [
-                                                        "string",
+                                                        "object",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "properties": {
+                                                        "title": {
+                                                            "type": "string"
+                                                        },
+                                                        "body": {
+                                                            "type": "string"
+                                                        }
+                                                    }
                                                 },
                                                 "is_default": {
                                                     "type": "boolean"
@@ -7623,17 +8048,28 @@
                                                     ]
                                                 },
                                                 "config": {
-                                                    "type": "string"
+                                                    "type": "object",
+                                                    "additionalProperties": {}
                                                 },
                                                 "secret_keys": {
                                                     "type": "array",
-                                                    "items": {}
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "templates": {
                                                     "type": [
-                                                        "string",
+                                                        "object",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "properties": {
+                                                        "title": {
+                                                            "type": "string"
+                                                        },
+                                                        "body": {
+                                                            "type": "string"
+                                                        }
+                                                    }
                                                 },
                                                 "is_default": {
                                                     "type": "boolean"
@@ -7792,17 +8228,28 @@
                                                     ]
                                                 },
                                                 "config": {
-                                                    "type": "string"
+                                                    "type": "object",
+                                                    "additionalProperties": {}
                                                 },
                                                 "secret_keys": {
                                                     "type": "array",
-                                                    "items": {}
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
                                                 },
                                                 "templates": {
                                                     "type": [
-                                                        "string",
+                                                        "object",
                                                         "null"
-                                                    ]
+                                                    ],
+                                                    "properties": {
+                                                        "title": {
+                                                            "type": "string"
+                                                        },
+                                                        "body": {
+                                                            "type": "string"
+                                                        }
+                                                    }
                                                 },
                                                 "is_default": {
                                                     "type": "boolean"
@@ -8053,6 +8500,25 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -8155,75 +8621,7 @@
                                                     "sections": {
                                                         "type": "array",
                                                         "items": {
-                                                            "type": "object",
-                                                            "properties": {
-                                                                "id": {
-                                                                    "type": "integer"
-                                                                },
-                                                                "name": {
-                                                                    "type": "string"
-                                                                },
-                                                                "description": {
-                                                                    "type": [
-                                                                        "string",
-                                                                        "null"
-                                                                    ]
-                                                                },
-                                                                "position": {
-                                                                    "type": "integer"
-                                                                },
-                                                                "items": {
-                                                                    "type": "array",
-                                                                    "items": {
-                                                                        "type": "object",
-                                                                        "properties": {
-                                                                            "id": {
-                                                                                "type": "integer"
-                                                                            },
-                                                                            "monitor_id": {
-                                                                                "type": "integer"
-                                                                            },
-                                                                            "display_name": {
-                                                                                "type": [
-                                                                                    "string",
-                                                                                    "null"
-                                                                                ]
-                                                                            },
-                                                                            "description": {
-                                                                                "type": [
-                                                                                    "string",
-                                                                                    "null"
-                                                                                ]
-                                                                            },
-                                                                            "position": {
-                                                                                "type": "integer"
-                                                                            },
-                                                                            "expand_children": {
-                                                                                "type": "boolean"
-                                                                            },
-                                                                            "show_uptime": {
-                                                                                "type": "boolean"
-                                                                            }
-                                                                        },
-                                                                        "required": [
-                                                                            "id",
-                                                                            "monitor_id",
-                                                                            "display_name",
-                                                                            "description",
-                                                                            "position",
-                                                                            "expand_children",
-                                                                            "show_uptime"
-                                                                        ]
-                                                                    }
-                                                                }
-                                                            },
-                                                            "required": [
-                                                                "id",
-                                                                "name",
-                                                                "description",
-                                                                "position",
-                                                                "items"
-                                                            ]
+                                                            "type": "string"
                                                         }
                                                     }
                                                 },
@@ -8413,75 +8811,7 @@
                                                 "sections": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "description": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            },
-                                                            "position": {
-                                                                "type": "integer"
-                                                            },
-                                                            "items": {
-                                                                "type": "array",
-                                                                "items": {
-                                                                    "type": "object",
-                                                                    "properties": {
-                                                                        "id": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "monitor_id": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "display_name": {
-                                                                            "type": [
-                                                                                "string",
-                                                                                "null"
-                                                                            ]
-                                                                        },
-                                                                        "description": {
-                                                                            "type": [
-                                                                                "string",
-                                                                                "null"
-                                                                            ]
-                                                                        },
-                                                                        "position": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "expand_children": {
-                                                                            "type": "boolean"
-                                                                        },
-                                                                        "show_uptime": {
-                                                                            "type": "boolean"
-                                                                        }
-                                                                    },
-                                                                    "required": [
-                                                                        "id",
-                                                                        "monitor_id",
-                                                                        "display_name",
-                                                                        "description",
-                                                                        "position",
-                                                                        "expand_children",
-                                                                        "show_uptime"
-                                                                    ]
-                                                                }
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "name",
-                                                            "description",
-                                                            "position",
-                                                            "items"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -8655,75 +8985,7 @@
                                                 "sections": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "description": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            },
-                                                            "position": {
-                                                                "type": "integer"
-                                                            },
-                                                            "items": {
-                                                                "type": "array",
-                                                                "items": {
-                                                                    "type": "object",
-                                                                    "properties": {
-                                                                        "id": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "monitor_id": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "display_name": {
-                                                                            "type": [
-                                                                                "string",
-                                                                                "null"
-                                                                            ]
-                                                                        },
-                                                                        "description": {
-                                                                            "type": [
-                                                                                "string",
-                                                                                "null"
-                                                                            ]
-                                                                        },
-                                                                        "position": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "expand_children": {
-                                                                            "type": "boolean"
-                                                                        },
-                                                                        "show_uptime": {
-                                                                            "type": "boolean"
-                                                                        }
-                                                                    },
-                                                                    "required": [
-                                                                        "id",
-                                                                        "monitor_id",
-                                                                        "display_name",
-                                                                        "description",
-                                                                        "position",
-                                                                        "expand_children",
-                                                                        "show_uptime"
-                                                                    ]
-                                                                }
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "name",
-                                                            "description",
-                                                            "position",
-                                                            "items"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -8902,75 +9164,7 @@
                                                 "sections": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "description": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            },
-                                                            "position": {
-                                                                "type": "integer"
-                                                            },
-                                                            "items": {
-                                                                "type": "array",
-                                                                "items": {
-                                                                    "type": "object",
-                                                                    "properties": {
-                                                                        "id": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "monitor_id": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "display_name": {
-                                                                            "type": [
-                                                                                "string",
-                                                                                "null"
-                                                                            ]
-                                                                        },
-                                                                        "description": {
-                                                                            "type": [
-                                                                                "string",
-                                                                                "null"
-                                                                            ]
-                                                                        },
-                                                                        "position": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "expand_children": {
-                                                                            "type": "boolean"
-                                                                        },
-                                                                        "show_uptime": {
-                                                                            "type": "boolean"
-                                                                        }
-                                                                    },
-                                                                    "required": [
-                                                                        "id",
-                                                                        "monitor_id",
-                                                                        "display_name",
-                                                                        "description",
-                                                                        "position",
-                                                                        "expand_children",
-                                                                        "show_uptime"
-                                                                    ]
-                                                                }
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "name",
-                                                            "description",
-                                                            "position",
-                                                            "items"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -9195,75 +9389,7 @@
                                                 "sections": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "id": {
-                                                                "type": "integer"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "description": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            },
-                                                            "position": {
-                                                                "type": "integer"
-                                                            },
-                                                            "items": {
-                                                                "type": "array",
-                                                                "items": {
-                                                                    "type": "object",
-                                                                    "properties": {
-                                                                        "id": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "monitor_id": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "display_name": {
-                                                                            "type": [
-                                                                                "string",
-                                                                                "null"
-                                                                            ]
-                                                                        },
-                                                                        "description": {
-                                                                            "type": [
-                                                                                "string",
-                                                                                "null"
-                                                                            ]
-                                                                        },
-                                                                        "position": {
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "expand_children": {
-                                                                            "type": "boolean"
-                                                                        },
-                                                                        "show_uptime": {
-                                                                            "type": "boolean"
-                                                                        }
-                                                                    },
-                                                                    "required": [
-                                                                        "id",
-                                                                        "monitor_id",
-                                                                        "display_name",
-                                                                        "description",
-                                                                        "position",
-                                                                        "expand_children",
-                                                                        "show_uptime"
-                                                                    ]
-                                                                }
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "id",
-                                                            "name",
-                                                            "description",
-                                                            "position",
-                                                            "items"
-                                                        ]
+                                                        "type": "string"
                                                     }
                                                 }
                                             },
@@ -9327,6 +9453,25 @@
                         "description": "The workspace slug",
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
                         }
                     }
                 ],
@@ -9637,6 +9782,25 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
                     }
                 ],
                 "responses": {
@@ -9652,12 +9816,39 @@
                                             "items": {
                                                 "type": "object",
                                                 "properties": {
-                                                    "id": {},
-                                                    "name": {},
-                                                    "abilities": {},
-                                                    "last_used_at": {},
-                                                    "expires_at": {},
-                                                    "created_at": {}
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "abilities": {
+                                                        "type": [
+                                                            "array",
+                                                            "null"
+                                                        ],
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "last_used_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "expires_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
                                                 },
                                                 "required": [
                                                     "id",
@@ -9867,6 +10058,15 @@
                     "apprise"
                 ],
                 "title": "ChannelType"
+            },
+            "DeliveryStatus": {
+                "type": "string",
+                "enum": [
+                    "queued",
+                    "sent",
+                    "failed"
+                ],
+                "title": "DeliveryStatus"
             },
             "IncidentImpact": {
                 "type": "string",

@@ -27,6 +27,9 @@ class TokenController extends Controller
 {
     public function __construct(private readonly CurrentWorkspace $current) {}
 
+    /**
+     * @response array{data: list<array{id: int, name: string, abilities: list<string>|null, last_used_at: string|null, expires_at: string|null, created_at: string|null}>, meta: array{next_cursor: string|null, limit: int}}
+     */
     public function index(Request $request, Workspace $workspace): JsonResponse
     {
         $this->authorizeSession($request);

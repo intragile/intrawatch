@@ -26,6 +26,8 @@ class MonitorHistoryController extends Controller
     /**
      * List the monitor's raw check results, newest first. Raw results are kept for `RETENTION_RAW_HOURS`.
      * Filters: `from`, `to` (ISO 8601), `status`.
+     *
+     * @response array{data: list<array{id: int, status: \App\Enums\MonitorStatus, latency_ms: int|null, message: string|null, facts: array<string, mixed>|null, checked_at: string}>, meta: array{next_cursor: string|null, limit: int}}
      */
     public function results(Request $request, Workspace $workspace, Monitor $monitor): JsonResponse
     {
@@ -69,6 +71,8 @@ class MonitorHistoryController extends Controller
      * workspace timezone. `availability` is (up + degraded + pending) / (total - maintenance), or null when
      * every check fell into maintenance. Filters: `bucket` (required), `from`, `to` (ISO 8601, applied to the
      * bucket start).
+     *
+     * @response array{data: list<array{bucket_start: string, total: int, up: int, down: int, degraded: int, pending: int, maintenance: int, availability: float|null, latency_min: int|null, latency_max: int|null, latency_avg: int|null}>, meta: array{next_cursor: string|null, limit: int}}
      */
     public function rollups(Request $request, Workspace $workspace, Monitor $monitor): JsonResponse
     {
@@ -111,6 +115,8 @@ class MonitorHistoryController extends Controller
 
     /**
      * List the monitor's events (status changes and changes of watched values), newest first. Filter: `kind`.
+     *
+     * @response array{data: list<array{id: int, kind: string, from_status: \App\Enums\MonitorStatus|null, to_status: \App\Enums\MonitorStatus|null, key: string|null, old_value: string|null, new_value: string|null, message: string, created_at: string}>, meta: array{next_cursor: string|null, limit: int}}
      */
     public function events(Request $request, Workspace $workspace, Monitor $monitor): JsonResponse
     {

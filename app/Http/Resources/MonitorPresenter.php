@@ -7,6 +7,7 @@ use App\Models\Monitor;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Support\SecretKeys;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 /**
@@ -35,8 +36,7 @@ final class MonitorPresenter
     public static function toArray(Monitor $monitor, bool $revealPushUrl): array
     {
         $state = $monitor->state;
-        $secretKeys = array_map(strval(...), array_keys($monitor->secrets ?? []));
-        sort($secretKeys);
+        $secretKeys = SecretKeys::of($monitor->secrets);
 
         return [
             'id' => $monitor->id,

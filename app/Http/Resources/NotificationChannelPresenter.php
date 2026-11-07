@@ -3,6 +3,8 @@
 namespace App\Http\Resources;
 
 use App\Models\NotificationChannel;
+use App\Support\JsonObject;
+use App\Support\SecretKeys;
 
 /**
  * The public JSON shape of a notification channel. Secrets are exposed by key name only.
@@ -14,17 +16,16 @@ final class NotificationChannelPresenter
      */
     public static function toArray(NotificationChannel $channel): array
     {
-        $secretKeys = array_map(strval(...), array_keys($channel->secrets ?? []));
-        sort($secretKeys);
+        $secretKeys = SecretKeys::of($channel->secrets);
         $count = $channel->getAttribute('monitors_count');
 
         return [
             'id' => $channel->id,
             'name' => $channel->name,
             'type' => $channel->type->value,
-            'config' => (object) $channel->config,
+            'config' => JsonObject::of($channel->config),
             'secret_keys' => $secretKeys,
-            'templates' => $channel->templates === null ? null : (object) $channel->templates,
+            'templates' => JsonObject::of($channel->templates),
             'is_default' => $channel->is_default,
             'active' => $channel->active,
             'monitor_count' => is_numeric($count) ? (int) $count : $channel->monitors()->count(),
