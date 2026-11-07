@@ -144,6 +144,10 @@ final class StatusPageSnapshot
             $sections[] = new SectionView($section['id'], $section['name'], $section['description'], $items);
         }
 
+        // Every open incident shown on the page counts, including page-wide ones that name no monitor.
+        foreach ($incidents['open'] as $incident) {
+            $statuses[] = $incident->impact->displayStatus();
+        }
         $overall = DisplayStatusResolver::overall($statuses);
 
         return new PageView(

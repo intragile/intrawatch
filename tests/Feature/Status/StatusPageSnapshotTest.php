@@ -150,6 +150,25 @@ class StatusPageSnapshotTest extends TestCase
         $this->assertSame(['Mail'], $view->pastIncidents[0]->affectedComponents);
     }
 
+    public function test_page_linked_open_incident_raises_overall_status(): void
+    {
+        $this->item($this->monitor('Web', MonitorStatus::Up));
+        $incident = $this->incident('Provider outage', IncidentImpact::Critical, IncidentStatus::Investigating, []);
+        DB::table('status_page_links')->insert(['status_page_id' => $this->page->id, 'linkable_type' => 'incident', 'linkable_id' => $incident->id]);
+
+        $open = $this->build();
+        $this->assertSame(DisplayStatus::Operational, $open->sections[0]->items[0]->status);
+        $this->assertSame(DisplayStatus::MajorOutage, $open->overall);
+        $this->assertSame('major_outage', $open->overallLabelKey);
+
+        $incident->update(['status' => IncidentStatus::Resolved, 'resolved_at' => $this->now->subMinute()]);
+
+        $resolved = $this->build();
+        $this->assertSame(DisplayStatus::Operational, $resolved->overall);
+        $this->assertSame('all_operational', $resolved->overallLabelKey);
+        $this->assertCount(1, $resolved->pastIncidents);
+    }
+
     public function test_day_bars_and_uptime_from_rollups(): void
     {
         $web = $this->monitor('Web', MonitorStatus::Up);
