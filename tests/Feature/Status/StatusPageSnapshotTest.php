@@ -169,6 +169,39 @@ class StatusPageSnapshotTest extends TestCase
         $this->assertCount(1, $resolved->pastIncidents);
     }
 
+    public function test_incident_without_impact_does_not_make_an_unknown_page_operational(): void
+    {
+        $this->item($this->monitor('Web', MonitorStatus::Pending));
+        $incident = $this->incident('Heads-up', IncidentImpact::None, IncidentStatus::Monitoring, []);
+        DB::table('status_page_links')->insert(['status_page_id' => $this->page->id, 'linkable_type' => 'incident', 'linkable_id' => $incident->id]);
+
+        $view = $this->build();
+
+        $this->assertCount(1, $view->openIncidents);
+        $this->assertSame(DisplayStatus::Unknown, $view->overall);
+        $this->assertSame('unknown', $view->overallLabelKey);
+    }
+
+    public function test_bars_map_day_rows_to_local_dates_in_a_half_hour_zone(): void
+    {
+        // 12:30 UTC is 18:00 in Kolkata (+05:30); its local midnights fall at 18:30 UTC of the previous day.
+        $this->workspace->update(['timezone' => 'Asia/Kolkata']);
+        $web = $this->monitor('Web', MonitorStatus::Up);
+        $this->item($web);
+        $this->page->update(['bar_days' => 3]);
+        $this->dayRollup($web, CarbonImmutable::parse('2026-11-07', 'Asia/Kolkata'), up: 600);
+        $this->dayRollup($web, CarbonImmutable::parse('2026-11-06', 'Asia/Kolkata'), down: 1440);
+
+        $view = $this->build();
+        $bars = $view->sections[0]->items[0]->bars;
+
+        $this->assertSame('Asia/Kolkata', $view->timezone);
+        $this->assertSame(['2026-11-05', '2026-11-06', '2026-11-07'], array_map(fn ($b) => $b->date, $bars));
+        $this->assertSame(DisplayStatus::Unknown, $bars[0]->status);
+        $this->assertSame(DisplayStatus::MajorOutage, $bars[1]->status);
+        $this->assertSame(DisplayStatus::Operational, $bars[2]->status);
+    }
+
     public function test_day_bars_and_uptime_from_rollups(): void
     {
         $web = $this->monitor('Web', MonitorStatus::Up);
