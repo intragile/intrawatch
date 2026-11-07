@@ -13,6 +13,7 @@ use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\NullGroupEvaluator;
 use App\Monitoring\Engine\ResultRecorder;
 use App\Monitoring\Engine\StatusMachine;
+use App\Monitoring\Types\GroupHierarchy;
 use App\Status\Maintenance\CalendarMaintenanceOracle;
 use App\Status\Maintenance\MaintenanceCalendarLoader;
 use Carbon\CarbonImmutable;
@@ -253,5 +254,104 @@ class CalendarMaintenanceOracleTest extends TestCase
         $rows = CheckResult::where('monitor_id', $monitor->id)->orderBy('id')->get();
         $this->assertSame(MonitorStatus::Maintenance, $rows->first()?->status);
         $this->assertNotSame(MonitorStatus::Maintenance, $rows->last()?->status);
+    }
+
+    public function test_a_long_lived_oracle_refreshes_itself_outside_transactions(): void
+    {
+        $monitor = Monitor::factory()->create();
+        $oracle = new CalendarMaintenanceOracle(MaintenanceCalendarLoader::fromConfig(), $this->clock, 5, 60, fn (): int => 0);
+        $this->assertSame([], $oracle->underMaintenance([$monitor->id], $this->at('09:00')));
+
+        $this->maintenance('08:00', '12:00', [$monitor->id]);
+        $this->clock->advance(61);
+
+        $this->assertSame([$monitor->id], $oracle->underMaintenance([$monitor->id], $this->clock->now()));
+    }
+
+    public function test_a_stale_oracle_does_not_query_inside_a_transaction(): void
+    {
+        $monitor = Monitor::factory()->create();
+        // RefreshDatabase keeps every test inside a transaction, so the default probe reports one.
+        $oracle = $this->oracle();
+        $oracle->warm();
+        $this->maintenance('08:00', '12:00', [$monitor->id]);
+        $this->clock->advance(61);
+
+        DB::enableQueryLog();
+        $result = $oracle->underMaintenance([$monitor->id], $this->clock->now());
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertSame([], $queries);
+        $this->assertSame([], $result);
+    }
+
+    public function test_maintenances_sharing_a_monitor_merge_per_monitor_only(): void
+    {
+        $shared = Monitor::factory()->create();
+        $own = Monitor::factory()->create();
+        $this->maintenance('10:00', '11:00', [$shared->id, $own->id]);
+        $this->maintenance('10:30', '12:00', [$shared->id]);
+
+        $calendar = (new MaintenanceCalendarLoader)->load($this->at('09:00'));
+
+        $this->assertSame([$shared->id, $own->id], $calendar->underMaintenance([$shared->id, $own->id], $this->at('10:45')));
+        $this->assertSame([$shared->id], $calendar->underMaintenance([$shared->id, $own->id], $this->at('11:30')));
+        $this->assertEqualsCanonicalizing([$shared->id, $own->id], $calendar->monitorsWithBoundaryIn($this->at('10:00')->subSecond(), $this->at('10:00')));
+    }
+
+    public function test_many_targets_of_a_busy_cron_maintenance_stay_cheap(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $ids = array_values(array_map(fn (Monitor $monitor): int => $monitor->id, Monitor::factory()->count(1000)->create(['workspace_id' => $workspace->id])->all()));
+        $maintenance = Maintenance::factory()->create([
+            'workspace_id' => $workspace->id,
+            'strategy' => 'cron',
+            'cron' => '*/2 * * * *',
+            'duration_minutes' => 1,
+            'starts_at' => null,
+            'ends_at' => null,
+        ]);
+        $maintenance->monitors()->attach($ids);
+
+        gc_collect_cycles();
+        $memory = memory_get_usage();
+        $started = microtime(true);
+        $calendar = (new MaintenanceCalendarLoader)->load($this->at('09:00'));
+        $elapsed = microtime(true) - $started;
+        $retained = memory_get_usage() - $memory;
+
+        $this->assertSame([$ids[0], $ids[999]], $calendar->underMaintenance([$ids[0], $ids[999]], $this->at('09:00')));
+        $this->assertLessThan(5.0, $elapsed);
+        $this->assertLessThan(16 * 1024 * 1024, $retained, 'the windows are shared between targets');
+    }
+
+    public function test_a_parent_cycle_terminates_and_covers_its_members(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $a = Monitor::factory()->group()->create(['workspace_id' => $workspace->id]);
+        $b = Monitor::factory()->group()->create(['workspace_id' => $workspace->id, 'parent_id' => $a->id]);
+        $a->forceFill(['parent_id' => $b->id])->save();
+        $this->maintenance('10:00', '11:00', [$a->id], $workspace);
+
+        $calendar = (new MaintenanceCalendarLoader)->load($this->at('09:00'));
+
+        $this->assertEqualsCanonicalizing([$a->id, $b->id], $calendar->underMaintenance([$a->id, $b->id], $this->at('10:30')));
+    }
+
+    public function test_expansion_stops_at_the_maximum_group_depth(): void
+    {
+        $workspace = Workspace::factory()->create();
+        $chain = [];
+        $parent = null;
+        for ($i = 0; $i < GroupHierarchy::MAX_DEPTH + 3; $i++) {
+            $parent = Monitor::factory()->group()->create(['workspace_id' => $workspace->id, 'parent_id' => $parent?->id]);
+            $chain[] = $parent->id;
+        }
+        $this->maintenance('10:00', '11:00', [$chain[0]], $workspace);
+
+        $covered = (new MaintenanceCalendarLoader)->load($this->at('09:00'))->underMaintenance($chain, $this->at('10:30'));
+
+        $this->assertSame(array_slice($chain, 0, GroupHierarchy::MAX_DEPTH + 1), $covered);
     }
 }

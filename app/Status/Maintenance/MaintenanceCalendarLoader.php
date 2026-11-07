@@ -42,7 +42,8 @@ class MaintenanceCalendarLoader
                 $zone = $zones[$maintenance->workspace_id] ?? 'UTC';
                 $windows = MaintenanceSchedule::fromModel($maintenance, is_string($zone) ? $zone : 'UTC')->windowsBetween($from, $to);
                 if ($windows !== []) {
-                    $windowsByMaintenance[$maintenance->id] = $windows;
+                    // Merged once here; every target then shares this list.
+                    $windowsByMaintenance[$maintenance->id] = $this->merge($windows);
                 }
             }
         });
@@ -61,16 +62,30 @@ class MaintenanceCalendarLoader
 
         $children = $this->childrenOf(array_values(array_unique(array_merge([], ...array_values($targets)))));
 
-        /** @var array<int, list<Window>> $byMonitor */
-        $byMonitor = [];
+        /** @var array<int, list<int>> $maintenancesByMonitor */
+        $maintenancesByMonitor = [];
         foreach ($targets as $maintenanceId => $monitorIds) {
             foreach ($this->expand($monitorIds, $children) as $monitorId) {
-                $byMonitor[$monitorId] ??= [];
-                array_push($byMonitor[$monitorId], ...$windowsByMaintenance[$maintenanceId]);
+                $maintenancesByMonitor[$monitorId][] = $maintenanceId;
             }
         }
 
-        return new MaintenanceCalendar($from, $to, array_map($this->merge(...), $byMonitor));
+        /** @var array<int, list<Window>> $byMonitor */
+        $byMonitor = [];
+        foreach ($maintenancesByMonitor as $monitorId => $maintenanceIds) {
+            if (count($maintenanceIds) === 1) {
+                $byMonitor[$monitorId] = $windowsByMaintenance[$maintenanceIds[0]];
+
+                continue;
+            }
+            $windows = [];
+            foreach ($maintenanceIds as $maintenanceId) {
+                array_push($windows, ...$windowsByMaintenance[$maintenanceId]);
+            }
+            $byMonitor[$monitorId] = $this->merge($windows);
+        }
+
+        return new MaintenanceCalendar($from, $to, $byMonitor);
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Engine\CheckOutcome;
+use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\NullDeadlineEvaluator;
 use App\Monitoring\Engine\NullGroupEvaluator;
@@ -31,6 +32,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use PDOException;
+use RuntimeException;
 use Tests\Support\FailureBudget;
 use Tests\Support\FakeChecker;
 use Tests\Support\FakeClock;
@@ -102,6 +104,38 @@ class WorkerTest extends TestCase
                 $this->assertSame([], $this->checker->callsFor($monitor->id));
             }
         }
+    }
+
+    public function test_a_failing_maintenance_refresh_is_logged_and_the_poll_loop_keeps_running(): void
+    {
+        $oracle = new class implements MaintenanceOracle
+        {
+            public int $warms = 0;
+
+            public function underMaintenance(array $monitorIds, CarbonImmutable $at): array
+            {
+                return [];
+            }
+
+            public function warm(): void
+            {
+                $this->warms++;
+
+                throw new RuntimeException('calendar unavailable');
+            }
+        };
+        $this->tcpMonitors(1, ['interval_seconds' => 60, 'retry_interval_seconds' => 60]);
+
+        [$stop, $run] = $this->start($this->scheduler(maintenance: $oracle));
+        $this->clock->advance(16);
+        $added = $this->tcpMonitors(1, ['interval_seconds' => 60, 'retry_interval_seconds' => 60])[0];
+        $this->clock->advance(70);
+        $this->stop($stop, $run);
+
+        $this->assertGreaterThanOrEqual(10, $oracle->warms, 'the loop warms on every poll after failures');
+        $logged = array_filter($this->logs, fn (MessageLogged $e): bool => str_contains($e->message, 'Refreshing the maintenance calendar failed'));
+        $this->assertNotEmpty($logged);
+        $this->assertNotEmpty($this->checker->callsFor($added->id), 'polling still applies new monitors');
     }
 
     public function test_monitor_changes_apply_without_restart(): void
@@ -250,7 +284,7 @@ class WorkerTest extends TestCase
         $drops = array_values(array_filter($this->logs, fn (MessageLogged $e): bool => str_contains($e->message, 'Dropped a check outcome')));
         $this->assertCount(1, $drops);
         $this->assertSame('error', $drops[0]->level);
-        $this->assertSame(['monitor_id' => $poison->id, 'exception' => \RuntimeException::class], $drops[0]->context);
+        $this->assertSame(['monitor_id' => $poison->id, 'exception' => RuntimeException::class], $drops[0]->context);
     }
 
     public function test_buffer_cap_drops_oldest(): void
@@ -441,7 +475,7 @@ class WorkerTest extends TestCase
         return $times;
     }
 
-    private function scheduler(int $shard = 0, int $shards = 1, ?OutcomeBuffer $buffer = null): Scheduler
+    private function scheduler(int $shard = 0, int $shards = 1, ?OutcomeBuffer $buffer = null, ?MaintenanceOracle $maintenance = null): Scheduler
     {
         return new Scheduler(
             shard: $shard,
@@ -452,6 +486,7 @@ class WorkerTest extends TestCase
             checkers: $this->app->make(CheckerRegistry::class),
             deadlines: new NullDeadlineEvaluator,
             clock: $this->clock,
+            maintenance: $maintenance,
         );
     }
 

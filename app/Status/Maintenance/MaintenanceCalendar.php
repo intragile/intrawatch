@@ -12,11 +12,11 @@ use Carbon\CarbonImmutable;
  */
 final class MaintenanceCalendar
 {
-    /** @var list<int> Distinct window starts and ends as Unix timestamps, ascending. */
-    private readonly array $boundaries;
+    /** @var ?list<int> Distinct window starts and ends as Unix timestamps, ascending. */
+    private ?array $boundaries = null;
 
     /** @var array<int, list<int>> Monitor ids by boundary timestamp. */
-    private readonly array $monitorsByBoundary;
+    private array $monitorsByBoundary = [];
 
     /**
      * @param  array<int, list<Window>>  $byMonitor  Merged, sorted windows by monitor id.
@@ -25,20 +25,7 @@ final class MaintenanceCalendar
         public readonly CarbonImmutable $from,
         public readonly CarbonImmutable $to,
         private readonly array $byMonitor,
-    ) {
-        $byBoundary = [];
-        foreach ($byMonitor as $monitorId => $windows) {
-            foreach ($windows as $window) {
-                $byBoundary[$window->start->getTimestamp()][$monitorId] = $monitorId;
-                if ($window->end !== null) {
-                    $byBoundary[$window->end->getTimestamp()][$monitorId] = $monitorId;
-                }
-            }
-        }
-        ksort($byBoundary);
-        $this->boundaries = array_keys($byBoundary);
-        $this->monitorsByBoundary = array_map(array_values(...), $byBoundary);
-    }
+    ) {}
 
     public static function empty(): self
     {
@@ -78,9 +65,10 @@ final class MaintenanceCalendar
      */
     public function nextBoundaryAfter(CarbonImmutable $at): ?CarbonImmutable
     {
+        $boundaries = $this->boundaries();
         $index = $this->firstBoundaryAfter($at->getTimestamp());
 
-        return $index < count($this->boundaries) ? CarbonImmutable::createFromTimestampUTC($this->boundaries[$index]) : null;
+        return $index < count($boundaries) ? CarbonImmutable::createFromTimestampUTC($boundaries[$index]) : null;
     }
 
     /**
@@ -88,10 +76,11 @@ final class MaintenanceCalendar
      */
     public function monitorsWithBoundaryIn(CarbonImmutable $from, CarbonImmutable $to): array
     {
+        $boundaries = $this->boundaries();
         $until = $to->getTimestamp();
         $ids = [];
-        for ($i = $this->firstBoundaryAfter($from->getTimestamp()); $i < count($this->boundaries) && $this->boundaries[$i] <= $until; $i++) {
-            foreach ($this->monitorsByBoundary[$this->boundaries[$i]] as $id) {
+        for ($i = $this->firstBoundaryAfter($from->getTimestamp()); $i < count($boundaries) && $boundaries[$i] <= $until; $i++) {
+            foreach ($this->monitorsByBoundary[$boundaries[$i]] as $id) {
                 $ids[$id] = $id;
             }
         }
@@ -126,13 +115,55 @@ final class MaintenanceCalendar
         return $end === null || $end->getTimestamp() > $timestamp;
     }
 
+    /**
+     * Built on first use: the engine only needs point lookups. Monitors with identical windows (the targets
+     * of one maintenance) share one entry per boundary while the index is built.
+     *
+     * @return list<int>
+     */
+    private function boundaries(): array
+    {
+        if ($this->boundaries !== null) {
+            return $this->boundaries;
+        }
+
+        /** @var array<string, array{0: list<Window>, 1: list<int>}> $groups */
+        $groups = [];
+        foreach ($this->byMonitor as $monitorId => $windows) {
+            $key = '';
+            foreach ($windows as $window) {
+                $key .= $window->start->getTimestamp().'-'.($window->end?->getTimestamp() ?? '').',';
+            }
+            $key = md5($key);
+            $groups[$key] ??= [$windows, []];
+            $groups[$key][1][] = $monitorId;
+        }
+
+        $byBoundary = [];
+        foreach ($groups as [$windows, $monitorIds]) {
+            foreach ($windows as $window) {
+                foreach ([$window->start, $window->end] as $moment) {
+                    if ($moment !== null) {
+                        $byBoundary[$moment->getTimestamp()] ??= [];
+                        array_push($byBoundary[$moment->getTimestamp()], ...$monitorIds);
+                    }
+                }
+            }
+        }
+        ksort($byBoundary);
+        $this->monitorsByBoundary = $byBoundary;
+
+        return $this->boundaries = array_keys($byBoundary);
+    }
+
     private function firstBoundaryAfter(int $timestamp): int
     {
+        $boundaries = $this->boundaries();
         $low = 0;
-        $high = count($this->boundaries);
+        $high = count($boundaries);
         while ($low < $high) {
             $middle = intdiv($low + $high, 2);
-            if ($this->boundaries[$middle] > $timestamp) {
+            if ($boundaries[$middle] > $timestamp) {
                 $high = $middle;
             } else {
                 $low = $middle + 1;

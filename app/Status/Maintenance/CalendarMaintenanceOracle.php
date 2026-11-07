@@ -5,6 +5,8 @@ namespace App\Status\Maintenance;
 use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Worker\Clock;
 use Carbon\CarbonImmutable;
+use Closure;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -40,6 +42,7 @@ final class CalendarMaintenanceOracle implements MaintenanceOracle
         private readonly Clock $clock,
         private readonly int $stampSeconds = 5,
         private readonly int $reloadSeconds = 60,
+        private readonly ?Closure $transactionLevel = null,
     ) {}
 
     public function warm(): void
@@ -72,7 +75,13 @@ final class CalendarMaintenanceOracle implements MaintenanceOracle
 
     public function underMaintenance(array $monitorIds, CarbonImmutable $at): array
     {
-        if ($this->calendar === null && ! $this->attempted) {
+        if ($this->calendar === null) {
+            // First use in a process that never warmed. Accepted even inside a transaction.
+            if (! $this->attempted) {
+                $this->warm();
+            }
+        } elseif ($this->isStale($this->clock->now()) && $this->outsideTransaction()) {
+            // A long-lived process that nobody warms refreshes itself, but never inside a transaction.
             $this->warm();
         }
         if ($this->calendar === null) {
@@ -96,11 +105,24 @@ final class CalendarMaintenanceOracle implements MaintenanceOracle
 
     private function needsReload(string $stamp, CarbonImmutable $now): bool
     {
-        if ($stamp !== $this->stamp || $this->calendar === null || $this->loadedAt === null) {
+        return $stamp !== $this->stamp || $this->isStale($now);
+    }
+
+    /**
+     * Whether the calendar is older than the forced reload interval or the moment is near or past its horizon.
+     */
+    private function isStale(CarbonImmutable $now): bool
+    {
+        if ($this->calendar === null || $this->loadedAt === null) {
             return true;
         }
 
         return $now->diffInSeconds($this->loadedAt, true) >= $this->reloadSeconds
             || $now->getTimestamp() >= $this->calendar->to->getTimestamp() - self::RELOAD_BEFORE_HORIZON_END_SECONDS;
+    }
+
+    private function outsideTransaction(): bool
+    {
+        return ($this->transactionLevel === null ? DB::transactionLevel() : ($this->transactionLevel)()) === 0;
     }
 }
