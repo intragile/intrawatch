@@ -14,7 +14,7 @@ declare module 'vue-router' {
 // Every view except the login screen is split into its own chunk.
 const auth = { layout: 'auth', guest: true } as const
 
-// Workspace screens; each placeholder is replaced by its view as the screen is built.
+// Workspace screens, each in its own chunk.
 const workspaceRoutes: RouteRecordRaw[] = [
   {
     path: 'monitors',

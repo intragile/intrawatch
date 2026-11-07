@@ -156,10 +156,6 @@
     },
     "create": "Create workspace"
   },
-  "placeholder": {
-    "title": "Coming soon",
-    "text": "This screen is not available yet."
-  },
   "live": {
     "live": "Live",
     "connecting": "Connecting",

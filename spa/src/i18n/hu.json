@@ -156,10 +156,6 @@
     },
     "create": "Munkaterület létrehozása"
   },
-  "placeholder": {
-    "title": "Hamarosan",
-    "text": "Ez a képernyő még nem érhető el."
-  },
   "live": {
     "live": "Élő",
     "connecting": "Csatlakozás",
