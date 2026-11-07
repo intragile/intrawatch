@@ -12,6 +12,7 @@ use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Domain\DomainExpiryService;
 use App\Monitoring\Engine\DeadlineEvaluator;
+use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Engine\ResultRecorder;
 use App\Monitoring\Worker\Clock;
 use App\Monitoring\Worker\Heartbeat;
@@ -129,6 +130,7 @@ class BenchCommand extends Command
                 deadlines: $deadlines,
                 clock: $clock,
                 concurrency: config()->integer('monitoring.worker.concurrency'),
+                maintenance: app(MaintenanceOracle::class),
             );
 
             // Seeded inactive, so that an interrupted seeding never leaves monitors a real worker would check.

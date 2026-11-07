@@ -28,12 +28,13 @@ use App\Monitoring\Engine\DatabaseGroupEvaluator;
 use App\Monitoring\Engine\DeadlineEvaluator;
 use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\MaintenanceOracle;
-use App\Monitoring\Engine\NoMaintenance;
 use App\Monitoring\Net\GuardedConnector;
 use App\Monitoring\Net\NetworkPolicy;
 use App\Monitoring\Worker\Clock;
 use App\Monitoring\Worker\SystemClock;
 use App\Policies\WorkspacePolicy;
+use App\Status\Maintenance\CalendarMaintenanceOracle;
+use App\Status\Maintenance\MaintenanceCalendarLoader;
 use App\Support\CurrentWorkspace;
 use App\Support\RecordAuthEvent;
 use Dedoc\Scramble\Scramble;
@@ -60,7 +61,12 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(CurrentWorkspace::class);
-        $this->app->bind(MaintenanceOracle::class, NoMaintenance::class);
+        $this->app->singleton(MaintenanceOracle::class, fn (Application $app): MaintenanceOracle => new CalendarMaintenanceOracle(
+            MaintenanceCalendarLoader::fromConfig(),
+            $app->make(Clock::class),
+            config()->integer('status.maintenance.stamp_seconds', 5),
+            config()->integer('status.maintenance.reload_seconds', 60),
+        ));
         $this->app->bind(GroupEvaluator::class, DatabaseGroupEvaluator::class);
         $this->app->bind(DeadlineEvaluator::class, DatabaseDeadlineEvaluator::class);
         $this->app->singleton(CheckerRegistry::class);

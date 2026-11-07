@@ -47,6 +47,9 @@ final class ResultRecorder
             return new RecordedBatch;
         }
 
+        // The oracle may read the database, so it is refreshed before the transaction opens.
+        $this->maintenance->warm();
+
         /** @var list<object> $events */
         $events = [];
         /** @var list<EvaluateAlerts> $jobs */

@@ -22,4 +22,6 @@ final class PoisonMaintenance implements MaintenanceOracle
 
         return [];
     }
+
+    public function warm(): void {}
 }

@@ -15,6 +15,7 @@ use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\Deadline;
 use App\Monitoring\Engine\DeadlineEvaluator;
+use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Engine\Transition;
 use Carbon\CarbonImmutable;
@@ -138,6 +139,7 @@ final class Scheduler
         private readonly float $pollSeconds = 5.0,
         private readonly float $heartbeatSeconds = 10.0,
         private readonly float $shutdownGraceSeconds = 4.0,
+        private readonly ?MaintenanceOracle $maintenance = null,
     ) {
         $this->slots = new LocalSemaphore(max(1, $concurrency));
         $this->heap = new SplMinHeap;
@@ -284,6 +286,15 @@ final class Scheduler
                 $this->apply($this->loader->changesSince($this->shard, $this->shards));
             } catch (Throwable $e) {
                 Log::warning('Polling monitor changes failed; retrying on the next poll.', [
+                    'shard' => $this->shard,
+                    'exception' => $e::class,
+                ]);
+            }
+
+            try {
+                $this->maintenance?->warm();
+            } catch (Throwable $e) {
+                Log::warning('Refreshing the maintenance calendar failed; retrying on the next poll.', [
                     'shard' => $this->shard,
                     'exception' => $e::class,
                 ]);

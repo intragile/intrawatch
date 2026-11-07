@@ -6,6 +6,7 @@ use Amp\DeferredCancellation;
 use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Domain\DomainExpiryService;
 use App\Monitoring\Engine\DeadlineEvaluator;
+use App\Monitoring\Engine\MaintenanceOracle;
 use App\Monitoring\Engine\ResultRecorder;
 use App\Monitoring\Worker\Clock;
 use App\Monitoring\Worker\Heartbeat;
@@ -27,7 +28,7 @@ class WorkerCommand extends Command
 
     private const SIGTERM = 15;
 
-    public function handle(ResultRecorder $recorder, CheckerRegistry $checkers, DeadlineEvaluator $deadlines, Clock $clock, DomainExpiryService $domains): int
+    public function handle(ResultRecorder $recorder, CheckerRegistry $checkers, DeadlineEvaluator $deadlines, Clock $clock, DomainExpiryService $domains, MaintenanceOracle $maintenance): int
     {
         $shard = $this->integerOption('shard');
         $shards = $this->integerOption('shards');
@@ -59,6 +60,7 @@ class WorkerCommand extends Command
             deadlines: $deadlines,
             clock: $clock,
             concurrency: config()->integer('monitoring.worker.concurrency'),
+            maintenance: $maintenance,
         );
 
         $stop = new DeferredCancellation;
