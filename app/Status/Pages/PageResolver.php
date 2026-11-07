@@ -18,8 +18,8 @@ use PDOException;
  *
  * Known entries and the domain map are kept for the last-good period: while the database is down they still
  * resolve, so the last good copy of a page can be served, and the database is retried at most once every
- * 30 s per entry instead of on every request. A failure also sets the shared `DatabaseOutage` marker, which
- * keeps every other uncached lookup off the database for 30 s. Unpublished pages resolve exactly like missing ones.
+ * 30 s per entry instead of on every request. A failure to reach the database also sets the shared
+ * `DatabaseOutage` marker, which keeps every other uncached lookup off the database for 30 s. Unpublished pages resolve exactly like missing ones.
  */
 final class PageResolver
 {
@@ -63,7 +63,7 @@ final class PageResolver
                 ->where('published', true)
                 ->first(['id', 'workspace_id']);
         } catch (QueryException|PDOException $e) {
-            $this->failed();
+            $this->failed($e);
             if ($known === null) {
                 throw $e;
             }
@@ -142,7 +142,7 @@ final class PageResolver
                 ->where('published', true)
                 ->get(['id', 'workspace_id', 'custom_domain']);
         } catch (QueryException|PDOException $e) {
-            $this->failed();
+            $this->failed($e);
             if ($known === null) {
                 throw $e;
             }
@@ -163,12 +163,13 @@ final class PageResolver
     }
 
     /**
-     * Sets the shared marker on a real failure; one raised by the marker itself leaves its expiry alone.
+     * Sets the shared marker when the database cannot be reached; one raised by the marker itself leaves its
+     * expiry alone. Other errors only back off the entry that failed.
      */
-    private function failed(): void
+    private function failed(QueryException|PDOException $e): void
     {
         if (! $this->outage->active()) {
-            $this->outage->record();
+            $this->outage->recordIfUnreachable($e);
         }
     }
 

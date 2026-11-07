@@ -233,6 +233,70 @@ class PageCacheTest extends TestCase
         $this->assertSame('<p>html</p>', $cache->render(self::PAGE, self::WORKSPACE, $this->build('x'), $this->renderer())->html);
     }
 
+    /**
+     * @param  list<int|string>|null  $errorInfo
+     */
+    private function queryException(string $message, string|int $code, ?array $errorInfo = null): QueryException
+    {
+        $pdo = new PDOException($message, is_int($code) ? $code : 0);
+        if (is_string($code)) {
+            // PDO keeps a SQLSTATE code as a string, which the constructor cannot take.
+            (new \ReflectionProperty(\Exception::class, 'code'))->setValue($pdo, $code);
+        }
+        $pdo->errorInfo = $errorInfo;
+
+        return new QueryException('mysql', 'select * from status_pages', [], $pdo);
+    }
+
+    public function test_a_failing_query_does_not_stop_other_pages_from_rendering(): void
+    {
+        $cache = $this->cache();
+        $missingTable = $this->queryException("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'x.y' doesn't exist", '42S02', ['42S02', 1146, "Table 'x.y' doesn't exist"]);
+
+        try {
+            $cache->render(self::PAGE, self::WORKSPACE, $this->failing($missingTable), $this->renderer());
+            $this->fail('A page without a copy is unavailable.');
+        } catch (PageUnavailable) {
+        }
+
+        $this->assertFalse(app(DatabaseOutage::class)->active(), 'a deterministic SQL error is not an outage');
+        $other = $cache->render(self::PAGE + 1, self::WORKSPACE, $this->build('other'), $this->renderer());
+        $this->assertSame('<p>other</p>', $other->html);
+        $this->assertFalse($other->stale);
+    }
+
+    public function test_a_refused_connection_sets_the_outage_marker(): void
+    {
+        $refused = new PDOException('SQLSTATE[HY000] [2002] Connection refused', 2002);
+        try {
+            $this->cache()->render(self::PAGE, self::WORKSPACE, $this->failing($refused), $this->renderer());
+        } catch (PageUnavailable) {
+        }
+
+        $this->assertTrue(app(DatabaseOutage::class)->active());
+    }
+
+    public function test_a_postgres_connect_timeout_sets_the_outage_marker(): void
+    {
+        $timeout = $this->queryException('SQLSTATE[08006] [7] connection to server at "10.255.255.1", port 5432 failed: timeout expired', '08006');
+        try {
+            $this->cache()->render(self::PAGE, self::WORKSPACE, $this->failing($timeout), $this->renderer());
+        } catch (PageUnavailable) {
+        }
+
+        $this->assertTrue(app(DatabaseOutage::class)->active());
+    }
+
+    public function test_connection_failures_are_told_apart_from_other_errors(): void
+    {
+        $this->assertTrue(DatabaseOutage::isConnectionFailure(new PDOException('SQLSTATE[HY000] [2006] MySQL server has gone away', 2006)));
+        $this->assertTrue(DatabaseOutage::isConnectionFailure($this->queryException('SQLSTATE[HY000]: General error: 2013 Lost connection', 'HY000', ['HY000', 2013, 'Lost connection'])));
+        $this->assertTrue(DatabaseOutage::isConnectionFailure($this->queryException('SQLSTATE[08001] [7] could not connect', '08001')));
+        $this->assertFalse(DatabaseOutage::isConnectionFailure($this->queryException('SQLSTATE[HY000]: General error: 5 database is locked', 'HY000', ['HY000', 5, 'database is locked'])));
+        $this->assertFalse(DatabaseOutage::isConnectionFailure(new PDOException('gone')));
+        $this->assertFalse(DatabaseOutage::isConnectionFailure(new RuntimeException('Connection refused')));
+    }
+
     private function cache(int $lockWaitSeconds = 3): PageCache
     {
         return new PageCache($this->stamps, new DatabaseOutage, $lockWaitSeconds);

@@ -504,11 +504,17 @@ When a window starts or ends, or a maintenance is created, edited, ended or
 deleted while it is in progress, scheduled monitors (HTTP, TCP, ping, DNS, TLS,
 domain) are checked immediately and groups are recomputed, within seconds
 (`intrawatch:maintenance:sync` runs every 15 seconds). Push and cron monitors
-change status at their next ping or deadline check. Alerts are muted for the
-whole window. An outage that is still going on when the window ends is alerted
+enter maintenance when the window starts, even with an outage already
+reported, and return to their real status at their next ping or deadline check
+after it ends. Alerts are muted for the whole window. An outage that is still
+going on when the window ends is alerted
 after it: the monitor goes from maintenance to down on its first check after
 the end, a `Down` alert is sent if none was sent for that outage yet, and
 reminders (`STILL DOWN`) resume.
+A check result that is already in flight when a maintenance is written, up to
+the worker's 5 second poll interval, may still be recorded against the previous
+calendar; the next check corrects it, and a down, maintenance, down sequence
+counts as one outage, so no extra alert is sent.
 
 ### Status pages
 
@@ -566,8 +572,9 @@ and a strong `ETag` (`If-None-Match` gives a 304). If the database fails during
 a render, the last good copy is served with `X-Status-Stale: 1` and the
 database is tried again at most every 30 seconds; the copy is kept
 for 7 days (`status.cache.stale_seconds`). With no copy at all the page answers
-503 with `Retry-After: 30`. A failed database connection also stops every other
-public request that would need the database from trying it for 30 seconds:
+503 with `Retry-After: 30`. A failure to connect to the database (not an error
+in a single query) also stops every other public request that would need the
+database from trying it for 30 seconds:
 those answer from their cached copy or with the 503 at once. Database
 connections give up after 3 seconds (`DB_CONNECT_TIMEOUT`), so an unreachable
 database host cannot hold requests for minutes.
