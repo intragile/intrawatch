@@ -367,5 +367,223 @@
     },
     "more": "Load more monitors",
     "loadingMore": "Loading monitors"
+  },
+  "secret": {
+    "set": "Set",
+    "replace": "Replace",
+    "clear": "Clear",
+    "undo": "Undo",
+    "keep": "Keep the stored value",
+    "willClear": "Will be cleared on save"
+  },
+  "monitorEditor": {
+    "newTitle": "New monitor",
+    "editTitle": "Edit monitor",
+    "loading": "Loading the editor",
+    "retry": "Try again",
+    "readOnly": "You can view this monitor but not change it.",
+    "noChanges": "Nothing to save, no fields were changed.",
+    "created": "Monitor created.",
+    "updated": "Monitor saved.",
+    "leave": {
+      "title": "Discard changes?",
+      "text": "You have unsaved changes. If you leave this page they are lost.",
+      "confirm": "Discard changes"
+    },
+    "sections": {
+      "settings": "{type} settings",
+      "alerting": "Alerting",
+      "organise": "Notifications and tags"
+    },
+    "common": {
+      "type": "Monitor type",
+      "typeLocked": "The type cannot be changed after the monitor is created.",
+      "name": "Name",
+      "description": "Description",
+      "active": "Active",
+      "activeHint": "A paused monitor is not checked and does not alert.",
+      "inverted": "Inverted result",
+      "invertedHint": "Treat a failing check as up and a passing check as down.",
+      "timing": "Timing",
+      "interval": "Check interval",
+      "intervalMin": "The interval must be at least {min} seconds for this type.",
+      "timeout": "Timeout",
+      "timeoutHint": "At most 80% of the check interval.",
+      "retries": "Retries",
+      "retriesHint": "Failed checks repeated before the monitor is marked down.",
+      "retryInterval": "Retry interval",
+      "degradedThreshold": "Degraded above (latency)",
+      "degradedThresholdHint": "Mark the monitor degraded when a check takes longer than this. Leave empty to disable."
+    },
+    "parent": {
+      "label": "Parent group",
+      "hint": "Optional. Search groups by name."
+    },
+    "alerting": {
+      "resend": "Reminder interval (minutes)",
+      "resendHint": "Repeat the alert while the monitor stays down. 0 sends no reminders.",
+      "notifyChanges": "Notify about configuration changes",
+      "notifyDegraded": "Alert when degraded",
+      "degradedAfter": "Degraded alert delay",
+      "degradedAfterHint": "How long the monitor must stay degraded before an alert is sent."
+    },
+    "notifications": {
+      "label": "Notification channels",
+      "hint": "Channels that receive this monitor's alerts.",
+      "none": "No notification channels exist yet.",
+      "inactive": "inactive"
+    },
+    "tags": {
+      "label": "Tags",
+      "none": "No tags exist yet.",
+      "value": "Value for {name} (optional)"
+    },
+    "tcp": {
+      "host": "Host",
+      "port": "Port"
+    },
+    "ping": {
+      "host": "Host",
+      "count": "Packets per check",
+      "countHint": "1 to 5. The timeout must be longer than the packet count minus one second."
+    },
+    "dns": {
+      "name": "Name to resolve",
+      "recordType": "Record type",
+      "resolver": "Resolver",
+      "resolverHint": "Optional IP address with an optional port. Empty uses the system resolver.",
+      "expected": "Expected values",
+      "expectedHint": "Press Enter after each value. Leave empty to only require an answer.",
+      "match": "Matching",
+      "matchModes": {
+        "any": "Any expected value",
+        "all": "All expected values",
+        "exact": "Exactly the expected values"
+      },
+      "watchChanges": "Alert when the answer changes"
+    },
+    "tls": {
+      "host": "Host",
+      "port": "Port",
+      "starttls": "Upgrade protocol",
+      "starttlsModes": {
+        "none": "None (direct TLS)",
+        "smtp": "SMTP STARTTLS",
+        "imap": "IMAP STARTTLS",
+        "pop3": "POP3 STLS"
+      },
+      "servername": "Server name (SNI)",
+      "servernameHint": "Optional. Empty uses the host.",
+      "expiryDays": "Warn before expiry (days)",
+      "expiryDaysHint": "Press Enter after each number of days.",
+      "degradedBelowDays": "Degraded below (days left)",
+      "checkProtocols": "Check supported protocols",
+      "checkCiphers": "Check cipher suites",
+      "watchCertificate": "Alert when the certificate changes"
+    },
+    "domain": {
+      "domain": "Domain name",
+      "domainHint": "The registered domain, for example example.com.",
+      "expiryDays": "Warn before expiry (days)",
+      "expiryDaysHint": "Press Enter after each number of days.",
+      "degradedBelowDays": "Degraded below (days left)"
+    },
+    "push": {
+      "info": "After you save, the push URL appears on the monitor's detail page. Call it from your job or service at least once per interval to report it as up.",
+      "grace": "Grace period",
+      "graceHint": "How long to wait past the expected heartbeat before marking the monitor down."
+    },
+    "cron": {
+      "info": "After you save, the push URL appears on the monitor's detail page. Call it when your scheduled job finishes (or starts and finishes) to report it.",
+      "schedule": "Cron schedule",
+      "scheduleHint": "Standard five-field expression, for example 0 3 * * *.",
+      "timezone": "Schedule time zone",
+      "timezoneHint": "Empty uses the workspace time zone.",
+      "grace": "Grace period",
+      "graceHint": "How long to wait past the scheduled time before marking the job missed.",
+      "maxRuntime": "Maximum runtime",
+      "maxRuntimeHint": "Optional. Mark the job failed when it runs longer than this."
+    },
+    "group": {
+      "mode": "Group status rule",
+      "modes": {
+        "all": "All members up",
+        "any": "Any member up",
+        "quorum": "At least N members up"
+      },
+      "modeHints": {
+        "all": "The group is down as soon as one member is down.",
+        "any": "The group is down only when every member is down.",
+        "quorum": "The group is down when fewer than the required number of members are up."
+      },
+      "quorum": "Required members",
+      "quorumHint": "Minimum number of members that must be up."
+    },
+    "http": {
+      "url": "URL",
+      "method": "Method",
+      "acceptedStatus": "Accepted status codes",
+      "acceptedStatusHint": "Press Enter after each code or range, for example 200-299 or 301.",
+      "maxRedirects": "Maximum redirects",
+      "body": "Request body",
+      "headers": "Request headers",
+      "headerName": "Header name",
+      "headerValue": "Header value",
+      "addHeader": "Add header",
+      "removeHeader": "Remove header",
+      "headersHint": "Credentials such as Authorization belong in the secret headers below.",
+      "secretHeaders": "Secret headers",
+      "secretHeadersHint": "One per line as Name: value. Values are never shown again; entering new ones replaces all of them.",
+      "authentication": "Authentication",
+      "authType": "Authentication",
+      "authTypes": {
+        "none": "None",
+        "basic": "Basic",
+        "bearer": "Bearer token"
+      },
+      "username": "Username",
+      "password": "Password",
+      "bearerToken": "Bearer token",
+      "assertions": "Response checks",
+      "keywordEnable": "Check the response body for a keyword",
+      "keywordValue": "Keyword",
+      "keywordMode": "Keyword rule",
+      "keywordModes": {
+        "contains": "Must contain",
+        "not_contains": "Must not contain"
+      },
+      "keywordCase": "Case sensitive",
+      "jsonEnable": "Check a value in a JSON response",
+      "jsonPath": "JSONPath",
+      "jsonOperator": "Operator",
+      "jsonExpected": "Expected value",
+      "headerChecks": "Response header checks",
+      "addCheck": "Add header check",
+      "removeCheck": "Remove header check",
+      "checkName": "Header",
+      "checkOperator": "Rule",
+      "checkValue": "Value",
+      "headerOperators": {
+        "equals": "Equals",
+        "contains": "Contains",
+        "exists": "Exists",
+        "not_exists": "Does not exist"
+      },
+      "tls": "Certificates",
+      "tlsVerify": "Verify the server certificate",
+      "tlsChecks": "Monitor the certificate expiry",
+      "tlsExpiryDays": "Warn before expiry (days)",
+      "tlsExpiryDaysHint": "Press Enter after each number of days.",
+      "domainExpiry": "Monitor the domain registration expiry",
+      "mtls": "Present a client certificate (mTLS)",
+      "mtlsCert": "Client certificate (PEM)",
+      "mtlsKey": "Client private key (PEM)",
+      "pemHint": "Paste the PEM text. It is never shown again.",
+      "proxy": "Proxy",
+      "proxyEnable": "Send checks through a proxy",
+      "proxyUrl": "Proxy URL",
+      "proxyUsername": "Proxy username",
+      "proxyPassword": "Proxy password"
+    }
   }
 }

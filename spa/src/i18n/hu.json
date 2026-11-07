@@ -367,5 +367,223 @@
     },
     "more": "További monitorok betöltése",
     "loadingMore": "Monitorok betöltése"
+  },
+  "secret": {
+    "set": "Beállítva",
+    "replace": "Csere",
+    "clear": "Törlés",
+    "undo": "Visszavonás",
+    "keep": "A tárolt érték megtartása",
+    "willClear": "Mentéskor törlődik"
+  },
+  "monitorEditor": {
+    "newTitle": "Új monitor",
+    "editTitle": "Monitor szerkesztése",
+    "loading": "A szerkesztő betöltése",
+    "retry": "Újra",
+    "readOnly": "Ezt a monitort megtekintheted, de nem módosíthatod.",
+    "noChanges": "Nincs mit menteni, egy mező sem változott.",
+    "created": "A monitor létrejött.",
+    "updated": "A monitor mentve.",
+    "leave": {
+      "title": "Elveted a módosításokat?",
+      "text": "Nem mentett módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "confirm": "Módosítások elvetése"
+    },
+    "sections": {
+      "settings": "{type} beállításai",
+      "alerting": "Riasztás",
+      "organise": "Értesítések és címkék"
+    },
+    "common": {
+      "type": "Monitor típusa",
+      "typeLocked": "A típus a monitor létrehozása után nem módosítható.",
+      "name": "Név",
+      "description": "Leírás",
+      "active": "Aktív",
+      "activeHint": "A szüneteltetett monitort nem ellenőrizzük, és nem riaszt.",
+      "inverted": "Fordított eredmény",
+      "invertedHint": "A sikertelen ellenőrzés számít működőnek, a sikeres pedig leállásnak.",
+      "timing": "Időzítés",
+      "interval": "Ellenőrzési időköz",
+      "intervalMin": "Ennél a típusnál az időköz legalább {min} másodperc legyen.",
+      "timeout": "Időtúllépés",
+      "timeoutHint": "Legfeljebb az ellenőrzési időköz 80%-a.",
+      "retries": "Újrapróbálkozások",
+      "retriesHint": "Ennyiszer ismételjük a sikertelen ellenőrzést, mielőtt leállónak jelöljük.",
+      "retryInterval": "Újrapróbálkozási időköz",
+      "degradedThreshold": "Lassú, ha a válaszidő több mint",
+      "degradedThresholdHint": "A monitor lassúnak számít, ha az ellenőrzés ennél tovább tart. Üresen hagyva ki van kapcsolva."
+    },
+    "parent": {
+      "label": "Szülőcsoport",
+      "hint": "Nem kötelező. Keress a csoportok nevében."
+    },
+    "alerting": {
+      "resend": "Emlékeztető időköze (perc)",
+      "resendHint": "Ismétli a riasztást, amíg a monitor leállt. A 0 nem küld emlékeztetőt.",
+      "notifyChanges": "Értesítés a beállítások változásáról",
+      "notifyDegraded": "Riasztás lassú működésnél",
+      "degradedAfter": "Lassú működés riasztási késleltetése",
+      "degradedAfterHint": "Ennyi ideig kell lassúnak lennie a monitornak, mielőtt riasztunk."
+    },
+    "notifications": {
+      "label": "Értesítési csatornák",
+      "hint": "A csatornák, amelyek megkapják a monitor riasztásait.",
+      "none": "Még nincs értesítési csatorna.",
+      "inactive": "inaktív"
+    },
+    "tags": {
+      "label": "Címkék",
+      "none": "Még nincs címke.",
+      "value": "{name} értéke (nem kötelező)"
+    },
+    "tcp": {
+      "host": "Állomás",
+      "port": "Port"
+    },
+    "ping": {
+      "host": "Állomás",
+      "count": "Csomagok száma ellenőrzésenként",
+      "countHint": "1 és 5 között. Az időtúllépésnek hosszabbnak kell lennie a csomagszám mínusz egy másodpercnél."
+    },
+    "dns": {
+      "name": "Feloldandó név",
+      "recordType": "Rekordtípus",
+      "resolver": "Névszerver",
+      "resolverHint": "Nem kötelező: IP-cím, opcionálisan porttal. Üresen a rendszer névszerverét használjuk.",
+      "expected": "Várt értékek",
+      "expectedHint": "Minden érték után nyomj Entert. Üresen elég, ha érkezik válasz.",
+      "match": "Egyezés",
+      "matchModes": {
+        "any": "Bármelyik várt érték",
+        "all": "Minden várt érték",
+        "exact": "Pontosan a várt értékek"
+      },
+      "watchChanges": "Riasztás, ha megváltozik a válasz"
+    },
+    "tls": {
+      "host": "Állomás",
+      "port": "Port",
+      "starttls": "Protokollváltás",
+      "starttlsModes": {
+        "none": "Nincs (közvetlen TLS)",
+        "smtp": "SMTP STARTTLS",
+        "imap": "IMAP STARTTLS",
+        "pop3": "POP3 STLS"
+      },
+      "servername": "Kiszolgálónév (SNI)",
+      "servernameHint": "Nem kötelező. Üresen az állomásnevet használjuk.",
+      "expiryDays": "Figyelmeztetés lejárat előtt (nap)",
+      "expiryDaysHint": "Minden napszám után nyomj Entert.",
+      "degradedBelowDays": "Lassú, ha ennél kevesebb nap van hátra",
+      "checkProtocols": "Támogatott protokollok ellenőrzése",
+      "checkCiphers": "Titkosítási csomagok ellenőrzése",
+      "watchCertificate": "Riasztás, ha a tanúsítvány megváltozik"
+    },
+    "domain": {
+      "domain": "Domainnév",
+      "domainHint": "A regisztrált domain, például example.com.",
+      "expiryDays": "Figyelmeztetés lejárat előtt (nap)",
+      "expiryDaysHint": "Minden napszám után nyomj Entert.",
+      "degradedBelowDays": "Lassú, ha ennél kevesebb nap van hátra"
+    },
+    "push": {
+      "info": "Mentés után a push URL a monitor részletező oldalán jelenik meg. A feladatodból vagy szolgáltatásodból legalább időközönként hívd meg, hogy működőnek jelentse magát.",
+      "grace": "Türelmi idő",
+      "graceHint": "Ennyit várunk a várt jelzés után, mielőtt leállónak jelöljük a monitort."
+    },
+    "cron": {
+      "info": "Mentés után a push URL a monitor részletező oldalán jelenik meg. Az ütemezett feladat végén (vagy az elején és a végén) hívd meg, hogy jelentse a futást.",
+      "schedule": "Cron-ütemezés",
+      "scheduleHint": "Szabványos, ötmezős kifejezés, például 0 3 * * *.",
+      "timezone": "Az ütemezés időzónája",
+      "timezoneHint": "Üresen a munkaterület időzónáját használjuk.",
+      "grace": "Türelmi idő",
+      "graceHint": "Ennyit várunk az ütemezett időpont után, mielőtt kihagyottnak jelöljük a futást.",
+      "maxRuntime": "Legnagyobb futásidő",
+      "maxRuntimeHint": "Nem kötelező. A futás hibásnak számít, ha ennél tovább tart."
+    },
+    "group": {
+      "mode": "A csoport állapotának szabálya",
+      "modes": {
+        "all": "Minden tag működik",
+        "any": "Legalább egy tag működik",
+        "quorum": "Legalább N tag működik"
+      },
+      "modeHints": {
+        "all": "A csoport leáll, amint egy tag leáll.",
+        "any": "A csoport csak akkor áll le, ha minden tagja leállt.",
+        "quorum": "A csoport leáll, ha a működő tagok száma a megadott érték alá csökken."
+      },
+      "quorum": "Szükséges tagok",
+      "quorumHint": "A működő tagok minimális száma."
+    },
+    "http": {
+      "url": "URL",
+      "method": "Metódus",
+      "acceptedStatus": "Elfogadott állapotkódok",
+      "acceptedStatusHint": "Minden kód vagy tartomány után nyomj Entert, például 200-299 vagy 301.",
+      "maxRedirects": "Átirányítások maximális száma",
+      "body": "Kérés törzse",
+      "headers": "Kérés fejlécei",
+      "headerName": "Fejléc neve",
+      "headerValue": "Fejléc értéke",
+      "addHeader": "Fejléc hozzáadása",
+      "removeHeader": "Fejléc törlése",
+      "headersHint": "A hitelesítő adatok, például az Authorization, az alábbi titkos fejlécek közé valók.",
+      "secretHeaders": "Titkos fejlécek",
+      "secretHeadersHint": "Soronként egy, Név: érték formában. Az értékeket többé nem jelenítjük meg; újak megadása az összeset lecseréli.",
+      "authentication": "Hitelesítés",
+      "authType": "Hitelesítés",
+      "authTypes": {
+        "none": "Nincs",
+        "basic": "Basic",
+        "bearer": "Bearer token"
+      },
+      "username": "Felhasználónév",
+      "password": "Jelszó",
+      "bearerToken": "Bearer token",
+      "assertions": "Válasz ellenőrzése",
+      "keywordEnable": "Kulcsszó keresése a válasz törzsében",
+      "keywordValue": "Kulcsszó",
+      "keywordMode": "Kulcsszó szabálya",
+      "keywordModes": {
+        "contains": "Tartalmaznia kell",
+        "not_contains": "Nem tartalmazhatja"
+      },
+      "keywordCase": "Kis- és nagybetű számít",
+      "jsonEnable": "Érték ellenőrzése a JSON-válaszban",
+      "jsonPath": "JSONPath",
+      "jsonOperator": "Művelet",
+      "jsonExpected": "Várt érték",
+      "headerChecks": "Válaszfejlécek ellenőrzése",
+      "addCheck": "Fejlécellenőrzés hozzáadása",
+      "removeCheck": "Fejlécellenőrzés törlése",
+      "checkName": "Fejléc",
+      "checkOperator": "Szabály",
+      "checkValue": "Érték",
+      "headerOperators": {
+        "equals": "Egyenlő",
+        "contains": "Tartalmazza",
+        "exists": "Létezik",
+        "not_exists": "Nem létezik"
+      },
+      "tls": "Tanúsítványok",
+      "tlsVerify": "A kiszolgáló tanúsítványának ellenőrzése",
+      "tlsChecks": "A tanúsítvány lejáratának figyelése",
+      "tlsExpiryDays": "Figyelmeztetés lejárat előtt (nap)",
+      "tlsExpiryDaysHint": "Minden napszám után nyomj Entert.",
+      "domainExpiry": "A domain regisztrációja lejáratának figyelése",
+      "mtls": "Kliens tanúsítvány küldése (mTLS)",
+      "mtlsCert": "Kliens tanúsítvány (PEM)",
+      "mtlsKey": "Kliens privát kulcs (PEM)",
+      "pemHint": "Illeszd be a PEM szöveget. Többé nem jelenítjük meg.",
+      "proxy": "Proxy",
+      "proxyEnable": "Az ellenőrzések küldése proxyn keresztül",
+      "proxyUrl": "Proxy URL",
+      "proxyUsername": "Proxy felhasználóneve",
+      "proxyPassword": "Proxy jelszava"
+    }
   }
 }

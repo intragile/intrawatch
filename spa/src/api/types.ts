@@ -24,3 +24,4 @@ export type MonitorRollup = Item<GetOk<'/workspaces/{workspace}/monitors/{monito
 export type MonitorEvent = Item<GetOk<'/workspaces/{workspace}/monitors/{monitor}/events'>>
 export type CheckResult = Item<GetOk<'/workspaces/{workspace}/monitors/{monitor}/results'>>
 export type ChannelSummary = Item<GetOk<'/workspaces/{workspace}/notification-channels'>>
+export type Tag = Item<GetOk<'/workspaces/{workspace}/tags'>>

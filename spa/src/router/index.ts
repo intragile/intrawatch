@@ -24,7 +24,7 @@ const workspaceRoutes: RouteRecordRaw[] = [
   {
     path: 'monitors/new',
     name: 'ws.monitor.new',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/monitors/MonitorEditView.vue'),
   },
   {
     path: 'monitors/:monitor(\\d+)',
@@ -34,7 +34,7 @@ const workspaceRoutes: RouteRecordRaw[] = [
   {
     path: 'monitors/:monitor(\\d+)/edit',
     name: 'ws.monitor.edit',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/monitors/MonitorEditView.vue'),
   },
   {
     path: 'channels',
