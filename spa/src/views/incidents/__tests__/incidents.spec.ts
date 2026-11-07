@@ -164,23 +164,6 @@ describe('incident page', () => {
     await expect.poll(() => document.querySelector('[data-test="incident-status"]')?.textContent).toContain('Monitoring')
   })
 
-  it('warns when the timeline entries cannot be read', async () => {
-    fakeApi({
-      'GET /setup': json({ required: false }),
-      'GET /me': json({
-        data: meWith({}),
-      }),
-      'GET /workspaces/acme/incidents/5': json({
-        data: incident({
-          updates: ['oops'],
-        }),
-      }),
-    })
-    await mountApp('/w/acme/incidents/5')
-
-    await expect.poll(() => document.querySelector('[data-test="timeline-unreadable"]')).not.toBeNull()
-  })
-
   it('refetches the loaded incident list when the window regains focus', async () => {
     const server = fakeApi({
       'GET /setup': json({ required: false }),

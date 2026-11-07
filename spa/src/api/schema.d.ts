@@ -2451,7 +2451,14 @@ export interface operations {
                             status_page_ids: number[];
                             created_at: string | null;
                             updated_at: string | null;
-                            updates: string[];
+                            updates: {
+                                id: number;
+                                /** @enum {string} */
+                                status: "investigating" | "identified" | "monitoring" | "resolved";
+                                message: string;
+                                created_at: string;
+                                updated_at: string | null;
+                            }[];
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -2501,7 +2508,14 @@ export interface operations {
                             status_page_ids: number[];
                             created_at: string | null;
                             updated_at: string | null;
-                            updates: string[];
+                            updates: {
+                                id: number;
+                                /** @enum {string} */
+                                status: "investigating" | "identified" | "monitoring" | "resolved";
+                                message: string;
+                                created_at: string;
+                                updated_at: string | null;
+                            }[];
                         };
                     };
                 };
@@ -2545,7 +2559,14 @@ export interface operations {
                             status_page_ids: number[];
                             created_at: string | null;
                             updated_at: string | null;
-                            updates: string[];
+                            updates: {
+                                id: number;
+                                /** @enum {string} */
+                                status: "investigating" | "identified" | "monitoring" | "resolved";
+                                message: string;
+                                created_at: string;
+                                updated_at: string | null;
+                            }[];
                         };
                     };
                 };
@@ -2618,7 +2639,14 @@ export interface operations {
                             status_page_ids: number[];
                             created_at: string | null;
                             updated_at: string | null;
-                            updates: string[];
+                            updates: {
+                                id: number;
+                                /** @enum {string} */
+                                status: "investigating" | "identified" | "monitoring" | "resolved";
+                                message: string;
+                                created_at: string;
+                                updated_at: string | null;
+                            }[];
                         };
                     };
                 };
@@ -4418,7 +4446,21 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: string[];
+                            sections: {
+                                id: number;
+                                name: string;
+                                description: string | null;
+                                position: number;
+                                items: {
+                                    id: number;
+                                    monitor_id: number;
+                                    display_name: string | null;
+                                    description: string | null;
+                                    position: number;
+                                    expand_children: boolean;
+                                    show_uptime: boolean;
+                                }[];
+                            }[];
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -4474,7 +4516,21 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: string[];
+                            sections: {
+                                id: number;
+                                name: string;
+                                description: string | null;
+                                position: number;
+                                items: {
+                                    id: number;
+                                    monitor_id: number;
+                                    display_name: string | null;
+                                    description: string | null;
+                                    position: number;
+                                    expand_children: boolean;
+                                    show_uptime: boolean;
+                                }[];
+                            }[];
                         };
                     };
                 };
@@ -4525,7 +4581,21 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: string[];
+                            sections: {
+                                id: number;
+                                name: string;
+                                description: string | null;
+                                position: number;
+                                items: {
+                                    id: number;
+                                    monitor_id: number;
+                                    display_name: string | null;
+                                    description: string | null;
+                                    position: number;
+                                    expand_children: boolean;
+                                    show_uptime: boolean;
+                                }[];
+                            }[];
                         };
                     };
                 };
@@ -4605,7 +4675,21 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: string[];
+                            sections: {
+                                id: number;
+                                name: string;
+                                description: string | null;
+                                position: number;
+                                items: {
+                                    id: number;
+                                    monitor_id: number;
+                                    display_name: string | null;
+                                    description: string | null;
+                                    position: number;
+                                    expand_children: boolean;
+                                    show_uptime: boolean;
+                                }[];
+                            }[];
                         };
                     };
                 };
@@ -4660,7 +4744,21 @@ export interface operations {
                             show_latency: boolean;
                             created_at: string | null;
                             updated_at: string | null;
-                            sections: string[];
+                            sections: {
+                                id: number;
+                                name: string;
+                                description: string | null;
+                                position: number;
+                                items: {
+                                    id: number;
+                                    monitor_id: number;
+                                    display_name: string | null;
+                                    description: string | null;
+                                    position: number;
+                                    expand_children: boolean;
+                                    show_uptime: boolean;
+                                }[];
+                            }[];
                         };
                     };
                 };

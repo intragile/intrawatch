@@ -918,8 +918,7 @@
       "empty": "No updates yet.",
       "edited": "edited",
       "edit": "Edit update",
-      "delete": "Delete update",
-      "unreadable": "The timeline could not be read. Reload the page; if it persists, the server response has an unexpected shape."
+      "delete": "Delete update"
     },
     "composer": {
       "title": "Post an update",

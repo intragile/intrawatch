@@ -918,8 +918,7 @@
       "empty": "Még nincs frissítés.",
       "edited": "szerkesztve",
       "edit": "Frissítés szerkesztése",
-      "delete": "Frissítés törlése",
-      "unreadable": "Az idővonal nem olvasható. Töltsd újra az oldalt; ha így marad, a szerver válasza váratlan alakú."
+      "delete": "Frissítés törlése"
     },
     "composer": {
       "title": "Frissítés közzététele",

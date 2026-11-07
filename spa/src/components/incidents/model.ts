@@ -8,27 +8,7 @@ export const INCIDENT_STATUSES: IncidentStatus[] = [
 ]
 export const INCIDENT_IMPACTS: IncidentImpact[] = ['none', 'minor', 'major', 'critical']
 
-function isEntry(value: unknown): value is IncidentTimelineEntry {
-  if (typeof value !== 'object' || value === null)
-    return false
-  const v = value as Record<string, unknown>
-  return typeof v.id === 'number'
-    && typeof v.message === 'string'
-    && typeof v.created_at === 'string'
-    && INCIDENT_STATUSES.includes(v.status as IncidentStatus)
-}
-
-/**
- * The timeline of a fetched incident, newest first as the API sends it. The API reference describes
- * `updates` loosely, so each entry is checked against the documented timeline entry shape.
- */
+/** The timeline of a fetched incident, newest first as the API sends it. */
 export function timelineOf(incident: Pick<Incident, 'updates'>): IncidentTimelineEntry[] {
-  const raw: unknown[] = incident.updates
-  return raw.filter(isEntry)
-}
-
-/** Whether the incident has updates none of which could be read as timeline entries. */
-export function timelineUnreadable(incident: Pick<Incident, 'updates'>): boolean {
-  const raw: unknown[] = incident.updates
-  return raw.length > 0 && timelineOf(incident).length === 0
+  return incident.updates ?? []
 }

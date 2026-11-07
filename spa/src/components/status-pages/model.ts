@@ -176,15 +176,9 @@ export function newItem(monitorId: number): LayoutItem {
   }
 }
 
-type WireSections = StatusPageLayoutBody['sections']
-
-/**
- * The layout of a loaded page. The generated response type lists `sections` as plain strings, so the
- * payload is read through the layout request shape it mirrors.
- */
+/** The editable layout of a loaded page. */
 export function layoutFromPage(page: StatusPage): LayoutSection[] {
-  const sections = (page.sections ?? []) as unknown as WireSections
-  return sections.map(section => ({
+  return (page.sections ?? []).map(section => ({
     key: newKey(),
     name: section.name,
     description: section.description ?? '',
