@@ -134,6 +134,8 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(120)->by('token:'.(is_string($token) ? $token : ''));
         });
 
+        RateLimiter::for('notification-test', fn (Request $request): Limit => Limit::perMinute(10)->by('user:'.($request->user()->id ?? $request->ip())));
+
         Event::listen(Login::class, [RecordAuthEvent::class, 'handleLogin']);
         Event::listen(Failed::class, [RecordAuthEvent::class, 'handleFailed']);
         Event::listen(TwoFactorAuthenticationEnabled::class, [RecordAuthEvent::class, 'handleTwoFactorEnabled']);

@@ -619,6 +619,30 @@
                 }
             }
         },
+        "/notification-channel-types": {
+            "get": {
+                "operationId": "notificationChannelType",
+                "tags": [
+                    "NotificationChannelType"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {}
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/openapi.json": {
             "get": {
                 "operationId": "openApi",
@@ -1893,6 +1917,35 @@
                                                     "type": "array",
                                                     "items": {}
                                                 },
+                                                "notification_channel_ids": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "alerting": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "resend_interval_minutes": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_degraded": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "degraded_alert_after_seconds": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_changes": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "resend_interval_minutes",
+                                                        "notify_degraded",
+                                                        "degraded_alert_after_seconds",
+                                                        "notify_changes"
+                                                    ]
+                                                },
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
@@ -2005,6 +2058,8 @@
                                                 "parent_id",
                                                 "config",
                                                 "secret_keys",
+                                                "notification_channel_ids",
+                                                "alerting",
                                                 "tags",
                                                 "push_url",
                                                 "has_push_token",
@@ -2067,7 +2122,9 @@
                                             "resume",
                                             "delete",
                                             "tag",
-                                            "untag"
+                                            "untag",
+                                            "notify",
+                                            "unnotify"
                                         ]
                                     },
                                     "ids": {
@@ -2080,6 +2137,9 @@
                                         "uniqueItems": true
                                     },
                                     "tag_id": {
+                                        "type": "integer"
+                                    },
+                                    "channel_id": {
                                         "type": "integer"
                                     }
                                 },
@@ -2227,6 +2287,35 @@
                                                     "type": "array",
                                                     "items": {}
                                                 },
+                                                "notification_channel_ids": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "alerting": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "resend_interval_minutes": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_degraded": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "degraded_alert_after_seconds": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_changes": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "resend_interval_minutes",
+                                                        "notify_degraded",
+                                                        "degraded_alert_after_seconds",
+                                                        "notify_changes"
+                                                    ]
+                                                },
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
@@ -2339,6 +2428,8 @@
                                                 "parent_id",
                                                 "config",
                                                 "secret_keys",
+                                                "notification_channel_ids",
+                                                "alerting",
                                                 "tags",
                                                 "push_url",
                                                 "has_push_token",
@@ -2475,6 +2566,35 @@
                                                     "type": "array",
                                                     "items": {}
                                                 },
+                                                "notification_channel_ids": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "alerting": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "resend_interval_minutes": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_degraded": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "degraded_alert_after_seconds": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_changes": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "resend_interval_minutes",
+                                                        "notify_degraded",
+                                                        "degraded_alert_after_seconds",
+                                                        "notify_changes"
+                                                    ]
+                                                },
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
@@ -2587,6 +2707,8 @@
                                                 "parent_id",
                                                 "config",
                                                 "secret_keys",
+                                                "notification_channel_ids",
+                                                "alerting",
                                                 "tags",
                                                 "push_url",
                                                 "has_push_token",
@@ -2911,6 +3033,35 @@
                                                     "type": "array",
                                                     "items": {}
                                                 },
+                                                "notification_channel_ids": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "alerting": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "resend_interval_minutes": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_degraded": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "degraded_alert_after_seconds": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_changes": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "resend_interval_minutes",
+                                                        "notify_degraded",
+                                                        "degraded_alert_after_seconds",
+                                                        "notify_changes"
+                                                    ]
+                                                },
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
@@ -3023,6 +3174,8 @@
                                                 "parent_id",
                                                 "config",
                                                 "secret_keys",
+                                                "notification_channel_ids",
+                                                "alerting",
                                                 "tags",
                                                 "push_url",
                                                 "has_push_token",
@@ -3318,6 +3471,35 @@
                                                     "type": "array",
                                                     "items": {}
                                                 },
+                                                "notification_channel_ids": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "alerting": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "resend_interval_minutes": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_degraded": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "degraded_alert_after_seconds": {
+                                                            "type": "integer"
+                                                        },
+                                                        "notify_changes": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "resend_interval_minutes",
+                                                        "notify_degraded",
+                                                        "degraded_alert_after_seconds",
+                                                        "notify_changes"
+                                                    ]
+                                                },
                                                 "tags": {
                                                     "type": "array",
                                                     "items": {
@@ -3430,6 +3612,8 @@
                                                 "parent_id",
                                                 "config",
                                                 "secret_keys",
+                                                "notification_channel_ids",
+                                                "alerting",
                                                 "tags",
                                                 "push_url",
                                                 "has_push_token",
@@ -3557,6 +3741,842 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/notification-channels": {
+            "get": {
+                "operationId": "notificationChannel.index",
+                "tags": [
+                    "NotificationChannel"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#/components/schemas/ChannelType"
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 120
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "limit": {}
+                                            },
+                                            "required": [
+                                                "next_cursor",
+                                                "limit"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "notificationChannel.store",
+                "tags": [
+                    "NotificationChannel"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NotificationChannelRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "email",
+                                                        "webhook",
+                                                        "slack",
+                                                        "discord",
+                                                        "teams",
+                                                        "mattermost",
+                                                        "google_chat",
+                                                        "telegram",
+                                                        "ntfy",
+                                                        "gotify",
+                                                        "pushover",
+                                                        "matrix",
+                                                        "pagerduty",
+                                                        "opsgenie",
+                                                        "apprise"
+                                                    ]
+                                                },
+                                                "config": {
+                                                    "type": "string"
+                                                },
+                                                "secret_keys": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "templates": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "is_default": {
+                                                    "type": "boolean"
+                                                },
+                                                "active": {
+                                                    "type": "boolean"
+                                                },
+                                                "monitor_count": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "integer"
+                                                        },
+                                                        {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        }
+                                                    ]
+                                                },
+                                                "last_success_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_failure_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "type",
+                                                "config",
+                                                "secret_keys",
+                                                "templates",
+                                                "is_default",
+                                                "active",
+                                                "monitor_count",
+                                                "last_success_at",
+                                                "last_failure_at",
+                                                "last_error",
+                                                "created_at",
+                                                "updated_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/notification-channels/test": {
+            "post": {
+                "operationId": "notificationChannelTest.draft",
+                "summary": "Sends a test notification through a channel described by the request body, which is not saved",
+                "tags": [
+                    "NotificationChannelTest"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NotificationChannelRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "anyOf": [
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "ok": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "error": {
+                                                            "type": "string",
+                                                            "const": "Unexpected error"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "ok",
+                                                        "error"
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "ok": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "error": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "ok",
+                                                        "error"
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "ok": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "error": {
+                                                            "type": "null"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "ok",
+                                                        "error"
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/notification-channels/{channel}": {
+            "get": {
+                "operationId": "notificationChannel.show",
+                "tags": [
+                    "NotificationChannel"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "in": "path",
+                        "required": true,
+                        "description": "The channel ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "email",
+                                                        "webhook",
+                                                        "slack",
+                                                        "discord",
+                                                        "teams",
+                                                        "mattermost",
+                                                        "google_chat",
+                                                        "telegram",
+                                                        "ntfy",
+                                                        "gotify",
+                                                        "pushover",
+                                                        "matrix",
+                                                        "pagerduty",
+                                                        "opsgenie",
+                                                        "apprise"
+                                                    ]
+                                                },
+                                                "config": {
+                                                    "type": "string"
+                                                },
+                                                "secret_keys": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "templates": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "is_default": {
+                                                    "type": "boolean"
+                                                },
+                                                "active": {
+                                                    "type": "boolean"
+                                                },
+                                                "monitor_count": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "integer"
+                                                        },
+                                                        {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        }
+                                                    ]
+                                                },
+                                                "last_success_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_failure_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "type",
+                                                "config",
+                                                "secret_keys",
+                                                "templates",
+                                                "is_default",
+                                                "active",
+                                                "monitor_count",
+                                                "last_success_at",
+                                                "last_failure_at",
+                                                "last_error",
+                                                "created_at",
+                                                "updated_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "notificationChannel.update",
+                "tags": [
+                    "NotificationChannel"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "in": "path",
+                        "required": true,
+                        "description": "The channel ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NotificationChannelRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "email",
+                                                        "webhook",
+                                                        "slack",
+                                                        "discord",
+                                                        "teams",
+                                                        "mattermost",
+                                                        "google_chat",
+                                                        "telegram",
+                                                        "ntfy",
+                                                        "gotify",
+                                                        "pushover",
+                                                        "matrix",
+                                                        "pagerduty",
+                                                        "opsgenie",
+                                                        "apprise"
+                                                    ]
+                                                },
+                                                "config": {
+                                                    "type": "string"
+                                                },
+                                                "secret_keys": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "templates": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "is_default": {
+                                                    "type": "boolean"
+                                                },
+                                                "active": {
+                                                    "type": "boolean"
+                                                },
+                                                "monitor_count": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "integer"
+                                                        },
+                                                        {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        }
+                                                    ]
+                                                },
+                                                "last_success_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_failure_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "type",
+                                                "config",
+                                                "secret_keys",
+                                                "templates",
+                                                "is_default",
+                                                "active",
+                                                "monitor_count",
+                                                "last_success_at",
+                                                "last_failure_at",
+                                                "last_error",
+                                                "created_at",
+                                                "updated_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "notificationChannel.destroy",
+                "tags": [
+                    "NotificationChannel"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "in": "path",
+                        "required": true,
+                        "description": "The channel ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/notification-channels/{channel}/test": {
+            "post": {
+                "operationId": "notificationChannelTest.saved",
+                "summary": "Sends a test notification through a saved channel",
+                "tags": [
+                    "NotificationChannelTest"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "in": "path",
+                        "required": true,
+                        "description": "The channel ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "anyOf": [
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "ok": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "error": {
+                                                            "type": "string",
+                                                            "const": "Unexpected error"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "ok",
+                                                        "error"
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "ok": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "error": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "ok",
+                                                        "error"
+                                                    ]
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "ok": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "error": {
+                                                            "type": "null"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "ok",
+                                                        "error"
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
@@ -4052,6 +5072,27 @@
     },
     "components": {
         "schemas": {
+            "ChannelType": {
+                "type": "string",
+                "enum": [
+                    "email",
+                    "webhook",
+                    "slack",
+                    "discord",
+                    "teams",
+                    "mattermost",
+                    "google_chat",
+                    "telegram",
+                    "ntfy",
+                    "gotify",
+                    "pushover",
+                    "matrix",
+                    "pagerduty",
+                    "opsgenie",
+                    "apprise"
+                ],
+                "title": "ChannelType"
+            },
             "LoginRequest": {
                 "type": "object",
                 "properties": {
@@ -4098,6 +5139,19 @@
                 ],
                 "title": "MonitorType"
             },
+            "NotificationChannelRequest": {
+                "type": "object",
+                "description": "Validation of notification channel writes (create, update and the unsaved test send). The channel type\nsupplies the rules for `config` and `secrets`; this layer completes the input first (defaults, stored\nvalues) so the definitions can stay pure.\n\nOn update, `config` is merged over the stored config and a secret is replaced only when sent; sending\nnull removes it. The merged secrets are validated, so an update that leaves a required secret alone\npasses, while removing one is refused.",
+                "properties": {
+                    "type": {
+                        "$ref": "#/components/schemas/ChannelType"
+                    }
+                },
+                "required": [
+                    "type"
+                ],
+                "title": "NotificationChannelRequest"
+            },
             "SendPasswordResetLinkRequest": {
                 "type": "object",
                 "properties": {
@@ -4131,7 +5185,9 @@
                     "members:manage",
                     "audit:read",
                     "monitors:read",
-                    "monitors:write"
+                    "monitors:write",
+                    "notifications:read",
+                    "notifications:write"
                 ],
                 "title": "TokenAbility"
             },

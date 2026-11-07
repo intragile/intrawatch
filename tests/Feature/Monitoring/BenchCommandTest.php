@@ -52,7 +52,7 @@ class BenchCommandTest extends TestCase
             'last_seen_at' => $stale, 'monitors' => 7, 'checks_last_minute' => 0, 'max_drift_ms_last_minute' => 0, 'buffered' => 0,
         ]);
 
-        $this->assertSame(0, Artisan::call('intrawatch:bench', ['--monitors' => '10', '--interval' => '20', '--duration' => '2']));
+        $this->assertSame(0, Artisan::call('intrawatch:bench', ['--monitors' => '40', '--interval' => '20', '--duration' => '4']));
 
         $this->assertSame(1, DB::table('check_workers')->where([
             'shard' => 0, 'shards' => 4, 'monitors' => 7, 'hostname' => 'worker-a',

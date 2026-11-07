@@ -58,4 +58,14 @@ class WorkspacePolicy
     {
         return $this->atLeast($user, $workspace, WorkspaceRole::Editor);
     }
+
+    public function viewNotifications(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Viewer);
+    }
+
+    public function manageNotifications(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Editor);
+    }
 }

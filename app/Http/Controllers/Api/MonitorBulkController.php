@@ -6,6 +6,7 @@ use App\Enums\MonitorType;
 use App\Http\Controllers\Controller;
 use App\Jobs\PurgeMonitorData;
 use App\Models\Monitor;
+use App\Models\NotificationChannel;
 use App\Models\Tag;
 use App\Models\Workspace;
 use App\Monitoring\Engine\GroupEvaluator;
@@ -21,18 +22,20 @@ use Illuminate\Validation\Rule;
 
 class MonitorBulkController extends Controller
 {
-    private const ACTIONS = ['pause', 'resume', 'delete', 'tag', 'untag'];
+    private const ACTIONS = ['pause', 'resume', 'delete', 'tag', 'untag', 'notify', 'unnotify'];
 
     public function __construct(private readonly GroupEvaluator $groups) {}
 
     public function __invoke(Request $request, Workspace $workspace): JsonResponse
     {
         $needsTag = in_array($request->input('action'), ['tag', 'untag'], true);
+        $needsChannel = in_array($request->input('action'), ['notify', 'unnotify'], true);
         $request->validate([
             'action' => ['required', Rule::in(self::ACTIONS)],
             'ids' => ['required', 'array', 'min:1', 'max:500'],
             'ids.*' => ['integer', 'distinct'],
             'tag_id' => [$needsTag ? 'required' : 'prohibited', 'integer', Rule::exists('tags', 'id')->where('workspace_id', $workspace->id)],
+            'channel_id' => [$needsChannel ? 'required' : 'prohibited', 'integer', Rule::exists('notification_channels', 'id')->where('workspace_id', $workspace->id)],
         ]);
         $action = $request->string('action')->toString();
         $ids = [];
@@ -41,9 +44,11 @@ class MonitorBulkController extends Controller
         }
         $tag = $needsTag ? Tag::query()->forWorkspace($workspace)->findOrFail($request->integer('tag_id')) : null;
 
+        $channel = $needsChannel ? NotificationChannel::query()->forWorkspace($workspace)->findOrFail($request->integer('channel_id')) : null;
+
         $deleted = [];
         $transitions = [];
-        $affected = DB::transaction(function () use ($workspace, $ids, $action, $tag, &$deleted, &$transitions): int {
+        $affected = DB::transaction(function () use ($workspace, $ids, $action, $tag, $channel, &$deleted, &$transitions): int {
             $monitors = $workspace->monitors()->whereIn('id', $ids)->with('state')->orderBy('id')->get();
 
             $regroup = [];
@@ -57,6 +62,7 @@ class MonitorBulkController extends Controller
                 match ($action) {
                     'pause', 'resume' => $this->toggle($monitor, $action === 'resume'),
                     'delete' => $this->delete($monitor, $deleted),
+                    'notify', 'unnotify' => $this->rebind($monitor, $channel ?? throw new \LogicException('Missing channel.'), $action === 'notify'),
                     default => $this->retag($monitor, $tag ?? throw new \LogicException('Missing tag.'), $action === 'tag'),
                 };
             }
@@ -94,6 +100,16 @@ class MonitorBulkController extends Controller
         $monitor->delete();
         Audit::record('monitor.deleted', $monitor, ['name' => [$monitor->name, null]]);
         $deleted[] = $monitor->id;
+    }
+
+    private function rebind(Monitor $monitor, NotificationChannel $channel, bool $attach): void
+    {
+        $before = $monitor->notificationChannelIds();
+        $attach ? $monitor->notificationChannels()->syncWithoutDetaching([$channel->id]) : $monitor->notificationChannels()->detach($channel->id);
+        $after = $monitor->notificationChannelIds();
+        if ($before !== $after) {
+            Audit::record('monitor.updated', $monitor, ['notification_channel_ids' => [$before, $after]]);
+        }
     }
 
     private function retag(Monitor $monitor, Tag $tag, bool $attach): void

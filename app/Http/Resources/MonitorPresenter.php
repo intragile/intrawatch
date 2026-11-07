@@ -53,6 +53,13 @@ final class MonitorPresenter
             'parent_id' => $monitor->parent_id,
             'config' => $monitor->config,
             'secret_keys' => $secretKeys,
+            'notification_channel_ids' => self::channelIds($monitor),
+            'alerting' => [
+                'resend_interval_minutes' => $monitor->resend_interval_minutes,
+                'notify_degraded' => $monitor->notify_degraded,
+                'degraded_alert_after_seconds' => $monitor->degraded_alert_after_seconds,
+                'notify_changes' => $monitor->notify_changes,
+            ],
             'tags' => $monitor->tags->map(static fn (Tag $tag): array => [
                 'id' => $tag->id,
                 'name' => $tag->name,
@@ -78,6 +85,21 @@ final class MonitorPresenter
             'created_at' => $monitor->created_at?->toIso8601String(),
             'updated_at' => $monitor->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function channelIds(Monitor $monitor): array
+    {
+        if (! $monitor->relationLoaded('notificationChannels')) {
+            return $monitor->notificationChannelIds();
+        }
+
+        $ids = $monitor->notificationChannels->map(static fn ($channel): int => $channel->id)->all();
+        sort($ids);
+
+        return $ids;
     }
 
     private static function pivotValue(Tag $tag): ?string

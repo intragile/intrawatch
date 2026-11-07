@@ -62,6 +62,6 @@ class MonitorActionController extends Controller
             }
         });
 
-        return response()->json(['data' => MonitorPresenter::toArray($monitor->refresh()->load(['state', 'tags']), true)]);
+        return response()->json(['data' => MonitorPresenter::toArray($monitor->refresh()->load(['state', 'tags', 'notificationChannels:id']), true)]);
     }
 }

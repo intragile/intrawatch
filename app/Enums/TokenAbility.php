@@ -10,6 +10,8 @@ enum TokenAbility: string
     case AuditRead = 'audit:read';
     case MonitorsRead = 'monitors:read';
     case MonitorsWrite = 'monitors:write';
+    case NotificationsRead = 'notifications:read';
+    case NotificationsWrite = 'notifications:write';
 
     /**
      * The lowest workspace role allowed to hold this ability; a token can never exceed its creator's role.
@@ -17,8 +19,8 @@ enum TokenAbility: string
     public function minimumRole(): WorkspaceRole
     {
         return match ($this) {
-            self::WorkspaceRead, self::MonitorsRead => WorkspaceRole::Viewer,
-            self::MonitorsWrite => WorkspaceRole::Editor,
+            self::WorkspaceRead, self::MonitorsRead, self::NotificationsRead => WorkspaceRole::Viewer,
+            self::MonitorsWrite, self::NotificationsWrite => WorkspaceRole::Editor,
             self::WorkspaceManage, self::MembersManage, self::AuditRead => WorkspaceRole::Admin,
         };
     }

@@ -8,6 +8,9 @@ use App\Http\Controllers\Api\MonitorBulkController;
 use App\Http\Controllers\Api\MonitorController;
 use App\Http\Controllers\Api\MonitorHistoryController;
 use App\Http\Controllers\Api\MonitorTypeController;
+use App\Http\Controllers\Api\NotificationChannelController;
+use App\Http\Controllers\Api\NotificationChannelTestController;
+use App\Http\Controllers\Api\NotificationChannelTypeController;
 use App\Http\Controllers\Api\OpenApiController;
 use App\Http\Controllers\Api\PushController;
 use App\Http\Controllers\Api\SetupController;
@@ -36,6 +39,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/me', MeController::class);
 
         Route::get('/monitor-types', MonitorTypeController::class);
+        Route::get('/notification-channel-types', NotificationChannelTypeController::class);
 
         Route::get('/workspaces', [WorkspaceController::class, 'index']);
         Route::post('/workspaces', [WorkspaceController::class, 'store']);
@@ -77,6 +81,22 @@ Route::prefix('v1')->group(function (): void {
                 Route::post('/tags', [TagController::class, 'store']);
                 Route::patch('/tags/{tag}', [TagController::class, 'update'])->whereNumber('tag');
                 Route::delete('/tags/{tag}', [TagController::class, 'destroy'])->whereNumber('tag');
+            });
+
+            Route::middleware(['ability:notifications:read', 'can:viewNotifications,workspace'])->group(function (): void {
+                Route::get('/notification-channels', [NotificationChannelController::class, 'index']);
+                Route::get('/notification-channels/{channel}', [NotificationChannelController::class, 'show'])->whereNumber('channel');
+            });
+
+            Route::middleware(['ability:notifications:write', 'can:manageNotifications,workspace'])->group(function (): void {
+                Route::post('/notification-channels', [NotificationChannelController::class, 'store']);
+                Route::patch('/notification-channels/{channel}', [NotificationChannelController::class, 'update'])->whereNumber('channel');
+                Route::delete('/notification-channels/{channel}', [NotificationChannelController::class, 'destroy'])->whereNumber('channel');
+
+                Route::middleware('throttle:notification-test')->group(function (): void {
+                    Route::post('/notification-channels/test', [NotificationChannelTestController::class, 'draft']);
+                    Route::post('/notification-channels/{channel}/test', [NotificationChannelTestController::class, 'saved'])->whereNumber('channel');
+                });
             });
 
             Route::get('/tokens', [TokenController::class, 'index']);

@@ -102,6 +102,22 @@ class Monitor extends Model
     }
 
     /**
+     * Ids of the attached notification channels, ascending.
+     *
+     * @return list<int>
+     */
+    public function notificationChannelIds(): array
+    {
+        $ids = [];
+        foreach ($this->notificationChannels()->pluck('notification_channels.id') as $id) {
+            $ids[] = is_numeric($id) ? (int) $id : 0;
+        }
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
      * Ids of the assigned tags, ascending.
      *
      * @return list<int>

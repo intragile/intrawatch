@@ -23,6 +23,8 @@ abstract class MonitorRequest extends FormRequest
         'retry_interval_seconds', 'degraded_threshold_ms', 'inverted', 'parent_id', 'config', 'secrets',
     ];
 
+    private const ALERTING_COLUMNS = ['resend_interval_minutes', 'notify_degraded', 'degraded_alert_after_seconds', 'notify_changes'];
+
     public function authorize(): bool
     {
         return true;
@@ -104,6 +106,13 @@ abstract class MonitorRequest extends FormRequest
             'tags.*.value' => ['nullable', 'string', 'max:120'],
             'config' => ['array'],
             'secrets' => ['array'],
+            'notification_channel_ids' => ['array', 'max:50'],
+            'notification_channel_ids.*' => ['integer', 'distinct', Rule::exists('notification_channels', 'id')->where('workspace_id', app(CurrentWorkspace::class)->get()->id)],
+            'alerting' => ['array'],
+            'alerting.resend_interval_minutes' => ['integer', 'between:0,10080'],
+            'alerting.notify_degraded' => ['boolean'],
+            'alerting.degraded_alert_after_seconds' => ['integer', 'between:0,86400'],
+            'alerting.notify_changes' => ['boolean'],
         ];
 
         foreach ($definition->configRules() as $key => $rule) {
@@ -205,7 +214,7 @@ abstract class MonitorRequest extends FormRequest
             $columns['secrets'] = null;
         }
 
-        return $columns;
+        return $columns + $this->alertingColumns();
     }
 
     /**
@@ -227,6 +236,50 @@ abstract class MonitorRequest extends FormRequest
         }
 
         return $assignments;
+    }
+
+    /**
+     * Channel ids to bind the monitor to, or null when the request leaves the binding alone.
+     *
+     * @return list<int>|null
+     */
+    public function notificationChannelIds(): ?array
+    {
+        if (! $this->has('notification_channel_ids')) {
+            return null;
+        }
+
+        $ids = [];
+        foreach (Arr::wrap($this->validated('notification_channel_ids', [])) as $id) {
+            if (is_numeric($id)) {
+                $ids[] = (int) $id;
+            }
+        }
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
+     * The alerting columns the request sets; absent settings are left out so an update merges partially.
+     *
+     * @return array<string, bool|int>
+     */
+    protected function alertingColumns(): array
+    {
+        $alerting = $this->validated('alerting', []);
+        $columns = [];
+        if (is_array($alerting)) {
+            foreach (self::ALERTING_COLUMNS as $column) {
+                if (array_key_exists($column, $alerting) && (is_int($alerting[$column]) || is_bool($alerting[$column]) || is_numeric($alerting[$column]))) {
+                    $columns[$column] = in_array($column, ['notify_degraded', 'notify_changes'], true)
+                        ? filter_var($alerting[$column], FILTER_VALIDATE_BOOL)
+                        : (int) $alerting[$column];
+                }
+            }
+        }
+
+        return $columns;
     }
 
     public function parentId(): ?int

@@ -41,10 +41,11 @@ class UpdateMonitorRequest extends MonitorRequest
     public function changes(): array
     {
         $columns = $this->columns();
+        $alerting = $this->alertingColumns();
 
         $changes = [];
         foreach ($columns as $column => $value) {
-            if ($column === 'config' || $column === 'secrets' || $this->has($column)) {
+            if ($column === 'config' || $column === 'secrets' || $this->has($column) || array_key_exists($column, $alerting)) {
                 $changes[$column] = $value;
             }
         }

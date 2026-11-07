@@ -43,7 +43,7 @@ class MonitorController extends Controller
             'active' => ['sometimes', 'in:true,false,1,0'],
         ]);
 
-        $query = $workspace->monitors()->with(['state', 'tags'])->orderBy('monitors.id');
+        $query = $workspace->monitors()->with(['state', 'tags', 'notificationChannels:id'])->orderBy('monitors.id');
 
         $query->when($request->has('type'), fn (Builder $q) => $q->where('monitors.type', $request->string('type')->toString()));
         $query->when($request->has('status'), fn (Builder $q) => $q->whereHas(
@@ -82,13 +82,17 @@ class MonitorController extends Controller
         }
 
         $transitions = [];
-        DB::transaction(function () use ($monitor, $request, &$transitions): void {
+        DB::transaction(function () use ($monitor, $request, $workspace, &$transitions): void {
             $monitor->save();
             $tags = $request->tagAssignments();
             if ($tags !== null) {
                 $monitor->tags()->sync($tags);
             }
-            Audit::record('monitor.created', $monitor, $this->createdChanges($monitor, $tags ?? []));
+            $channelIds = $request->notificationChannelIds() ?? $this->defaultChannelIds($workspace);
+            $monitor->notificationChannels()->sync($channelIds);
+            Audit::record('monitor.created', $monitor, $this->createdChanges($monitor, $tags ?? []) + [
+                'notification_channel_ids' => [[], $channelIds],
+            ]);
             if ($monitor->parent_id !== null) {
                 $transitions = $this->groups->recompute([$monitor->parent_id]);
             }
@@ -119,6 +123,7 @@ class MonitorController extends Controller
             $before = $monitor->only(array_keys($changes));
             $oldSecretKeys = $this->secretKeys($monitor->secrets);
             $oldTags = $monitor->tagIds();
+            $oldChannelIds = $monitor->notificationChannelIds();
             $wasActive = $monitor->active;
             $oldTiming = $this->deadlineTiming($monitor);
 
@@ -153,6 +158,13 @@ class MonitorController extends Controller
             $newSecretKeys = $this->secretKeys($monitor->secrets);
             if ($oldSecretKeys !== $newSecretKeys) {
                 $diff['secret_keys'] = [$oldSecretKeys, $newSecretKeys];
+            }
+            $channelIds = $request->notificationChannelIds();
+            if ($channelIds !== null) {
+                $monitor->notificationChannels()->sync($channelIds);
+                if ($oldChannelIds !== $channelIds) {
+                    $diff['notification_channel_ids'] = [$oldChannelIds, $channelIds];
+                }
             }
             if ($tags !== null && $oldTags !== ($newTags = $monitor->refresh()->tagIds())) {
                 $diff['tags'] = [$oldTags, $newTags];
@@ -214,6 +226,21 @@ class MonitorController extends Controller
         ];
     }
 
+    /**
+     * Ids of the workspace's active default channels, ascending.
+     *
+     * @return list<int>
+     */
+    private function defaultChannelIds(Workspace $workspace): array
+    {
+        $ids = [];
+        foreach ($workspace->notificationChannels()->where('is_default', true)->where('active', true)->orderBy('id')->pluck('id') as $id) {
+            $ids[] = is_numeric($id) ? (int) $id : 0;
+        }
+
+        return $ids;
+    }
+
     private function monitor(Model $model): Monitor
     {
         return $model instanceof Monitor ? $model : throw new \LogicException('Expected a monitor.');
@@ -221,7 +248,7 @@ class MonitorController extends Controller
 
     private function fresh(Monitor $monitor): Monitor
     {
-        return $monitor->refresh()->load(['state', 'tags']);
+        return $monitor->refresh()->load(['state', 'tags', 'notificationChannels:id']);
     }
 
     private function parent(Workspace $workspace, ?int $id): ?Monitor

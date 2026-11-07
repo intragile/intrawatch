@@ -40,13 +40,18 @@ class Workspace extends Model
     }
 
     /**
-     * A `{user}` route parameter below a workspace resolves to one of its members.
+     * A `{user}` route parameter below a workspace resolves to one of its members, a `{channel}` to one of
+     * its notification channels.
      *
      * @param  string  $childType
      */
     protected function childRouteBindingRelationshipName($childType): string
     {
-        return $childType === 'user' ? 'members' : parent::childRouteBindingRelationshipName($childType);
+        return match ($childType) {
+            'user' => 'members',
+            'channel' => 'notificationChannels',
+            default => parent::childRouteBindingRelationshipName($childType),
+        };
     }
 
     /**
