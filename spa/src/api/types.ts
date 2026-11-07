@@ -32,6 +32,7 @@ export type Incident = Item<GetOk<'/workspaces/{workspace}/incidents/{incident}'
 export type IncidentTimelineEntry = paths['/workspaces/{workspace}/incidents/{incident}/updates']['post']['responses'][201]['content']['application/json']['data']
 export type Maintenance = Item<GetOk<'/workspaces/{workspace}/maintenances'>>
 export type StatusPageSummary = Item<GetOk<'/workspaces/{workspace}/status-pages'>>
+export type StatusPage = Item<GetOk<'/workspaces/{workspace}/status-pages/{statusPage}'>>
 export type Tag = Item<GetOk<'/workspaces/{workspace}/tags'>>
 
 export type MonitorTypeInfo = GetOk<'/monitor-types'>[number]

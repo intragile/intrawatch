@@ -79,12 +79,12 @@ const workspaceRoutes: RouteRecordRaw[] = [
   {
     path: 'status-pages',
     name: 'ws.status-pages',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/status-pages/StatusPageListView.vue'),
   },
   {
     path: 'status-pages/:statusPage(new|\\d+)',
     name: 'ws.status-page',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/status-pages/StatusPageEditView.vue'),
   },
   {
     path: 'settings',

@@ -1059,5 +1059,108 @@
       "text": "You have unsaved changes. If you leave this page they are lost.",
       "confirm": "Discard changes"
     }
+  },
+  "statusPages": {
+    "title": "Status pages",
+    "new": "New status page",
+    "newTitle": "New status page",
+    "editTitle": "Edit status page",
+    "loading": "Loading the status page",
+    "retry": "Try again",
+    "settings": "Settings",
+    "readOnly": "You have read-only access to this status page.",
+    "openPublic": "Open public page",
+    "openDomain": "Open {domain}",
+    "noChanges": "Nothing to save.",
+    "created": "Status page created.",
+    "updated": "Status page saved.",
+    "staleNote": "Public status pages may show changes after up to 60 s.",
+    "uptimeDays": "{count} days",
+    "empty": {
+      "title": "No status pages",
+      "text": "Create one to show your monitors' status to your customers."
+    },
+    "columns": {
+      "title": "Status page",
+      "address": "Address",
+      "state": "State",
+      "actions": "Actions"
+    },
+    "state": {
+      "published": "Published",
+      "draft": "Draft"
+    },
+    "locale": {
+      "en": "English",
+      "hu": "Hungarian"
+    },
+    "fields": {
+      "title": "Title",
+      "slug": "Slug",
+      "description": "Description",
+      "locale": "Language",
+      "published": "Published",
+      "customDomain": "Custom domain",
+      "barDays": "Status bar range (days)",
+      "uptimeDays": "Uptime shown for",
+      "incidentHistoryDays": "Incident history (days)",
+      "upcomingMaintenanceDays": "Upcoming maintenance (days)",
+      "showLatency": "Show response times",
+      "accentColor": "Accent colour",
+      "logoUrl": "Logo URL",
+      "faviconUrl": "Favicon URL",
+      "footer": "Footer text",
+      "customCss": "Custom CSS"
+    },
+    "hints": {
+      "slug": "The public page is served at /status/{slug}.",
+      "published": "Unpublished pages are not reachable by visitors.",
+      "customDomain": "Point a DNS record for this host to this server. This installation's own host (the APP_URL host) is rejected.",
+      "barDays": "Between 7 and 365.",
+      "uptimeDays": "The window of the uptime percentage.",
+      "incidentHistoryDays": "How far back resolved incidents are listed (0 to 90).",
+      "upcomingMaintenanceDays": "How far ahead planned maintenance is shown (0 to 90).",
+      "accentColor": "Hex value such as #2563eb.",
+      "https": "An https address without credentials."
+    },
+    "display": {
+      "title": "What visitors see"
+    },
+    "branding": {
+      "title": "Branding"
+    },
+    "layout": {
+      "title": "Layout",
+      "help": "Sections and monitors appear on the public page in this order. Saving replaces the whole layout.",
+      "save": "Save layout",
+      "saved": "Layout saved.",
+      "afterCreate": "Create the page first, then arrange its sections and monitors.",
+      "addSection": "Add section",
+      "noSections": "No sections yet.",
+      "noItems": "No monitors in this section.",
+      "items": "Monitors in this section",
+      "sectionName": "Section name",
+      "sectionDescription": "Section description",
+      "addMonitor": "Add a monitor (search by name)",
+      "monitorById": "Monitor #{id}",
+      "showUptime": "Uptime",
+      "expandChildren": "Group members",
+      "moveSectionUp": "Move section {name} up",
+      "moveSectionDown": "Move section {name} down",
+      "removeSection": "Remove section {name}",
+      "moveItemUp": "Move {name} up",
+      "moveItemDown": "Move {name} down",
+      "removeItem": "Remove {name} from the section"
+    },
+    "delete": {
+      "title": "Delete this status page?",
+      "text": "{title} and its layout are removed and its public address stops working.",
+      "deleted": "Status page deleted."
+    },
+    "leave": {
+      "title": "Discard changes?",
+      "text": "You have unsaved changes. If you leave this page they are lost.",
+      "confirm": "Discard changes"
+    }
   }
 }

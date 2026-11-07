@@ -1059,5 +1059,108 @@
       "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
       "confirm": "Módosítások elvetése"
     }
+  },
+  "statusPages": {
+    "title": "Státuszoldalak",
+    "new": "Új státuszoldal",
+    "newTitle": "Új státuszoldal",
+    "editTitle": "Státuszoldal szerkesztése",
+    "loading": "Státuszoldal betöltése",
+    "retry": "Újra",
+    "settings": "Beállítások",
+    "readOnly": "Ehhez a státuszoldalhoz csak olvasási jogod van.",
+    "openPublic": "Nyilvános oldal megnyitása",
+    "openDomain": "{domain} megnyitása",
+    "noChanges": "Nincs mit menteni.",
+    "created": "A státuszoldal létrejött.",
+    "updated": "A státuszoldal mentve.",
+    "staleNote": "A nyilvános státuszoldalakon a változás akár 60 másodperc késéssel jelenhet meg.",
+    "uptimeDays": "{count} nap",
+    "empty": {
+      "title": "Nincs státuszoldal",
+      "text": "Hozz létre egyet, hogy az ügyfeleid lássák a monitoraid állapotát."
+    },
+    "columns": {
+      "title": "Státuszoldal",
+      "address": "Cím",
+      "state": "Állapot",
+      "actions": "Műveletek"
+    },
+    "state": {
+      "published": "Közzétéve",
+      "draft": "Piszkozat"
+    },
+    "locale": {
+      "en": "angol",
+      "hu": "magyar"
+    },
+    "fields": {
+      "title": "Cím",
+      "slug": "Azonosító (slug)",
+      "description": "Leírás",
+      "locale": "Nyelv",
+      "published": "Közzétéve",
+      "customDomain": "Egyedi domain",
+      "barDays": "Állapotsáv időtartama (nap)",
+      "uptimeDays": "Rendelkezésre állás ennyi időre",
+      "incidentHistoryDays": "Incidenselőzmények (nap)",
+      "upcomingMaintenanceDays": "Közelgő karbantartás (nap)",
+      "showLatency": "Válaszidők mutatása",
+      "accentColor": "Kiemelőszín",
+      "logoUrl": "Logó URL-je",
+      "faviconUrl": "Favicon URL-je",
+      "footer": "Lábléc szövege",
+      "customCss": "Egyedi CSS"
+    },
+    "hints": {
+      "slug": "A nyilvános oldal címe: /status/{slug}.",
+      "published": "A nem közzétett oldalt a látogatók nem érik el.",
+      "customDomain": "Irányíts egy DNS-rekordot erről a hostról erre a szerverre. A telepítés saját hostját (az APP_URL hostját) a rendszer elutasítja.",
+      "barDays": "7 és 365 között.",
+      "uptimeDays": "A rendelkezésre állási százalék időablaka.",
+      "incidentHistoryDays": "Milyen messzire látszanak a lezárt incidensek (0–90).",
+      "upcomingMaintenanceDays": "Milyen messzire látszik a tervezett karbantartás (0–90).",
+      "accentColor": "Hexa érték, például #2563eb.",
+      "https": "Https cím, hitelesítő adatok nélkül."
+    },
+    "display": {
+      "title": "Amit a látogatók látnak"
+    },
+    "branding": {
+      "title": "Megjelenés"
+    },
+    "layout": {
+      "title": "Elrendezés",
+      "help": "A szekciók és a monitorok a nyilvános oldalon ebben a sorrendben jelennek meg. A mentés az egész elrendezést felülírja.",
+      "save": "Elrendezés mentése",
+      "saved": "Az elrendezés mentve.",
+      "afterCreate": "Előbb hozd létre az oldalt, utána rendezheted a szekciókat és a monitorokat.",
+      "addSection": "Szekció hozzáadása",
+      "noSections": "Még nincs szekció.",
+      "noItems": "Ebben a szekcióban nincs monitor.",
+      "items": "A szekció monitorai",
+      "sectionName": "Szekció neve",
+      "sectionDescription": "Szekció leírása",
+      "addMonitor": "Monitor hozzáadása (keresés név szerint)",
+      "monitorById": "#{id} monitor",
+      "showUptime": "Rendelkezésre állás",
+      "expandChildren": "Csoport tagjai",
+      "moveSectionUp": "{name} szekció feljebb",
+      "moveSectionDown": "{name} szekció lejjebb",
+      "removeSection": "{name} szekció törlése",
+      "moveItemUp": "{name} feljebb",
+      "moveItemDown": "{name} lejjebb",
+      "removeItem": "{name} eltávolítása a szekcióból"
+    },
+    "delete": {
+      "title": "Törlöd a státuszoldalt?",
+      "text": "A(z) {title} és az elrendezése törlődik, a nyilvános címe megszűnik.",
+      "deleted": "A státuszoldal törölve."
+    },
+    "leave": {
+      "title": "Elveted a módosításokat?",
+      "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "confirm": "Módosítások elvetése"
+    }
   }
 }
