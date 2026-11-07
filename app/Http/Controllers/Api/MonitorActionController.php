@@ -65,6 +65,8 @@ class MonitorActionController extends Controller
         $events = [];
         $jobs = [];
         DB::transaction(function () use ($monitor, $active, &$events, &$jobs): void {
+            $events = [];
+            $jobs = [];
             if (! MonitorActivation::apply($monitor, $active)) {
                 return;
             }

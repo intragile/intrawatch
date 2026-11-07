@@ -404,6 +404,11 @@ final class AlertMachine
 
     private function nextReminder(): ?CarbonImmutable
     {
+        // A pending monitor, such as a group whose children are all paused, has nothing left to evaluate and
+        // must not keep reminding of an outage it can no longer confirm.
+        if ($this->current === MonitorStatus::Pending) {
+            return null;
+        }
         if ($this->flapping || $this->notified !== AlertClass::Down || $this->observed !== AlertClass::Down
             || $this->policy->resendIntervalMinutes <= 0 || $this->lastNotifiedAt === null || $this->isCurrentlyMuted()) {
             return null;

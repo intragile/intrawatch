@@ -182,6 +182,44 @@ class AlertPipelineTest extends TestCase
         $this->assertSame([$group->id], array_keys(AlertSignals::fromPayload($job->signals)));
     }
 
+    public function test_group_with_nothing_left_to_evaluate_sends_no_reminders(): void
+    {
+        foreach (['down' => CheckOutcome::down('refused'), 'up' => CheckOutcome::up(10)] as $label => $outcome) {
+            CarbonImmutable::setTestNow($this->t0);
+            $group = Monitor::factory()->for($this->ws)->group('all')->create(['resend_interval_minutes' => 10]);
+            $this->channel($group);
+            $a = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+            $b = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+            $this->record($b, CheckOutcome::up(10), 0);
+            $this->record($a, CheckOutcome::up(10), 0);
+            $this->record($a, CheckOutcome::down('refused'), 60);
+            $this->assertSame(['down'], $this->kinds($group), $label);
+
+            // Both children paused: the group is pending and has nothing to report on.
+            CarbonImmutable::setTestNow($this->t0->addSeconds(90));
+            $this->actingAs($this->editor())->postJson($this->api('/monitors/bulk'), ['action' => 'pause', 'ids' => [$a->id, $b->id]])->assertOk();
+            $this->assertSame(MonitorStatus::Pending, $group->state()->firstOrFail()->status, $label);
+            $this->tick(60 + 11 * 60);
+            $this->assertSame(['down'], $this->kinds($group), "{$label}: no reminder while pending");
+            $this->assertNull(AlertState::findOrFail($group->id)->due_at, $label);
+
+            // A child comes back and decides the group's status again. It is resumed without a group recompute,
+            // so the group moves from pending straight to the child's first result.
+            CarbonImmutable::setTestNow($this->t0->addSeconds(900));
+            MonitorActivation::apply($b->fresh() ?? $b, true);
+            $this->record($b, $outcome, 960);
+            if ($label === 'down') {
+                $this->assertSame(MonitorStatus::Down, $group->state()->firstOrFail()->status);
+                $this->assertSame(['down'], $this->kinds($group), 'the outage was alerted already');
+                $this->tick(961);
+                $this->assertSame(['down', 'still_down'], $this->kinds($group), 'reminders resume');
+            } else {
+                $this->assertSame(MonitorStatus::Up, $group->state()->firstOrFail()->status);
+                $this->assertSame(['down', 'up'], $this->kinds($group));
+            }
+        }
+    }
+
     public function test_status_change_creates_alert_event_and_delivery_per_bound_channel(): void
     {
         $monitor = $this->monitor(['retries' => 1]);

@@ -29,7 +29,8 @@ class BenchCommandTest extends TestCase
 
     public function test_bench_checks_the_local_target_reports_drift_and_cleans_up(): void
     {
-        // Monitor ids whose spread first checks all fall after the first five seconds of a 20-second interval.
+        // Monitor ids whose spread first checks would all fall after the first five seconds of a 20-second
+        // interval; the two-interval run checks them all the same.
         $this->startMonitorIdsAt(265313);
 
         $exit = Artisan::call('intrawatch:bench', self::RUN);

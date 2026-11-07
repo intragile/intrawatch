@@ -51,6 +51,9 @@ class MonitorBulkController extends Controller
         $events = [];
         $jobs = [];
         $affected = DB::transaction(function () use ($workspace, $ids, $action, $tag, $channel, &$deleted, &$events, &$jobs): int {
+            $deleted = [];
+            $events = [];
+            $jobs = [];
             $monitors = $workspace->monitors()->whereIn('id', $ids)->with('state')->orderBy('id')->get();
 
             $regroup = [];

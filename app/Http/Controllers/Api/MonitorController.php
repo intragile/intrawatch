@@ -88,6 +88,8 @@ class MonitorController extends Controller
         $events = [];
         $jobs = [];
         DB::transaction(function () use ($monitor, $request, $workspace, &$events, &$jobs): void {
+            $events = [];
+            $jobs = [];
             $monitor->save();
             $tags = $request->tagAssignments();
             if ($tags !== null) {
@@ -126,6 +128,8 @@ class MonitorController extends Controller
         $events = [];
         $jobs = [];
         DB::transaction(function () use ($request, $monitor, $changes, $active, &$events, &$jobs): void {
+            $events = [];
+            $jobs = [];
             $oldParentId = $monitor->parent_id;
             $before = $monitor->only(array_keys($changes));
             $oldSecretKeys = $this->secretKeys($monitor->secrets);
@@ -207,6 +211,8 @@ class MonitorController extends Controller
         $events = [];
         $jobs = [];
         DB::transaction(function () use ($monitor, &$events, &$jobs): void {
+            $events = [];
+            $jobs = [];
             GroupHierarchy::detachChildren($monitor);
             $monitor->delete();
             Audit::record('monitor.deleted', $monitor, ['name' => [$monitor->name, null]]);
