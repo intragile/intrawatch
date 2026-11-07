@@ -1,5 +1,11 @@
 import { enableAutoUnmount } from '@vue/test-utils'
-import { afterEach, vi } from 'vitest'
+import { afterEach, beforeAll, vi } from 'vitest'
+import { loadLocaleMessages } from '../i18n'
+
+// Messages load lazily in the app; specs render translated text from the start.
+beforeAll(async () => {
+  await loadLocaleMessages('en')
+})
 
 // jsdom has no canvas; specs that need to observe the chart mock this module themselves.
 vi.mock('uplot', () => ({

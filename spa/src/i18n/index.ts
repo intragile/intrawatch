@@ -1,8 +1,7 @@
 import { createI18n } from 'vue-i18n'
 import { readPreference, writePreference } from '../utils/storage'
-import en from './en.json'
 
-export type MessageSchema = typeof en
+export type MessageSchema = typeof import('./en.json')
 export const LOCALES = ['en', 'hu'] as const
 export type Locale = typeof LOCALES[number]
 
@@ -25,27 +24,24 @@ export function detectLocale(): Locale {
     : 'en'
 }
 
-/**
- * English ships in the main bundle as the fallback; every other locale is a separate chunk fetched the
- * first time it is applied.
- */
+/** Every locale is a separate chunk fetched the first time it is needed. */
 const LOADERS: Record<Locale, () => Promise<MessageSchema>> = {
-  en: async () => en,
+  en: async () => (await import('./en.json')).default,
   hu: async () => (await import('./hu.json')).default,
 }
-
-/** Only English is present up front; the rest are added by loadLocaleMessages(). */
-const initialMessages: Partial<Record<Locale, MessageSchema>> = { en }
 
 export const i18n = createI18n({
   legacy: false,
   locale: detectLocale(),
-  fallbackLocale: 'en',
-  messages: initialMessages,
+  fallbackLocale: 'en' satisfies Locale,
+  messages: {},
 })
 
-const loaded = new Set<Locale>(['en'])
+const loaded = new Set<Locale>()
 let requested: Locale | null = null
+
+/** The locale that backs missing keys of the active one. */
+export const FALLBACK_LOCALE: Locale = 'en'
 
 /** Makes the messages of a locale available, fetching them on first use. */
 export async function loadLocaleMessages(locale: Locale): Promise<void> {
