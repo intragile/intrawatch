@@ -256,6 +256,8 @@ while true; do
 done
 ok "alert history lists both alerts with sent deliveries"
 
+# Pause the monitor first, so it cannot raise more alerts once the helpers stop or while the container stops.
+[[ "$(http_code "${AUTH[@]}" -X POST "$WS_URL/monitors/$TCP_ID/pause")" == "200" ]] || fail "could not pause the tcp monitor"
 timeout 30 docker exec "$NAME" sh -c 'kill $(cat /tmp/smoke-alerts/receiver.pid /tmp/smoke-alerts/target.pid) 2>/dev/null; rm -rf /tmp/smoke-alerts /tmp/smoke-target' || true
 
 [[ "$(timeout 30 docker exec "$NAME" id -u)" == "1000" ]] || fail "docker exec does not run as uid 1000"

@@ -311,11 +311,11 @@ update binds it to every existing monitor of the workspace.
 | Endpoint | Ability |
 | --- | --- |
 | `GET /api/v1/notification-channel-types` | any signed-in user |
-| `GET /workspaces/{workspace}/notification-channels`, `GET …/notification-channels/{channel}` | `notifications:read` |
-| `POST …/notification-channels`, `PATCH`/`DELETE …/notification-channels/{channel}` | `notifications:write` |
-| `POST …/notification-channels/test` (unsaved), `POST …/notification-channels/{channel}/test` | `notifications:write` (10 per minute per user) |
-| `GET /workspaces/{workspace}/alerts` | `notifications:read` |
-| `GET /workspaces/{workspace}/monitors/{monitor}/alerts` | `monitors:read` and `notifications:read` |
+| `GET /api/v1/workspaces/{workspace}/notification-channels`, `GET /api/v1/workspaces/{workspace}/notification-channels/{channel}` | `notifications:read` |
+| `POST /api/v1/workspaces/{workspace}/notification-channels`, `PATCH`/`DELETE /api/v1/workspaces/{workspace}/notification-channels/{channel}` | `notifications:write` |
+| `POST /api/v1/workspaces/{workspace}/notification-channels/test` (unsaved), `POST /api/v1/workspaces/{workspace}/notification-channels/{channel}/test` | `notifications:write` (10 per minute per user) |
+| `GET /api/v1/workspaces/{workspace}/alerts` | `notifications:read` |
+| `GET /api/v1/workspaces/{workspace}/monitors/{monitor}/alerts` | `monitors:read` and `notifications:read` |
 
 API tokens need `notifications:read` (Viewers and above) to read channels and
 the alert history, and `notifications:write` (Editors and above) to manage and
@@ -431,13 +431,15 @@ mention users (`@everyone`, `<!channel>`) or inject markup.
 
 #### Alert history
 
-`GET /workspaces/{workspace}/alerts` lists alerts newest first, with the
-filters `monitor_id`, `kind` and `since` (ISO 8601, inclusive), and each
+`GET /api/v1/workspaces/{workspace}/alerts` lists alerts newest first, with
+the filters `monitor_id`, `kind` and `since` (inclusive; an ISO 8601 date or a
+date-time to the second with an offset, such as `2026-03-10T10:00:00Z`;
+fractional seconds are rejected with a 422), and each
 alert's `deliveries` (`channel`, `status`: `queued`, `sent` or `failed`,
 `attempts`, `last_error`, `sent_at`). `monitor` is `null` once the monitor is
 deleted and `channel` is `null` once the channel is deleted.
-`GET /workspaces/{workspace}/monitors/{monitor}/alerts` is the same list for
-one monitor.
+`GET /api/v1/workspaces/{workspace}/monitors/{monitor}/alerts` is the same
+list for one monitor.
 
 #### Notification targets and SSRF
 

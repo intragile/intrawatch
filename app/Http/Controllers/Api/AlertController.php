@@ -11,6 +11,7 @@ use App\Models\Monitor;
 use App\Models\Workspace;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,13 @@ use Illuminate\Validation\Rule;
  */
 class AlertController extends Controller
 {
+    /**
+     * Allowed lead of a delivery's `created_at` over its alert's. The alert carries the time of the check result,
+     * taken on the checker's host, and the delivery the evaluation time on the queue worker's host; with several
+     * hosts their clocks may differ slightly.
+     */
+    private const DELIVERY_CLOCK_SKEW_SECONDS = 300;
+
     /**
      * List the workspace's alerts, newest first. Filters: `monitor_id`, `kind`, `since` (ISO 8601, inclusive).
      */
@@ -52,7 +60,8 @@ class AlertController extends Controller
     }
 
     /**
-     * `since` is an ISO 8601 date or date-time with an offset (`2026-03-10`, `2026-03-10T10:00:00Z`).
+     * `since` is an ISO 8601 date or a date-time to the second with an offset (`2026-03-10`, `2026-03-10T10:00:00Z`,
+     * `2026-03-10T11:00:00+01:00`); fractional seconds are rejected.
      *
      * @return array<string, list<mixed>>
      */
@@ -60,7 +69,7 @@ class AlertController extends Controller
     {
         return [
             'kind' => ['sometimes', Rule::enum(AlertKind::class)],
-            'since' => ['sometimes', 'string', 'regex:/^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[+-]\\d{2}:\\d{2}))?$/', 'date'],
+            'since' => ['sometimes', 'string', 'regex:/^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2}))?$/', 'date'],
         ];
     }
 
@@ -85,28 +94,29 @@ class AlertController extends Controller
     }
 
     /**
+     * Pages the alerts. The deliveries of the whole page are loaded right after the page query, in one query, and
+     * each item reads its own from that map.
+     *
      * @param  Builder<AlertEvent>  $query
      */
     private function page(Builder $query, Request $request, Workspace $workspace): JsonResponse
     {
-        $response = CursorPage::from($query, $request, fn (Model $model): array => $this->alert($model));
+        /** @var array<int, list<array<string, mixed>>> $deliveries */
+        $deliveries = [];
+        $query->afterQuery(function (Collection $events) use ($workspace, &$deliveries): void {
+            $deliveries = $this->deliveries($workspace, $events);
+        });
 
-        /** @var array{data: list<array<string, mixed>>, meta: array<string, mixed>} $payload */
-        $payload = $response->getData(true);
-        $eventIds = array_map(static fn (array $alert): mixed => $alert['id'], $payload['data']);
-        $deliveries = $this->deliveries($workspace, array_values(array_filter($eventIds, 'is_int')));
-
-        foreach ($payload['data'] as $i => $alert) {
-            $payload['data'][$i]['deliveries'] = is_int($alert['id']) ? ($deliveries[$alert['id']] ?? []) : [];
-        }
-
-        return $response->setData($payload);
+        return CursorPage::from($query, $request, function (Model $model) use (&$deliveries): array {
+            return $this->alert($model, $deliveries);
+        });
     }
 
     /**
+     * @param  array<int, list<array<string, mixed>>>  $deliveries  Keyed by alert id.
      * @return array<string, mixed>
      */
-    private function alert(Model $model): array
+    private function alert(Model $model, array $deliveries): array
     {
         /** @var AlertEvent $event */
         $event = $model;
@@ -127,7 +137,7 @@ class AlertController extends Controller
             ),
             'suppressed_by_monitor_id' => $event->suppressed_by_monitor_id,
             'created_at' => $event->created_at->toIso8601String(),
-            'deliveries' => [],
+            'deliveries' => $deliveries[$event->id] ?? [],
         ];
     }
 
@@ -135,18 +145,27 @@ class AlertController extends Controller
      * The deliveries naming any of the given alerts, keyed by alert id, oldest first. A digest delivery covers
      * several alerts and is listed under each of them. One query for the whole page.
      *
-     * @param  list<int>  $eventIds
+     * A delivery is written when its alert is evaluated, which is at or after the alert's `created_at` (the time
+     * of the check result that raised it), so the lookup starts at the oldest alert of the page, less
+     * DELIVERY_CLOCK_SKEW_SECONDS, instead of scanning the workspace's whole delivery history.
+     *
+     * @param  Collection<int, AlertEvent>  $events
      * @return array<int, list<array<string, mixed>>>
      */
-    private function deliveries(Workspace $workspace, array $eventIds): array
+    private function deliveries(Workspace $workspace, Collection $events): array
     {
-        if ($eventIds === []) {
+        if ($events->isEmpty()) {
             return [];
         }
+        $eventIds = $events->map(static fn (AlertEvent $event): int => $event->id)->values()->all();
+        $oldest = $events->min(static fn (AlertEvent $event): int => $event->created_at->getTimestamp());
+        $since = CarbonImmutable::createFromTimestamp(is_int($oldest) ? $oldest : 0, 'UTC')
+            ->subSeconds(self::DELIVERY_CLOCK_SKEW_SECONDS);
 
         $rows = AlertDelivery::query()
             ->with('channel:id,name,type')
             ->where('workspace_id', $workspace->id)
+            ->where('created_at', '>=', $since->format('Y-m-d H:i:s'))
             ->where(function (Builder $q) use ($eventIds): void {
                 foreach ($eventIds as $id) {
                     $q->orWhereJsonContains('alert_event_ids', $id);

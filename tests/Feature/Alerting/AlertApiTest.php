@@ -204,11 +204,51 @@ class AlertApiTest extends TestCase
         $this->actingAs($actor)->getJson($this->url('/alerts?kind=nope', $own))->assertUnprocessable()
             ->assertHeader('Content-Type', 'application/problem+json');
         $this->actingAs($actor)->getJson($this->url('/alerts?since=yesterday', $own))->assertUnprocessable();
+        // `since` is second-precision; fractional seconds are rejected.
+        $this->actingAs($actor)->getJson($this->url('/alerts?since=2026-11-02T10:00:00.5Z', $own))->assertUnprocessable()
+            ->assertJsonValidationErrors('since');
+        $this->actingAs($actor)->getJson($this->url("/monitors/{$a->id}/alerts?since=2026-11-02T10:00:00.123456Z", $own))
+            ->assertUnprocessable();
         $this->actingAs($actor)->getJson($this->url('/alerts?monitor_id=abc', $own))->assertUnprocessable();
 
         $this->assertCrossWorkspaceNotFound($actor, 'GET', $this->url("/monitors/{$foreignMonitor->id}/alerts", $own));
         $this->assertCrossWorkspaceNotFound($actor, 'GET', $this->url('/alerts', $foreign));
         $this->assertCrossWorkspaceNotFound($actor, 'GET', $this->url("/monitors/{$foreignMonitor->id}/alerts", $foreign));
+    }
+
+    public function test_delivery_lookup_is_bounded_by_the_oldest_alert_of_the_page(): void
+    {
+        $monitor = Monitor::factory()->for($this->ws)->create();
+        $channel = NotificationChannel::factory()->for($this->ws)->create();
+        $old = $this->event($this->ws, $monitor, AlertKind::Down, '2026-11-01T10:00:00Z');
+        $new = $this->event($this->ws, $monitor, AlertKind::Up, '2026-11-01T12:00:00Z');
+
+        // Written 4 minutes before the alert's own time (clock skew between hosts): inside the bound.
+        $skewed = $this->delivery($this->ws, $channel, [$old->id], ['created_at' => CarbonImmutable::parse('2026-11-01T09:56:00Z')]);
+        // A row older than the bound is not looked at, even though it names the alert.
+        $this->delivery($this->ws, $channel, [$old->id], ['created_at' => CarbonImmutable::parse('2026-11-01T09:54:59Z')]);
+        $later = $this->delivery($this->ws, $channel, [$new->id], ['created_at' => CarbonImmutable::parse('2026-11-01T12:00:01Z')]);
+
+        DB::enableQueryLog();
+        $this->actingAs($this->editor)->getJson($this->url())->assertOk()
+            ->assertJsonPath('data.*.id', [$new->id, $old->id])
+            ->assertJsonPath('data.0.deliveries.*.id', [$later->id])
+            ->assertJsonPath('data.1.deliveries.*.id', [$skewed->id]);
+        $queries = array_values(array_filter(DB::getQueryLog(), static fn (array $q): bool => str_contains($q['query'], 'alert_deliveries')));
+        DB::disableQueryLog();
+
+        $this->assertCount(1, $queries);
+        $this->assertStringContainsString('created_at', $queries[0]['query']);
+        $this->assertContains('2026-11-01 09:55:00', $queries[0]['bindings']);
+
+        // A smaller page still makes one delivery query.
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($this->editor)->getJson($this->url('/alerts?limit=1'))->assertOk()
+            ->assertJsonPath('data.0.deliveries.*.id', [$later->id]);
+        $queries = array_values(array_filter(DB::getQueryLog(), static fn (array $q): bool => str_contains($q['query'], 'alert_deliveries')));
+        DB::disableQueryLog();
+        $this->assertCount(1, $queries);
     }
 
     public function test_viewer_can_read_alerts_but_token_without_ability_cannot(): void
