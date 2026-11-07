@@ -587,5 +587,72 @@
       "proxyPassword": "Proxy password",
       "secretHeadersInvalid": "Lines {lines} are not in the Name: value format."
     }
+  },
+  "monitorDetail": {
+    "back": "Back to monitors",
+    "loading": "Loading monitor",
+    "missing": "This monitor could not be found.",
+    "since": "In this status since",
+    "lastCheck": "Last check",
+    "latency": "Latency",
+    "message": "Message",
+    "time": "Time",
+    "status": "Status",
+    "history": "History",
+    "refresh": "Refresh",
+    "ranges": {
+      "24h": "24 hours",
+      "7d": "7 days",
+      "30d": "30 days",
+      "90d": "90 days"
+    },
+    "chart": {
+      "title": "Latency",
+      "range": "Chart range",
+      "loading": "Loading chart data",
+      "latency": "Latency",
+      "summary": "Latency over the last {range}: {count} data points, minimum {min} ms, average {avg} ms, maximum {max} ms.",
+      "empty": "No latency data for the last {range}."
+    },
+    "uptime": {
+      "title": "Availability",
+      "none": "No data"
+    },
+    "results": {
+      "title": "Results",
+      "latency": "Latency",
+      "empty": "No results yet."
+    },
+    "events": {
+      "title": "Events",
+      "change": "Change",
+      "to": "changed to",
+      "empty": "No events yet."
+    },
+    "alerts": {
+      "title": "Alerts",
+      "kind": "Kind",
+      "deliveries": "Deliveries",
+      "empty": "No alerts yet."
+    },
+    "actions": {
+      "check": "Check now",
+      "checking": "Check requested",
+      "pause": "Pause",
+      "resume": "Resume",
+      "edit": "Edit"
+    },
+    "push": {
+      "title": "Push endpoint",
+      "url": "Push URL",
+      "example": "Report from a script or cron job:",
+      "secret": "The URL contains the push token. Treat it like a password.",
+      "hasToken": "This monitor has a push token. Only members who can edit monitors can see the URL.",
+      "noToken": "This monitor has no push token.",
+      "rotate": "Rotate token",
+      "rotateTitle": "Rotate the push token",
+      "rotateText": "The current URL stops working immediately. Update every job that reports to this monitor.",
+      "rotated": "Push token rotated."
+    }
   }
 }

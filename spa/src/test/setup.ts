@@ -1,12 +1,38 @@
 import { enableAutoUnmount } from '@vue/test-utils'
 import { afterEach, vi } from 'vitest'
 
+// jsdom has no canvas; specs that need to observe the chart mock this module themselves.
+vi.mock('uplot', () => ({
+  default: class {
+    static tzDate = (d: Date) => d
+    setData(): void {}
+    setSize(): void {}
+    destroy(): void {}
+  },
+}))
+
 class ResizeObserverStub {
   observe(): void {}
   unobserve(): void {}
   disconnect(): void {}
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver
+
+// uPlot reads the pixel ratio through matchMedia when it is imported.
+if (typeof window.matchMedia !== 'function') {
+  Object.defineProperty(window, 'matchMedia', {
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+      onchange: null,
+    }),
+  })
+}
 
 // Vuetify overlays position themselves against the visual viewport, which jsdom lacks.
 if (!('visualViewport' in window)) {

@@ -587,5 +587,72 @@
       "proxyPassword": "Proxy jelszava",
       "secretHeadersInvalid": "Ezek a sorok nem Név: érték formátumúak: {lines}."
     }
+  },
+  "monitorDetail": {
+    "back": "Vissza a monitorokhoz",
+    "loading": "Monitor betöltése",
+    "missing": "A monitor nem található.",
+    "since": "Ebben az állapotban",
+    "lastCheck": "Utolsó ellenőrzés",
+    "latency": "Válaszidő",
+    "message": "Üzenet",
+    "time": "Időpont",
+    "status": "Állapot",
+    "history": "Előzmények",
+    "refresh": "Frissítés",
+    "ranges": {
+      "24h": "24 óra",
+      "7d": "7 nap",
+      "30d": "30 nap",
+      "90d": "90 nap"
+    },
+    "chart": {
+      "title": "Válaszidő",
+      "range": "Diagram időtartama",
+      "loading": "Diagramadatok betöltése",
+      "latency": "Válaszidő",
+      "summary": "Válaszidő az elmúlt {range} alatt: {count} adatpont, minimum {min} ms, átlag {avg} ms, maximum {max} ms.",
+      "empty": "Nincs válaszidő-adat az elmúlt {range} időszakból."
+    },
+    "uptime": {
+      "title": "Rendelkezésre állás",
+      "none": "Nincs adat"
+    },
+    "results": {
+      "title": "Eredmények",
+      "latency": "Válaszidő",
+      "empty": "Még nincs eredmény."
+    },
+    "events": {
+      "title": "Események",
+      "change": "Változás",
+      "to": "új állapot:",
+      "empty": "Még nincs esemény."
+    },
+    "alerts": {
+      "title": "Riasztások",
+      "kind": "Típus",
+      "deliveries": "Kézbesítések",
+      "empty": "Még nincs riasztás."
+    },
+    "actions": {
+      "check": "Ellenőrzés most",
+      "checking": "Ellenőrzés kérve",
+      "pause": "Szüneteltetés",
+      "resume": "Folytatás",
+      "edit": "Szerkesztés"
+    },
+    "push": {
+      "title": "Push végpont",
+      "url": "Push URL",
+      "example": "Jelentés szkriptből vagy cron-feladatból:",
+      "secret": "Az URL tartalmazza a push tokent, ezért jelszóként kezeld.",
+      "hasToken": "A monitornak van push tokenje. Az URL-t csak a monitort szerkeszteni jogosult tagok láthatják.",
+      "noToken": "A monitornak nincs push tokenje.",
+      "rotate": "Token cseréje",
+      "rotateTitle": "Push token cseréje",
+      "rotateText": "A jelenlegi URL azonnal érvénytelen lesz. Frissítsd az összes feladatot, amely ide jelent.",
+      "rotated": "A push token kicserélve."
+    }
   }
 }

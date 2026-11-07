@@ -29,7 +29,7 @@ const workspaceRoutes: RouteRecordRaw[] = [
   {
     path: 'monitors/:monitor(\\d+)',
     name: 'ws.monitor',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/monitors/MonitorDetailView.vue'),
   },
   {
     path: 'monitors/:monitor(\\d+)/edit',
