@@ -42,6 +42,19 @@ final class NetworkPolicy
         return new self([...self::fromConfig()->networks, ...self::NON_PUBLIC_NETWORKS]);
     }
 
+    /**
+     * Cloud metadata and translation networks that notification targets must never reach, on top of the
+     * configured list. Loopback and private networks stay allowed so self-hosted receivers work.
+     */
+    public const NOTIFICATION_BLOCKED_NETWORKS = [
+        '169.254.0.0/16', 'fe80::/10', '100.100.100.200/32', '64:ff9b::/96', '2002::/16',
+    ];
+
+    public static function forNotifications(): self
+    {
+        return new self([...self::fromConfig()->networks, ...self::NOTIFICATION_BLOCKED_NETWORKS]);
+    }
+
     public static function fromConfig(): self
     {
         return new self(array_values(array_filter(

@@ -215,4 +215,105 @@ class OutboundHttpTest extends TestCase
         $this->assertSame(500, mb_strlen($e->message()));
         $this->assertStringStartsWith('HTTP 400: xx', $e->message());
     }
+
+    public function test_ambiguous_hosts_are_rejected_as_invalid(): void
+    {
+        config(['monitoring.worker.blocked_networks' => []]);
+        $this->fakeResolver([]);
+
+        foreach ([
+            'http://a%2eb.invalid/', 'http://2130706433/', 'http://127.1/', 'http://0x7f.0.0.1/',
+            'http://0177.0.0.1/', 'http://exa_mple.test/', 'http://-a.test/', 'http://[::1/',
+        ] as $url) {
+            $e = $this->failure(fn () => $this->http()->send('GET', $url));
+            $this->assertSame('Invalid target URL', $e->getMessage(), $url);
+            $this->assertTrue($e->permanent);
+        }
+    }
+
+    public function test_idn_host_is_converted_and_pinned(): void
+    {
+        config(['monitoring.worker.blocked_networks' => []]);
+        $this->startServer();
+        $this->fakeResolver(['xn--bcher-kva.test' => ['127.0.0.1']]);
+
+        $response = $this->http()->send('GET', "http://bücher.test:{$this->port}/echo");
+
+        $this->assertSame(200, $response->status);
+        $this->assertStringContainsString('xn--bcher-kva.test', strtolower($response->body));
+    }
+
+    public function test_trailing_dot_name_is_pinned(): void
+    {
+        config(['monitoring.worker.blocked_networks' => []]);
+        $this->startServer();
+        $this->fakeResolver(['hook.test.' => ['127.0.0.1']]);
+
+        $this->assertSame(200, $this->http()->send('GET', "http://hook.test.:{$this->port}/")->status);
+    }
+
+    public function test_caller_options_cannot_override_guards(): void
+    {
+        config(['monitoring.worker.blocked_networks' => []]);
+        $this->startServer();
+        $this->fakeResolver(['hook.test' => ['127.0.0.1']]);
+
+        $e = $this->failure(fn () => $this->http()->send('GET', "http://hook.test:{$this->port}/redirect", [
+            'allow_redirects' => true, 'curl' => [], 'proxy' => 'http://x.invalid:1', 'verify' => false,
+        ]));
+
+        $this->assertSame('HTTP 302', $e->getMessage());
+        $this->assertNotContains('/other', $this->hits());
+    }
+
+    public function test_notification_policy_blocks_link_local_and_translation_by_default(): void
+    {
+        config(['monitoring.worker.blocked_networks' => ['169.254.169.254/32']]);
+        $this->fakeResolver([]);
+
+        foreach (['http://169.254.170.2/', 'http://[64:ff9b::a9fe:a9fe]/', 'http://100.100.100.200/', 'http://[fe80::1]/'] as $url) {
+            $e = $this->failure(fn () => $this->http()->send('GET', $url));
+            $this->assertSame('Blocked target', $e->getMessage(), $url);
+        }
+
+        $this->startServer();
+        $this->assertSame(200, $this->http()->send('GET', "http://127.0.0.1:{$this->port}/")->status);
+    }
+
+    public function test_hex_mapped_ipv6_and_ipv6_only_resolution_are_blocked(): void
+    {
+        config(['monitoring.worker.blocked_networks' => ['127.0.0.0/8', '::1/128']]);
+        $this->fakeResolver(['v6.test' => ['::1']]);
+
+        foreach (['http://[::ffff:7f00:1]/', 'http://v6.test/'] as $url) {
+            $e = $this->failure(fn () => $this->http()->send('GET', $url));
+            $this->assertSame('Blocked target', $e->getMessage(), $url);
+        }
+    }
+
+    public function test_large_body_aborts_quickly(): void
+    {
+        config(['monitoring.worker.blocked_networks' => []]);
+        $this->startServer();
+
+        $start = microtime(true);
+        $response = $this->http()->send('GET', "http://127.0.0.1:{$this->port}/big");
+
+        $this->assertLessThan(3, microtime(true) - $start);
+        $this->assertSame(200, $response->status);
+        $this->assertSame(65536, strlen($response->body));
+    }
+
+    public function test_user_agent_override_is_case_insensitive(): void
+    {
+        config(['monitoring.worker.blocked_networks' => []]);
+        $this->startServer();
+
+        $own = $this->http()->send('GET', "http://127.0.0.1:{$this->port}/echo", ['headers' => ['user-agent' => 'custom/1']]);
+        $this->assertSame(1, preg_match_all('/^user-agent:/mi', $own->body));
+        $this->assertStringContainsString('custom/1', $own->body);
+
+        $default = $this->http()->send('GET', "http://127.0.0.1:{$this->port}/echo");
+        $this->assertStringContainsString('IntraWatch/', $default->body);
+    }
 }

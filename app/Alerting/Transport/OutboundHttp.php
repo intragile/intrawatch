@@ -8,6 +8,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Handler\CurlHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Utils;
+use GuzzleHttp\TransferStats;
 use Psr\Http\Message\ResponseInterface;
 
 /**
@@ -33,20 +34,14 @@ final class OutboundHttp
      */
     public function send(string $method, string $url, array $options = []): OutboundResponse
     {
-        $parts = parse_url($url);
-        $scheme = is_array($parts) ? strtolower((string) ($parts['scheme'] ?? '')) : '';
-        $host = is_array($parts) ? trim((string) ($parts['host'] ?? ''), '[]') : '';
-        if ($host === '' || ! in_array($scheme, ['http', 'https'], true) || isset($parts['user']) || isset($parts['pass'])) {
-            throw new DeliveryFailure('Invalid target URL', permanent: true);
-        }
-        $port = (int) ($parts['port'] ?? ($scheme === 'https' ? 443 : 80));
+        [$scheme, $host, $port, $url] = self::parseTarget($url);
 
         $addresses = $this->resolver->resolve($host);
         if ($addresses === []) {
             throw new DeliveryFailure('DNS resolution failed');
         }
 
-        $policy = NetworkPolicy::fromConfig();
+        $policy = NetworkPolicy::forNotifications();
         foreach ($addresses as $address) {
             if (! $policy->allows($address)) {
                 throw new DeliveryFailure('Blocked target', permanent: true);
@@ -62,10 +57,22 @@ final class OutboundHttp
         $cap = config()->integer('alerting.send.max_response_bytes', 65536);
         $sink = new CappedStream(Utils::streamFor(fopen('php://temp', 'r+b')), $cap);
 
+        // Callers may only shape the request; every guard option is set here and cannot be overridden.
+        $options = array_intersect_key($options, array_flip(['json', 'form_params', 'body', 'headers']));
         $headers = is_array($options['headers'] ?? null) ? $options['headers'] : [];
-        $options['headers'] = ['User-Agent' => 'IntraWatch/'.config()->string('app.version', 'dev')] + $headers;
+        $hasUserAgent = false;
+        foreach (array_keys($headers) as $name) {
+            $hasUserAgent = $hasUserAgent || strtolower((string) $name) === 'user-agent';
+        }
+        if (! $hasUserAgent) {
+            $headers['User-Agent'] = 'IntraWatch/'.config()->string('app.version', 'dev');
+        }
+        $options['headers'] = $headers;
 
-        $options += [
+        $captured = null;
+        $primaryIp = null;
+        $options = [
+            ...$options,
             'allow_redirects' => false,
             'proxy' => '',
             'connect_timeout' => config()->integer('alerting.send.connect_timeout_seconds', 5),
@@ -74,6 +81,13 @@ final class OutboundHttp
             'verify' => true,
             'sink' => $sink,
             'curl' => $curl,
+            'on_headers' => function (ResponseInterface $r) use (&$captured): void {
+                $captured = $r;
+            },
+            'on_stats' => function (TransferStats $stats) use (&$primaryIp): void {
+                $ip = $stats->getHandlerStat('primary_ip');
+                $primaryIp = is_string($ip) && $ip !== '' ? $ip : null;
+            },
         ];
 
         $client = new Client(['handler' => HandlerStack::create($this->handler ?? new CurlHandler)]);
@@ -81,7 +95,16 @@ final class OutboundHttp
         try {
             $response = $client->request($method, $url, $options);
         } catch (GuzzleException $e) {
-            throw self::transportFailure($e);
+            // An oversized body aborts the transfer; the status and the first bytes are still usable.
+            if (! $sink->overflowed() || ! $captured instanceof ResponseInterface) {
+                throw self::transportFailure($e);
+            }
+            $response = $captured;
+        }
+
+        // The connection must have gone to a vetted address, whatever the client resolved on its own.
+        if ($primaryIp !== null && ! self::isVetted($primaryIp, $addresses)) {
+            throw new DeliveryFailure('Blocked target', permanent: true);
         }
 
         $status = $response->getStatusCode();
@@ -95,6 +118,90 @@ final class OutboundHttp
             permanent: ! $retryable,
             retryAfter: $retryable ? self::retryAfter($response) : null,
         );
+    }
+
+    /**
+     * Accepts an IP literal or a strict ASCII host name, so that the client's own URL parser reads the same host
+     * that is resolved and pinned here.
+     *
+     * @return array{0: string, 1: string, 2: int, 3: string} Scheme, host, port and the URL to request.
+     *
+     * @throws DeliveryFailure
+     */
+    private static function parseTarget(string $url): array
+    {
+        $invalid = new DeliveryFailure('Invalid target URL', permanent: true);
+        $parts = parse_url($url);
+        if (! is_array($parts) || isset($parts['user']) || isset($parts['pass'])) {
+            throw $invalid;
+        }
+        $scheme = strtolower($parts['scheme'] ?? '');
+        $host = $parts['host'] ?? '';
+        if ($host === '' || ! in_array($scheme, ['http', 'https'], true)) {
+            throw $invalid;
+        }
+
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+            if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+                throw $invalid;
+            }
+            $authority = "[{$host}]";
+        } else {
+            if (preg_match('/[^\x00-\x7F]/', $host) === 1) {
+                $ascii = function_exists('idn_to_ascii')
+                    ? idn_to_ascii($host, IDNA_DEFAULT | IDNA_NONTRANSITIONAL_TO_ASCII, INTL_IDNA_VARIANT_UTS46)
+                    : false;
+                if ($ascii === false || $ascii === '') {
+                    throw $invalid;
+                }
+                $host = $ascii;
+            }
+            $host = strtolower($host);
+            if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false && ! self::isStrictName($host)) {
+                throw $invalid;
+            }
+            $authority = $host;
+        }
+
+        $port = $parts['port'] ?? ($scheme === 'https' ? 443 : 80);
+        $target = $scheme.'://'.$authority.(isset($parts['port']) ? ':'.$parts['port'] : '')
+            .($parts['path'] ?? '')
+            .(isset($parts['query']) ? '?'.$parts['query'] : '');
+
+        return [$scheme, $host, $port, $target];
+    }
+
+    private static function isStrictName(string $host): bool
+    {
+        $label = '[a-z0-9]([a-z0-9-]*[a-z0-9])?';
+        if (preg_match("/^{$label}(\\.{$label})*\\.?\$/i", $host) !== 1 || strlen($host) > 253) {
+            return false;
+        }
+
+        foreach (explode('.', rtrim($host, '.')) as $part) {
+            // All-numeric and hex-numeric labels are read as IPv4 numbers by the client.
+            if (ctype_digit($part) || preg_match('/^0x[0-9a-f]*$/i', $part) === 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  list<string>  $vetted
+     */
+    private static function isVetted(string $ip, array $vetted): bool
+    {
+        $packed = @inet_pton(trim($ip, '[]'));
+        foreach ($vetted as $address) {
+            if ($packed !== false && @inet_pton(trim($address, '[]')) === $packed) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function retryAfter(ResponseInterface $response): ?int

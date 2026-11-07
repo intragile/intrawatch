@@ -40,4 +40,28 @@ class RedactorTest extends TestCase
 
         $this->assertSame('GET https://example.com/path failed, see http://a.test/x', $msg);
     }
+
+    public function test_url_secret_path_segments_are_masked_when_echoed_alone(): void
+    {
+        $url = 'https://hooks.slack.com/services/T0000000/B1111111/XXXXsecretXXXX';
+        $msg = Redactor::redact('invalid_token at /services/T0000000/B1111111/XXXXsecretXXXX; part XXXXsecretXXXX', ['webhook_url' => $url]);
+
+        $this->assertStringNotContainsString('XXXXsecretXXXX', $msg);
+        $this->assertStringNotContainsString('T0000000', $msg);
+    }
+
+    public function test_json_escaped_url_is_masked(): void
+    {
+        $url = 'https://hooks.example.test/a/secretpathvalue';
+        $msg = Redactor::redact('{"url":"https:\\/\\/hooks.example.test\\/a\\/secretpathvalue"}', ['u' => $url]);
+
+        $this->assertStringNotContainsString('secretpathvalue', $msg);
+    }
+
+    public function test_encoded_forms_match_case_insensitively(): void
+    {
+        $msg = Redactor::redact('bot123%3aABCsecretTOKENxyz', ['t' => '123:ABCsecretTOKENxyz']);
+
+        $this->assertStringNotContainsString('ABCsecretTOKENxyz', $msg);
+    }
 }

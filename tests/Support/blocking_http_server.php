@@ -52,6 +52,8 @@ while (true) {
         respond($conn, 429, '', ['Retry-After' => '9999']);
     } elseif (preg_match('#^/status/(\d+)$#', $path, $s)) {
         respond($conn, (int) $s[1]);
+    } elseif ($path === '/echo') {
+        respond($conn, 200, $request);
     } elseif ($path === '/json') {
         respond($conn, 200, '{"ok":true}', ['Content-Type' => 'application/json']);
     } else {
