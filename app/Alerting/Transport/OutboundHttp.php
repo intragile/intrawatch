@@ -21,7 +21,10 @@ final class OutboundHttp
 
     private const TLS_ERRNOS = [35, 51, 53, 54, 58, 59, 60, 64, 66, 77, 80, 82, 83, 90, 91];
 
-    public function __construct(private readonly AddressResolver $resolver) {}
+    /**
+     * @param  \Closure|null  $handler  Guzzle handler; defaults to cURL. A seam for tests.
+     */
+    public function __construct(private readonly AddressResolver $resolver, private readonly ?\Closure $handler = null) {}
 
     /**
      * @param  array<string, mixed>  $options  json, form_params, body and headers.
@@ -73,7 +76,7 @@ final class OutboundHttp
             'curl' => $curl,
         ];
 
-        $client = new Client(['handler' => HandlerStack::create(new CurlHandler)]);
+        $client = new Client(['handler' => HandlerStack::create($this->handler ?? new CurlHandler)]);
 
         try {
             $response = $client->request($method, $url, $options);
