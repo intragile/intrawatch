@@ -10,7 +10,7 @@ use App\Models\IncidentUpdate;
 final class IncidentUpdateResource
 {
     /**
-     * @return array<string, mixed>
+     * @return array{id: int, status: string, message: string, created_at: string, updated_at: string|null}
      */
     public static function toArray(IncidentUpdate $update): array
     {

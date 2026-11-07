@@ -121,6 +121,65 @@ class OpenApiTest extends TestCase
         $this->assertSame(['id', 'name', 'color', 'value'], array_keys((array) $tag['properties']));
     }
 
+    /**
+     * @return array<string, array{0: string, 1: string, 2: string, 3: list<string>}>
+     */
+    public static function nestedLists(): array
+    {
+        $section = ['id', 'name', 'description', 'position', 'items'];
+        $update = ['id', 'status', 'message', 'created_at', 'updated_at'];
+
+        return [
+            'status page index' => ['/workspaces/{workspace}/status-pages', 'get', 'sections', $section],
+            'status page create' => ['/workspaces/{workspace}/status-pages', 'post', 'sections', $section],
+            'status page show' => ['/workspaces/{workspace}/status-pages/{statusPage}', 'get', 'sections', $section],
+            'status page update' => ['/workspaces/{workspace}/status-pages/{statusPage}', 'patch', 'sections', $section],
+            'status page layout' => ['/workspaces/{workspace}/status-pages/{statusPage}/layout', 'put', 'sections', $section],
+            'incident index' => ['/workspaces/{workspace}/incidents', 'get', 'updates', $update],
+            'incident create' => ['/workspaces/{workspace}/incidents', 'post', 'updates', $update],
+            'incident show' => ['/workspaces/{workspace}/incidents/{incident}', 'get', 'updates', $update],
+            'incident update' => ['/workspaces/{workspace}/incidents/{incident}', 'patch', 'updates', $update],
+        ];
+    }
+
+    /**
+     * @param  list<string>  $keys
+     */
+    #[DataProvider('nestedLists')]
+    public function test_nested_lists_are_typed_as_objects(string $path, string $method, string $field, array $keys): void
+    {
+        $status = $method === 'post' ? '201' : '200';
+        $data = $this->schemaAt(['paths', $path, $method, 'responses', $status, 'content', 'application/json', 'schema', 'properties', 'data']);
+        if (($data['type'] ?? null) === 'array') {
+            $this->assertIsArray($data['items'] ?? null);
+            /** @var array<string, mixed> $data */
+            $data = $data['items'];
+        }
+
+        $this->assertIsArray($data['properties'] ?? null);
+        $list = $data['properties'][$field] ?? null;
+        $this->assertIsArray($list, "{$method} {$path} does not document `{$field}`");
+        $this->assertSame('array', $list['type'] ?? null);
+        $this->assertIsArray($list['items'] ?? null);
+        $this->assertSame('object', $list['items']['type'] ?? null, "{$method} {$path} types `{$field}` items as scalars");
+        $this->assertSame($keys, array_keys((array) $list['items']['properties']));
+    }
+
+    public function test_status_page_items_are_typed(): void
+    {
+        $section = $this->schemaAt(['paths', '/workspaces/{workspace}/status-pages/{statusPage}', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'properties', 'data', 'properties', 'sections', 'items']);
+        $this->assertIsArray($section['properties'] ?? null);
+        $this->assertIsArray($section['properties']['items'] ?? null);
+        $items = $section['properties']['items'];
+
+        $this->assertSame('array', $items['type'] ?? null);
+        $this->assertIsArray($items['items'] ?? null);
+        $this->assertSame('object', $items['items']['type'] ?? null);
+        $this->assertIsArray($items['items']['properties'] ?? null);
+        $this->assertSame(['id', 'monitor_id', 'display_name', 'description', 'position', 'expand_children', 'show_uptime'], array_keys($items['items']['properties']));
+        $this->assertSame(['type' => 'boolean'], $items['items']['properties']['expand_children']);
+    }
+
     public function test_spec_documents_versioned_paths_only(): void
     {
         $paths = array_keys((array) $this->getJson('/api/v1/openapi.json')->json('paths'));

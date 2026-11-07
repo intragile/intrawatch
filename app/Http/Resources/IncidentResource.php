@@ -28,14 +28,26 @@ final class IncidentResource
         ];
 
         if ($incident->relationLoaded('updates')) {
-            $data['updates'] = $incident->updates
-                ->sortByDesc(static fn ($update): array => [$update->created_at->getTimestamp(), $update->id])
-                ->map(static fn ($update): array => IncidentUpdateResource::toArray($update))
-                ->values()
-                ->all();
+            $data['updates'] = self::updates($incident);
         }
 
         return $data;
+    }
+
+    /**
+     * The timeline, newest first.
+     *
+     * @return list<array{id: int, status: string, message: string, created_at: string, updated_at: string|null}>
+     */
+    private static function updates(Incident $incident): array
+    {
+        // A loop rather than Collection::map, so the generated API schema can see the entry shape.
+        $updates = [];
+        foreach ($incident->updates->sortByDesc(static fn ($update): array => [$update->created_at->getTimestamp(), $update->id]) as $update) {
+            $updates[] = IncidentUpdateResource::toArray($update);
+        }
+
+        return $updates;
     }
 
     /**

@@ -2423,7 +2423,40 @@
                                                     "updates": {
                                                         "type": "array",
                                                         "items": {
-                                                            "type": "string"
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "status": {
+                                                                    "type": "string",
+                                                                    "enum": [
+                                                                        "investigating",
+                                                                        "identified",
+                                                                        "monitoring",
+                                                                        "resolved"
+                                                                    ]
+                                                                },
+                                                                "message": {
+                                                                    "type": "string"
+                                                                },
+                                                                "created_at": {
+                                                                    "type": "string"
+                                                                },
+                                                                "updated_at": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "id",
+                                                                "status",
+                                                                "message",
+                                                                "created_at",
+                                                                "updated_at"
+                                                            ]
                                                         }
                                                     }
                                                 },
@@ -2580,7 +2613,40 @@
                                                 "updates": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "status": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "investigating",
+                                                                    "identified",
+                                                                    "monitoring",
+                                                                    "resolved"
+                                                                ]
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "created_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "updated_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "status",
+                                                            "message",
+                                                            "created_at",
+                                                            "updated_at"
+                                                        ]
                                                     }
                                                 }
                                             },
@@ -2718,7 +2784,40 @@
                                                 "updates": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "status": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "investigating",
+                                                                    "identified",
+                                                                    "monitoring",
+                                                                    "resolved"
+                                                                ]
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "created_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "updated_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "status",
+                                                            "message",
+                                                            "created_at",
+                                                            "updated_at"
+                                                        ]
                                                     }
                                                 }
                                             },
@@ -2860,7 +2959,40 @@
                                                 "updates": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "status": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "investigating",
+                                                                    "identified",
+                                                                    "monitoring",
+                                                                    "resolved"
+                                                                ]
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "created_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "updated_at": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "status",
+                                                            "message",
+                                                            "created_at",
+                                                            "updated_at"
+                                                        ]
                                                     }
                                                 }
                                             },
@@ -8820,7 +8952,75 @@
                                                     "sections": {
                                                         "type": "array",
                                                         "items": {
-                                                            "type": "string"
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "description": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "position": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "items": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "id": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "monitor_id": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "display_name": {
+                                                                                "type": [
+                                                                                    "string",
+                                                                                    "null"
+                                                                                ]
+                                                                            },
+                                                                            "description": {
+                                                                                "type": [
+                                                                                    "string",
+                                                                                    "null"
+                                                                                ]
+                                                                            },
+                                                                            "position": {
+                                                                                "type": "integer"
+                                                                            },
+                                                                            "expand_children": {
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "show_uptime": {
+                                                                                "type": "boolean"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "id",
+                                                                            "monitor_id",
+                                                                            "display_name",
+                                                                            "description",
+                                                                            "position",
+                                                                            "expand_children",
+                                                                            "show_uptime"
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "id",
+                                                                "name",
+                                                                "description",
+                                                                "position",
+                                                                "items"
+                                                            ]
                                                         }
                                                     }
                                                 },
@@ -9010,7 +9210,75 @@
                                                 "sections": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "position": {
+                                                                "type": "integer"
+                                                            },
+                                                            "items": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "monitor_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "display_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "description": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "position": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "expand_children": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "show_uptime": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "monitor_id",
+                                                                        "display_name",
+                                                                        "description",
+                                                                        "position",
+                                                                        "expand_children",
+                                                                        "show_uptime"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "description",
+                                                            "position",
+                                                            "items"
+                                                        ]
                                                     }
                                                 }
                                             },
@@ -9184,7 +9452,75 @@
                                                 "sections": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "position": {
+                                                                "type": "integer"
+                                                            },
+                                                            "items": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "monitor_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "display_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "description": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "position": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "expand_children": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "show_uptime": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "monitor_id",
+                                                                        "display_name",
+                                                                        "description",
+                                                                        "position",
+                                                                        "expand_children",
+                                                                        "show_uptime"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "description",
+                                                            "position",
+                                                            "items"
+                                                        ]
                                                     }
                                                 }
                                             },
@@ -9362,7 +9698,75 @@
                                                 "sections": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "position": {
+                                                                "type": "integer"
+                                                            },
+                                                            "items": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "monitor_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "display_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "description": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "position": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "expand_children": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "show_uptime": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "monitor_id",
+                                                                        "display_name",
+                                                                        "description",
+                                                                        "position",
+                                                                        "expand_children",
+                                                                        "show_uptime"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "description",
+                                                            "position",
+                                                            "items"
+                                                        ]
                                                     }
                                                 }
                                             },
@@ -9587,7 +9991,75 @@
                                                 "sections": {
                                                     "type": "array",
                                                     "items": {
-                                                        "type": "string"
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "description": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "position": {
+                                                                "type": "integer"
+                                                            },
+                                                            "items": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "monitor_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "display_name": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "description": {
+                                                                            "type": [
+                                                                                "string",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "position": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "expand_children": {
+                                                                            "type": "boolean"
+                                                                        },
+                                                                        "show_uptime": {
+                                                                            "type": "boolean"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "id",
+                                                                        "monitor_id",
+                                                                        "display_name",
+                                                                        "description",
+                                                                        "position",
+                                                                        "expand_children",
+                                                                        "show_uptime"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name",
+                                                            "description",
+                                                            "position",
+                                                            "items"
+                                                        ]
                                                     }
                                                 }
                                             },
