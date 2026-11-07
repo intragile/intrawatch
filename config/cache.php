@@ -53,6 +53,12 @@ return [
             'lock_path' => storage_path('framework/cache/locks'),
         ],
 
+        'status_pages' => [
+            'driver' => 'file',
+            'path' => env('STATUS_PAGE_CACHE_PATH', storage_path('framework/cache/status-pages')),
+            'lock_path' => env('STATUS_PAGE_CACHE_PATH', storage_path('framework/cache/status-pages')).'/locks',
+        ],
+
         'storage' => [
             'driver' => 'storage',
             'disk' => env('CACHE_STORAGE_DISK'),

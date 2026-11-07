@@ -325,6 +325,10 @@ class ApiTokenTest extends TestCase
         $this->assertSame(WorkspaceRole::Viewer, TokenAbility::WorkspaceRead->minimumRole());
         $this->assertSame(WorkspaceRole::Admin, TokenAbility::WorkspaceManage->minimumRole());
         $this->assertSame(WorkspaceRole::Admin, TokenAbility::MembersManage->minimumRole());
+        $this->assertSame(WorkspaceRole::Viewer, TokenAbility::IncidentsRead->minimumRole());
+        $this->assertSame(WorkspaceRole::Editor, TokenAbility::IncidentsWrite->minimumRole());
+        $this->assertSame(WorkspaceRole::Viewer, TokenAbility::StatusPagesRead->minimumRole());
+        $this->assertSame(WorkspaceRole::Editor, TokenAbility::StatusPagesWrite->minimumRole());
     }
 
     public function test_current_workspace_binding_is_reset_between_requests(): void

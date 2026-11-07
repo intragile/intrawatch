@@ -98,6 +98,30 @@ class Workspace extends Model
     }
 
     /**
+     * @return HasMany<Maintenance, $this>
+     */
+    public function maintenances(): HasMany
+    {
+        return $this->hasMany(Maintenance::class);
+    }
+
+    /**
+     * @return HasMany<Incident, $this>
+     */
+    public function incidents(): HasMany
+    {
+        return $this->hasMany(Incident::class);
+    }
+
+    /**
+     * @return HasMany<StatusPage, $this>
+     */
+    public function statusPages(): HasMany
+    {
+        return $this->hasMany(StatusPage::class);
+    }
+
+    /**
      * Build a slug from the name that is not yet used by another workspace.
      */
     public static function uniqueSlug(string $name): string

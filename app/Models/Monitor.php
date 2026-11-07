@@ -177,4 +177,20 @@ class Monitor extends Model
     {
         return $this->belongsToMany(NotificationChannel::class, 'monitor_notification');
     }
+
+    /**
+     * @return BelongsToMany<Maintenance, $this>
+     */
+    public function maintenances(): BelongsToMany
+    {
+        return $this->belongsToMany(Maintenance::class, 'maintenance_monitor');
+    }
+
+    /**
+     * @return BelongsToMany<Incident, $this>
+     */
+    public function incidents(): BelongsToMany
+    {
+        return $this->belongsToMany(Incident::class, 'incident_monitor');
+    }
 }

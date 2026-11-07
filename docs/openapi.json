@@ -5396,7 +5396,11 @@
                     "monitors:read",
                     "monitors:write",
                     "notifications:read",
-                    "notifications:write"
+                    "notifications:write",
+                    "incidents:read",
+                    "incidents:write",
+                    "status-pages:read",
+                    "status-pages:write"
                 ],
                 "title": "TokenAbility"
             },

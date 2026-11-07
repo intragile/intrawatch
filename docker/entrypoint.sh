@@ -43,6 +43,7 @@ rm -f "$probe"
 mkdir -p \
   "$DATA_DIR/storage/app/public" \
   "$DATA_DIR/storage/framework/cache/data" \
+  "$DATA_DIR/storage/framework/cache/status-pages" \
   "$DATA_DIR/storage/framework/sessions" \
   "$DATA_DIR/storage/framework/views" \
   "$DATA_DIR/storage/logs"

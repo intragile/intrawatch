@@ -322,6 +322,10 @@ the alert history, and `notifications:write` (Editors and above) to manage and
 test channels. Binding channels to monitors is part of the monitor API
 (`monitors:write`).
 
+Incidents and maintenance windows use `incidents:read` (Viewers and above) and
+`incidents:write` (Editors and above); status pages use `status-pages:read`
+(Viewers and above) and `status-pages:write` (Editors and above).
+
 #### Channels
 
 Keys marked * are required. Secrets are write-only: the API returns only their

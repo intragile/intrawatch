@@ -68,4 +68,24 @@ class WorkspacePolicy
     {
         return $this->atLeast($user, $workspace, WorkspaceRole::Editor);
     }
+
+    public function viewIncidents(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Viewer);
+    }
+
+    public function manageIncidents(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Editor);
+    }
+
+    public function viewStatusPages(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Viewer);
+    }
+
+    public function manageStatusPages(User $user, Workspace $workspace): bool
+    {
+        return $this->atLeast($user, $workspace, WorkspaceRole::Editor);
+    }
 }
