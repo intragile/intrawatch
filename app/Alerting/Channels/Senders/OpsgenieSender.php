@@ -43,7 +43,7 @@ final class OpsgenieSender extends IncidentToolSender
     private function create(string $base, array $headers, string $alias, AlertMessage $item, ChannelSpec $channel): void
     {
         $priority = $channel->configString('priority')
-            ?? match ($item->severity) {
+            ?? match (self::severity($item)) {
                 'critical' => 'P1',
                 'warning' => 'P3',
                 default => 'P5',

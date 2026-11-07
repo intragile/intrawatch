@@ -396,7 +396,7 @@ alerts through an active channel) is suppressed: its alerts are recorded with
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ALERT_FLAP_THRESHOLD` | `4` | Status class changes within the window that start flapping |
+| `ALERT_FLAP_THRESHOLD` | `4` | Status class changes within the window that start flapping (at least 3) |
 | `ALERT_FLAP_WINDOW_SECONDS` | `600` | The flap detection window |
 | `ALERT_FLAP_STABLE_SECONDS` | `600` | Time without a class change that ends flapping |
 | `ALERT_DIGEST_THRESHOLD` | `5` | More alerts than this for one channel in one evaluation are sent as one digest (up to 200 alerts per message) |
@@ -449,7 +449,9 @@ channel URL that resolves into a blocked network is refused when it is sent
 are never followed). The default blocks only the cloud metadata
 addresses, so workspace members can point webhooks at internal services. To
 forbid that, add the internal ranges, for example
-`CHECK_BLOCKED_NETWORKS=169.254.169.254/32,fd00:ec2::254/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128,fc00::/7`.
+`CHECK_BLOCKED_NETWORKS=169.254.169.254/32,fd00:ec2::254/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128,fc00::/7,0.0.0.0/8,::/128`.
+Notification targets are always refused in `0.0.0.0/8` and `::/128`, which
+connect to the local host; the last two entries extend that to checks.
 
 ## Development
 

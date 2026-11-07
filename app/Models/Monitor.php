@@ -59,6 +59,11 @@ class Monitor extends Model
     use HasFactory;
 
     /**
+     * Columns that make up the monitor's alerting policy.
+     */
+    public const ALERTING_COLUMNS = ['resend_interval_minutes', 'notify_degraded', 'degraded_alert_after_seconds', 'notify_changes'];
+
+    /**
      * @var array<string, mixed>
      */
     protected $attributes = [

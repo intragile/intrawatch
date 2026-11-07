@@ -38,7 +38,7 @@ final class PagerDutySender extends IncidentToolSender
         }
 
         $opens = self::opens($item);
-        $severity = in_array($item->kind, [AlertKind::Down, AlertKind::StillDown, AlertKind::Stable], true) ? 'critical' : 'warning';
+        $severity = self::severity($item) === 'critical' ? 'critical' : 'warning';
         $this->event($routingKey, $opens ? 'trigger' : 'resolve', self::incidentKey($item), $item, $severity);
     }
 

@@ -27,11 +27,6 @@ final class ResultRecorder
      */
     public const BROADCAST_CHUNK = 200;
 
-    /**
-     * Monitors whose alert signals go into one EvaluateAlerts job.
-     */
-    public const ALERT_CHUNK = 200;
-
     public function __construct(
         private readonly StatusMachine $machine,
         private readonly MaintenanceOracle $maintenance,
@@ -226,7 +221,7 @@ final class ResultRecorder
         $groupTransitions = $parentIds === [] ? [] : $this->groups->recompute(array_keys($parentIds));
         array_push($events, ...PostCommit::statusEvents($groupTransitions, $now));
 
-        $this->queueAlerts($events, $jobs);
+        array_push($jobs, ...AlertSignals::queue($events));
 
         if ($broadcastChecks) {
             foreach ($checks as $workspaceId => $list) {
@@ -237,33 +232,6 @@ final class ResultRecorder
         }
 
         return new RecordedBatch($transitions, $groupTransitions);
-    }
-
-    /**
-     * Queues the alert evaluation of the batch's status and value changes. On a database queue that uses this
-     * connection the jobs are written inside the batch's transaction, so a committed change always has its
-     * evaluation queued and a rolled-back one never has. Any other queue is written after commit, which loses
-     * the evaluation if the process dies in between.
-     *
-     * @param  list<object>  $events
-     * @param  list<EvaluateAlerts>  $jobs  Receives the jobs to queue after commit.
-     */
-    private function queueAlerts(array $events, array &$jobs): void
-    {
-        $signals = AlertSignals::fromEvents($events);
-        if ($signals === []) {
-            return;
-        }
-
-        $atomic = PostCommit::queueJoinsTransaction();
-        foreach (array_chunk($signals, self::ALERT_CHUNK, true) as $chunk) {
-            $job = new EvaluateAlerts(AlertSignals::toPayload($chunk));
-            if ($atomic) {
-                dispatch($job);
-            } else {
-                $jobs[] = $job;
-            }
-        }
     }
 
     /**

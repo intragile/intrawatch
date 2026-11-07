@@ -67,7 +67,7 @@ class IncidentToolSenderTest extends SenderTestCase
             [AlertKind::Flapping, 'down', [], 'trigger', 'intrawatch-7-42', 'warning'],
             [AlertKind::Degraded, 'degraded', [], 'trigger', 'intrawatch-7-42', 'warning'],
             [AlertKind::Stable, 'up', [], 'resolve', 'intrawatch-7-42', null],
-            [AlertKind::Stable, 'degraded', [], 'resolve', 'intrawatch-7-42', null],
+            [AlertKind::Stable, 'degraded', [], 'trigger', 'intrawatch-7-42', 'warning'],
             [AlertKind::Stable, 'down', [], 'trigger', 'intrawatch-7-42', 'critical'],
             [AlertKind::Expiring, 'up', [['key' => 'cert_expiry', 'old' => 1, 'new' => 2]], 'trigger', 'intrawatch-7-42-cert_expiry', 'warning'],
             [AlertKind::Renewed, 'up', [['key' => 'cert_expiry', 'old' => 1, 'new' => 2]], 'resolve', 'intrawatch-7-42-cert_expiry', null],
@@ -80,6 +80,19 @@ class IncidentToolSenderTest extends SenderTestCase
             $payload = $body['payload'] ?? [];
             $this->assertSame($severity, is_array($payload) ? ($payload['severity'] ?? null) : null, $kind->value);
         }
+    }
+
+    public function test_opsgenie_keeps_an_alert_open_when_flapping_settles_at_degraded(): void
+    {
+        $spec = $this->spec(ChannelType::Opsgenie, ['region' => 'us'], ['api_key' => 'og-key-123456']);
+
+        (new OpsgenieSender($this->http([new Response(202)])))->send($spec, $this->notificationOf(AlertKind::Stable, 'degraded'), 'k');
+        $this->assertSame('https://api.opsgenie.com/v2/alerts', (string) $this->lastRequest()->getUri());
+        $this->assertSame('intrawatch-7-42', $this->lastJson()['alias']);
+        $this->assertSame('P3', $this->lastJson()['priority']);
+
+        (new OpsgenieSender($this->http([new Response(202)])))->send($spec, $this->notificationOf(AlertKind::Stable, 'up'), 'k');
+        $this->assertSame('https://api.opsgenie.com/v2/alerts/intrawatch-7-42/close?identifierType=alias', (string) $this->lastRequest()->getUri());
     }
 
     public function test_test_alerts_trigger_then_resolve_with_one_key(): void

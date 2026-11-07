@@ -6,6 +6,7 @@ use App\Alerting\Engine\AlertEvaluator;
 use App\Alerting\Engine\AlertSignals;
 use App\Enums\AlertKind;
 use App\Enums\MonitorStatus;
+use App\Enums\WorkspaceRole;
 use App\Events\MonitorChanged;
 use App\Events\MonitorStatusChanged;
 use App\Jobs\EvaluateAlerts;
@@ -16,6 +17,7 @@ use App\Models\AlertState;
 use App\Models\CheckResult;
 use App\Models\Monitor;
 use App\Models\NotificationChannel;
+use App\Models\User;
 use App\Models\Workspace;
 use App\Monitoring\Engine\CheckOutcome;
 use App\Monitoring\Engine\DeadlineEvaluator;
@@ -58,6 +60,126 @@ class AlertPipelineTest extends TestCase
     {
         CarbonImmutable::setTestNow();
         parent::tearDown();
+    }
+
+    public function test_group_recovery_via_api_reaches_the_alert_engine(): void
+    {
+        $group = Monitor::factory()->for($this->ws)->group('all')->create(['resend_interval_minutes' => 10]);
+        $this->channel($group);
+        $a = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+        $b = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+        $this->record($b, CheckOutcome::up(10), 0);
+        $this->record($a, CheckOutcome::up(10), 0);
+        $this->record($a, CheckOutcome::down('refused'), 60);
+        $this->assertSame(['down'], $this->kinds($group));
+
+        // Pausing the down child brings the group back up, and the alert engine hears about it.
+        CarbonImmutable::setTestNow($this->t0->addSeconds(90));
+        $this->actingAs($this->editor())->patchJson($this->api("/monitors/{$a->id}"), ['active' => false])->assertOk();
+        $this->assertSame(MonitorStatus::Up, $group->state()->firstOrFail()->status);
+        $this->assertSame(['down', 'up'], $this->kinds($group));
+
+        // No reminder for an outage that is over.
+        $this->tick(60 + 11 * 60);
+        $this->assertSame(['down', 'up'], $this->kinds($group));
+
+        // The other child goes down: the group's new outage is alerted.
+        $this->record($b, CheckOutcome::down('refused'), 1010);
+        $this->assertSame(MonitorStatus::Down, $group->state()->firstOrFail()->status);
+        $this->assertSame(['down', 'up', 'down'], $this->kinds($group));
+        $this->assertSame(3, AlertDelivery::count());
+    }
+
+    public function test_group_status_changes_from_every_api_path_reach_the_alert_engine(): void
+    {
+        $editor = $this->editor();
+        $paths = [
+            'action pause' => fn (Monitor $child) => $this->actingAs($editor)->postJson($this->api("/monitors/{$child->id}/pause"))->assertOk(),
+            'bulk pause' => fn (Monitor $child) => $this->actingAs($editor)->postJson($this->api('/monitors/bulk'), ['action' => 'pause', 'ids' => [$child->id]])->assertOk(),
+            'bulk delete' => fn (Monitor $child) => $this->actingAs($editor)->postJson($this->api('/monitors/bulk'), ['action' => 'delete', 'ids' => [$child->id]])->assertOk(),
+            'delete' => fn (Monitor $child) => $this->actingAs($editor)->deleteJson($this->api("/monitors/{$child->id}"))->assertNoContent(),
+            'move' => fn (Monitor $child) => $this->actingAs($editor)->patchJson($this->api("/monitors/{$child->id}"), ['parent_id' => null])->assertOk(),
+        ];
+
+        $seconds = 0;
+        foreach ($paths as $label => $change) {
+            $group = Monitor::factory()->for($this->ws)->group('all')->create();
+            $this->channel($group);
+            $sibling = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+            $child = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+            $this->record($sibling, CheckOutcome::up(10), $seconds);
+            $this->record($child, CheckOutcome::up(10), $seconds);
+            $this->record($child, CheckOutcome::down('refused'), $seconds + 60);
+            $this->assertSame(['down'], $this->kinds($group), $label);
+
+            CarbonImmutable::setTestNow($this->t0->addSeconds($seconds + 90));
+            $change($child);
+            $this->assertSame(['down', 'up'], $this->kinds($group), $label);
+            $seconds += 600;
+        }
+
+        // A group config edit that turns the group down is alerted too.
+        $group = Monitor::factory()->for($this->ws)->group('any')->create();
+        $this->channel($group);
+        $up = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+        $down = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+        $this->record($up, CheckOutcome::up(10), $seconds);
+        $this->record($down, CheckOutcome::up(10), $seconds);
+        $this->record($down, CheckOutcome::down('refused'), $seconds + 60);
+        $this->assertSame([], $this->kinds($group));
+        CarbonImmutable::setTestNow($this->t0->addSeconds($seconds + 90));
+        $this->actingAs($editor)->patchJson($this->api("/monitors/{$group->id}"), ['config' => ['mode' => 'all']])->assertOk();
+        $this->assertSame(['down'], $this->kinds($group));
+    }
+
+    public function test_alerting_setting_edits_reschedule_the_monitor(): void
+    {
+        $monitor = $this->monitor(['retries' => 0]);
+        $this->channel($monitor);
+        $this->record($monitor, CheckOutcome::up(10), 0);
+        $this->record($monitor, CheckOutcome::down('refused'), 60);
+        $this->assertSame(['down'], $this->kinds($monitor));
+        $before = AlertState::findOrFail($monitor->id);
+        $this->assertNull($before->due_at, 'no reminder without a resend interval');
+
+        CarbonImmutable::setTestNow($this->t0->addSeconds(120));
+        $this->actingAs($this->editor())->patchJson($this->api("/monitors/{$monitor->id}"), ['alerting' => ['resend_interval_minutes' => 30]])->assertOk();
+        $dueAt = AlertState::findOrFail($monitor->id)->due_at;
+        $this->assertNotNull($dueAt);
+        $this->assertTrue($dueAt->lessThanOrEqualTo($this->t0->addSeconds(120)), "due at {$dueAt}");
+
+        // The next tick plans the reminder by the new policy, and sends it when it falls due.
+        $this->tick(180);
+        $this->assertSame(['down'], $this->kinds($monitor));
+        $this->assertTrue($this->t0->addSeconds(60 + 30 * 60)->equalTo(AlertState::findOrFail($monitor->id)->due_at ?? $this->t0));
+        $this->tick(60 + 30 * 60);
+        $this->assertSame(['down', 'still_down'], $this->kinds($monitor));
+
+        // Edits that leave the alerting settings alone do not touch the schedule.
+        $planned = AlertState::findOrFail($monitor->id)->due_at;
+        $this->actingAs($this->editor())->patchJson($this->api("/monitors/{$monitor->id}"), ['name' => 'Renamed'])->assertOk();
+        $this->assertEquals($planned, AlertState::findOrFail($monitor->id)->due_at);
+    }
+
+    public function test_api_group_changes_queue_their_evaluation_with_the_change(): void
+    {
+        $group = Monitor::factory()->for($this->ws)->group('all')->create();
+        $this->channel($group);
+        $sibling = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+        $child = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+        $this->record($sibling, CheckOutcome::up(10), 0);
+        $this->record($child, CheckOutcome::up(10), 0);
+        $this->record($child, CheckOutcome::down('refused'), 60);
+
+        config(['queue.default' => 'database']);
+        CarbonImmutable::setTestNow($this->t0->addSeconds(90));
+        $this->actingAs($this->editor())->postJson($this->api('/monitors/bulk'), ['action' => 'pause', 'ids' => [$child->id]])->assertOk();
+
+        $payload = $this->evaluationJobs()->sole()->payload;
+        $this->assertIsString($payload);
+        $job = unserialize($this->command($payload));
+        $this->assertInstanceOf(EvaluateAlerts::class, $job);
+        $this->assertSame([$group->id], array_keys(AlertSignals::fromPayload($job->signals)));
     }
 
     public function test_status_change_creates_alert_event_and_delivery_per_bound_channel(): void
@@ -382,6 +504,16 @@ class AlertPipelineTest extends TestCase
         $monitor->notificationChannels()->attach($channel->id);
 
         return $channel;
+    }
+
+    private function editor(): User
+    {
+        return User::factory()->memberOf($this->ws, WorkspaceRole::Editor)->create();
+    }
+
+    private function api(string $path): string
+    {
+        return '/api/v1/workspaces/'.$this->ws->slug.$path;
     }
 
     private function recorder(): ResultRecorder

@@ -15,16 +15,31 @@ class BenchCommandTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * A run of at least two intervals: every monitor's first check falls within the first interval, whatever
+     * its id, so the run always records checks and every monitor's second check completes before it ends.
+     */
+    private const RUN = ['--monitors' => '40', '--interval' => '2', '--duration' => '5'];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['monitoring.limits.interval.min' => 1]);
+    }
+
     public function test_bench_checks_the_local_target_reports_drift_and_cleans_up(): void
     {
-        $exit = Artisan::call('intrawatch:bench', ['--monitors' => '40', '--interval' => '20', '--duration' => '4']);
+        // Monitor ids whose spread first checks all fall after the first five seconds of a 20-second interval.
+        $this->startMonitorIdsAt(265313);
+
+        $exit = Artisan::call('intrawatch:bench', self::RUN);
         $output = Artisan::output();
 
         $this->assertSame(0, $exit, $output);
         $this->assertMatchesRegularExpression('/drift p50 \(ms\)\s*\|\s*\d+/', $output);
         $this->assertMatchesRegularExpression('/checks not up\s*\|\s*0 /', $output);
         $this->assertStringContainsString('max flush (ms)', $output);
-        $this->assertStringContainsString('expected checks', $output);
+        $this->assertMatchesRegularExpression('/expected checks\s*\|\s*>= 80 /', $output);
         $this->assertBenchLeftNothing();
     }
 
@@ -52,7 +67,7 @@ class BenchCommandTest extends TestCase
             'last_seen_at' => $stale, 'monitors' => 7, 'checks_last_minute' => 0, 'max_drift_ms_last_minute' => 0, 'buffered' => 0,
         ]);
 
-        $this->assertSame(0, Artisan::call('intrawatch:bench', ['--monitors' => '40', '--interval' => '20', '--duration' => '4']));
+        $this->assertSame(0, Artisan::call('intrawatch:bench', self::RUN));
 
         $this->assertSame(1, DB::table('check_workers')->where([
             'shard' => 0, 'shards' => 4, 'monitors' => 7, 'hostname' => 'worker-a',
@@ -67,7 +82,7 @@ class BenchCommandTest extends TestCase
         $this->assertStringContainsString('--force', Artisan::output());
         $this->assertSame(1, Workspace::query()->count());
 
-        $this->assertSame(0, Artisan::call('intrawatch:bench', ['--monitors' => '40', '--interval' => '20', '--duration' => '4', '--force' => true]), Artisan::output());
+        $this->assertSame(0, Artisan::call('intrawatch:bench', self::RUN + ['--force' => true]), Artisan::output());
         $this->assertSame([$existing->id], Workspace::query()->pluck('id')->all());
         $this->assertSame(0, DB::table('monitors')->count());
     }
@@ -87,6 +102,7 @@ class BenchCommandTest extends TestCase
 
     public function test_bench_rejects_invalid_options(): void
     {
+        config(['monitoring.limits.interval.min' => 20]);
         $this->assertSame(2, Artisan::call('intrawatch:bench', ['--monitors' => '0']));
         $this->assertSame(2, Artisan::call('intrawatch:bench', ['--interval' => '5']));
     }
@@ -98,6 +114,23 @@ class BenchCommandTest extends TestCase
         $this->assertCount(1, BenchCommand::verdict(checks: 3000, expected: 3000, failed: 0, maxDriftMs: 2000));
         $this->assertCount(1, BenchCommand::verdict(checks: 2849, expected: 3000, failed: 0, maxDriftMs: 10));
         $this->assertCount(1, BenchCommand::verdict(checks: 3000, expected: 3000, failed: 1, maxDriftMs: 10));
+    }
+
+    /**
+     * Makes the next monitor created get the given id.
+     */
+    private function startMonitorIdsAt(int $id): void
+    {
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement("select setval(pg_get_serial_sequence('monitors', 'id'), ?)", [$id - 1]);
+
+            return;
+        }
+        $workspace = Workspace::query()->create(['name' => 'Ids', 'slug' => 'ids', 'timezone' => 'UTC']);
+        DB::table('monitors')->insert(['id' => $id - 1, 'workspace_id' => $workspace->id, 'name' => 'ids', 'type' => 'http',
+            'interval_seconds' => 60, 'timeout_seconds' => 10, 'retries' => 0, 'retry_interval_seconds' => 60, 'config' => '[]']);
+        DB::table('monitors')->delete();
+        $workspace->delete();
     }
 
     private function assertBenchLeftNothing(): void

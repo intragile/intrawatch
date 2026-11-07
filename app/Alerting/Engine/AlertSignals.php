@@ -7,6 +7,8 @@ use App\Alerting\Engine\Signals\StatusSignal;
 use App\Enums\MonitorStatus;
 use App\Events\MonitorChanged;
 use App\Events\MonitorStatusChanged;
+use App\Jobs\EvaluateAlerts;
+use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\Engine\SafeText;
 use Carbon\CarbonImmutable;
 
@@ -18,6 +20,42 @@ use Carbon\CarbonImmutable;
  */
 final class AlertSignals
 {
+    /**
+     * Monitors whose alert signals go into one EvaluateAlerts job.
+     */
+    public const CHUNK = 200;
+
+    /**
+     * Queues the alert evaluation of the status and value changes among the events. Call it inside the
+     * transaction that made the changes. On a database queue that uses this connection the jobs are written in
+     * that transaction, so a committed change always has its evaluation queued and a rolled-back one never has;
+     * nothing is returned then. For any other queue the jobs are returned, and the caller passes them to
+     * PostCommit::queue() once the transaction has committed, which loses them if the process dies in between.
+     *
+     * @param  list<object>  $events
+     * @return list<EvaluateAlerts> The jobs to queue after commit.
+     */
+    public static function queue(array $events): array
+    {
+        $signals = self::fromEvents($events);
+        if ($signals === []) {
+            return [];
+        }
+
+        $atomic = PostCommit::queueJoinsTransaction();
+        $jobs = [];
+        foreach (array_chunk($signals, self::CHUNK, true) as $chunk) {
+            $job = new EvaluateAlerts(self::toPayload($chunk));
+            if ($atomic) {
+                dispatch($job);
+            } else {
+                $jobs[] = $job;
+            }
+        }
+
+        return $jobs;
+    }
+
     /**
      * Signals of one monitor are ordered by time; at the same time a status change comes before a value change,
      * because applying a value change moves the machine's clock to that time.

@@ -271,7 +271,7 @@ class OutboundHttpTest extends TestCase
         config(['monitoring.worker.blocked_networks' => ['169.254.169.254/32']]);
         $this->fakeResolver([]);
 
-        foreach (['http://169.254.170.2/', 'http://[64:ff9b::a9fe:a9fe]/', 'http://100.100.100.200/', 'http://[fe80::1]/'] as $url) {
+        foreach (['http://169.254.170.2/', 'http://[64:ff9b::a9fe:a9fe]/', 'http://100.100.100.200/', 'http://[fe80::1]/', 'http://0.0.0.0:8080/', 'http://0.1.2.3/', 'http://[::]:8080/', 'http://[2002:7f00:1::1]/'] as $url) {
             $e = $this->failure(fn () => $this->http()->send('GET', $url));
             $this->assertSame('Blocked target', $e->getMessage(), $url);
         }

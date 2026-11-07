@@ -23,8 +23,6 @@ abstract class MonitorRequest extends FormRequest
         'retry_interval_seconds', 'degraded_threshold_ms', 'inverted', 'parent_id', 'config', 'secrets',
     ];
 
-    private const ALERTING_COLUMNS = ['resend_interval_minutes', 'notify_degraded', 'degraded_alert_after_seconds', 'notify_changes'];
-
     public function authorize(): bool
     {
         return true;
@@ -270,7 +268,7 @@ abstract class MonitorRequest extends FormRequest
         $alerting = $this->validated('alerting', []);
         $columns = [];
         if (is_array($alerting)) {
-            foreach (self::ALERTING_COLUMNS as $column) {
+            foreach (Monitor::ALERTING_COLUMNS as $column) {
                 if (array_key_exists($column, $alerting) && (is_int($alerting[$column]) || is_bool($alerting[$column]) || is_numeric($alerting[$column]))) {
                     $columns[$column] = in_array($column, ['notify_degraded', 'notify_changes'], true)
                         ? filter_var($alerting[$column], FILTER_VALIDATE_BOOL)

@@ -19,7 +19,24 @@ abstract class IncidentToolSender extends PushServiceSender
             AlertKind::Down, AlertKind::StillDown, AlertKind::Flapping, AlertKind::Degraded,
             AlertKind::Expiring, AlertKind::Changed, AlertKind::Test => true,
             AlertKind::Up, AlertKind::Renewed => false,
-            AlertKind::Stable => $item->status === 'down',
+            // Flapping that settles at a problem leaves the incident open at that problem's severity.
+            AlertKind::Stable => in_array($item->status, ['down', 'degraded'], true),
+        };
+    }
+
+    /**
+     * The alert's severity; for a settled flap, the severity of the status it settled at.
+     */
+    protected static function severity(AlertMessage $item): string
+    {
+        if ($item->kind !== AlertKind::Stable) {
+            return $item->severity;
+        }
+
+        return match ($item->status) {
+            'down' => AlertKind::Down->severity(),
+            'degraded' => AlertKind::Degraded->severity(),
+            default => $item->severity,
         };
     }
 

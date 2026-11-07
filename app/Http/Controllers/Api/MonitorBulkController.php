@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Alerting\Engine\AlertSignals;
 use App\Enums\MonitorType;
 use App\Http\Controllers\Controller;
 use App\Jobs\PurgeMonitorData;
@@ -47,8 +48,9 @@ class MonitorBulkController extends Controller
         $channel = $needsChannel ? NotificationChannel::query()->forWorkspace($workspace)->findOrFail($request->integer('channel_id')) : null;
 
         $deleted = [];
-        $transitions = [];
-        $affected = DB::transaction(function () use ($workspace, $ids, $action, $tag, $channel, &$deleted, &$transitions): int {
+        $events = [];
+        $jobs = [];
+        $affected = DB::transaction(function () use ($workspace, $ids, $action, $tag, $channel, &$deleted, &$events, &$jobs): int {
             $monitors = $workspace->monitors()->whereIn('id', $ids)->with('state')->orderBy('id')->get();
 
             $regroup = [];
@@ -69,13 +71,15 @@ class MonitorBulkController extends Controller
 
             $regroup = array_values(array_unique(array_filter($regroup, fn (?int $id): bool => $id !== null)));
             if ($regroup !== []) {
-                $transitions = $this->groups->recompute($regroup);
+                $events = PostCommit::statusEvents($this->groups->recompute($regroup), CarbonImmutable::now());
+                $jobs = AlertSignals::queue($events);
             }
 
             return $monitors->count();
         });
 
-        PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
+        PostCommit::dispatch($events);
+        PostCommit::queue($jobs);
 
         foreach ($deleted as $id) {
             PurgeMonitorData::dispatch($id);

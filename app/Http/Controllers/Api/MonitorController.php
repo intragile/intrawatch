@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Alerting\Engine\AlertSignals;
 use App\Enums\MonitorStatus;
 use App\Enums\MonitorType;
+use App\Events\MonitorStatusChanged;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
 use App\Http\Requests\StoreMonitorRequest;
 use App\Http\Requests\UpdateMonitorRequest;
 use App\Http\Resources\MonitorPresenter;
+use App\Jobs\EvaluateAlerts;
 use App\Jobs\PurgeMonitorData;
+use App\Models\AlertState;
 use App\Models\Monitor;
 use App\Models\Workspace;
 use App\Monitoring\Engine\GroupEvaluator;
@@ -81,8 +85,9 @@ class MonitorController extends Controller
             $monitor->push_token = Str::random(48);
         }
 
-        $transitions = [];
-        DB::transaction(function () use ($monitor, $request, $workspace, &$transitions): void {
+        $events = [];
+        $jobs = [];
+        DB::transaction(function () use ($monitor, $request, $workspace, &$events, &$jobs): void {
             $monitor->save();
             $tags = $request->tagAssignments();
             if ($tags !== null) {
@@ -94,10 +99,11 @@ class MonitorController extends Controller
                 'notification_channel_ids' => [[], $channelIds],
             ]);
             if ($monitor->parent_id !== null) {
-                $transitions = $this->groups->recompute([$monitor->parent_id]);
+                [$events, $jobs] = $this->groupChanges([$monitor->parent_id]);
             }
         });
-        PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
+        PostCommit::dispatch($events);
+        PostCommit::queue($jobs);
 
         return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor), true)], 201);
     }
@@ -117,8 +123,9 @@ class MonitorController extends Controller
             GroupHierarchy::assertValidParent($monitor, $this->parent($workspace, $request->parentId()));
         }
 
-        $transitions = [];
-        DB::transaction(function () use ($request, $monitor, $changes, $active, &$transitions): void {
+        $events = [];
+        $jobs = [];
+        DB::transaction(function () use ($request, $monitor, $changes, $active, &$events, &$jobs): void {
             $oldParentId = $monitor->parent_id;
             $before = $monitor->only(array_keys($changes));
             $oldSecretKeys = $this->secretKeys($monitor->secrets);
@@ -172,6 +179,10 @@ class MonitorController extends Controller
             if ($diff !== []) {
                 Audit::record('monitor.updated', $monitor, $diff);
             }
+            if (array_intersect_key($diff, array_flip(Monitor::ALERTING_COLUMNS)) !== []) {
+                // The next alert tick re-plans reminders and the degraded hold under the new settings.
+                AlertState::query()->whereKey($monitor->id)->update(['due_at' => now()]);
+            }
 
             $affected = [];
             if ($oldParentId !== $monitor->parent_id || $wasActive !== $monitor->active) {
@@ -182,29 +193,46 @@ class MonitorController extends Controller
             }
             $affected = array_values(array_unique(array_filter($affected, fn (?int $id): bool => $id !== null)));
             if ($affected !== []) {
-                $transitions = $this->groups->recompute($affected);
+                [$events, $jobs] = $this->groupChanges($affected);
             }
         });
-        PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
+        PostCommit::dispatch($events);
+        PostCommit::queue($jobs);
 
         return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor), true)]);
     }
 
     public function destroy(Workspace $workspace, Monitor $monitor): Response
     {
-        $transitions = [];
-        DB::transaction(function () use ($monitor, &$transitions): void {
+        $events = [];
+        $jobs = [];
+        DB::transaction(function () use ($monitor, &$events, &$jobs): void {
             GroupHierarchy::detachChildren($monitor);
             $monitor->delete();
             Audit::record('monitor.deleted', $monitor, ['name' => [$monitor->name, null]]);
             if ($monitor->parent_id !== null) {
-                $transitions = $this->groups->recompute([$monitor->parent_id]);
+                [$events, $jobs] = $this->groupChanges([$monitor->parent_id]);
             }
         });
-        PostCommit::dispatch(PostCommit::statusEvents($transitions, CarbonImmutable::now()));
+        PostCommit::dispatch($events);
+        PostCommit::queue($jobs);
         PurgeMonitorData::dispatch($monitor->id)->afterCommit();
 
         return response()->noContent();
+    }
+
+    /**
+     * Recomputes the groups and queues the alert evaluation of their status changes; call it inside the
+     * transaction. Returns the events to dispatch and the jobs to queue once it has committed.
+     *
+     * @param  list<int>  $groupIds
+     * @return array{0: list<MonitorStatusChanged>, 1: list<EvaluateAlerts>}
+     */
+    private function groupChanges(array $groupIds): array
+    {
+        $events = PostCommit::statusEvents($this->groups->recompute($groupIds), CarbonImmutable::now());
+
+        return [$events, AlertSignals::queue($events)];
     }
 
     /**
