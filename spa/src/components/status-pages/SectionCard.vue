@@ -20,6 +20,7 @@ const emit = defineEmits<{
   moveSection: [direction: -1 | 1]
   removeSection: []
   sectionDragStart: []
+  sectionDragEnd: []
   /** Moves an item one step; past the edge it crosses into the neighbouring section. */
   moveItem: [from: number, direction: -1 | 1]
 }>()
@@ -64,6 +65,7 @@ const itemLast = (i: number) => props.last && i === section.value.items.length -
           class="drag-handle"
           aria-hidden="true"
           @dragstart="emit('sectionDragStart')"
+          @dragend="emit('sectionDragEnd')"
         >
           <v-icon :icon="mdiDragVertical" class="text-medium-emphasis" />
         </span>

@@ -1,6 +1,6 @@
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import { abilities, meWith } from '../../../test/fixtures'
+import { abilities, meWith, viewerCan } from '../../../test/fixtures'
 import { click, fill, mountApp, submit } from '../../../test/mount'
 import { fakeApi, json, problem } from '../../../test/server'
 import { choose } from '../../workspace/__tests__/helpers'
@@ -233,5 +233,213 @@ describe('status page editor', () => {
     expect(document.querySelector('[data-test="custom-domain-link"]')?.getAttribute('href'))
       .toBe('https://status.acme.test/')
     expect(text()).toContain('up to 60 s')
+  })
+})
+
+describe('status page editor behaviour', () => {
+  it('create posts the settings, opens the editor and keeps the leave guard armed', async () => {
+    const server = fakeApi({
+      ...base(),
+      'POST /workspaces/acme/status-pages': json({
+        data: statusPage({ id: 9 }),
+      }, 201),
+      'GET /workspaces/acme/status-pages/9': json({
+        data: statusPage({ id: 9 }),
+      }),
+      'GET /workspaces/acme/status-pages': json({
+        data: [],
+        meta: { next_cursor: null, limit: 50 },
+      }),
+    })
+    const { router } = await mountApp('/w/acme/status-pages/new')
+    await expect.poll(() => document.querySelector('input[name="status_title"]')).not.toBeNull()
+    expect(document.querySelector('[data-test="layout-save"]')).toBeNull()
+
+    fill('input[name="status_title"]', 'Acme status')
+    fill('input[name="status_slug"]', 'acme-status')
+    await submit('input[name="status_title"]')
+
+    await expect.poll(() => server.of('POST /workspaces/acme/status-pages')).toHaveLength(1)
+    expect(server.of('POST /workspaces/acme/status-pages')[0]?.body).toMatchObject({
+      title: 'Acme status',
+      slug: 'acme-status',
+    })
+    await expect.poll(() => router.currentRoute.value.params.statusPage).toBe('9')
+    await expect.poll(() => document.querySelector('[data-test="layout-save"]')).not.toBeNull()
+    await flushPromises()
+
+    fill('input[name="status_title"]', 'Edited after create')
+    void router.push({
+      name: 'ws.status-pages',
+      params: { workspace: 'acme' },
+    })
+    await expect.poll(() => document.querySelector('[data-test="confirm"]')).not.toBeNull()
+    expect(router.currentRoute.value.name).toBe('ws.status-page')
+  })
+
+  it('switching to another page asks before dropping edits', async () => {
+    fakeApi({
+      ...base(),
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage(),
+      }),
+      'GET /workspaces/acme/status-pages/6': json({
+        data: statusPage({ id: 6, title: 'Other' }),
+      }),
+    })
+    const { router } = await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector('input[name="status_title"]')).not.toBeNull()
+    fill('input[name="status_title"]', 'Unsaved')
+
+    void router.push({
+      name: 'ws.status-page',
+      params: { workspace: 'acme', statusPage: '6' },
+    })
+
+    await expect.poll(() => document.querySelector('[data-test="confirm"]')).not.toBeNull()
+    expect(router.currentRoute.value.params.statusPage).toBe('5')
+    await click('[data-test="confirm"]')
+    await expect.poll(() => router.currentRoute.value.params.statusPage).toBe('6')
+  })
+
+  it('a viewer gets no write controls', async () => {
+    fakeApi({
+      ...base(viewerCan),
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage(),
+      }),
+    })
+    await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector('input[name="section_name_0"]')).not.toBeNull()
+
+    for (const sel of [
+      'status-page-save',
+      'status-page-delete',
+      'layout-save',
+      'section-add',
+      'section-up-1',
+      'section-remove-0',
+      'item-up-0-1',
+      'item-remove-0-0',
+    ])
+      expect(document.querySelector(`[data-test="${sel}"]`), sel).toBeNull()
+    expect(document.querySelector<HTMLInputElement>('input[name="section_name_0"]')?.disabled).toBe(true)
+    expect(document.querySelector('[data-test="item-picker-0"]')).toBeNull()
+  })
+
+  it('boundary move buttons are disabled', async () => {
+    fakeApi({
+      ...base(),
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage(),
+      }),
+    })
+    await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector('[data-test="section-up-0"]')).not.toBeNull()
+
+    const disabled = (sel: string) => document.querySelector<HTMLButtonElement>(`[data-test="${sel}"]`)?.disabled
+    expect(disabled('section-up-0')).toBe(true)
+    expect(disabled('section-down-0')).toBe(false)
+    expect(disabled('section-down-1')).toBe(true)
+    expect(disabled('item-up-0-0')).toBe(true)
+    expect(disabled('item-down-1-0')).toBe(true)
+    expect(disabled('item-down-0-1')).toBe(false)
+  })
+
+  it('an item moved past a section edge joins the neighbouring section', async () => {
+    const server = fakeApi({
+      ...base(),
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage(),
+      }),
+      'PUT /workspaces/acme/status-pages/5/layout': json({
+        data: statusPage(),
+      }),
+    })
+    await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector('[data-test="item-down-0-1"]')).not.toBeNull()
+
+    await click('[data-test="item-down-0-1"]')
+    await click('[data-test="layout-save"]')
+
+    await expect.poll(() => server.of('PUT /workspaces/acme/status-pages/5/layout')).toHaveLength(1)
+    const body = server.of('PUT /workspaces/acme/status-pages/5/layout')[0]?.body as {
+      sections: Array<{ items: Array<{ monitor_id: number }> }>
+    }
+    expect(body.sections.map(s => s.items.map(i => i.monitor_id))).toEqual([
+      [1],
+      [2, 3],
+    ])
+  })
+
+  it('removing a section with monitors asks first, an empty one goes at once', async () => {
+    fakeApi({
+      ...base(),
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage({
+          sections: [
+            {
+              id: 1,
+              name: 'Core',
+              description: null,
+              position: 0,
+              items: [
+                item(11, 1),
+              ],
+            },
+            {
+              id: 2,
+              name: 'Empty',
+              description: null,
+              position: 1,
+              items: [],
+            },
+          ],
+        }),
+      }),
+    })
+    await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector('[data-test="section-remove-1"]')).not.toBeNull()
+
+    await click('[data-test="section-remove-1"]')
+    await expect.poll(() => document.querySelector('input[name="section_name_1"]')).toBeNull()
+    expect(document.querySelector('[data-test="confirm"]')).toBeNull()
+
+    await click('[data-test="section-remove-0"]')
+    await expect.poll(() => document.querySelector('[data-test="confirm"]')).not.toBeNull()
+    expect(document.querySelector('input[name="section_name_0"]')).not.toBeNull()
+    await click('[data-test="confirm"]')
+    await expect.poll(() => document.querySelector('input[name="section_name_0"]')).toBeNull()
+  })
+
+  it('resolves the names of more than 25 monitors', async () => {
+    const ids = Array.from({ length: 30 }, (_, i) => i + 1)
+    const routes: Record<string, ReturnType<typeof json>> = {}
+    for (const id of ids) {
+      routes[`GET /workspaces/acme/monitors/${id}`] = json({
+        data: { id, name: `Mon ${id}` },
+      })
+    }
+    const server = fakeApi({
+      ...base(),
+      ...routes,
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage({
+          sections: [
+            {
+              id: 1,
+              name: 'Big',
+              description: null,
+              position: 0,
+              items: ids.map(id => item(100 + id, id)),
+            },
+          ],
+        }),
+      }),
+    })
+    await mountApp('/w/acme/status-pages/5')
+
+    await expect.poll(() => ids.filter(id => server.of(`GET /workspaces/acme/monitors/${id}`).length > 0)).toHaveLength(30)
+    await expect.poll(() => text()).toContain('Mon 30')
   })
 })

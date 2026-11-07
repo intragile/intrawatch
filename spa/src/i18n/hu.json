@@ -1150,7 +1150,11 @@
       "removeSection": "{name} szekció törlése",
       "moveItemUp": "{name} feljebb",
       "moveItemDown": "{name} lejjebb",
-      "removeItem": "{name} eltávolítása a szekcióból"
+      "removeItem": "{name} eltávolítása a szekcióból",
+      "removeSectionDialog": {
+        "title": "Törlöd a szekciót?",
+        "text": "A(z) {name} szekció és a monitorlistája törlődik, amikor elmented az elrendezést."
+      }
     },
     "delete": {
       "title": "Törlöd a státuszoldalt?",

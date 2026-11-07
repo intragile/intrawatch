@@ -1150,7 +1150,11 @@
       "removeSection": "Remove section {name}",
       "moveItemUp": "Move {name} up",
       "moveItemDown": "Move {name} down",
-      "removeItem": "Remove {name} from the section"
+      "removeItem": "Remove {name} from the section",
+      "removeSectionDialog": {
+        "title": "Remove this section?",
+        "text": "{name} and its monitor list are removed when you save the layout."
+      }
     },
     "delete": {
       "title": "Delete this status page?",

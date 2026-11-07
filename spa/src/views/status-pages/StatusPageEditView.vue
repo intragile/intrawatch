@@ -124,7 +124,7 @@ const settingsDirty = computed(() => form.value !== null
 // Key identities differ between loads, so compare what would be sent.
 const layoutDirty = computed(() => !deepEqual(layoutBody(sections.value), layoutBody(initialSections.value)))
 const dirty = computed(() => settingsDirty.value || layoutDirty.value)
-const leave = useLeaveGuard(dirty)
+const leave = useLeaveGuard(dirty, { guardParamChange: true })
 const { open: leaveOpen, confirm: confirmLeave } = leave
 
 /** Picks up changes made elsewhere without overwriting what is being edited here. */
@@ -193,6 +193,8 @@ async function save(): Promise<void> {
           statusPage: String(created.id),
         },
       })
+      // The edit route reuses this component, so the guard must protect it again.
+      leave.disallow()
     }
   }
   catch (e) {

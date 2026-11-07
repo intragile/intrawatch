@@ -5,6 +5,7 @@ import { mdiPlus } from '@mdi/js'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '../../api'
+import ConfirmDialog from '../common/ConfirmDialog.vue'
 import ItemPicker from './ItemPicker.vue'
 import { moved, newItem, newSection } from './model'
 import SectionCard from './SectionCard.vue'
@@ -17,8 +18,8 @@ const props = defineProps<{
   errors: Record<string, string>
 }>()
 
-/** Monitors whose names are looked up individually; beyond this they show as ids. */
-const NAME_LOOKUPS = 25
+/** Monitors whose names are looked up in one parallel batch. */
+const NAME_BATCH = 25
 
 const sections = defineModel<LayoutSection[]>({ required: true })
 const { t } = useI18n()
@@ -27,27 +28,44 @@ const names = ref<Record<number, string>>({})
 
 const placedIds = computed(() => sections.value.flatMap(s => s.items.map(i => i.monitor_id)))
 
+const attempted = new Set<number>()
+let resolving = false
+
+/** Looks up the name of every placed monitor, one batch at a time. */
 async function resolveNames(): Promise<void> {
-  if (!props.canListMonitors)
+  if (!props.canListMonitors || resolving)
     return
-  const missing = [
-    ...new Set(placedIds.value),
-  ].filter(id => names.value[id] === undefined).slice(0, NAME_LOOKUPS)
-  await Promise.all(missing.map(async (id) => {
-    try {
-      const result = await api.GET('/workspaces/{workspace}/monitors/{monitor}', {
-        params: {
-          path: { workspace: props.slug, monitor: id },
-        },
-      })
-      const data = result.data?.data
-      if (data)
-        names.value = { ...names.value, [data.id]: data.name }
+  resolving = true
+  try {
+    for (;;) {
+      const batch = [
+        ...new Set(placedIds.value),
+      ]
+        .filter(id => names.value[id] === undefined && !attempted.has(id))
+        .slice(0, NAME_BATCH)
+      if (batch.length === 0)
+        break
+      batch.forEach(id => attempted.add(id))
+      await Promise.all(batch.map(async (id) => {
+        try {
+          const result = await api.GET('/workspaces/{workspace}/monitors/{monitor}', {
+            params: {
+              path: { workspace: props.slug, monitor: id },
+            },
+          })
+          const data = result.data?.data
+          if (data)
+            names.value = { ...names.value, [data.id]: data.name }
+        }
+        catch {
+          // A name that cannot be resolved falls back to the id.
+        }
+      }))
     }
-    catch {
-      // A name that cannot be resolved falls back to the id.
-    }
-  }))
+  }
+  finally {
+    resolving = false
+  }
 }
 
 watch(() => placedIds.value.join(','), () => void resolveNames(), { immediate: true })
@@ -69,8 +87,32 @@ function addSection(): void {
   ]
 }
 
+const pendingRemoval = ref<number | null>(null)
+const confirmRemoval = computed({
+  get: () => pendingRemoval.value !== null,
+  set: (open) => {
+    if (!open)
+      pendingRemoval.value = null
+  },
+})
+
 function removeSection(index: number): void {
   sections.value = sections.value.filter((_, i) => i !== index)
+}
+
+/** An empty section goes at once; one that holds monitors asks first. */
+function requestRemoval(index: number): void {
+  if ((sections.value[index]?.items.length ?? 0) === 0)
+    removeSection(index)
+  else
+    pendingRemoval.value = index
+}
+
+function confirmRemove(): void {
+  const index = pendingRemoval.value
+  pendingRemoval.value = null
+  if (index !== null)
+    removeSection(index)
 }
 
 function moveSection(index: number, direction: -1 | 1): void {
@@ -162,13 +204,14 @@ function dropSection(target: number): void {
         :errors="sectionErrors(index)"
         @update:model-value="update(index, $event)"
         @move-section="moveSection(index, $event)"
-        @remove-section="removeSection(index)"
+        @remove-section="requestRemoval(index)"
         @section-drag-start="dragSection = index"
+        @section-drag-end="dragSection = null"
         @move-item="(from, direction) => moveItem(index, from, direction)"
       >
         <template #picker>
           <ItemPicker
-            v-if="canListMonitors"
+            v-if="canListMonitors && !disabled"
             :test-id="`item-picker-${index}`"
             :slug="slug"
             :label="t('statusPages.layout.addMonitor')"
@@ -191,5 +234,13 @@ function dropSection(target: number): void {
     >
       {{ t('statusPages.layout.addSection') }}
     </v-btn>
+    <ConfirmDialog
+      v-model="confirmRemoval"
+      :title="t('statusPages.layout.removeSectionDialog.title')"
+      :text="t('statusPages.layout.removeSectionDialog.text', { name: sections[pendingRemoval ?? 0]?.name ?? '' })"
+      :confirm-label="t('common.remove')"
+      destructive
+      @confirm="confirmRemove"
+    />
   </div>
 </template>

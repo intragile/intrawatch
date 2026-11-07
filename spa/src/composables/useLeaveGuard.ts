@@ -1,25 +1,34 @@
 import type { Ref } from 'vue'
 import { ref, watch } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 
 /**
  * Asks before a route change would discard edits. The caller renders a confirm dialog bound to `open`
  * and calls `confirm()` from it; dismissing the dialog cancels the navigation. `allow()` silences the
  * guard once, for the navigation that follows a successful save.
  */
-export function useLeaveGuard(dirty: Ref<boolean>) {
+export function useLeaveGuard(dirty: Ref<boolean>, options: { guardParamChange?: boolean } = {}) {
   const open = ref(false)
   let settle: ((allow: boolean) => void) | null = null
   let allowed = false
 
-  onBeforeRouteLeave(() => {
+  function ask(): boolean | Promise<boolean> {
     if (allowed || !dirty.value)
       return true
     open.value = true
     return new Promise<boolean>((resolve) => {
       settle = resolve
     })
-  })
+  }
+
+  onBeforeRouteLeave(ask)
+
+  if (options.guardParamChange) {
+    // The same screen is reused for another record, which would otherwise drop the edits silently.
+    onBeforeRouteUpdate((to, from) => JSON.stringify(to.params) === JSON.stringify(from.params)
+      ? true
+      : ask())
+  }
 
   function confirm(): void {
     const resolve = settle
