@@ -549,6 +549,10 @@ it, including the API and the admin, is a 404. Any other host name or IP
 address reaches the application as usual. Canonical and feed links always use
 the page's own address (`https://{custom_domain}` or `APP_URL`), never the
 request's `Host`.
+Behind a reverse proxy, set `TRUSTED_PROXIES` so the client address is taken
+from the proxy's forwarding headers; otherwise every visitor counts against
+the proxy's single 300 per minute bucket. The limit is approximate: it is
+counted in the file cache without atomic increments.
 
 **Caching.** Rendered pages are kept in a file cache
 (`STATUS_PAGE_CACHE_PATH`, under `/data` in the image). A cached page is
@@ -559,7 +563,8 @@ changes status; then the next request renders it again, while concurrent
 requests keep getting the previous copy. Responses carry
 `Cache-Control: public, max-age=30, stale-while-revalidate=60, stale-if-error=86400`
 and a strong `ETag` (`If-None-Match` gives a 304). If the database fails during
-a render, the last good copy is served with `X-Status-Stale: 1`; it is kept
+a render, the last good copy is served with `X-Status-Stale: 1` and the
+database is tried again at most every 30 seconds; the copy is kept
 for 7 days (`status.cache.stale_seconds`). With no copy at all the page answers
 503 with `Retry-After: 30`.
 

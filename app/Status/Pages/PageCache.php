@@ -19,13 +19,17 @@ use PDOException;
  * it has not expired (the configured TTL, or earlier when the view itself expires at a maintenance boundary).
  * A fresh entry is served from the file cache alone, without touching the database. On a miss one process
  * renders under a lock while the others serve the last good copy; when the render fails because the database
- * does, the last good copy is served marked stale, kept for `status.cache.stale_seconds`.
+ * does, the last good copy is served marked stale, kept for `status.cache.stale_seconds`, and the database is
+ * not tried again for 30 s.
  */
 final class PageCache
 {
     private const LOCK_SECONDS = 10;
 
     private const LOCK_POLL_MICROSECONDS = 100_000;
+
+    /** After a failed render, how long the stale copy is served before the database is tried again. */
+    private const RETRY_SECONDS = 30;
 
     /**
      * @param  int  $lockWaitSeconds  How long a request without a copy to serve waits for another render.
@@ -59,7 +63,10 @@ final class PageCache
         if (! $lock->get()) {
             $last = self::entry($store->get($lastKey));
             if ($last !== null) {
-                return new CachedPage($last['html'], $last['etag'], false);
+                // Another process is rendering; a copy older than one more freshness period counts as stale.
+                $overdue = CarbonImmutable::now()->getTimestamp() - $last['expires_at'] > self::ttl();
+
+                return new CachedPage($last['html'], $last['etag'], $overdue);
             }
             $lock = $this->wait($lock);
         }
@@ -92,17 +99,25 @@ final class PageCache
             if ($last === null) {
                 throw PageUnavailable::because($e);
             }
+            // Serve the copy, marked stale, without retrying the database for a while.
+            $store->put($entryKey, [
+                ...$last,
+                'page_version' => $pageVersion,
+                'workspace_stamp' => $workspaceStamp,
+                'expires_at' => CarbonImmutable::now()->getTimestamp() + self::RETRY_SECONDS,
+                'stale' => true,
+            ], self::RETRY_SECONDS);
 
             return new CachedPage($last['html'], $last['etag'], true);
         }
 
         $now = CarbonImmutable::now();
-        $expiresAt = $now->addSeconds(max(1, config()->integer('status.cache.ttl_seconds')));
+        $expiresAt = $now->addSeconds(self::ttl());
         if ($pageView->expiresAt !== null && $pageView->expiresAt->lessThan($expiresAt)) {
             $expiresAt = $pageView->expiresAt->max($now->addSecond());
         }
 
-        $etag = '"'.hash('sha256', $html).'"';
+        $etag = self::etag($html);
         $entry = [
             'html' => $html,
             'etag' => $etag,
@@ -115,6 +130,23 @@ final class PageCache
         $store->put($lastKey, $entry, max(1, config()->integer('status.cache.stale_seconds')));
 
         return new CachedPage($html, $etag, false);
+    }
+
+    /**
+     * Strong entity tag of a body. Segments between `<!--volatile-->` and `<!--/volatile-->` (such as a
+     * "last updated" time) are left out, so a re-render with unchanged content keeps its tag and clients
+     * revalidating it get a 304.
+     */
+    public static function etag(string $body): string
+    {
+        $stable = preg_replace('#<!--volatile-->.*?<!--/volatile-->#s', '', $body);
+
+        return '"'.hash('sha256', $stable ?? $body).'"';
+    }
+
+    private static function ttl(): int
+    {
+        return max(1, config()->integer('status.cache.ttl_seconds'));
     }
 
     /**
@@ -144,11 +176,11 @@ final class PageCache
             return null;
         }
 
-        return new CachedPage($entry['html'], $entry['etag'], false);
+        return new CachedPage($entry['html'], $entry['etag'], $entry['stale']);
     }
 
     /**
-     * @return array{html: string, etag: string, page_version: string, workspace_stamp: string, expires_at: int}|null
+     * @return array{html: string, etag: string, page_version: string, workspace_stamp: string, expires_at: int, stale: bool}|null
      */
     private static function entry(mixed $cached): ?array
     {
@@ -167,6 +199,7 @@ final class PageCache
             'page_version' => $cached['page_version'],
             'workspace_stamp' => $cached['workspace_stamp'],
             'expires_at' => $cached['expires_at'],
+            'stale' => ($cached['stale'] ?? false) === true,
         ];
     }
 

@@ -7,7 +7,7 @@
 <div class="muted">{{ $item->description }}</div>
 @endif
 @if ($item->bars !== [])
-{!! \App\Status\Pages\Svg::bars($item->bars, $barTitle) !!}
+{!! \App\Status\Pages\Svg::bars($item->bars, $barTitle, __('status.bars_summary', ['name' => $item->name, 'days' => count($item->bars)]).($item->uptimePercent !== null ? ' · '.__('status.uptime').': '.$percent($item->uptimePercent) : '')) !!}
 <div class="scale"><span>{{ __('status.days_ago', ['days' => count($item->bars)]) }}</span>@if ($item->uptimePercent !== null)<span>{{ __('status.uptime') }}: {{ $percent($item->uptimePercent) }}</span>@endif<span>{{ __('status.today') }}</span></div>
 @elseif ($item->uptimePercent !== null)
 <div class="scale"><span>{{ __('status.uptime') }}: {{ $percent($item->uptimePercent) }}</span></div>

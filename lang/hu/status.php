@@ -39,6 +39,7 @@ return [
     'decimal_point' => ',',
     'latency' => 'Válaszidő, utolsó 24 óra',
     'components' => 'Összetevők',
+    'bars_summary' => ':name, utolsó :days nap',
     'days_ago' => ':days nappal ezelőtt',
     'today' => 'Ma',
     'no_data' => 'Nincs adat',

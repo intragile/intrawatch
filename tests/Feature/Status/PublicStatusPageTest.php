@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Status;
 
+use App\Enums\DisplayStatus;
 use App\Enums\IncidentImpact;
 use App\Enums\IncidentStatus;
 use App\Enums\MonitorStatus;
@@ -14,8 +15,13 @@ use App\Models\StatusPage;
 use App\Models\StatusPageItem;
 use App\Models\StatusPageSection;
 use App\Models\Workspace;
+use App\Status\Pages\DayBar;
+use App\Status\Pages\ItemView;
 use App\Status\Pages\PageCache;
+use App\Status\Pages\PageRenderer;
 use App\Status\Pages\PageStamps;
+use App\Status\Pages\PageView;
+use App\Status\Pages\SectionView;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -298,7 +304,7 @@ class PublicStatusPageTest extends TestCase
     {
         $warm = $this->get('/status/acme')->assertOk();
         $this->setStatus(MonitorStatus::Down);
-        $this->travel(2)->minutes();
+        $this->travel(90)->seconds();
 
         $lock = app(PageCache::class)->renderLock($this->page->id);
         $this->assertTrue($lock->get());
@@ -320,6 +326,146 @@ class PublicStatusPageTest extends TestCase
         $this->get('/status/acme')->assertOk()->assertHeader('X-RateLimit-Limit', '300');
     }
 
+    public function test_database_outage_backs_off_after_a_failed_attempt(): void
+    {
+        $this->get('/status/acme')->assertOk();
+        // Past the slug's 300 s freshness and the page's TTL.
+        $this->travel(6)->minutes();
+
+        $this->withDeadDatabase(function (\Closure $attempts): void {
+            $this->get('/status/acme')->assertOk()->assertHeader('X-Status-Stale', '1');
+            $this->assertGreaterThan(0, $attempts());
+            $tried = $attempts();
+
+            $this->travel(20)->seconds();
+            $this->get('/status/acme')->assertOk()->assertHeader('X-Status-Stale', '1');
+            $this->assertSame($tried, $attempts(), 'the database was tried again within 30 s');
+
+            $this->travel(11)->seconds();
+            $this->get('/status/acme')->assertOk()->assertHeader('X-Status-Stale', '1');
+            $this->assertGreaterThan($tried, $attempts());
+        });
+    }
+
+    public function test_unknown_hosts_cost_no_query_and_no_cache_entry(): void
+    {
+        $this->page->update(['custom_domain' => 'status.example.test']);
+        app(PageStamps::class)->forgetPage($this->page);
+        $this->get('http://warm.example.org/up')->assertOk();
+        $files = $this->cacheFiles();
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        for ($i = 0; $i < 20; $i++) {
+            $this->get('http://h'.bin2hex(random_bytes(6)).'.example.org/up')->assertOk();
+        }
+        $this->assertSame([], DB::getQueryLog());
+        $this->assertSame($files, $this->cacheFiles());
+
+        // When the map is due, all hosts share one refresh query.
+        $this->travel(61)->seconds();
+        DB::flushQueryLog();
+        for ($i = 0; $i < 5; $i++) {
+            $this->get('http://h'.bin2hex(random_bytes(6)).'.example.org/up')->assertOk();
+        }
+        $this->assertCount(1, DB::getQueryLog());
+    }
+
+    public function test_custom_domain_change_takes_effect_at_once(): void
+    {
+        $this->get('http://status.example.test/')->assertNotFound();
+
+        $this->page->update(['custom_domain' => 'status.example.test']);
+        app(PageStamps::class)->forgetPage($this->page);
+        $this->get('http://status.example.test/')->assertOk()->assertSee('Acme status');
+
+        $oldDomain = $this->page->custom_domain;
+        $this->page->update(['custom_domain' => 'new.example.test']);
+        app(PageStamps::class)->forgetKeys($this->page->id, $this->page->slug, $oldDomain);
+        app(PageStamps::class)->forgetPage($this->page);
+        $this->get('http://status.example.test/')->assertNotFound();
+        $this->get('http://new.example.test/')->assertOk();
+    }
+
+    public function test_custom_domain_resolves_during_a_database_outage(): void
+    {
+        $this->page->update(['custom_domain' => 'status.example.test']);
+        app(PageStamps::class)->forgetPage($this->page);
+        $this->get('http://status.example.test/')->assertOk();
+        $this->travel(2)->minutes();
+
+        $this->withDeadDatabase(function (\Closure $attempts): void {
+            $this->get('http://status.example.test/')->assertOk()->assertHeader('X-Status-Stale', '1')->assertSee('Acme status');
+            $tried = $attempts();
+            $this->get('http://status.example.test/api/v1/me')->assertNotFound();
+            $this->get('http://other.example.org/up')->assertOk();
+            $this->assertSame($tried, $attempts());
+        });
+    }
+
+    public function test_worst_case_page_stays_small(): void
+    {
+        $bars = [];
+        for ($i = 0; $i < 365; $i++) {
+            $bars[] = new DayBar(CarbonImmutable::parse('2025-11-08')->addDays($i)->format('Y-m-d'), DisplayStatus::Operational, 100.0, 0);
+        }
+        $items = [];
+        for ($i = 0; $i < 250; $i++) {
+            $itemBars = $i === 0
+                ? [...array_slice($bars, 0, 100), new DayBar($bars[100]->date, DisplayStatus::MajorOutage, 80.0, 288), ...array_slice($bars, 101)]
+                : $bars;
+            $items[] = new ItemView($i + 1, 'Component '.$i, null, DisplayStatus::Operational, 99.95, $itemBars, array_fill(0, 24, 120), []);
+        }
+        $view = new PageView('Big', null, DisplayStatus::Operational, 'all_operational', [new SectionView(1, 'All', null, $items)],
+            [], [], [], [], null, $this->now, 'UTC', 'en');
+
+        $html = app(PageRenderer::class)->render($this->page, $view);
+
+        $this->assertLessThan(2_500_000, strlen($html));
+        $this->assertStringContainsString('<title>'.CarbonImmutable::parse($bars[100]->date)->isoFormat('MMM D, YYYY').' · Major outage · 80.00%</title>', $html);
+        $this->assertStringContainsString('aria-label="Component 0, last 365 days · Uptime: 99.95%"', $html);
+    }
+
+    public function test_etag_survives_a_rerender_of_unchanged_content(): void
+    {
+        $first = $this->get('/status/acme')->assertOk();
+        $this->travel(61)->seconds();
+
+        $second = $this->get('/status/acme', ['If-None-Match' => (string) $first->headers->get('ETag')]);
+        $second->assertStatus(304);
+    }
+
+    public function test_error_answers_are_not_cached(): void
+    {
+        $this->get('/status/no-such-page')->assertNotFound()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        $this->withDeadDatabase(function (): void {
+            $this->get('/status/acme')->assertStatus(503)
+                ->assertHeader('Cache-Control', 'no-store, private')
+                ->assertHeader('X-Content-Type-Options', 'nosniff')
+                ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        });
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cacheFiles(): array
+    {
+        $path = config()->string('cache.stores.status_pages.path');
+        $files = [];
+        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS)) as $file) {
+            if ($file instanceof \SplFileInfo) {
+                $files[] = $file->getPathname();
+            }
+        }
+        sort($files);
+
+        return $files;
+    }
+
     private function setStatus(MonitorStatus $status): void
     {
         DB::table('monitor_states')->where('monitor_id', $this->monitor->id)->update(['status' => $status->value]);
@@ -327,6 +473,8 @@ class PublicStatusPageTest extends TestCase
 
     /**
      * Runs the callback with the default connection pointing at a server that refuses connections.
+     *
+     * @param  callable(\Closure(): int): void  $callback  Receives a counter of the queries tried on the dead connection.
      */
     private function withDeadDatabase(callable $callback): void
     {
@@ -340,8 +488,14 @@ class PublicStatusPageTest extends TestCase
             'password' => 'none',
         ]]);
         DB::setDefaultConnection('dead');
+        $attempts = 0;
+        DB::connection('dead')->beforeExecuting(function () use (&$attempts): void {
+            $attempts++;
+        });
         try {
-            $callback();
+            $callback(function () use (&$attempts): int {
+                return $attempts;
+            });
         } finally {
             DB::setDefaultConnection($original);
             DB::purge('dead');

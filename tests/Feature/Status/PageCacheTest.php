@@ -92,7 +92,8 @@ class PageCacheTest extends TestCase
         $stale = $cache->render(self::PAGE, self::WORKSPACE, $this->failing(new QueryException('sqlite', 'select 1', [], new PDOException('gone'))), $this->renderer());
         $this->assertTrue($stale->stale);
 
-        // The database is back: a fresh render replaces the copy.
+        // The database is retried 30 s after the failure; once it is back a fresh render replaces the copy.
+        $this->travel(31)->seconds();
         $fresh = $cache->render(self::PAGE, self::WORKSPACE, $this->build('two'), $this->renderer());
         $this->assertFalse($fresh->stale);
         $this->assertSame('<p>two</p>', $fresh->html);
@@ -107,7 +108,8 @@ class PageCacheTest extends TestCase
         $this->travel(3599)->seconds();
         $this->assertTrue($cache->render(self::PAGE, self::WORKSPACE, $this->failing(new PDOException('gone')), $this->renderer())->stale);
 
-        $this->travel(2)->seconds();
+        // Past the retry pause and the copy's lifetime there is nothing left to serve.
+        $this->travel(32)->seconds();
         $this->expectException(PageUnavailable::class);
         $cache->render(self::PAGE, self::WORKSPACE, $this->failing(new PDOException('gone')), $this->renderer());
     }
@@ -127,6 +129,60 @@ class PageCacheTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('bug');
         $cache->render(self::PAGE, self::WORKSPACE, $this->failing(new RuntimeException('bug')), $this->renderer());
+    }
+
+    public function test_failed_render_is_not_retried_for_thirty_seconds(): void
+    {
+        $cache = $this->cache();
+        $cache->render(self::PAGE, self::WORKSPACE, $this->build('one'), $this->renderer());
+        $this->travel(2)->minutes();
+
+        $attempts = 0;
+        $failing = function () use (&$attempts): never {
+            $attempts++;
+            throw new PDOException('gone');
+        };
+        $this->assertTrue($cache->render(self::PAGE, self::WORKSPACE, $failing, $this->renderer())->stale);
+        $this->travel(29)->seconds();
+        $this->assertTrue($cache->render(self::PAGE, self::WORKSPACE, $failing, $this->renderer())->stale);
+        $this->assertSame(1, $attempts);
+
+        $this->travel(2)->seconds();
+        $this->assertTrue($cache->render(self::PAGE, self::WORKSPACE, $failing, $this->renderer())->stale);
+        $this->assertSame(2, $attempts);
+    }
+
+    public function test_overdue_copy_served_during_another_render_is_marked_stale(): void
+    {
+        config(['status.cache.ttl_seconds' => 60]);
+        $cache = $this->cache();
+        $cache->render(self::PAGE, self::WORKSPACE, $this->build('one'), $this->renderer());
+
+        $served = function () use ($cache): bool {
+            // Another process holds the render lock at this moment.
+            $lock = $cache->renderLock(self::PAGE);
+            $this->assertTrue($lock->get());
+            try {
+                return $cache->render(self::PAGE, self::WORKSPACE, $this->build('two'), $this->renderer())->stale;
+            } finally {
+                $lock->release();
+            }
+        };
+
+        $this->travel(61)->seconds();
+        $this->assertFalse($served());
+        $this->travel(60)->seconds();
+        $this->assertTrue($served());
+        $this->assertSame(1, $this->builds);
+    }
+
+    public function test_etag_ignores_volatile_segments(): void
+    {
+        $this->assertSame(
+            PageCache::etag('<p>a</p><!--volatile-->10:00<!--/volatile-->'),
+            PageCache::etag('<p>a</p><!--volatile-->10:01<!--/volatile-->'),
+        );
+        $this->assertNotSame(PageCache::etag('<p>a</p>'), PageCache::etag('<p>b</p>'));
     }
 
     public function test_concurrent_misses_render_once(): void

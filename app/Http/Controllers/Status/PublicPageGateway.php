@@ -34,24 +34,26 @@ final class PublicPageGateway
     /**
      * @param  Closure(StatusPage, PageView): string  $render  Renders the page model and its view to the cached body.
      * @param  Closure(CachedPage): Response  $respond
+     * @param  (Closure(): Response)|null  $unavailable  The answer when the database is down and no copy exists.
      */
-    public function serve(Request $request, ?string $slug, string $variant, Closure $render, Closure $respond): Response
+    public function serve(Request $request, ?string $slug, string $variant, Closure $render, Closure $respond, ?Closure $unavailable = null): Response
     {
+        $unavailable ??= self::unavailable(...);
         if ($slug !== null) {
             try {
                 $page = $this->resolver->bySlug($slug);
             } catch (QueryException|PDOException) {
-                return self::unavailable();
+                return $unavailable();
             }
             if ($page === null) {
-                throw new NotFoundHttpException;
+                throw self::notFound();
             }
             [$pageId, $workspaceId] = [$page['id'], $page['workspace_id']];
         } else {
             $pageId = $request->attributes->get(ResolveStatusHost::PAGE_ATTRIBUTE);
             $workspaceId = $request->attributes->get(ResolveStatusHost::WORKSPACE_ATTRIBUTE);
             if (! is_int($pageId) || ! is_int($workspaceId)) {
-                throw new NotFoundHttpException;
+                throw self::notFound();
             }
         }
 
@@ -59,7 +61,7 @@ final class PublicPageGateway
         $build = function () use ($pageId, &$model): PageView {
             $model = StatusPage::query()->with('workspace')->whereKey($pageId)->where('published', true)->first();
             if ($model === null) {
-                throw new NotFoundHttpException;
+                throw self::notFound();
             }
 
             return (new StatusPageSnapshot)->build($model, CarbonImmutable::now());
@@ -73,7 +75,7 @@ final class PublicPageGateway
         try {
             $cached = $this->cache->render($pageId, $workspaceId, $build, $view, $variant);
         } catch (PageUnavailable) {
-            return self::unavailable();
+            return $unavailable();
         }
 
         return $respond($cached);
@@ -98,13 +100,28 @@ final class PublicPageGateway
         return $response;
     }
 
+    /**
+     * Headers of every error answer of a public endpoint: never cached, never sniffed.
+     */
+    public const ERROR_HEADERS = [
+        'Cache-Control' => 'no-store',
+        'X-Content-Type-Options' => 'nosniff',
+        'Referrer-Policy' => 'strict-origin-when-cross-origin',
+    ];
+
+    /**
+     * A missing or unpublished page; both answer identically.
+     */
+    public static function notFound(): NotFoundHttpException
+    {
+        return new NotFoundHttpException('', null, 0, self::ERROR_HEADERS);
+    }
+
     private static function unavailable(): Response
     {
         return new Response('Service Unavailable', Response::HTTP_SERVICE_UNAVAILABLE, [
             'Content-Type' => 'text/plain; charset=UTF-8',
-            'Cache-Control' => 'no-store',
             'Retry-After' => '30',
-            'X-Content-Type-Options' => 'nosniff',
-        ]);
+        ] + self::ERROR_HEADERS);
     }
 }

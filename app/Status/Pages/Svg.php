@@ -36,22 +36,59 @@ final class Svg
     }
 
     /**
-     * One rectangle per day, oldest on the left, each with a `<title>` tooltip.
+     * One bar per day, oldest on the left. Runs of consecutive days without a tooltip of their own (operational
+     * and unknown days) are drawn as one dashed stroke per colour, so a long healthy history costs a few bytes;
+     * every other day is its own rectangle with a `<title>` tooltip. The whole graphic carries a summary title.
      *
      * @param  list<DayBar>  $bars
-     * @param  Closure(DayBar): string  $title  Plain-text tooltip of a bar.
+     * @param  Closure(DayBar): string  $title  Plain-text tooltip of a day that has one.
+     * @param  string  $summary  Accessible name and tooltip of the whole graphic.
      */
-    public static function bars(array $bars, Closure $title): string
+    public static function bars(array $bars, Closure $title, string $summary = ''): string
     {
-        $width = max(0, count($bars) * self::BAR_STEP);
+        $width = count($bars) * self::BAR_STEP;
+        $label = self::escape($summary);
         $svg = '<svg class="bars" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '.$width.' '.self::BAR_HEIGHT
-            .'" preserveAspectRatio="none" role="img">';
-        foreach ($bars as $index => $bar) {
-            $svg .= '<rect x="'.($index * self::BAR_STEP).'" y="0" width="'.self::BAR_WIDTH.'" height="'.self::BAR_HEIGHT
-                .'" rx="1" fill="'.self::color($bar->status).'"><title>'.self::escape($title($bar)).'</title></rect>';
+            .'" preserveAspectRatio="none" role="img"'.($summary === '' ? '' : ' aria-label="'.$label.'"').'>'
+            .($summary === '' ? '' : '<title>'.$label.'</title>');
+
+        // Subpaths by colour: one dashed stroke per run of consecutive same-coloured days without a tooltip.
+        $runs = [];
+        $rects = '';
+        $runStart = 0;
+        $runColor = null;
+        $count = count($bars);
+        for ($index = 0; $index <= $count; $index++) {
+            $bar = $bars[$index] ?? null;
+            $color = $bar === null || self::hasTooltip($bar->status) ? null : self::color($bar->status);
+            if ($runColor !== null && $color !== $runColor) {
+                $length = ($index - $runStart) * self::BAR_STEP - (self::BAR_STEP - self::BAR_WIDTH);
+                $runs[$runColor][] = 'M'.($runStart * self::BAR_STEP).' '.(self::BAR_HEIGHT / 2).'h'.$length;
+            }
+            if ($color !== null && $color !== $runColor) {
+                $runStart = $index;
+            }
+            $runColor = $color;
+            if ($bar !== null && $color === null) {
+                $rects .= '<rect x="'.($index * self::BAR_STEP).'" width="'.self::BAR_WIDTH.'" height="'.self::BAR_HEIGHT
+                    .'" fill="'.self::color($bar->status).'"><title>'.self::escape($title($bar)).'</title></rect>';
+            }
         }
 
-        return $svg.'</svg>';
+        foreach ($runs as $color => $subpaths) {
+            $svg .= '<path d="'.implode('', $subpaths).'" fill="none" stroke="'.$color.'" stroke-width="'.self::BAR_HEIGHT
+                .'" stroke-dasharray="'.self::BAR_WIDTH.' '.(self::BAR_STEP - self::BAR_WIDTH).'"/>';
+        }
+
+        return $svg.$rects.'</svg>';
+    }
+
+    /**
+     * Days worth a tooltip of their own: anything but a normal or an empty day.
+     */
+    public static function hasTooltip(DisplayStatus $status): bool
+    {
+        return $status !== DisplayStatus::Operational && $status !== DisplayStatus::Unknown;
     }
 
     /**

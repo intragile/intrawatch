@@ -12,15 +12,23 @@ use PDOException;
 /**
  * Finds the published page behind a slug or a custom domain, from the file cache first.
  *
- * A found page is re-checked against the database every 300 s, a miss every 30 s. The found entry itself is
- * kept for the last-good period, so while the database is down a known slug or domain still resolves and its
- * last good copy can be served. Unpublished pages resolve exactly like missing ones.
+ * A found slug is re-checked against the database every 300 s, a missing one every 30 s. Custom domains come
+ * from one cached map of every published page's domain, refreshed every 60 s, so an unknown host costs one
+ * file read and never a query or a cache entry of its own. Page writes drop both through `PageStamps`.
+ *
+ * Known entries and the domain map are kept for the last-good period: while the database is down they still
+ * resolve, so the last good copy of a page can be served, and the database is retried at most once every
+ * 30 s per entry instead of on every request. Unpublished pages resolve exactly like missing ones.
  */
 final class PageResolver
 {
     private const FOUND_SECONDS = 300;
 
     private const MISSING_SECONDS = 30;
+
+    private const DOMAINS_SECONDS = 60;
+
+    private const RETRY_SECONDS = 30;
 
     /**
      * @return array{id: int, workspace_id: int}|null
@@ -33,13 +41,49 @@ final class PageResolver
             return null;
         }
 
-        return $this->resolve(PageStamps::slugKey($slug), 'slug', $slug);
+        $key = PageStamps::slugKey($slug);
+        $store = $this->store();
+        $cached = $store->get($key);
+        if (is_array($cached) && ($cached['found'] ?? null) === false) {
+            return null;
+        }
+        $now = self::now();
+        $known = self::found($cached);
+        if ($known !== null && $now < $known['fresh_until']) {
+            return ['id' => $known['id'], 'workspace_id' => $known['workspace_id']];
+        }
+
+        try {
+            $row = DB::table('status_pages')
+                ->where('slug', $slug)
+                ->where('published', true)
+                ->first(['id', 'workspace_id']);
+        } catch (QueryException|PDOException $e) {
+            if ($known === null) {
+                throw $e;
+            }
+            // Back off: the next attempt is due in 30 s, not on the next request.
+            $this->putFound($key, $known['id'], $known['workspace_id'], $now + self::RETRY_SECONDS);
+
+            return ['id' => $known['id'], 'workspace_id' => $known['workspace_id']];
+        }
+
+        if ($row === null) {
+            $store->put($key, ['found' => false], self::MISSING_SECONDS);
+
+            return null;
+        }
+
+        $page = ['id' => self::int($row->id), 'workspace_id' => self::int($row->workspace_id)];
+        $this->putFound($key, $page['id'], $page['workspace_id'], $now + self::FOUND_SECONDS);
+
+        return $page;
     }
 
     /**
      * @return array{id: int, workspace_id: int}|null
      *
-     * @throws QueryException|PDOException when the database fails and nothing is known about the host
+     * @throws QueryException|PDOException when the database fails and no domain map is known
      */
     public function byDomain(string $host): ?array
     {
@@ -48,7 +92,9 @@ final class PageResolver
             return null;
         }
 
-        return $this->resolve(PageStamps::domainKey($host), 'custom_domain', $host);
+        $page = $this->domains()[$host] ?? null;
+
+        return $page === null ? null : ['id' => $page[0], 'workspace_id' => $page[1]];
     }
 
     /**
@@ -72,44 +118,54 @@ final class PageResolver
     }
 
     /**
-     * @return array{id: int, workspace_id: int}|null
+     * Published pages by custom domain.
+     *
+     * @return array<string, array{int, int}>
      */
-    private function resolve(string $key, string $column, string $value): ?array
+    private function domains(): array
     {
-        $store = $this->store();
-        $cached = $store->get($key);
-        $now = CarbonImmutable::now()->getTimestamp();
-        if (is_array($cached) && ($cached['found'] ?? null) === false) {
-            return null;
-        }
-        $known = self::found($cached);
+        $now = self::now();
+        $known = self::map($this->store()->get(PageStamps::domainsKey()));
         if ($known !== null && $now < $known['fresh_until']) {
-            return ['id' => $known['id'], 'workspace_id' => $known['workspace_id']];
+            return $known['domains'];
         }
 
         try {
-            $row = DB::table('status_pages')
-                ->where($column, $value)
+            $rows = DB::table('status_pages')
+                ->whereNotNull('custom_domain')
                 ->where('published', true)
-                ->first(['id', 'workspace_id']);
+                ->get(['id', 'workspace_id', 'custom_domain']);
         } catch (QueryException|PDOException $e) {
-            if ($known !== null) {
-                return ['id' => $known['id'], 'workspace_id' => $known['workspace_id']];
+            if ($known === null) {
+                throw $e;
             }
+            $this->putMap($known['domains'], $now + self::RETRY_SECONDS);
 
-            throw $e;
+            return $known['domains'];
         }
 
-        if ($row === null) {
-            $store->put($key, ['found' => false], self::MISSING_SECONDS);
-
-            return null;
+        $domains = [];
+        foreach ($rows as $row) {
+            if (is_string($row->custom_domain) && $row->custom_domain !== '') {
+                $domains[strtolower($row->custom_domain)] = [self::int($row->id), self::int($row->workspace_id)];
+            }
         }
+        $this->putMap($domains, $now + self::DOMAINS_SECONDS);
 
-        $page = ['id' => self::int($row->id), 'workspace_id' => self::int($row->workspace_id)];
-        $store->put($key, [...$page, 'found' => true, 'fresh_until' => $now + self::FOUND_SECONDS], max(self::FOUND_SECONDS, config()->integer('status.cache.stale_seconds')));
+        return $domains;
+    }
 
-        return $page;
+    /**
+     * @param  array<string, array{int, int}>  $domains
+     */
+    private function putMap(array $domains, int $freshUntil): void
+    {
+        $this->store()->put(PageStamps::domainsKey(), ['domains' => $domains, 'fresh_until' => $freshUntil], $this->keepSeconds());
+    }
+
+    private function putFound(string $key, int $id, int $workspaceId, int $freshUntil): void
+    {
+        $this->store()->put($key, ['id' => $id, 'workspace_id' => $workspaceId, 'found' => true, 'fresh_until' => $freshUntil], $this->keepSeconds());
     }
 
     /**
@@ -123,6 +179,34 @@ final class PageResolver
         }
 
         return ['id' => $cached['id'], 'workspace_id' => $cached['workspace_id'], 'fresh_until' => $cached['fresh_until']];
+    }
+
+    /**
+     * @return array{domains: array<string, array{int, int}>, fresh_until: int}|null
+     */
+    private static function map(mixed $cached): ?array
+    {
+        if (! is_array($cached) || ! is_array($cached['domains'] ?? null) || ! is_int($cached['fresh_until'] ?? null)) {
+            return null;
+        }
+        $domains = [];
+        foreach ($cached['domains'] as $host => $page) {
+            if (is_string($host) && is_array($page) && is_int($page[0] ?? null) && is_int($page[1] ?? null)) {
+                $domains[$host] = [$page[0], $page[1]];
+            }
+        }
+
+        return ['domains' => $domains, 'fresh_until' => $cached['fresh_until']];
+    }
+
+    private function keepSeconds(): int
+    {
+        return max(self::FOUND_SECONDS, config()->integer('status.cache.stale_seconds'));
+    }
+
+    private static function now(): int
+    {
+        return CarbonImmutable::now()->getTimestamp();
     }
 
     private static function int(mixed $value): int

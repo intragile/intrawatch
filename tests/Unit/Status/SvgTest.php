@@ -9,23 +9,54 @@ use PHPUnit\Framework\TestCase;
 
 class SvgTest extends TestCase
 {
-    public function test_one_rect_per_bar_coloured_by_status(): void
+    public function test_healthy_runs_are_one_dashed_stroke_per_colour(): void
+    {
+        $bars = [
+            new DayBar('2026-11-01', DisplayStatus::Operational, 100.0, 0),
+            new DayBar('2026-11-02', DisplayStatus::Operational, 100.0, 0),
+            new DayBar('2026-11-03', DisplayStatus::Unknown, null, 0),
+            new DayBar('2026-11-04', DisplayStatus::Operational, 100.0, 0),
+        ];
+
+        $svg = Svg::bars($bars, fn (DayBar $bar): string => $bar->date, 'API, last 4 days');
+
+        $this->assertStringStartsWith('<svg ', $svg);
+        $this->assertStringContainsString('viewBox="0 0 20 30"', $svg);
+        $this->assertStringContainsString('aria-label="API, last 4 days"><title>API, last 4 days</title>', $svg);
+        $this->assertStringContainsString('<path d="M0 15h9M15 15h4" fill="none" stroke="'.Svg::color(DisplayStatus::Operational).'" stroke-width="30" stroke-dasharray="4 1"/>', $svg);
+        $this->assertStringContainsString('<path d="M10 15h4" fill="none" stroke="'.Svg::color(DisplayStatus::Unknown).'"', $svg);
+        $this->assertStringNotContainsString('<rect', $svg);
+        $this->assertSame(1, substr_count($svg, '<title>'));
+    }
+
+    public function test_other_days_keep_their_own_tooltip(): void
     {
         $bars = [
             new DayBar('2026-11-01', DisplayStatus::Operational, 100.0, 0),
             new DayBar('2026-11-02', DisplayStatus::MajorOutage, 50.0, 720),
-            new DayBar('2026-11-03', DisplayStatus::Unknown, null, 0),
+            new DayBar('2026-11-03', DisplayStatus::Maintenance, 100.0, 0),
+            new DayBar('2026-11-04', DisplayStatus::Operational, 100.0, 0),
         ];
 
         $svg = Svg::bars($bars, fn (DayBar $bar): string => $bar->date);
 
-        $this->assertSame(3, substr_count($svg, '<rect '));
-        $this->assertSame(3, substr_count($svg, '<title>'));
-        $this->assertStringStartsWith('<svg ', $svg);
-        $this->assertStringContainsString('viewBox="0 0 15 30"', $svg);
-        $this->assertMatchesRegularExpression('/<rect x="0"[^>]*fill="'.preg_quote(Svg::color(DisplayStatus::Operational), '/').'"><title>2026-11-01<\/title>/', $svg);
-        $this->assertMatchesRegularExpression('/<rect x="5"[^>]*fill="'.preg_quote(Svg::color(DisplayStatus::MajorOutage), '/').'"><title>2026-11-02<\/title>/', $svg);
-        $this->assertMatchesRegularExpression('/<rect x="10"[^>]*fill="'.preg_quote(Svg::color(DisplayStatus::Unknown), '/').'"><title>2026-11-03<\/title>/', $svg);
+        $this->assertSame(2, substr_count($svg, '<rect '));
+        $this->assertStringContainsString('<rect x="5" width="4" height="30" fill="'.Svg::color(DisplayStatus::MajorOutage).'"><title>2026-11-02</title></rect>', $svg);
+        $this->assertStringContainsString('<rect x="10" width="4" height="30" fill="'.Svg::color(DisplayStatus::Maintenance).'"><title>2026-11-03</title></rect>', $svg);
+        $this->assertStringContainsString('<path d="M0 15h4M15 15h4"', $svg);
+    }
+
+    public function test_a_year_of_healthy_days_is_small(): void
+    {
+        $bars = [];
+        for ($i = 0; $i < 365; $i++) {
+            $bars[] = new DayBar(sprintf('2026-%03d', $i), DisplayStatus::Operational, 100.0, 0);
+        }
+
+        $svg = Svg::bars($bars, fn (DayBar $bar): string => $bar->date, 'API');
+
+        $this->assertStringContainsString('<path d="M0 15h1824"', $svg);
+        $this->assertLessThan(400, strlen($svg));
     }
 
     public function test_every_status_has_a_distinct_colour(): void
@@ -40,10 +71,11 @@ class SvgTest extends TestCase
 
     public function test_titles_are_escaped(): void
     {
-        $svg = Svg::bars([new DayBar('2026-11-01', DisplayStatus::Operational, 100.0, 0)], fn (): string => '</title><script>alert("x")</script>&');
+        $hostile = '</title><script>alert("x")</script>&';
+        $svg = Svg::bars([new DayBar('2026-11-01', DisplayStatus::Degraded, 99.0, 0)], fn (): string => $hostile, $hostile);
 
         $this->assertStringNotContainsString('<script', $svg);
-        $this->assertStringContainsString('&lt;/title&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;', $svg);
+        $this->assertSame(3, substr_count($svg, '&lt;/title&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;'));
 
         $line = Svg::sparkline([1, 2], '<b>"latency"</b>');
         $this->assertStringNotContainsString('<b>', $line);

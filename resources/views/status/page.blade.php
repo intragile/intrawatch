@@ -61,7 +61,7 @@
 @if ($footerHtml !== null)
 <div class="prose">{!! $footerHtml !!}</div>
 @endif
-<p class="muted">{{ __('status.last_updated', ['date' => $date($view->generatedAt), 'timezone' => $view->timezone]) }}</p>
+<!--volatile--><p class="muted">{{ __('status.last_updated', ['date' => $date($view->generatedAt), 'timezone' => $view->timezone]) }}</p><!--/volatile-->
 <p class="muted">{{ __('status.powered_by') }}</p>
 </footer>
 @endsection

@@ -39,6 +39,7 @@ return [
     'decimal_point' => '.',
     'latency' => 'Response time, last 24 hours',
     'components' => 'Components',
+    'bars_summary' => ':name, last :days days',
     'days_ago' => ':days days ago',
     'today' => 'Today',
     'no_data' => 'No data',

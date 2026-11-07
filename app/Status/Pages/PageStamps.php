@@ -24,6 +24,14 @@ final class PageStamps
         return 'status:domain:'.$host;
     }
 
+    /**
+     * The map of every published page's custom domain.
+     */
+    public static function domainsKey(): string
+    {
+        return 'status:domains';
+    }
+
     public static function htmlKey(int $pageId): string
     {
         return 'status:html:'.$pageId;
@@ -78,6 +86,7 @@ final class PageStamps
         if ($domain !== null && $domain !== '') {
             $store->forget(self::domainKey($domain));
         }
+        $store->forget(self::domainsKey());
         $this->bumpPage($pageId);
     }
 
