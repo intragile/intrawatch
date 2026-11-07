@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\WorkspaceAbilities;
 use App\Models\Membership;
 use App\Models\User;
 use App\Models\Workspace;
@@ -58,7 +59,7 @@ class MeController extends Controller
     }
 
     /**
-     * @return list<array<string, string>>
+     * @return list<array<string, mixed>>
      */
     private static function workspaces(User $user, ?int $onlyWorkspaceId = null): array
     {
@@ -69,7 +70,7 @@ class MeController extends Controller
         }
 
         return array_values($query->get()
-            ->map(function (Workspace $workspace): array {
+            ->map(function (Workspace $workspace) use ($user): array {
                 /** @var Membership $pivot */
                 $pivot = $workspace->getRelation('pivot');
 
@@ -78,6 +79,8 @@ class MeController extends Controller
                     'name' => $workspace->name,
                     'slug' => $workspace->slug,
                     'role' => $pivot->role->value,
+                    'channel' => WorkspaceAbilities::channel($user, $workspace),
+                    'can' => WorkspaceAbilities::for($user, $workspace),
                 ];
             })
             ->all());

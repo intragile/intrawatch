@@ -35,7 +35,7 @@ class FortifyServiceProvider extends ServiceProvider
             $email = $notifiable instanceof CanResetPasswordContract ? $notifiable->getEmailForPasswordReset() : '';
 
             // Built from the configured URL, never from the request Host header.
-            return rtrim(config()->string('app.url'), '/').'/reset-password/'.$token.'?email='.urlencode($email);
+            return rtrim(config()->string('app.url'), '/').'/admin/reset-password/'.$token.'?email='.urlencode($email);
         });
 
         RateLimiter::for('login', function (Request $request) {

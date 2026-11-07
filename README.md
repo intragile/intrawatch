@@ -42,6 +42,14 @@ curl -s -b jar.txt -H 'Origin: http://localhost:3000' -H 'Accept: application/js
   http://localhost:3000/api/v1/me
 ```
 
+Every workspace in `/api/v1/me` and `/api/v1/workspaces` carries `channel` and
+`can`. `channel` is the private Reverb channel for live monitor updates
+(`workspace.{id}`; `null` for a token without `monitors:read`), so clients take
+the name from it instead of building it. `can` maps the workspace abilities
+(`view`, `update`, `manageMonitors`, ...) to whether the caller holds them; for
+an API token it is also limited to the token's own abilities. Password-reset
+e-mails link to `{APP_URL}/admin/reset-password/{token}`.
+
 A request without a session (no matching `Origin`, for example) is answered
 with `400` and `urn:problem:session-unavailable` rather than a login that does
 not stick. `GET /api/v1/setup` reports whether setup is still required.

@@ -101,7 +101,7 @@ class LoginTest extends TestCase
             $mail = $notification->toMail($user);
             $url = $mail instanceof MailMessage ? (string) $mail->actionUrl : '';
 
-            return str_starts_with($url, rtrim(config()->string('app.url'), '/').'/reset-password/')
+            return str_starts_with($url, rtrim(config()->string('app.url'), '/').'/admin/reset-password/')
                 && ! str_contains($url, 'evil.test');
         });
     }

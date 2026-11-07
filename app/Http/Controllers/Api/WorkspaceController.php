@@ -6,6 +6,7 @@ use App\Actions\CreateWorkspace;
 use App\Enums\WorkspaceRole;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
+use App\Http\Resources\WorkspaceAbilities;
 use App\Jobs\RebuildDayRollups;
 use App\Models\Membership;
 use App\Models\StatusPage;
@@ -35,12 +36,12 @@ class WorkspaceController extends Controller
             $query->where('workspaces.id', $scoped);
         }
 
-        return CursorPage::from($query, $request, function (Model $workspace): array {
+        return CursorPage::from($query, $request, function (Model $workspace) use ($user): array {
             /** @var Workspace $workspace */
             /** @var Membership $pivot */
             $pivot = $workspace->getRelation('pivot');
 
-            return $this->payload($workspace, $pivot->role);
+            return $this->payload($user, $workspace, $pivot->role);
         });
     }
 
@@ -54,7 +55,7 @@ class WorkspaceController extends Controller
 
         $workspace = $createWorkspace->handle($user, $name);
 
-        return response()->json(['data' => $this->payload($workspace, WorkspaceRole::Owner)], 201);
+        return response()->json(['data' => $this->payload($user, $workspace, WorkspaceRole::Owner)], 201);
     }
 
     public function update(Request $request, Workspace $workspace): JsonResponse
@@ -89,7 +90,10 @@ class WorkspaceController extends Controller
             RebuildDayRollups::dispatch($workspace->id);
         }
 
-        return response()->json(['data' => $this->payload($workspace, app(CurrentWorkspace::class)->role())]);
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json(['data' => $this->payload($user, $workspace, app(CurrentWorkspace::class)->role())]);
     }
 
     public function destroy(Workspace $workspace): Response
@@ -114,7 +118,7 @@ class WorkspaceController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function payload(Workspace $workspace, ?WorkspaceRole $role): array
+    private function payload(User $user, Workspace $workspace, ?WorkspaceRole $role): array
     {
         return [
             'id' => $workspace->public_id,
@@ -122,6 +126,8 @@ class WorkspaceController extends Controller
             'slug' => $workspace->slug,
             'timezone' => $workspace->timezone,
             'role' => $role?->value,
+            'channel' => WorkspaceAbilities::channel($user, $workspace),
+            'can' => WorkspaceAbilities::for($user, $workspace),
         ];
     }
 }

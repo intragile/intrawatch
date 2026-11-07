@@ -1025,14 +1025,28 @@
                                                     "timezone": {
                                                         "type": "string"
                                                     },
-                                                    "role": {}
+                                                    "role": {},
+                                                    "channel": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "can": {
+                                                        "type": "object",
+                                                        "additionalProperties": {
+                                                            "type": "boolean"
+                                                        }
+                                                    }
                                                 },
                                                 "required": [
                                                     "id",
                                                     "name",
                                                     "slug",
                                                     "timezone",
-                                                    "role"
+                                                    "role",
+                                                    "channel",
+                                                    "can"
                                                 ]
                                             }
                                         },
@@ -1118,6 +1132,18 @@
                                                 "role": {
                                                     "type": "string",
                                                     "const": "owner"
+                                                },
+                                                "channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "can": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "boolean"
+                                                    }
                                                 }
                                             },
                                             "required": [
@@ -1125,7 +1151,9 @@
                                                 "name",
                                                 "slug",
                                                 "timezone",
-                                                "role"
+                                                "role",
+                                                "channel",
+                                                "can"
                                             ]
                                         }
                                     },
@@ -1234,6 +1262,18 @@
                                                         "string",
                                                         "null"
                                                     ]
+                                                },
+                                                "channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "can": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "boolean"
+                                                    }
                                                 }
                                             },
                                             "required": [
@@ -1241,7 +1281,9 @@
                                                 "name",
                                                 "slug",
                                                 "timezone",
-                                                "role"
+                                                "role",
+                                                "channel",
+                                                "can"
                                             ]
                                         }
                                     },
