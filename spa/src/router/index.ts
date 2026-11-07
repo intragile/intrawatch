@@ -39,22 +39,22 @@ const workspaceRoutes: RouteRecordRaw[] = [
   {
     path: 'channels',
     name: 'ws.channels',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/notifications/ChannelListView.vue'),
   },
   {
     path: 'channels/new',
     name: 'ws.channel.new',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/notifications/ChannelEditView.vue'),
   },
   {
     path: 'channels/:channel(\\d+)',
     name: 'ws.channel',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/notifications/ChannelEditView.vue'),
   },
   {
     path: 'alerts',
     name: 'ws.alerts',
-    component: () => import('../views/PlaceholderView.vue'),
+    component: () => import('../views/notifications/AlertHistoryView.vue'),
   },
   {
     path: 'incidents',

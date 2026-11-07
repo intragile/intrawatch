@@ -20,7 +20,8 @@
     "loadMore": "További elemek betöltése",
     "clear": "Törlés",
     "noAccess": "Ehhez a képernyőhöz nincs hozzáférése.",
-    "never": "Soha"
+    "never": "Soha",
+    "edit": "Szerkesztés"
   },
   "problem": {
     "network": "A szerver nem érhető el. Ellenőrizze a kapcsolatot, és próbálja újra.",
@@ -654,5 +655,191 @@
       "rotateText": "A jelenlegi URL azonnal érvénytelen lesz. Frissítsd az összes feladatot, amely ide jelent.",
       "rotated": "A push token kicserélve."
     }
+  },
+  "channels": {
+    "title": "Értesítési csatornák",
+    "new": "Új csatorna",
+    "newTitle": "Új értesítési csatorna",
+    "editTitle": "Értesítési csatorna szerkesztése",
+    "loading": "A csatorna betöltése",
+    "retry": "Újra",
+    "deleted": "A csatorna törölve.",
+    "created": "A csatorna létrejött.",
+    "updated": "A csatorna mentve.",
+    "noChanges": "Nincs mit menteni, egy mező sem változott.",
+    "typeLocked": "A típus a csatorna létrehozása után nem módosítható.",
+    "noDigest": "Ez a csatorna minden riasztást külön küld, nincs összesítő üzemmódja.",
+    "active": "Aktív",
+    "inactive": "Inaktív",
+    "default": "Alapértelmezett",
+    "neverUsed": "Még nem használták",
+    "lastSuccess": "Utoljára kézbesítve",
+    "lastFailure": "Utolsó hiba",
+    "activeHint": "Az inaktív csatorna nem kap riasztást.",
+    "defaultHint": "Az új monitorok automatikusan feliratkoznak erre a csatornára.",
+    "applyHint": "Mentéskor a meglévő monitorokat is feliratkoztatja.",
+    "mapHint": "Soronként egy fejléc, Név: érték alakban.",
+    "mapInvalid": "A(z) {lines}. sor nem Név: érték alakú.",
+    "listHint": "Írj be egy címet, majd nyomj Entert.",
+    "range": "{min} és {max} között.",
+    "atLeast": "Legalább {min}.",
+    "columns": {
+      "name": "Név",
+      "type": "Típus",
+      "state": "Állapot",
+      "monitors": "Monitorok",
+      "delivery": "Legutóbbi kézbesítés",
+      "actions": "Műveletek"
+    },
+    "empty": {
+      "title": "Még nincs értesítési csatorna",
+      "text": "Adj hozzá egy csatornát, hogy a riasztások e-mailben, chaten vagy webhookon is eljussanak hozzád."
+    },
+    "delete": {
+      "title": "Törlöd a csatornát?",
+      "text": "A riasztások többé nem mennek a(z) „{name}” csatornára. A korábbi riasztási napló megmarad."
+    },
+    "leave": {
+      "title": "Elveted a módosításokat?",
+      "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "confirm": "Módosítások elvetése"
+    },
+    "sections": {
+      "settings": "{type} beállításai",
+      "delivery": "Kézbesítés",
+      "templates": "Üzenet szövege",
+      "test": "Teszt"
+    },
+    "fields": {
+      "type": "Csatorna típusa",
+      "name": "Név",
+      "active": "Aktív",
+      "is_default": "Alapértelmezett csatorna",
+      "apply_to_existing": "Meglévő monitorokra is",
+      "to": "Címzettek",
+      "smtp": "SMTP-kiszolgáló",
+      "smtp_password": "SMTP-jelszó",
+      "url": "URL",
+      "method": "HTTP-metódus",
+      "format": "Törzs formátuma",
+      "headers": "Fejlécek",
+      "secret_headers": "Titkos fejlécek",
+      "signing_secret": "Aláíró kulcs",
+      "webhook_url": "Webhook URL",
+      "username": "Megjelenő név",
+      "thread_id": "Szál azonosítója",
+      "channel": "Csatorna",
+      "chat_id": "Chat azonosító",
+      "message_thread_id": "Téma azonosítója",
+      "server_url": "Kiszolgáló URL",
+      "silent": "Néma küldés",
+      "bot_token": "Bot token",
+      "topic": "Téma",
+      "priority": "Prioritás",
+      "access_token": "Hozzáférési token",
+      "app_token": "Alkalmazás token",
+      "sound": "Hang",
+      "device": "Eszköz",
+      "user_key": "Felhasználói kulcs",
+      "homeserver_url": "Homeserver URL",
+      "room_id": "Szoba azonosítója",
+      "routing_key": "Útválasztó kulcs",
+      "region": "Régió",
+      "api_key": "API-kulcs",
+      "config_key": "Konfigurációs kulcs",
+      "urls": "Értesítési URL-ek"
+    },
+    "types": {
+      "email": "E-mail",
+      "webhook": "Webhook",
+      "slack": "Slack",
+      "discord": "Discord",
+      "teams": "Microsoft Teams",
+      "mattermost": "Mattermost",
+      "google_chat": "Google Chat",
+      "telegram": "Telegram",
+      "ntfy": "ntfy",
+      "gotify": "Gotify",
+      "pushover": "Pushover",
+      "matrix": "Matrix",
+      "pagerduty": "PagerDuty",
+      "opsgenie": "Opsgenie",
+      "apprise": "Apprise"
+    },
+    "smtp": {
+      "use": "Saját SMTP-kiszolgálót használok",
+      "hint": "Kikapcsolva az alkalmazás levelezőjén keresztül megy a levél.",
+      "host": "Kiszolgáló",
+      "port": "Port",
+      "encryption": "Titkosítás",
+      "username": "Felhasználónév",
+      "from_address": "Feladó címe",
+      "from_name": "Feladó neve"
+    },
+    "templates": {
+      "intro": "Üresen hagyva a beépített szöveg szerepel.",
+      "title": "Cím sablon",
+      "body": "Törzs sablon",
+      "variables": "Változók: {list}"
+    },
+    "test": {
+      "send": "Tesztüzenet küldése",
+      "ok": "A teszt megérkezett",
+      "failed": "A teszt sikertelen",
+      "unknown": "A szolgáltató nem adott részleteket.",
+      "saveFirst": "A módosítások kipróbálásához előbb mentsd őket."
+    },
+    "delivery": {
+      "queued": "Sorban áll",
+      "sent": "Elküldve",
+      "failed": "Sikertelen"
+    },
+    "binding": {
+      "title": "Monitorok",
+      "count": "Feliratkozott monitorok: {count}",
+      "monitors": "Módosítandó monitorok",
+      "hint": "Legfeljebb {max} monitort válassz ki, majd iratkoztasd fel vagy le őket.",
+      "subscribe": "Feliratkoztatás",
+      "unsubscribe": "Leiratkoztatás",
+      "subscribed": "{count} monitor feliratkozott.",
+      "unsubscribed": "{count} monitor leiratkozott."
+    }
+  },
+  "alerts": {
+    "title": "Riasztási napló",
+    "empty": "Még nincs riasztás.",
+    "filters": {
+      "kind": "Típus",
+      "monitor": "Monitor",
+      "since": "Ettől"
+    },
+    "columns": {
+      "time": "Idő",
+      "kind": "Típus",
+      "monitor": "Monitor",
+      "message": "Üzenet",
+      "duration": "Időtartam",
+      "deliveries": "Kézbesítések"
+    },
+    "kinds": {
+      "down": "Leállt",
+      "up": "Újra elérhető",
+      "degraded": "Lassú",
+      "still_down": "Még mindig leállt",
+      "flapping": "Ingadozik",
+      "stable": "Stabil",
+      "expiring": "Hamarosan lejár",
+      "renewed": "Megújult",
+      "changed": "Megváltozott",
+      "test": "Teszt"
+    },
+    "noMonitor": "Nincs monitor",
+    "suppressed": "Egy szülő monitor elnyomta.",
+    "deletedChannel": "Törölt csatorna",
+    "attempts": "{n} próbálkozás",
+    "noDeliveries": "Nincs kézbesítés",
+    "seconds": "{n} mp",
+    "minutes": "{n} perc {s} mp",
+    "hours": "{n} óra {m} perc"
   }
 }

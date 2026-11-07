@@ -1,0 +1,208 @@
+[
+  {
+    "type": "email",
+    "supports_digest": true,
+    "defaults": {
+      "smtp": null
+    },
+    "config_keys": [
+      "to",
+      "smtp"
+    ],
+    "secret_keys": [
+      "smtp_password"
+    ]
+  },
+  {
+    "type": "webhook",
+    "supports_digest": false,
+    "defaults": {
+      "method": "POST",
+      "format": "json",
+      "headers": []
+    },
+    "config_keys": [
+      "url",
+      "method",
+      "format",
+      "headers"
+    ],
+    "secret_keys": [
+      "secret_headers",
+      "signing_secret"
+    ]
+  },
+  {
+    "type": "slack",
+    "supports_digest": true,
+    "defaults": {},
+    "config_keys": [],
+    "secret_keys": [
+      "webhook_url"
+    ]
+  },
+  {
+    "type": "discord",
+    "supports_digest": true,
+    "defaults": {
+      "username": null,
+      "thread_id": null
+    },
+    "config_keys": [
+      "username",
+      "thread_id"
+    ],
+    "secret_keys": [
+      "webhook_url"
+    ]
+  },
+  {
+    "type": "teams",
+    "supports_digest": true,
+    "defaults": {},
+    "config_keys": [],
+    "secret_keys": [
+      "webhook_url"
+    ]
+  },
+  {
+    "type": "mattermost",
+    "supports_digest": true,
+    "defaults": {
+      "channel": null,
+      "username": null
+    },
+    "config_keys": [
+      "channel",
+      "username"
+    ],
+    "secret_keys": [
+      "webhook_url"
+    ]
+  },
+  {
+    "type": "google_chat",
+    "supports_digest": true,
+    "defaults": {},
+    "config_keys": [],
+    "secret_keys": [
+      "webhook_url"
+    ]
+  },
+  {
+    "type": "telegram",
+    "supports_digest": true,
+    "defaults": {
+      "message_thread_id": null,
+      "server_url": "https://api.telegram.org",
+      "silent": false
+    },
+    "config_keys": [
+      "chat_id",
+      "message_thread_id",
+      "server_url",
+      "silent"
+    ],
+    "secret_keys": [
+      "bot_token"
+    ]
+  },
+  {
+    "type": "ntfy",
+    "supports_digest": true,
+    "defaults": {
+      "server_url": "https://ntfy.sh",
+      "priority": null
+    },
+    "config_keys": [
+      "server_url",
+      "topic",
+      "priority"
+    ],
+    "secret_keys": [
+      "access_token"
+    ]
+  },
+  {
+    "type": "gotify",
+    "supports_digest": true,
+    "defaults": {
+      "priority": null
+    },
+    "config_keys": [
+      "server_url",
+      "priority"
+    ],
+    "secret_keys": [
+      "app_token"
+    ]
+  },
+  {
+    "type": "pushover",
+    "supports_digest": true,
+    "defaults": {
+      "priority": null,
+      "sound": null,
+      "device": null
+    },
+    "config_keys": [
+      "priority",
+      "sound",
+      "device"
+    ],
+    "secret_keys": [
+      "user_key",
+      "app_token"
+    ]
+  },
+  {
+    "type": "matrix",
+    "supports_digest": true,
+    "defaults": {},
+    "config_keys": [
+      "homeserver_url",
+      "room_id"
+    ],
+    "secret_keys": [
+      "access_token"
+    ]
+  },
+  {
+    "type": "pagerduty",
+    "supports_digest": false,
+    "defaults": {},
+    "config_keys": [],
+    "secret_keys": [
+      "routing_key"
+    ]
+  },
+  {
+    "type": "opsgenie",
+    "supports_digest": false,
+    "defaults": {
+      "region": "us",
+      "priority": null
+    },
+    "config_keys": [
+      "region",
+      "priority"
+    ],
+    "secret_keys": [
+      "api_key"
+    ]
+  },
+  {
+    "type": "apprise",
+    "supports_digest": true,
+    "defaults": {
+      "config_key": null
+    },
+    "config_keys": [
+      "server_url",
+      "config_key"
+    ],
+    "secret_keys": [
+      "urls"
+    ]
+  }
+]

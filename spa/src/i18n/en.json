@@ -20,7 +20,8 @@
     "loadMore": "Load more",
     "clear": "Clear",
     "noAccess": "You do not have access to this screen.",
-    "never": "Never"
+    "never": "Never",
+    "edit": "Edit"
   },
   "problem": {
     "network": "Cannot reach the server. Check your connection and try again.",
@@ -654,5 +655,191 @@
       "rotateText": "The current URL stops working immediately. Update every job that reports to this monitor.",
       "rotated": "Push token rotated."
     }
+  },
+  "channels": {
+    "title": "Notification channels",
+    "new": "New channel",
+    "newTitle": "New notification channel",
+    "editTitle": "Edit notification channel",
+    "loading": "Loading the channel",
+    "retry": "Try again",
+    "deleted": "Channel deleted.",
+    "created": "Channel created.",
+    "updated": "Channel saved.",
+    "noChanges": "Nothing to save, no fields were changed.",
+    "typeLocked": "The type cannot be changed after the channel is created.",
+    "noDigest": "This channel sends every alert on its own; it has no digest mode.",
+    "active": "Active",
+    "inactive": "Inactive",
+    "default": "Default",
+    "neverUsed": "Not used yet",
+    "lastSuccess": "Last delivered",
+    "lastFailure": "Last failed",
+    "activeHint": "An inactive channel receives no alerts.",
+    "defaultHint": "New monitors subscribe to this channel automatically.",
+    "applyHint": "Also subscribe every existing monitor when you save.",
+    "mapHint": "One header per line, as Name: value.",
+    "mapInvalid": "Lines {lines} are not in Name: value form.",
+    "listHint": "Type an address and press Enter.",
+    "range": "Between {min} and {max}.",
+    "atLeast": "At least {min}.",
+    "columns": {
+      "name": "Name",
+      "type": "Type",
+      "state": "State",
+      "monitors": "Monitors",
+      "delivery": "Latest delivery",
+      "actions": "Actions"
+    },
+    "empty": {
+      "title": "No notification channels",
+      "text": "Add a channel so alerts reach you by e-mail, chat or webhook."
+    },
+    "delete": {
+      "title": "Delete channel?",
+      "text": "Alerts stop going to \"{name}\". Past alert history is kept."
+    },
+    "leave": {
+      "title": "Discard changes?",
+      "text": "You have unsaved changes. If you leave this page they are lost.",
+      "confirm": "Discard changes"
+    },
+    "sections": {
+      "settings": "{type} settings",
+      "delivery": "Delivery",
+      "templates": "Message text",
+      "test": "Test"
+    },
+    "fields": {
+      "type": "Channel type",
+      "name": "Name",
+      "active": "Active",
+      "is_default": "Default channel",
+      "apply_to_existing": "Apply to existing monitors",
+      "to": "Recipients",
+      "smtp": "SMTP server",
+      "smtp_password": "SMTP password",
+      "url": "URL",
+      "method": "HTTP method",
+      "format": "Body format",
+      "headers": "Headers",
+      "secret_headers": "Secret headers",
+      "signing_secret": "Signing secret",
+      "webhook_url": "Webhook URL",
+      "username": "Display name",
+      "thread_id": "Thread ID",
+      "channel": "Channel",
+      "chat_id": "Chat ID",
+      "message_thread_id": "Topic ID",
+      "server_url": "Server URL",
+      "silent": "Send silently",
+      "bot_token": "Bot token",
+      "topic": "Topic",
+      "priority": "Priority",
+      "access_token": "Access token",
+      "app_token": "App token",
+      "sound": "Sound",
+      "device": "Device",
+      "user_key": "User key",
+      "homeserver_url": "Homeserver URL",
+      "room_id": "Room ID",
+      "routing_key": "Routing key",
+      "region": "Region",
+      "api_key": "API key",
+      "config_key": "Config key",
+      "urls": "Notification URLs"
+    },
+    "types": {
+      "email": "E-mail",
+      "webhook": "Webhook",
+      "slack": "Slack",
+      "discord": "Discord",
+      "teams": "Microsoft Teams",
+      "mattermost": "Mattermost",
+      "google_chat": "Google Chat",
+      "telegram": "Telegram",
+      "ntfy": "ntfy",
+      "gotify": "Gotify",
+      "pushover": "Pushover",
+      "matrix": "Matrix",
+      "pagerduty": "PagerDuty",
+      "opsgenie": "Opsgenie",
+      "apprise": "Apprise"
+    },
+    "smtp": {
+      "use": "Use my own SMTP server",
+      "hint": "Off sends through the application mailer.",
+      "host": "Host",
+      "port": "Port",
+      "encryption": "Encryption",
+      "username": "Username",
+      "from_address": "From address",
+      "from_name": "From name"
+    },
+    "templates": {
+      "intro": "Leave blank to use the built-in text.",
+      "title": "Title template",
+      "body": "Body template",
+      "variables": "Variables: {list}"
+    },
+    "test": {
+      "send": "Send test message",
+      "ok": "Test delivered",
+      "failed": "Test failed",
+      "unknown": "The provider gave no details.",
+      "saveFirst": "Save your changes to test them."
+    },
+    "delivery": {
+      "queued": "Queued",
+      "sent": "Sent",
+      "failed": "Failed"
+    },
+    "binding": {
+      "title": "Monitors",
+      "count": "Subscribed monitors: {count}",
+      "monitors": "Monitors to change",
+      "hint": "Pick up to {max} monitors, then subscribe or unsubscribe them.",
+      "subscribe": "Subscribe",
+      "unsubscribe": "Unsubscribe",
+      "subscribed": "{count} monitors subscribed.",
+      "unsubscribed": "{count} monitors unsubscribed."
+    }
+  },
+  "alerts": {
+    "title": "Alert history",
+    "empty": "No alerts yet.",
+    "filters": {
+      "kind": "Kind",
+      "monitor": "Monitor",
+      "since": "Since"
+    },
+    "columns": {
+      "time": "Time",
+      "kind": "Kind",
+      "monitor": "Monitor",
+      "message": "Message",
+      "duration": "Duration",
+      "deliveries": "Deliveries"
+    },
+    "kinds": {
+      "down": "Down",
+      "up": "Up",
+      "degraded": "Degraded",
+      "still_down": "Still down",
+      "flapping": "Flapping",
+      "stable": "Stable",
+      "expiring": "Expiring",
+      "renewed": "Renewed",
+      "changed": "Changed",
+      "test": "Test"
+    },
+    "noMonitor": "No monitor",
+    "suppressed": "Suppressed by a parent monitor.",
+    "deletedChannel": "Deleted channel",
+    "attempts": "{n} attempts",
+    "noDeliveries": "No deliveries",
+    "seconds": "{n} s",
+    "minutes": "{n} min {s} s",
+    "hours": "{n} h {m} min"
   }
 }
