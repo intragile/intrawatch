@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('alert_events', function (Blueprint $table): void {
             $table->id();
-            $table->unsignedBigInteger('workspace_id');
+            $table->foreignId('workspace_id')->constrained()->cascadeOnDelete();
             $table->foreignId('monitor_id')->nullable()->constrained()->nullOnDelete();
             $table->string('kind', 16);
             $table->string('status', 16)->nullable();

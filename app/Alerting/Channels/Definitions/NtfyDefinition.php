@@ -15,7 +15,7 @@ class NtfyDefinition extends AbstractChannelDefinition
     {
         return [
             'server_url' => $this->urlRule(),
-            'topic' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{1,64}$/'],
+            'topic' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{1,64}\z/'],
             'priority' => ['nullable', 'integer', 'between:1,5'],
         ];
     }

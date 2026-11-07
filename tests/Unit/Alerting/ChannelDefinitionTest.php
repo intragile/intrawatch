@@ -143,4 +143,77 @@ class ChannelDefinitionTest extends TestCase
         $this->assertSame(['user_key', 'app_token'], ChannelType::Pushover->definition()->requiredSecrets());
         $this->assertSame([], ChannelType::Email->definition()->requiredSecrets());
     }
+
+    public function test_email_smtp_block_is_validated(): void
+    {
+        $base = ['to' => ['ops@example.test']];
+        $smtp = ['host' => 'smtp.example.test', 'port' => 587, 'encryption' => 'starttls', 'from_address' => 'a@example.test'];
+
+        $this->assertTrue($this->validate(ChannelType::Email, $base + ['smtp' => $smtp])->passes());
+
+        $v = $this->validate(ChannelType::Email, $base + ['smtp' => array_diff_key($smtp, ['host' => 1])]);
+        $this->assertTrue($v->errors()->has('config.smtp.host'));
+
+        $v = $this->validate(ChannelType::Email, $base + ['smtp' => array_diff_key($smtp, ['from_address' => 1])]);
+        $this->assertTrue($v->errors()->has('config.smtp.from_address'));
+
+        foreach ([0, 65536] as $port) {
+            $v = $this->validate(ChannelType::Email, $base + ['smtp' => ['port' => $port] + $smtp]);
+            $this->assertTrue($v->errors()->has('config.smtp.port'));
+        }
+
+        $v = $this->validate(ChannelType::Email, $base + ['smtp' => ['encryption' => 'ssl'] + $smtp]);
+        $this->assertTrue($v->errors()->has('config.smtp.encryption'));
+    }
+
+    public function test_webhook_headers_are_restricted(): void
+    {
+        $url = 'https://example.test/hook';
+
+        $this->assertTrue($this->validate(ChannelType::Webhook, ['url' => $url, 'headers' => ['X-Env' => 'prod']], ['secret_headers' => ['X-Api-Key' => 'k']])->passes());
+
+        $v = $this->validate(ChannelType::Webhook, ['url' => $url, 'headers' => ['a', 'b']]);
+        $this->assertTrue($v->errors()->has('config.headers'));
+
+        $v = $this->validate(ChannelType::Webhook, ['url' => $url], ['secret_headers' => ['k']]);
+        $this->assertTrue($v->errors()->has('secrets.secret_headers'));
+
+        foreach (['Bad Name', 'X_Under', 'X:Colon', str_repeat('a', 65)] as $name) {
+            $v = $this->validate(ChannelType::Webhook, ['url' => $url, 'headers' => [$name => 'v']]);
+            $this->assertTrue($v->errors()->has('config.headers'), $name);
+        }
+
+        $v = $this->validate(ChannelType::Webhook, ['url' => $url, 'headers' => ['X-A' => "v\r\nX-B: 1"]]);
+        $this->assertTrue($v->errors()->has('config.headers'));
+        $v = $this->validate(ChannelType::Webhook, ['url' => $url], ['secret_headers' => ['X-A' => "v\n"]]);
+        $this->assertTrue($v->errors()->has('secrets.secret_headers'));
+
+        foreach (['Host', 'content-length', 'CONTENT-TYPE', 'Transfer-Encoding'] as $name) {
+            $v = $this->validate(ChannelType::Webhook, ['url' => $url, 'headers' => [$name => 'v']]);
+            $this->assertTrue($v->errors()->has('config.headers'), $name);
+            $v = $this->validate(ChannelType::Webhook, ['url' => $url], ['secret_headers' => [$name => 'v']]);
+            $this->assertTrue($v->errors()->has('secrets.secret_headers'), $name);
+        }
+    }
+
+    public function test_trailing_newline_does_not_pass_anchored_patterns(): void
+    {
+        $v = $this->validate(ChannelType::Ntfy, ['topic' => "alerts\n"]);
+        $this->assertTrue($v->errors()->has('config.topic'));
+
+        $v = $this->validate(ChannelType::Telegram, ['chat_id' => "-100\n"], ['bot_token' => '123456:'.str_repeat('a', 35)]);
+        $this->assertTrue($v->errors()->has('config.chat_id'));
+
+        $v = $this->validate(ChannelType::Telegram, ['chat_id' => '1'], ['bot_token' => '123456:'.str_repeat('a', 35)."\n"]);
+        $this->assertTrue($v->errors()->has('secrets.bot_token'));
+
+        $v = $this->validate(ChannelType::Matrix, ['homeserver_url' => 'https://m.test', 'room_id' => "!a:b\n"], ['access_token' => 't']);
+        $this->assertTrue($v->errors()->has('config.room_id'));
+
+        $v = $this->validate(ChannelType::Discord, ['thread_id' => "12\n"], ['webhook_url' => 'https://d.test/x']);
+        $this->assertTrue($v->errors()->has('config.thread_id'));
+
+        $v = $this->validate(ChannelType::Apprise, ['server_url' => 'https://a.test', 'config_key' => "k\n"]);
+        $this->assertTrue($v->errors()->has('config.config_key'));
+    }
 }

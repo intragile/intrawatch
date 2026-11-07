@@ -124,4 +124,23 @@ class AlertingModelTest extends TestCase
         $this->assertSame(0, $s->reminders_sent);
         $this->assertSame([100, 200], $s->recent_changes);
     }
+
+    public function test_deleting_a_workspace_removes_its_alert_history(): void
+    {
+        $ws = Workspace::factory()->create();
+        $other = Workspace::factory()->create();
+        $channel = NotificationChannel::factory()->slack()->create(['workspace_id' => $ws->id]);
+        foreach ([$ws, $other] as $w) {
+            AlertEvent::create(['workspace_id' => $w->id, 'kind' => AlertKind::Test, 'message' => 'test']);
+            AlertDelivery::create(['workspace_id' => $w->id, 'alert_event_ids' => [1], 'status' => DeliveryStatus::Sent]);
+        }
+
+        $ws->delete();
+
+        $this->assertSame(0, AlertEvent::query()->where('workspace_id', $ws->id)->count());
+        $this->assertSame(0, AlertDelivery::query()->where('workspace_id', $ws->id)->count());
+        $this->assertSame(0, NotificationChannel::query()->whereKey($channel->id)->count());
+        $this->assertSame(1, AlertEvent::query()->where('workspace_id', $other->id)->count());
+        $this->assertSame(1, AlertDelivery::query()->where('workspace_id', $other->id)->count());
+    }
 }

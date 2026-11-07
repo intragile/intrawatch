@@ -16,7 +16,7 @@ class AppriseDefinition extends AbstractChannelDefinition
     {
         return [
             'server_url' => $this->urlRule(),
-            'config_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_-]{1,64}$/'],
+            'config_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_-]{1,64}\z/'],
         ];
     }
 

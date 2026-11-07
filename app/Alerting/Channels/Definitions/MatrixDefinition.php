@@ -15,7 +15,7 @@ class MatrixDefinition extends AbstractChannelDefinition
     {
         return [
             'homeserver_url' => $this->urlRule(),
-            'room_id' => ['required', 'string', 'max:255', 'regex:/^![^:]+:.+$/'],
+            'room_id' => ['required', 'string', 'max:255', 'regex:/^![^:]+:.+\z/'],
         ];
     }
 

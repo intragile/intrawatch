@@ -15,7 +15,7 @@ class DiscordDefinition extends AbstractChannelDefinition
     {
         return [
             'username' => ['nullable', 'string', 'max:80'],
-            'thread_id' => ['nullable', 'string', "regex:/^\d+$/"],
+            'thread_id' => ['nullable', 'string', "regex:/^\d+\z/"],
         ];
     }
 

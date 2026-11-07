@@ -14,7 +14,7 @@ class TelegramDefinition extends AbstractChannelDefinition
     public function configRules(): array
     {
         return [
-            'chat_id' => ['required', 'string', "regex:/^(-?\d{1,20}|@[A-Za-z0-9_]{5,32})$/"],
+            'chat_id' => ['required', 'string', "regex:/^(-?\d{1,20}|@[A-Za-z0-9_]{5,32})\z/"],
             'message_thread_id' => ['nullable', 'integer', 'min:1'],
             'server_url' => $this->urlRule(),
             'silent' => ['boolean'],
@@ -23,7 +23,7 @@ class TelegramDefinition extends AbstractChannelDefinition
 
     public function secretRules(): array
     {
-        return ['bot_token' => ['required', 'string', "regex:/^\d+:[A-Za-z0-9_-]{30,}$/"]];
+        return ['bot_token' => ['required', 'string', "regex:/^\d+:[A-Za-z0-9_-]{30,}\z/"]];
     }
 
     public function defaults(): array
