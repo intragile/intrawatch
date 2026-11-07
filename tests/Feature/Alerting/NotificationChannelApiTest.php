@@ -10,6 +10,8 @@ use App\Models\NotificationChannel;
 use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\AssertsWorkspaceIsolation;
 use Tests\TestCase;
 
@@ -325,5 +327,96 @@ class NotificationChannelApiTest extends TestCase
 
         $this->app['auth']->forgetGuards();
         $this->getJson('/api/v1/notification-channel-types')->assertUnauthorized();
+    }
+
+    public function test_rename_and_no_op_patch_do_not_audit_secret_keys(): void
+    {
+        $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), $this->telegram())->assertCreated()->json('data.id'));
+        AuditEvent::query()->delete();
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), [])->assertOk();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['name' => 'Ops chat'])->assertOk();
+        $this->assertSame(0, AuditEvent::query()->count(), 'a true no-op writes no audit row');
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['name' => 'Renamed'])->assertOk();
+        $event = AuditEvent::query()->firstOrFail();
+        $this->assertSame(['name'], array_keys($event->changes ?? []));
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['secrets' => ['bot_token' => '654321:'.str_repeat('b', 35)]])->assertOk();
+        $rotated = AuditEvent::query()->latest('id')->firstOrFail();
+        $this->assertSame([['bot_token'], ['bot_token']], $rotated->changes['secret_keys'] ?? null);
+    }
+
+    public function test_apply_to_existing_is_audited_only_when_something_was_attached(): void
+    {
+        $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), $this->telegram() + ['apply_to_existing' => true])->assertCreated()->json('data.id'));
+        $this->assertArrayNotHasKey('applied_to_existing', AuditEvent::query()->firstOrFail()->changes ?? []);
+
+        Monitor::factory()->for($this->ws)->create();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['apply_to_existing' => true])->assertOk();
+        $this->assertSame([null, 1], AuditEvent::query()->latest('id')->firstOrFail()->changes['applied_to_existing'] ?? null);
+
+        AuditEvent::query()->delete();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['apply_to_existing' => true])->assertOk();
+        $this->assertSame(0, AuditEvent::query()->count());
+    }
+
+    public function test_apply_to_existing_crosses_the_chunk_boundary(): void
+    {
+        $rows = [];
+        foreach (Monitor::factory()->for($this->ws)->count(501)->create() as $monitor) {
+            $rows[] = $monitor->id;
+        }
+        $this->assertCount(501, $rows);
+
+        $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), $this->telegram() + ['apply_to_existing' => true])
+            ->assertCreated()->assertJsonPath('data.monitor_count', 501)->json('data.id'));
+
+        $this->assertSame(501, DB::table('monitor_notification')->where('notification_channel_id', $id)->count());
+        $this->assertSame([null, 501], AuditEvent::query()->firstOrFail()->changes['applied_to_existing'] ?? null);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: array<string, mixed>, 2: array<string, mixed>}>
+     */
+    public static function channelTypes(): array
+    {
+        $url = 'https://hooks.example.test/in/abcdef';
+
+        return [
+            'email' => ['email', ['to' => ['ops@example.test']], []],
+            'webhook' => ['webhook', ['url' => 'https://hooks.example.test/in'], ['signing_secret' => str_repeat('s', 20), 'secret_headers' => ['X-Token' => 'abc']]],
+            'slack' => ['slack', [], ['webhook_url' => $url]],
+            'discord' => ['discord', [], ['webhook_url' => $url]],
+            'teams' => ['teams', [], ['webhook_url' => $url]],
+            'mattermost' => ['mattermost', [], ['webhook_url' => $url]],
+            'google_chat' => ['google_chat', [], ['webhook_url' => $url]],
+            'telegram' => ['telegram', ['chat_id' => '-100123456'], ['bot_token' => '123456:'.str_repeat('a', 35)]],
+            'ntfy' => ['ntfy', ['topic' => 'alerts'], ['access_token' => 'tk_secret']],
+            'gotify' => ['gotify', ['server_url' => 'https://gotify.example.test'], ['app_token' => 'apptoken']],
+            'pushover' => ['pushover', [], ['user_key' => 'userkey', 'app_token' => 'apptoken']],
+            'matrix' => ['matrix', ['homeserver_url' => 'https://matrix.example.test', 'room_id' => '!room:example.test'], ['access_token' => 'syt_token']],
+            'pagerduty' => ['pagerduty', [], ['routing_key' => str_repeat('a', 32)]],
+            'opsgenie' => ['opsgenie', [], ['api_key' => 'apikey']],
+            'apprise' => ['apprise', ['server_url' => 'https://apprise.example.test'], ['urls' => 'json://example.test/hook']],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @param  array<string, mixed>  $secrets
+     */
+    #[DataProvider('channelTypes')]
+    public function test_renaming_a_channel_keeps_its_stored_secrets(string $type, array $config, array $secrets): void
+    {
+        $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), [
+            'name' => 'Before', 'type' => $type, 'config' => $config, 'secrets' => $secrets,
+        ])->assertCreated()->json('data.id'));
+        $before = $this->channel($id)->secrets;
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['name' => 'After'])
+            ->assertOk()->assertJsonPath('data.name', 'After');
+
+        $this->assertSame($before, $this->channel($id)->secrets);
     }
 }

@@ -54,8 +54,8 @@ class NotificationChannelController extends Controller
                 'is_default' => [null, $channel->is_default],
                 'active' => [null, $channel->active],
             ];
-            if ($request->applyToExisting()) {
-                $changes['applied_to_existing'] = [null, $this->attachToMonitors($workspace, $channel)];
+            if ($request->applyToExisting() && ($attached = $this->attachToMonitors($workspace, $channel)) > 0) {
+                $changes['applied_to_existing'] = [null, $attached];
             }
             Audit::record('notification_channel.created', $channel, $changes);
 
@@ -73,7 +73,7 @@ class NotificationChannelController extends Controller
     public function update(NotificationChannelRequest $request, Workspace $workspace, NotificationChannel $channel): JsonResponse
     {
         $changes = $request->changes();
-        $secretsSent = $request->has('secrets') && $request->input('secrets') !== [];
+        $secretsSent = $request->secretsSubmitted();
 
         DB::transaction(function () use ($request, $workspace, $channel, $changes, $secretsSent): void {
             $before = $channel->only(array_keys($changes));
@@ -96,8 +96,8 @@ class NotificationChannelController extends Controller
             if ($secretsSent || $oldSecretKeys !== $newSecretKeys) {
                 $diff['secret_keys'] = [$oldSecretKeys, $newSecretKeys];
             }
-            if ($request->applyToExisting()) {
-                $diff['applied_to_existing'] = [null, $this->attachToMonitors($workspace, $channel)];
+            if ($request->applyToExisting() && ($attached = $this->attachToMonitors($workspace, $channel)) > 0) {
+                $diff['applied_to_existing'] = [null, $attached];
             }
             if ($diff !== []) {
                 Audit::record('notification_channel.updated', $channel, $diff);

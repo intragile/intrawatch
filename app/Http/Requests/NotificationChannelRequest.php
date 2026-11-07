@@ -52,8 +52,21 @@ class NotificationChannelRequest extends FormRequest
         return is_string($type) ? ChannelType::tryFrom($type) : null;
     }
 
+    private bool $secretsSubmitted = false;
+
+    /**
+     * Whether the request body itself carried secrets, as opposed to the stored ones merged in for validation.
+     */
+    public function secretsSubmitted(): bool
+    {
+        return $this->secretsSubmitted;
+    }
+
     protected function prepareForValidation(): void
     {
+        $raw = $this->input('secrets');
+        $this->secretsSubmitted = is_array($raw) && $raw !== [];
+
         $type = $this->channelType();
         if ($type === null) {
             return;
