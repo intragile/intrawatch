@@ -189,7 +189,9 @@ async function invite(): Promise<void> {
         email: email.value.trim(),
         role: role.value,
         // The e-mail goes out in the inviter's interface language.
-        locale: locale.value === 'hu' ? 'hu' : 'en',
+        locale: locale.value === 'hu'
+          ? 'hu'
+          : 'en',
       },
     }))
     email.value = ''
