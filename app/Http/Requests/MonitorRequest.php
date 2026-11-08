@@ -3,13 +3,12 @@
 namespace App\Http\Requests;
 
 use App\Enums\MonitorType;
+use App\Http\Requests\Concerns\ChecksDestinationChange;
 use App\Models\Monitor;
-use App\Monitoring\Types\TypeDefinition;
 use App\Monitoring\Types\TypeRegistry;
 use App\OpenApi\DocumentedRequestBody;
 use App\OpenApi\KeyedObject;
 use App\Support\CurrentWorkspace;
-use App\Support\SecretKeys;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
@@ -28,17 +27,12 @@ use Illuminate\Validation\Validator;
  */
 abstract class MonitorRequest extends FormRequest implements DocumentedRequestBody
 {
+    use ChecksDestinationChange;
+
     private const COLUMNS = [
         'name', 'description', 'active', 'interval_seconds', 'timeout_seconds', 'retries',
         'retry_interval_seconds', 'degraded_threshold_ms', 'inverted', 'parent_id', 'config', 'secrets',
     ];
-
-    /**
-     * The secret names in the request body, including those sent as null.
-     *
-     * @var list<string>
-     */
-    private array $submittedSecretKeys = [];
 
     public function authorize(): bool
     {
@@ -62,8 +56,7 @@ abstract class MonitorRequest extends FormRequest implements DocumentedRequestBo
         $type = $this->monitorType();
         $stored = $this->stored();
         $merge = ['_creating' => $stored === null];
-        $raw = $this->input('secrets');
-        $this->submittedSecretKeys = is_array($raw) ? array_map(strval(...), array_keys($raw)) : [];
+        $this->rememberSubmittedSecretKeys();
 
         if ($type !== null) {
             $submitted = $this->input('config', []);
@@ -195,7 +188,10 @@ abstract class MonitorRequest extends FormRequest implements DocumentedRequestBo
                 return;
             }
             $definition = $type->definition();
-            $this->checkDestinationChange($definition, $v);
+            $stored = $this->stored();
+            if ($stored !== null) {
+                $this->checkDestinationChange($v, $stored->secrets, array_replace($definition->defaults(), $stored->config), $definition->destinationKeys());
+            }
 
             $typed = array_filter(
                 $v->errors()->keys(),
@@ -209,33 +205,6 @@ abstract class MonitorRequest extends FormRequest implements DocumentedRequestBo
 
             $this->crossChecks($v, $definition->supportsInverted());
         });
-    }
-
-    /**
-     * Refuses an update that points the stored secrets at a new destination without sending them again.
-     */
-    private function checkDestinationChange(TypeDefinition $definition, Validator $v): void
-    {
-        $stored = $this->stored();
-        if ($stored === null || ($stored->secrets ?? []) === []) {
-            return;
-        }
-        $after = $v->getData()['config'] ?? null;
-        if (! is_array($after)) {
-            return;
-        }
-        $before = array_replace($definition->defaults(), $stored->config);
-        if (! SecretKeys::destinationChanged($before, $after, $definition->destinationKeys())) {
-            return;
-        }
-        $missing = SecretKeys::unresent($stored->secrets, $this->submittedSecretKeys);
-        if ($missing === []) {
-            return;
-        }
-        $v->errors()->add('secrets', 'Re-enter the stored secrets ('.implode(', ', $missing).') when changing the destination, or remove them with null.');
-        foreach ($missing as $key) {
-            $v->errors()->add('secrets.'.$key, 'Re-enter this secret when changing the destination, or remove it with null.');
-        }
     }
 
     private function crossChecks(Validator $v, bool $supportsInverted): void

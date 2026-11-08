@@ -7,6 +7,7 @@ use App\Alerting\Channels\Senders\EmailSender;
 use App\Alerting\Messages\TemplateRenderer;
 use App\Enums\ChannelType;
 use App\Enums\WorkspaceRole;
+use App\Http\Requests\Concerns\ChecksDestinationChange;
 use App\Models\NotificationChannel;
 use App\Models\User;
 use App\Models\Workspace;
@@ -35,13 +36,15 @@ use Illuminate\Validation\Validator;
  */
 class NotificationChannelRequest extends FormRequest implements DocumentedRequestBody
 {
+    use ChecksDestinationChange;
+
     private const TITLE_MAX = 200;
 
     private const BODY_MAX = 4000;
 
     public const INSTANCE_MAILER_DENIED = 'Only workspace owners and admins can configure an email channel that uses the instance mailer.';
 
-    public const REENTER_SECRET = 'Re-enter this secret when changing the destination, or remove it with null.';
+    public const REENTER_SECRET = SecretKeys::REENTER_SECRET;
 
     /**
      * Runs after prepareForValidation, so the merged config is already in the input.
@@ -111,13 +114,6 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
     private bool $secretsSubmitted = false;
 
     /**
-     * The secret names in the request body, including those sent as null.
-     *
-     * @var list<string>
-     */
-    private array $submittedSecretKeys = [];
-
-    /**
      * Whether the request body itself carried secrets, as opposed to the stored ones merged in for validation.
      */
     public function secretsSubmitted(): bool
@@ -129,7 +125,7 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
     {
         $raw = $this->input('secrets');
         $this->secretsSubmitted = is_array($raw) && $raw !== [];
-        $this->submittedSecretKeys = is_array($raw) ? array_map(strval(...), array_keys($raw)) : [];
+        $this->rememberSubmittedSecretKeys();
 
         $type = $this->channelType();
         if ($type === null) {
@@ -252,7 +248,10 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
                 return;
             }
             $definition = $type->definition();
-            $this->checkDestinationChange($definition, $v);
+            $stored = $this->stored();
+            if (! $this->creating() && $stored !== null) {
+                $this->checkDestinationChange($v, $stored->secrets, array_replace($definition->defaults(), $stored->config ?? []), $definition->destinationKeys());
+            }
 
             $typed = array_filter(
                 $v->errors()->keys(),
@@ -276,33 +275,6 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
                 $definition->afterValidation($config, $secrets, $v);
             }
         });
-    }
-
-    /**
-     * Refuses an update that points the stored secrets at a new destination without sending them again.
-     */
-    private function checkDestinationChange(ChannelDefinition $definition, Validator $v): void
-    {
-        $stored = $this->stored();
-        if ($this->creating() || $stored === null || ($stored->secrets ?? []) === []) {
-            return;
-        }
-        $after = $v->getData()['config'] ?? null;
-        if (! is_array($after)) {
-            return;
-        }
-        $before = array_replace($definition->defaults(), $stored->config ?? []);
-        if (! SecretKeys::destinationChanged($before, $after, $definition->destinationKeys())) {
-            return;
-        }
-        $missing = SecretKeys::unresent($stored->secrets, $this->submittedSecretKeys);
-        if ($missing === []) {
-            return;
-        }
-        $v->errors()->add('secrets', 'Re-enter the stored secrets ('.implode(', ', $missing).') when changing the destination, or remove them with null.');
-        foreach ($missing as $key) {
-            $v->errors()->add('secrets.'.$key, self::REENTER_SECRET);
-        }
     }
 
     /**

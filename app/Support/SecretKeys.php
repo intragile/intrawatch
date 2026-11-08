@@ -8,6 +8,11 @@ namespace App\Support;
 final class SecretKeys
 {
     /**
+     * The per-secret error when a destination change leaves a stored secret unconfirmed.
+     */
+    public const REENTER_SECRET = 'Re-enter this secret when changing the destination, or remove it with null.';
+
+    /**
      * @param  array<array-key, mixed>|null  $secrets
      * @return array<int, string>
      */
@@ -50,6 +55,27 @@ final class SecretKeys
     public static function unresent(?array $stored, array $submittedKeys): array
     {
         return array_values(array_diff(self::of($stored), $submittedKeys));
+    }
+
+    /**
+     * The stored secrets that must be sent again because the destination changed. Secrets are bound to the
+     * destination they were entered for, so pointing the config somewhere else must re-confirm each one (or
+     * remove it with null); otherwise a stored secret would silently follow the config to a new host.
+     * Returns an empty list when nothing is stored, the new config is not an array, or the destination stays.
+     *
+     * @param  array<array-key, mixed>|null  $storedSecrets
+     * @param  array<array-key, mixed>  $before
+     * @param  list<string>  $destinationKeys
+     * @param  list<string>  $submittedKeys
+     * @return list<string>
+     */
+    public static function missingForDestinationChange(?array $storedSecrets, array $before, mixed $after, array $destinationKeys, array $submittedKeys): array
+    {
+        if (($storedSecrets ?? []) === [] || ! is_array($after) || ! self::destinationChanged($before, $after, $destinationKeys)) {
+            return [];
+        }
+
+        return self::unresent($storedSecrets, $submittedKeys);
     }
 
     private static function canonical(mixed $value): mixed
