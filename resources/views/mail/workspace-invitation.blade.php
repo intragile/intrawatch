@@ -1,7 +1,8 @@
 <x-mail::message>
-# You have been invited to {{ $workspaceName }}
+{{-- The markdown* values are echoed raw because the mailable has already HTML- and Markdown-escaped them; anything else here must use {{ }}. --}}
+# You have been invited to {!! $markdownWorkspaceName !!}
 
-{{ $inviterName }} invited you to the **{{ $workspaceName }}** workspace on {{ $appName }} with the **{{ $role }}** role.
+{!! $markdownInviterName !!} invited you to the **{!! $markdownWorkspaceName !!}** workspace on {{ $appName }} with the **{!! $markdownRole !!}** role.
 
 To join, sign in with this e-mail address and open the link below. If you do not have an account yet, ask your administrator for an account with this e-mail address first; sign-up is not open.
 
