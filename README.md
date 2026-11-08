@@ -231,10 +231,17 @@ docker exec -it intrawatch php artisan intrawatch:import:kuma 'mysql://root:secr
 docker network disconnect kuma-import intrawatch && docker rm -f kuma-import-db && docker network rm kuma-import
 ```
 
+Prefer a read-only database user in the DSN: its password is visible in the
+host's process list and in your shell history.
+
 Re-running an import is safe: entities already imported are reported as
 `existing` and never changed or recreated, so local edits and deletions win.
 Importing the same instance once from a JSON backup and once from its database
 cannot be matched and creates duplicates (the report warns about it).
+JSON backups of two different 1.23 instances imported into the same workspace
+collide on Kuma ids: the second instance's entities are reported as `existing`
+and are not created. Import them into separate workspaces, or import each
+instance from its SQLite database file instead.
 
 **Not migrated:** users, API keys, Docker hosts and remote browsers (counted in
 the report), minute-level history and individual heartbeats, monitor types and

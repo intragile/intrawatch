@@ -31,8 +31,8 @@ az `/admin/` alatti admin felületre, amely az első indítási varázslóval ke
 előbb a tulajdonosi fiók, majd az első munkaterület és annak időzónája. Hogy a
 felület mit fed le, azt az [Admin](#admin) szakasz mutatja. Ha a konténer másik
 gépen vagy porton érhető el, állítsd az `APP_URL` értékét arra a címre, amelyet a
-böngésző használ (például `-e APP_URL=http://monitor.example.com:8080`): a
-sütialapú munkamenet csak ezzel a origin-nel működik.
+böngésző használ (például `-e APP_URL=http://monitor.example.com:8080`). A
+sütialapú munkamenet csak erről a címről (origin) működik.
 
 Ugyanez a beállítás szkriptelhető az API-n keresztül. A végpont csak egyszer
 használható, és sütialapú munkamenettel léptet be, ezért úgy kell hívni, ahogy a
@@ -167,7 +167,7 @@ van kinyitva; a websocketeket a konténer belül proxyzza.
 
 | Változó | Alapérték | Szerepe |
 | --- | --- | --- |
-| `APP_URL` | `http://localhost:3000` | Nyilvános URL, a jelszó-visszaállító hivatkozásokban használjuk. A hosztja alapból állapotfelelős (sütialapú munkamenetes) domain |
+| `APP_URL` | `http://localhost:3000` | Nyilvános URL, a jelszó-visszaállító hivatkozásokban használjuk. A hosztja alapból a sütialapú munkamenetet használó (stateful) domainek között van |
 | `APP_KEY` | generált | Felülírja a tartósan tárolt alkalmazáskulcsot |
 | `DB_CONNECTION` | `sqlite` | `sqlite`, `mysql` vagy `pgsql` |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | | Külső adatbázis beállításai |
@@ -184,8 +184,8 @@ beállításra, valamint kikommentezett PostgreSQL- és MySQL-szolgáltatásokra
 
 Az IntraWatch egy Uptime Kuma példányból egy munkaterületre importálja a
 monitorokat, értesítési csatornákat, címkéket, státuszoldalakat, incidenseket,
-karbantartási ablakokat és az uptime-előzményeket. Az Uptime Kuma a megfelelő
-szerzők projektje; az IntraWatchnak nincs hozzá köze.
+karbantartási ablakokat és az uptime-előzményeket. Az Uptime Kuma a saját
+szerzőinek projektje; az IntraWatch nem áll kapcsolatban vele.
 
 Támogatott források:
 
@@ -246,11 +246,19 @@ docker exec -it intrawatch php artisan intrawatch:import:kuma 'mysql://root:secr
 docker network disconnect kuma-import intrawatch && docker rm -f kuma-import-db && docker network rm kuma-import
 ```
 
+A DSN-ben lehetőleg csak olvasási jogú adatbázis-felhasználót adj meg: a jelszava
+látszik a hoszt folyamatlistájában és a shell előzményeiben.
+
 Az import újrafuttatása biztonságos: a már importált elemek `existing`
 jelöléssel szerepelnek a jelentésben, és soha nem módosulnak vagy jönnek létre
 újra, így a helyi szerkesztések és törlések érvényesülnek. Ugyanazt a példányt
 egyszer JSON-mentésből, egyszer az adatbázisából importálva az elemek nem
 párosíthatók, és duplikátumok keletkeznek (a jelentés figyelmeztet erre).
+Ha két különböző 1.23-as példány JSON-mentését ugyanabba a munkaterületbe
+importálod, a Kuma-azonosítóik ütköznek: a második példány elemei `existing`
+jelöléssel szerepelnek a jelentésben, és nem jönnek létre. Ilyenkor importáld
+őket külön munkaterületekbe, vagy mindegyik példányt a saját SQLite-adatbázis
+fájljából.
 
 **Nem migrálódik:** a felhasználók, API-kulcsok, Docker-hosztok és távoli
 böngészők (a jelentés megszámolja őket), a percszintű előzmények és az egyes
@@ -303,12 +311,13 @@ használ, amelyeket a Docker alapból engedélyez (`net.ipv4.ping_group_range`).
 Más konténer-futtatókörnyezetekben szükség lehet arra, hogy ez a sysctl az
 1000-es uid-t is tartalmazza, például `net.ipv4.ping_group_range=0 2147483647`.
 
-Az ellenőrzések nem csatlakozhatnak a `CHECK_BLOCKED_NETWORKS` hálózataihoz
-(CIDR-lista, alapból a felhőplatformok metaadat-címei, `169.254.169.254/32` és
-`fd00:ec2::254/128`); add hozzá a belső tartományaidat, ha a munkaterület tagjai
-nem vizsgálgathatják őket. Ha egy HTTP monitor proxyt használ, csak a proxy
-címét vetjük össze ezzel a listával: a proxy maga oldja fel és éri el a célt,
-ezért a célra a proxy saját kimenő szabályai vonatkoznak.
+Az ellenőrzések nem csatlakozhatnak a `CHECK_BLOCKED_NETWORKS` hálózataihoz.
+Ez egy CIDR-lista, alapból a felhőplatformok metaadat-címeivel
+(`169.254.169.254/32` és `fd00:ec2::254/128`). Add hozzá a belső
+tartományaidat, ha a munkaterület tagjai nem tapogathatják le őket. Ha egy HTTP
+monitor proxyt használ, csak a proxy címét vetjük össze ezzel a listával. A
+célt a proxy maga oldja fel és éri el, ezért arra a proxy saját kimenő szabályai
+vonatkoznak.
 
 A push és cron jelentések tokenenként korlátozottak (percenként 120) az
 alkalmazás gyorsítótárában (`CACHE_STORE`, alapból az adatbázis). Ha több
@@ -925,8 +934,9 @@ proxyján át is működjenek. Az `npm run build` az `spa/dist` könyvtárba ír
 az `intrawatch.spa_path` beállítás mutat.
 
 A dev szerveren át történő bejelentkezés sütialapú munkamenetet használ, ezért a
-backendnek a Vite origin-t állapotfelelősként kell kezelnie: add hozzá a
-Sanctum listájához, például `SANCTUM_STATEFUL_DOMAINS=localhost:5173,localhost:3000`.
+backendnek a Vite címét (origin) sütialapú munkamenetet használó (stateful)
+domainként kell kezelnie. Add hozzá a Sanctum listájához, például
+`SANCTUM_STATEFUL_DOMAINS=localhost:5173,localhost:3000`.
 
 A kép az alkalmazást a `docker/Dockerfile` egy Node.js szakaszában építi
 (`npm ci` és `npm run build`), és csak az `spa/dist` könyvtárat másolja a
@@ -950,16 +960,17 @@ docker run --rm --cpus=2 intrawatch \
 ```
 
 A státuszoldal-benchmark egy eldobható munkaterületet tölt fel 300 publikált
-oldallal, oldalanként 20 komponenssel és 90 nap rollup-pal, majd az alkalmazáson
-keresztül, folyamaton belül küld kéréseket: a hideg menethez oldalanként egy
-oldalkérést (minden oldal egyszer renderelődik), a meleg menethez 3 000-et
-körforgásban (az oldal, a feedjei, az összefoglaló és a badge, gyorsítótárból
-kiszolgálva). Kiírja mindkét menet mediánját, 95. percentilisét és maximumát,
-valamint az adatbázis-lekérdezések számát a meleg menet alatt, és 1-gyel lép ki,
-ha a meleg 95. percentilis eléri a 100 ms-ot, vagy bármelyik meleg kérés
-lekérdezte az adatbázist. Saját gyorsítótár-könyvtárat használ, nem hajlandó
-futni olyan adatbázison, amely már tartalmaz munkaterületeket, hacsak nem adod
-meg a `--force` kapcsolót, és a végén törli az adatait, hacsak nem adod meg a
+oldallal, oldalanként 20 komponenssel és 90 napnyi rollup-pal. Ezután az
+alkalmazáson keresztül, folyamaton belül küld kéréseket. A hideg (üres
+gyorsítótárral induló) körben oldalanként egy kérést küld, így minden oldal
+egyszer renderelődik. A meleg (gyorsítótárból kiszolgált) körben 3 000 kérést
+küld körforgásban az oldalra, a feedjeire, az összefoglalóra és a badge-re.
+Mindkét körről kiírja a mediánt, a 95. percentilist és a maximumot, a meleg
+körről az adatbázis-lekérdezések számát is. 1-gyel lép ki, ha a meleg kör 95.
+percentilise eléri a 100 ms-ot, vagy ha bármelyik meleg kérés lekérdezte az
+adatbázist. Saját gyorsítótár-könyvtárat használ. Nem hajlandó futni olyan
+adatbázison, amely már tartalmaz munkaterületeket, hacsak nem adod meg a
+`--force` kapcsolót, és a végén törli az adatait, hacsak nem adod meg a
 `--keep` kapcsolót.
 
 ```bash
@@ -973,14 +984,15 @@ aktív monitorral (60% HTTP, a többi TCP, ping, DNS és push, 250 egymásba
 riasztással, incidenssel, karbantartással és auditesemény. A monitorok magát
 a mért alkalmazást ellenőrzik (`/robots.txt`, a portját, `127.0.0.1` és
 `localhost`), így a futó worker viszi a valódi ellenőrzési terhelést. A
-`--settle` másodperc után valódi HTTP-n, a `--base-url` ellen, egy általa
-létrehozott API-tokennel méri tíz admin lista és minden státuszoldal hideg, majd
-meleg válaszidejét, és táblázatot meg JSON-összefoglalót ír ki. 1-gyel lép ki,
-ha bármelyik admin lista 95. percentilise eléri az 500 ms-ot, a meleg
-státuszoldal 95. percentilise eléri a 100 ms-ot, vagy egy kérés hibázik.
-Futtasd egy futó konténerben `TRUSTED_PROXIES=127.0.0.1` mellett: a
-státuszoldal-kérések sok kliens-címről érkeznek az `X-Forwarded-For`-on át, így
-a nyilvános sebességkorlát kimarad a mérésből. Az ellenőrzések bármiféle
+`--settle` másodpercnyi várakozás után valódi HTTP-n méri a `--base-url` címen,
+egy általa létrehozott API-tokennel. Tíz admin listát és minden státuszoldalt
+mér, előbb hideg (üres gyorsítótárral induló), majd meleg (gyorsítótárból
+kiszolgált) körben, és táblázatot meg JSON-összefoglalót ír ki. 1-gyel lép ki,
+ha bármelyik admin lista 95. percentilise eléri az 500 ms-ot, ha a státuszoldalak
+meleg körének 95. percentilise eléri a 100 ms-ot, vagy ha egy kérés hibázik.
+Futtasd egy futó konténerben, `TRUSTED_PROXIES=127.0.0.1` mellett. A
+státuszoldal-kérések ugyanis sok kliens-címről érkeznek az `X-Forwarded-For`
+fejlécen át, így a nyilvános sebességkorlát kimarad a mérésből. Az ellenőrzések bármiféle
 hálózati szabálykapcsoló nélkül elérik a loopbacket, mert a
 `CHECK_BLOCKED_NETWORKS` alapból csak a felhőplatformok metaadat-címeit tiltja.
 A többi benchmarkhoz hasonlóan nem hajlandó futni olyan adatbázison, amely már
