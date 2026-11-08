@@ -11,8 +11,8 @@ use Illuminate\Http\UploadedFile;
  * An import upload: the source file plus the run options. Booleans arrive as multipart fields, so `1`/`0`
  * (or `true`/`false` in JSON) are accepted.
  *
- * The upload limit is ImportUploadLimit: IMPORT_MAX_UPLOAD_MB, clamped to PHP's upload_max_filesize and
- * post_max_size. PHP drops a larger file before the application sees it, so the messages name the smaller of the two.
+ * The upload limit is IMPORT_MAX_UPLOAD_MB, clamped to PHP's upload_max_filesize and post_max_size: PHP drops
+ * a larger file before the application sees it, so the messages name the smaller of the two.
  */
 class StoreImportRequest extends FormRequest
 {
