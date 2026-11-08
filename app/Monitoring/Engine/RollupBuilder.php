@@ -93,9 +93,32 @@ final class RollupBuilder
      */
     public function rebuildDays(Workspace $workspace): void
     {
+        $this->locked($workspace, null, null);
+    }
+
+    /**
+     * Rebuild the day rollups of the given monitors of a workspace only, from their retained hour rows, leaving
+     * the day rows of every other monitor untouched. Days that start before `$notBefore` (epoch seconds) are
+     * skipped, which keeps a partially covered first day from replacing a more complete row.
+     *
+     * @param  list<int>  $monitorIds
+     */
+    public function rebuildDaysFor(Workspace $workspace, array $monitorIds, ?int $notBefore = null): void
+    {
+        if ($monitorIds === []) {
+            return;
+        }
+        $this->locked($workspace, $monitorIds, $notBefore);
+    }
+
+    /**
+     * @param  list<int>|null  $monitorIds
+     */
+    private function locked(Workspace $workspace, ?array $monitorIds, ?int $notBefore): void
+    {
         Cache::lock(self::rebuildLockKey($workspace->id), self::REBUILD_WAIT + 360)
-            ->block(self::REBUILD_WAIT, function () use ($workspace): void {
-                $this->rebuild($workspace);
+            ->block(self::REBUILD_WAIT, function () use ($workspace, $monitorIds, $notBefore): void {
+                $this->rebuild($workspace, $monitorIds, $notBefore);
             });
     }
 
@@ -279,12 +302,15 @@ final class RollupBuilder
         }
     }
 
-    private function rebuild(Workspace $workspace): void
+    /**
+     * @param  list<int>|null  $monitorIds
+     */
+    private function rebuild(Workspace $workspace, ?array $monitorIds, ?int $notBefore): void
     {
         $now = CarbonImmutable::now();
         $timezone = $workspace->timezone;
 
-        $oldestHour = self::nullableInt($this->forWorkspace(DB::table('check_rollups'), $workspace->id)
+        $oldestHour = self::nullableInt($this->forWorkspace(DB::table('check_rollups'), $workspace->id, $monitorIds)
             ->where('check_rollups.bucket', CheckRollup::BUCKET_HOUR)
             ->min('check_rollups.bucket_start'));
         if ($oldestHour === null) {
@@ -297,10 +323,13 @@ final class RollupBuilder
         if ($firstDay < $hourCutoff) {
             $firstDay = $this->nextDayStart($timezone, $firstDay);
         }
+        if ($notBefore !== null && $firstDay < $notBefore) {
+            $firstDay = $notBefore;
+        }
 
         $minuteCutoff = $now->getTimestamp() - $this->minuteRetentionSeconds();
         foreach ($this->localDays($timezone, $firstDay, $now->getTimestamp()) as [$dayStart, $dayEnd]) {
-            $this->buildDay($workspace->id, $timezone, $dayStart, $dayEnd, $dayStart >= $minuteCutoff);
+            $this->buildDay($workspace->id, $timezone, $dayStart, $dayEnd, $dayStart >= $minuteCutoff, $monitorIds);
         }
     }
 
@@ -308,10 +337,12 @@ final class RollupBuilder
      * Delete day rows of another timezone that overlap a local day: rows that start inside it, and rows that
      * start within the longest possible day before it without being a local midnight of the current timezone.
      * Rows on a local midnight of the current timezone are current and stay.
+     *
+     * @param  list<int>|null  $monitorIds  Null covers every monitor of the workspace.
      */
-    private function dropOverlappingDays(int $workspaceId, string $timezone, int $dayStart, int $dayEnd): void
+    private function dropOverlappingDays(int $workspaceId, string $timezone, int $dayStart, int $dayEnd, ?array $monitorIds = null): void
     {
-        $starts = $this->dayRows($workspaceId)
+        $starts = $this->dayRows($workspaceId, $monitorIds)
             ->where('bucket_start', '>', $dayStart - self::LONGEST_DAY)
             ->where('bucket_start', '<', $dayEnd)
             ->where('bucket_start', '<>', $dayStart)
@@ -326,17 +357,20 @@ final class RollupBuilder
             }
         }
         if ($stale !== []) {
-            $this->dayRows($workspaceId)->whereIn('bucket_start', $stale)->delete();
+            $this->dayRows($workspaceId, $monitorIds)->whereIn('bucket_start', $stale)->delete();
         }
     }
 
     /**
-     * Day rollups of the monitors of one workspace.
+     * Day rollups of the monitors of one workspace, or of the given monitors only.
+     *
+     * @param  list<int>|null  $monitorIds
      */
-    private function dayRows(int $workspaceId): Builder
+    private function dayRows(int $workspaceId, ?array $monitorIds = null): Builder
     {
         return DB::table('check_rollups')
             ->where('bucket', CheckRollup::BUCKET_DAY)
+            ->when($monitorIds !== null, fn (Builder $q) => $q->whereIn('monitor_id', $monitorIds ?? []))
             ->whereIn('monitor_id', fn (Builder $q) => $q->select('id')->from('monitors')->where('workspace_id', $workspaceId));
     }
 
@@ -432,14 +466,16 @@ final class RollupBuilder
      *
      * The day row is written and day rows of another timezone that overlap it are deleted in one transaction, so
      * overlapping (double-counted) days are never visible, whether this runs from a rollup or from a rebuild.
+     *
+     * @param  list<int>|null  $monitorIds  Null aggregates every monitor of the workspace.
      */
-    private function buildDay(int $workspaceId, string $timezone, int $dayStart, int $dayEnd, bool $exact): void
+    private function buildDay(int $workspaceId, string $timezone, int $dayStart, int $dayEnd, bool $exact, ?array $monitorIds = null): void
     {
         $hourFrom = $exact ? intdiv($dayStart + 3599, 3600) * 3600 : $dayStart;
         $hourTo = $exact ? $dayEnd - $dayEnd % 3600 : $dayEnd;
 
         $parts = [
-            $this->summed($this->forWorkspace(DB::table('check_rollups'), $workspaceId))
+            $this->summed($this->forWorkspace(DB::table('check_rollups'), $workspaceId, $monitorIds))
                 ->where('check_rollups.bucket', CheckRollup::BUCKET_HOUR)
                 ->where('check_rollups.bucket_start', '>=', $hourFrom)
                 ->where('check_rollups.bucket_start', '<', $hourTo)
@@ -449,7 +485,7 @@ final class RollupBuilder
         ];
 
         if ($exact && ($hourFrom > $dayStart || $hourTo < $dayEnd)) {
-            $parts[] = $this->summed($this->forWorkspace(DB::table('check_rollups'), $workspaceId))
+            $parts[] = $this->summed($this->forWorkspace(DB::table('check_rollups'), $workspaceId, $monitorIds))
                 ->where('check_rollups.bucket', CheckRollup::BUCKET_MINUTE)
                 ->where(fn (Builder $q) => $q
                     ->where(fn (Builder $edge) => $edge
@@ -477,9 +513,9 @@ final class RollupBuilder
             $records[] = $this->record($monitorId, CheckRollup::BUCKET_DAY, $dayStart, $totals);
         }
 
-        DB::transaction(function () use ($records, $workspaceId, $timezone, $dayStart, $dayEnd): void {
+        DB::transaction(function () use ($records, $workspaceId, $timezone, $dayStart, $dayEnd, $monitorIds): void {
             $this->upsertChanged($records);
-            $this->dropOverlappingDays($workspaceId, $timezone, $dayStart, $dayEnd);
+            $this->dropOverlappingDays($workspaceId, $timezone, $dayStart, $dayEnd, $monitorIds);
         });
     }
 
@@ -500,11 +536,15 @@ final class RollupBuilder
             ->selectRaw("sum({$table}latency_count) as latency_count");
     }
 
-    private function forWorkspace(Builder $query, int $workspaceId): Builder
+    /**
+     * @param  list<int>|null  $monitorIds
+     */
+    private function forWorkspace(Builder $query, int $workspaceId, ?array $monitorIds = null): Builder
     {
         return $query
             ->join('monitors', 'monitors.id', '=', 'check_rollups.monitor_id')
-            ->where('monitors.workspace_id', $workspaceId);
+            ->where('monitors.workspace_id', $workspaceId)
+            ->when($monitorIds !== null, fn (Builder $q) => $q->whereIn('check_rollups.monitor_id', $monitorIds ?? []));
     }
 
     /**

@@ -6,6 +6,7 @@ namespace App\Import\Kuma;
 
 use App\Import\Kuma\Mapping\Note;
 use App\Import\Kuma\Source\KumaSource;
+use App\Import\Kuma\Steps\ImportHistory;
 use App\Import\Kuma\Steps\ImportIncidents;
 use App\Import\Kuma\Steps\ImportMaintenances;
 use App\Import\Kuma\Steps\ImportMonitors;
@@ -36,6 +37,7 @@ final class KumaImporter
         ImportStatusPages::class,
         ImportIncidents::class,
         ImportMaintenances::class,
+        ImportHistory::class,
     ];
 
     /**

@@ -357,18 +357,29 @@ final class PdoKumaSource implements KumaSource
         if (! $this->hasTable($table)) {
             return;
         }
-        $columns = ['monitor_id', 'timestamp', 'up', 'down', 'ping', 'ping_min', 'ping_max', 'extras'];
-        foreach ($this->select($table, $columns, 'monitor_id, '.$this->quote('timestamp')) as $row) {
-            $extras = is_string($row['extras']) ? json_decode($row['extras'], true) : null;
+        $wanted = ['monitor_id', 'timestamp', 'up', 'down', 'ping', 'ping_min', 'ping_max', 'extras'];
+        $present = array_values(array_intersect($wanted, $this->columns($table)));
+        $stmt = $this->pdo->query(
+            'SELECT '.implode(', ', array_map($this->quote(...), $present)).' FROM '.$this->quote($table)
+            .' ORDER BY monitor_id, '.$this->quote('timestamp'),
+        );
+        if ($stmt === false) {
+            return;
+        }
+        while (($row = $stmt->fetch()) !== false) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $extras = is_string($row['extras'] ?? null) ? json_decode($row['extras'], true) : null;
             yield [
-                'monitor_id' => Cast::int($row['monitor_id']),
-                'timestamp' => Cast::int($row['timestamp']),
-                'up' => Cast::int($row['up']),
-                'down' => Cast::int($row['down']),
+                'monitor_id' => Cast::int($row['monitor_id'] ?? null),
+                'timestamp' => Cast::int($row['timestamp'] ?? null),
+                'up' => Cast::int($row['up'] ?? null),
+                'down' => Cast::int($row['down'] ?? null),
                 'maintenance' => is_array($extras) ? Cast::int($extras['maintenance'] ?? 0) : 0,
-                'ping' => Cast::float($row['ping']),
-                'ping_min' => Cast::float($row['ping_min']),
-                'ping_max' => Cast::float($row['ping_max']),
+                'ping' => Cast::float($row['ping'] ?? null),
+                'ping_min' => Cast::float($row['ping_min'] ?? null),
+                'ping_max' => Cast::float($row['ping_max'] ?? null),
             ];
         }
     }
