@@ -116,19 +116,21 @@ and PostgreSQL containers.
 
 | Step | SQLite (s) | MySQL 8.4 (s) | PostgreSQL 16 (s) |
 |---|---:|---:|---:|
-| Generate the source database | 1.02 | 1.03 | 1.12 |
-| Tags | 0.03 | 0.25 | 0.21 |
-| Notifications | 0.04 | 0.09 | 0.09 |
-| Monitors | 19.33 | 64.31 | 67.20 |
-| Status pages | 2.20 | 6.01 | 6.47 |
+| Generate the source database | 1.08 | 1.11 | 1.04 |
+| Tags | 0.03 | 0.26 | 0.16 |
+| Notifications | 0.04 | 0.10 | 0.08 |
+| Monitors | 19.86 | 64.12 | 70.92 |
+| Status pages | 2.21 | 6.12 | 6.62 |
 | Incidents | 0.00 | 0.00 | 0.00 |
 | Maintenances | 0.00 | 0.00 | 0.00 |
-| History | 14.57 | 35.25 | 19.52 |
-| **Import total** | **36.36** | **106.11** | **93.68** |
-| Peak memory (MB) | 101.0 | 101.0 | 103.0 |
+| History | 13.78 | 39.94 | 22.99 |
+| **Import total** | **36.10** | **110.81** | **100.98** |
+| Peak memory (MB) | 103.0 | 103.0 | 103.0 |
 
 The peak memory is the PHP process's, including the test framework (52.5 MB
-before the import started).
+on SQLite and 54.5 MB on MySQL and PostgreSQL before the import started).
+Re-run for 1.0.0 after the push token change in the importer; the totals are
+within 4–8% of the previous run, which is the noise level of this machine.
 
 ## Schedule drift: 1 000 HTTP monitors
 
