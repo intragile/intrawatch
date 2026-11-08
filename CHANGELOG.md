@@ -28,7 +28,7 @@ one Docker image with all state in a single volume.
 - First-run setup, session login with TOTP two-factor authentication, password
   reset and recovery commands.
 - Workspaces with the roles owner, admin, editor and viewer.
-- Personal API tokens with per-area abilities; every admin action is available
+- API tokens with per-area abilities; every admin action is available
   on the public `/api/v1` API, which is described by a generated OpenAPI
   document served at `/api/v1/openapi.json`.
 - Errors as `application/problem+json`, cursor pagination on list endpoints,

@@ -162,9 +162,6 @@ irreversible or visible to others, so the owner approves it individually.
    gh release create v1.0.0 --title "IntraWatch 1.0.0" --notes-file <(sed -n '/^## \[1.0.0\]/,/^## \[/p' CHANGELOG.md | sed '$d')
    ```
 
-6. Update the README quick start: the registry image is then published, so the
-   "not published yet" note and the local-build fallback can be reworded.
-
 ## 3. Post-release checks
 
 1. **Pull and run on a clean host** (no local images, no volume).
@@ -186,7 +183,12 @@ irreversible or visible to others, so the owner approves it individually.
    status page with that monitor as a component and open `/status/<slug>`. This
    is the first success criterion of the design (section 8).
 
-3. Confirm that the GitHub release, the tag, both registries and the README
+3. Update the README quick start once the registry image exists: reword the
+   "not published yet" note and the local-build fallback. This is a plain local
+   edit and needs no approval; pushing the resulting commit follows the push
+   approval of part 2.
+
+4. Confirm that the GitHub release, the tag, both registries and the README
    quick start agree on the version.
 
 Developed and maintained by [IntrAgile Kft.](https://intragile.eu)

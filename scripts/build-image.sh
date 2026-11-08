@@ -31,11 +31,29 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+PLATFORM_RE='^linux/[a-z0-9]+(/v[0-9]+)?(,linux/[a-z0-9]+(/v[0-9]+)?)*$'
+[[ "$PLATFORMS" =~ $PLATFORM_RE ]] || { echo "invalid --platforms: $PLATFORMS" >&2; exit 2; }
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || { echo "invalid version: $VERSION" >&2; exit 2; }
 if [[ -n "$LOAD_PLATFORM" && ",${PLATFORMS}," != *",${LOAD_PLATFORM},"* ]]; then
   echo "--load-platform ${LOAD_PLATFORM} is not part of --platforms ${PLATFORMS}" >&2
   exit 2
 fi
+
+# Prints the os/arch[/variant] of every platform manifest in an OCI archive, one per line.
+archive_platforms() {
+  local archive="$1" index digest blob
+  index="$(tar -xOf "$archive" index.json)"
+  for digest in $(jq -r '.manifests[].digest' <<<"$index"); do
+    blob="$(tar -xOf "$archive" "blobs/${digest/:/\/}")"
+    if jq -e '.manifests' <<<"$blob" >/dev/null 2>&1; then
+      jq -r '.manifests[] | select(.platform.os != "unknown") | "\(.platform.os)/\(.platform.architecture)\(if .platform.variant then "/" + .platform.variant else "" end)"' <<<"$blob"
+    else
+      jq -r --arg d "$digest" '.manifests[] | select(.digest == $d) | .platform // empty | "\(.os)/\(.architecture)"' <<<"$index"
+    fi
+  done | sort -u
+}
+
+command -v jq >/dev/null 2>&1 || { echo "error: jq is required to verify the platforms in the archive" >&2; exit 1; }
 
 mkdir -p "$OUT"
 ARCHIVE="${OUT}/intrawatch-${VERSION}.oci.tar"
@@ -59,20 +77,16 @@ timeout "$BUILD_TIMEOUT" docker buildx build \
 echo "== multi-platform build finished in $(($(date +%s) - started))s"
 
 echo "== platforms in ${ARCHIVE}"
-index="$(tar -xOf "$ARCHIVE" index.json)"
-if command -v jq >/dev/null 2>&1; then
-  manifests=""
-  for digest in $(jq -r '.manifests[].digest' <<<"$index"); do
-    blob="$(tar -xOf "$ARCHIVE" "blobs/${digest/:/\/}")"
-    if jq -e '.manifests' <<<"$blob" >/dev/null 2>&1; then
-      manifests+="$(jq -r '.manifests[] | select(.platform.os != "unknown") | "\(.platform.os)/\(.platform.architecture)\(if .platform.variant then "/" + .platform.variant else "" end)"' <<<"$blob")"$'\n'
-    else
-      manifests+="$(jq -r '.platform // empty | "\(.os)/\(.architecture)"' <<<"$(jq -c --arg d "$digest" '.manifests[] | select(.digest == $d)' <<<"$index")")"$'\n'
-    fi
-  done
-  printf '%s' "$manifests" | sed '/^$/d' | sort -u
-else
-  echo "$index"
+found="$(archive_platforms "$ARCHIVE")"
+echo "$found"
+missing=""
+IFS=',' read -r -a wanted <<<"$PLATFORMS"
+for platform in "${wanted[@]}"; do
+  grep -qxF "$platform" <<<"$found" || missing+=" ${platform}"
+done
+if [[ -n "$missing" ]]; then
+  echo "error: platform(s) missing from ${ARCHIVE}:${missing}" >&2
+  exit 1
 fi
 wc -c <"$ARCHIVE" | awk '{ printf "archive size: %.1f MiB\n", $1 / 1048576 }'
 

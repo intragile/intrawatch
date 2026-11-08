@@ -140,9 +140,9 @@ if [[ $USE_PGSQL -eq 1 ]]; then
   run_docker 30 "network create" network create "$NETWORK" >/dev/null
   run_docker 300 "postgres start (pull included)" run -d --name "$PG_NAME" --network "$NETWORK" \
     -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=intrawatch postgres:16 >/dev/null
-  for i in $(seq 1 60); do
+  for i in $(seq 1 $((60 * TM))); do
     timeout 30 docker exec "$PG_NAME" pg_isready -U postgres -d intrawatch >/dev/null 2>&1 && break
-    [[ $i -eq 60 ]] && fail "postgres not ready within 60s"
+    [[ $i -eq $((60 * TM)) ]] && fail "postgres not ready within $((60 * TM))s"
     sleep 1
   done
   NET_ARGS=(--network "$NETWORK")
