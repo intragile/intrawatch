@@ -105,7 +105,8 @@ class AuditLogTest extends TestCase
             ->postJson($this->url('/members'), ['email' => $other->email, 'role' => 'viewer'])->assertStatus(202);
         $invited = AuditEvent::where('action', 'member.invited')->sole();
         $this->assertSame($owner->id, $invited->actor_user_id);
-        $this->assertSame(['email' => [null, $other->email], 'role' => [null, 'viewer']], $invited->changes);
+        // MySQL stores JSON keys ordered by length, so the keys are sorted before the strict comparison.
+        $this->assertSame(['email' => [null, $other->email], 'role' => [null, 'viewer']], $this->sortedKeys($invited->changes));
 
         $token = Str::random(64);
         WorkspaceInvitation::query()->sole()->update(['token_hash' => WorkspaceInvitation::hashToken($token)]);
@@ -488,5 +489,18 @@ class AuditLogTest extends TestCase
 
         $fresh = Workspace::findOrFail($this->workspace->id);
         $this->assertSame($this->workspace->name, $fresh->name);
+    }
+
+    /**
+     * The audit diff with its keys sorted: MySQL stores JSON object keys ordered by length, not as written.
+     *
+     * @return array<array-key, mixed>
+     */
+    private function sortedKeys(mixed $changes): array
+    {
+        $this->assertIsArray($changes);
+        ksort($changes);
+
+        return $changes;
     }
 }

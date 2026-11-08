@@ -234,7 +234,7 @@ class InvitationTest extends TestCase
         $event = AuditEvent::where('action', 'member.invited')->sole();
         $this->assertSame($this->workspace->id, $event->workspace_id);
         $this->assertSame($this->admin->id, $event->actor_user_id);
-        $this->assertSame(['email' => [null, 'cy@example.com'], 'role' => [null, 'editor']], $event->changes);
+        $this->assertSame(['email' => [null, 'cy@example.com'], 'role' => [null, 'editor']], $this->sortedKeys($event->changes));
     }
 
     public function test_accepting_grants_the_invited_role(): void
@@ -382,7 +382,7 @@ class InvitationTest extends TestCase
         $this->assertDatabaseMissing('workspace_invitations', ['id' => $id]);
         $event = AuditEvent::where('action', 'member.invitation_revoked')->sole();
         $this->assertSame($this->workspace->id, $event->workspace_id);
-        $this->assertSame(['email' => ['cy@example.com', null], 'role' => ['editor', null]], $event->changes);
+        $this->assertSame(['email' => ['cy@example.com', null], 'role' => ['editor', null]], $this->sortedKeys($event->changes));
 
         $foreign = WorkspaceInvitation::query()->where('email', 'elsewhere@example.com')->sole();
         $this->actingAs($this->admin, 'sanctum')->deleteJson($this->url("/invitations/{$foreign->id}"))->assertNotFound();
@@ -474,5 +474,18 @@ class InvitationTest extends TestCase
 
         $this->travel(61)->minutes();
         $this->invite('c@example.com')->assertStatus(202);
+    }
+
+    /**
+     * The audit diff with its keys sorted: MySQL stores JSON object keys ordered by length, not as written.
+     *
+     * @return array<array-key, mixed>
+     */
+    private function sortedKeys(mixed $changes): array
+    {
+        $this->assertIsArray($changes);
+        ksort($changes);
+
+        return $changes;
     }
 }
