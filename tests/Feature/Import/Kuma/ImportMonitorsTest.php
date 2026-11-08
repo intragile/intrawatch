@@ -6,6 +6,7 @@ namespace Tests\Feature\Import\Kuma;
 
 use App\Actions\Monitors\CreateMonitor;
 use App\Enums\MonitorType;
+use App\Enums\WorkspaceRole;
 use App\Import\Kuma\ImportOptions;
 use App\Import\Kuma\ImportReport;
 use App\Import\Kuma\KumaImporter;
@@ -21,6 +22,7 @@ use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Types\GroupHierarchy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
@@ -391,6 +393,51 @@ final class ImportMonitorsTest extends TestCase
         }
         $this->assertSame($secrets[3], $this->monitor($real, 3)->secrets['basic_password'] ?? null);
         $this->assertSame(['Authorization' => $secrets[2]], $this->monitor($real, 2)->secrets['secret_headers'] ?? null);
+    }
+
+    public function test_url_credentials_never_reach_config_audit_report_or_api(): void
+    {
+        $password = 'S3cr3t-url-Pa55';
+        $ws = Workspace::factory()->create();
+        $viewer = User::factory()->memberOf($ws, WorkspaceRole::Viewer)->create();
+        $path = $this->backup([
+            ['id' => 1, 'url' => 'https://ops:'.$password.'@example.com/health'],
+            // The monitor's own basic authentication wins over the URL credentials.
+            ['id' => 2, 'url' => 'https://ops:'.$password.'@example.com/health', 'authMethod' => 'basic', 'basic_auth_user' => 'own', 'basic_auth_pass' => 'own-pass'],
+            // parse_url() rejects this URL (port out of range); the credentials must still not survive.
+            ['id' => 3, 'url' => 'https://ops:'.$password.'@example.com:99999/health'],
+        ]);
+
+        $report = $this->import($path, $ws);
+
+        $moved = $this->monitor($report, 1);
+        $this->assertSame('https://example.com/health', $moved->config['url'] ?? null);
+        $this->assertSame(['type' => 'basic', 'username' => 'ops'], $moved->config['auth'] ?? null);
+        $this->assertSame($password, $moved->secrets['basic_password'] ?? null);
+        $this->assertSame(['url_credentials_moved'], self::codes($this->entries($report)[1]));
+
+        $own = $this->monitor($report, 2);
+        $this->assertSame('https://example.com/health', $own->config['url'] ?? null);
+        $this->assertSame(['type' => 'basic', 'username' => 'own'], $own->config['auth'] ?? null);
+        $this->assertSame('own-pass', $own->secrets['basic_password'] ?? null);
+        $this->assertSame(['url_credentials_dropped'], self::codes($this->entries($report)[2]));
+
+        $this->assertContains('url_credentials_dropped', self::codes($this->entries($report)[3]));
+
+        $api = [];
+        foreach ([$moved, $own] as $monitor) {
+            $api[] = $this->actingAs($viewer)->getJson("/api/v1/workspaces/{$ws->slug}/monitors/{$monitor->id}")->assertOk()->json();
+        }
+        $api[] = $this->actingAs($viewer)->getJson("/api/v1/workspaces/{$ws->slug}/monitors")->assertOk()->json();
+        $haystack = json_encode([
+            $report,
+            DB::table('monitors')->pluck('config')->all(),
+            AuditEvent::all()->toArray(),
+            $api,
+        ]);
+        $this->assertIsString($haystack);
+        $this->assertStringNotContainsString($password, $haystack);
+        $this->assertStringNotContainsString('ops:', $haystack);
     }
 
     public function test_unexpected_failure_logs_only_class_and_source_id(): void

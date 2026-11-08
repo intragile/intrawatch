@@ -342,12 +342,20 @@ final class MonitorMapper
     private function url(string $url, array &$auth, array &$secrets): string
     {
         $url = trim($url);
+        $stripped = (string) preg_replace('#^([a-z][a-z0-9+.\-]*://)[^/?\#]*@#i', '$1', $url);
         $parts = parse_url($url);
-        if (! is_array($parts) || (! isset($parts['user']) && ! isset($parts['pass']))) {
+        if (! is_array($parts)) {
+            // An unparsable URL fails validation later; its credentials must not reach the config or the errors.
+            if ($stripped !== $url) {
+                $this->note('url_credentials_dropped', 'The URL contained credentials but could not be parsed; the URL credentials were removed.');
+            }
+
+            return $stripped;
+        }
+        if (! isset($parts['user']) && ! isset($parts['pass'])) {
             return $url;
         }
 
-        $stripped = (string) preg_replace('#^([a-z][a-z0-9+.\-]*://)[^/?\#]*@#i', '$1', $url);
         if ($auth['type'] !== 'none') {
             $this->note('url_credentials_dropped', 'The URL contained credentials while the monitor already uses its own authentication; the URL credentials were removed.');
 
