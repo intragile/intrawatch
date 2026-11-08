@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\ImportOutcome;
+use App\Import\ImportPruner;
 use App\Import\Kuma\ImportOptions;
 use App\Import\Kuma\ImportReport;
 use App\Import\Kuma\KumaImporter;
@@ -14,6 +15,7 @@ use App\Support\Audit;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 #[Signature('intrawatch:import:kuma {source : Path to a Kuma SQLite database or 1.23 JSON backup, or a mysql:// DSN} {--workspace= : Slug of the target workspace} {--dry-run : Analyse only; write nothing} {--no-history : Skip heartbeat history} {--paused : Import monitors paused} {--report= : Write the JSON report to this path}')]
@@ -32,7 +34,7 @@ class ImportKumaCommand extends Command
 
         $source = null;
         try {
-            $source = SourceFactory::open((string) $this->argument('source'));
+            $source = SourceFactory::open((string) $this->argument('source'), ImportPruner::tempDirectory());
             $options = new ImportOptions(
                 dryRun: (bool) $this->option('dry-run'),
                 history: ! $this->option('no-history'),
@@ -45,7 +47,8 @@ class ImportKumaCommand extends Command
 
             return self::FAILURE;
         } catch (Throwable $e) {
-            report($e);
+            // Only the class: messages of database errors can carry values read from the source.
+            Log::error('Kuma import command failed', ['workspace_id' => $workspace->id, 'exception' => $e::class]);
             $this->error('The import failed unexpectedly; see the application log for details.');
 
             return 2;

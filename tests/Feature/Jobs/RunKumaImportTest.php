@@ -6,6 +6,7 @@ namespace Tests\Feature\Jobs;
 
 use App\Enums\ImportStatus;
 use App\Enums\WorkspaceRole;
+use App\Import\ImportPruner;
 use App\Import\Kuma\ImportContext;
 use App\Import\Kuma\KumaImporter;
 use App\Import\Kuma\Steps\ImportStep;
@@ -171,32 +172,47 @@ final class RunKumaImportTest extends TestCase
         $staleAnalyzing = $this->stored(ImportStatus::Analyzing, $kuma, $now->copy()->subHours(3));
         $stalePending = $this->stored(ImportStatus::Pending, $kuma, $now->copy()->subHours(3));
         $freshRunning = $this->stored(ImportStatus::Running, $kuma, $now->copy()->subHour());
+        // Uploaded long ago but still running: the stale rule, not the file age, decides about it.
+        $longRunning = $this->stored(ImportStatus::Running, $kuma, $now->copy()->subHours(30));
         $expiredAnalyzed = $this->stored(ImportStatus::Analyzed, $kuma, $now->copy()->subHours(25));
         $freshAnalyzed = $this->stored(ImportStatus::Analyzed, $kuma, $now->copy()->subHours(5));
+        // Finished imports age from the moment they finished.
+        $oldCompleted = $this->stored(ImportStatus::Completed, $kuma, $now->copy()->subHours(30));
+        $recentFailed = $this->stored(ImportStatus::Failed, $kuma, $now->copy()->subHours(30));
+        DB::table('imports')->where('id', $oldCompleted->id)->update(['finished_at' => $now->copy()->subHours(25)]);
+        DB::table('imports')->where('id', $recentFailed->id)->update(['finished_at' => $now->copy()->subHour()]);
         // A stale import has not changed state for over two hours.
         foreach ([$staleRunning, $staleAnalyzing, $stalePending] as $import) {
             DB::table('imports')->where('id', $import->id)->update(['updated_at' => $now->copy()->subHours(3)]);
         }
-        DB::table('imports')->where('id', $freshRunning->id)->update(['updated_at' => $now->copy()->subMinutes(10)]);
+        DB::table('imports')->whereIn('id', [$freshRunning->id, $longRunning->id])->update(['updated_at' => $now->copy()->subMinutes(10)]);
         // A file whose row is gone, for example after its workspace was deleted.
         Storage::disk('local')->put('imports/orphan', 'x');
         touch(Storage::disk('local')->path('imports/orphan'), $now->copy()->subHours(25)->getTimestamp());
+        // Temporary database copies: one left behind by a killed job, one in use.
+        Storage::disk('local')->put('imports/tmp/kuma-import-old', 'x');
+        touch(Storage::disk('local')->path('imports/tmp/kuma-import-old'), $now->copy()->subHours(3)->getTimestamp());
+        Storage::disk('local')->put('imports/tmp/kuma-import-new', 'x');
 
         $this->assertSame(0, Artisan::call('intrawatch:prune'));
         $output = Artisan::output();
-        $this->assertStringContainsString('import_files: 5 deleted', $output);
+        $this->assertStringContainsString('import_files: 7 deleted', $output);
         $this->assertStringContainsString('interrupted_imports: 3 marked failed', $output);
 
         foreach ([$staleRunning, $staleAnalyzing, $stalePending] as $import) {
             $import->refresh();
             $this->assertSame(ImportStatus::Failed, $import->status);
-            $this->assertSame('interrupted', $import->error);
+            $this->assertSame(ImportPruner::INTERRUPTED, $import->error);
             $this->assertNull($import->file_path);
             Storage::disk('local')->assertMissing('imports/'.$import->id);
         }
+        // Shown to users as is, like every other failure message.
+        $this->assertMatchesRegularExpression('/^[A-Z].+ .+\.$/', ImportPruner::INTERRUPTED);
 
-        $this->assertSame(ImportStatus::Running, $freshRunning->refresh()->status);
-        Storage::disk('local')->assertExists('imports/'.$freshRunning->id);
+        foreach ([$freshRunning, $longRunning] as $import) {
+            $this->assertSame(ImportStatus::Running, $import->refresh()->status);
+            Storage::disk('local')->assertExists('imports/'.$import->id);
+        }
         $this->assertSame(ImportStatus::Analyzed, $freshAnalyzed->refresh()->status);
         Storage::disk('local')->assertExists('imports/'.$freshAnalyzed->id);
 
@@ -204,6 +220,66 @@ final class RunKumaImportTest extends TestCase
         $this->assertSame(ImportStatus::Failed, $expiredAnalyzed->status);
         $this->assertSame('The uploaded file expired before the import was run. Upload it again.', $expiredAnalyzed->error);
         $this->assertNull($expiredAnalyzed->file_path);
+
+        $this->assertSame(ImportStatus::Completed, $oldCompleted->refresh()->status);
+        $this->assertNull($oldCompleted->file_path);
+        Storage::disk('local')->assertMissing('imports/'.$oldCompleted->id);
+        $this->assertSame('imports/'.$recentFailed->id, $recentFailed->refresh()->file_path);
+        Storage::disk('local')->assertExists('imports/'.$recentFailed->id);
+
         Storage::disk('local')->assertMissing('imports/orphan');
+        Storage::disk('local')->assertMissing('imports/tmp/kuma-import-old');
+        Storage::disk('local')->assertExists('imports/tmp/kuma-import-new');
+    }
+
+    public function test_prune_leaves_an_import_whose_run_started_after_it_was_read(): void
+    {
+        $import = $this->stored(ImportStatus::Analyzed, 'SQLite format 3', Carbon::now()->subHours(25));
+        // The user clicks Run between the pruner reading the row and marking it expired.
+        $clicked = false;
+        Import::retrieved(function (Import $read) use ($import, &$clicked): void {
+            if (! $clicked && $read->id === $import->id && $read->status === ImportStatus::Analyzed) {
+                $clicked = true;
+                DB::table('imports')->where('id', $import->id)->update(['status' => ImportStatus::Running->value]);
+            }
+        });
+
+        app(ImportPruner::class)->run();
+
+        $this->assertTrue($clicked);
+        $import->refresh();
+        $this->assertSame(ImportStatus::Running, $import->status);
+        $this->assertNull($import->error);
+        Storage::disk('local')->assertExists('imports/'.$import->id);
+    }
+
+    public function test_job_keeps_a_failure_recorded_while_it_ran(): void
+    {
+        foreach ([false, true] as $throws) {
+            $step = new class($throws) implements ImportStep
+            {
+                public function __construct(private readonly bool $throws) {}
+
+                public function run(ImportContext $ctx): void
+                {
+                    // The pruner gives up on the import while the job is still reading.
+                    DB::table('imports')->update(['status' => ImportStatus::Failed->value, 'error' => ImportPruner::INTERRUPTED]);
+                    if ($this->throws) {
+                        throw new \RuntimeException('late failure');
+                    }
+                }
+            };
+            $this->app->instance($step::class, $step);
+            $this->app->bind(KumaImporter::class, fn () => new KumaImporter([$step::class]));
+            $import = $this->stored(ImportStatus::Pending, (string) file_get_contents(ImporterTest::fixture('kuma2.db')));
+
+            $this->handle(new RunKumaImport($import->id, dryRun: true));
+
+            $import->refresh();
+            $this->assertSame(ImportStatus::Failed, $import->status);
+            $this->assertSame(ImportPruner::INTERRUPTED, $import->error);
+            $this->assertNull($import->report);
+            $import->delete();
+        }
     }
 }

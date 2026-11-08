@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Enums\ImportStatus;
+use App\Import\ImportPruner;
 use App\Import\Kuma\ImportOptions;
 use App\Import\Kuma\KumaImporter;
 use App\Import\Kuma\Source\KumaSource;
@@ -77,7 +78,7 @@ class RunKumaImport implements ShouldQueue
         // user is deleted; running as the system instead could do more than the user was allowed to.
         $actor = $import->user_id !== null ? User::query()->find($import->user_id) : null;
         if (! $actor instanceof User || ! $actor->can('update', $workspace)) {
-            $this->fail($import, null, self::ACTOR_GONE);
+            $this->fail($import, null, self::ACTOR_GONE, [$this->claimedStatus()]);
 
             return;
         }
@@ -88,19 +89,25 @@ class RunKumaImport implements ShouldQueue
                 throw new UnreadableSource('The uploaded file is no longer available. Upload it again.');
             }
 
-            $source = SourceFactory::open(Storage::disk('local')->path($import->file_path));
+            $source = SourceFactory::open(Storage::disk('local')->path($import->file_path), ImportPruner::tempDirectory());
             $options = ImportOptions::fromArray(['dry_run' => $this->dryRun] + $import->options);
 
             $report = $importer->run($source, $workspace, $options, $actor);
             $source->close();
             $source = null;
 
-            $import->forceFill([
+            $finished = $this->transition($import, [$this->claimedStatus()], [
                 'status' => $this->dryRun ? ImportStatus::Analyzed : ImportStatus::Completed,
                 'report' => $report->toArray(),
                 'error' => null,
                 'finished_at' => Carbon::now(),
-            ])->save();
+            ]);
+            if (! $finished) {
+                // The pruner gave up on this import meanwhile; its outcome stands.
+                Log::warning('Kuma import finished after it was marked failed', ['import_id' => $this->importId, 'dry_run' => $this->dryRun]);
+
+                return;
+            }
 
             if (! $this->dryRun) {
                 $this->deleteFile($import);
@@ -110,10 +117,10 @@ class RunKumaImport implements ShouldQueue
                 ], $actor, $workspace);
             }
         } catch (UnreadableSource $e) {
-            $this->fail($import, $source, $e->getMessage());
+            $this->fail($import, $source, $e->getMessage(), [$this->claimedStatus()]);
         } catch (Throwable $e) {
             Log::error('Kuma import job failed', ['import_id' => $this->importId, 'dry_run' => $this->dryRun, 'exception' => $e::class]);
-            $this->fail($import, $source, self::UNEXPECTED);
+            $this->fail($import, $source, self::UNEXPECTED, [$this->claimedStatus()]);
         }
     }
 
@@ -129,10 +136,22 @@ class RunKumaImport implements ShouldQueue
 
         $timedOut = $e instanceof TimeoutExceededException || $e instanceof MaxAttemptsExceededException;
         Log::error('Kuma import job failed', ['import_id' => $this->importId, 'dry_run' => $this->dryRun, 'exception' => $e !== null ? $e::class : null]);
-        $this->fail($import, null, $timedOut ? self::TIMED_OUT : self::UNEXPECTED);
+        $this->fail($import, null, $timedOut ? self::TIMED_OUT : self::UNEXPECTED, [$import->status]);
     }
 
-    private function fail(Import $import, ?KumaSource $source, string $message): void
+    /**
+     * The state handle() moved the import into before reading the source.
+     */
+    private function claimedStatus(): ImportStatus
+    {
+        return $this->dryRun ? ImportStatus::Analyzing : ImportStatus::Running;
+    }
+
+    /**
+     * @param  list<ImportStatus>  $expected  The states the import may still be in; a failure recorded meanwhile
+     *                                        (for example by the pruner) is kept.
+     */
+    private function fail(Import $import, ?KumaSource $source, string $message, array $expected): void
     {
         try {
             $source?->close();
@@ -140,12 +159,33 @@ class RunKumaImport implements ShouldQueue
             // Closing a broken source must not hide the failure being recorded.
         }
 
-        $import->forceFill([
+        $this->transition($import, $expected, [
             'status' => ImportStatus::Failed,
             'error' => $message,
             'finished_at' => Carbon::now(),
-        ])->save();
+        ]);
         $this->deleteFile($import);
+    }
+
+    /**
+     * Writes the attributes only while the import is still in one of the expected states, so a concurrent state
+     * change (the pruner marking it failed) is never overwritten.
+     *
+     * @param  list<ImportStatus>  $expected
+     * @param  array<string, mixed>  $attributes
+     */
+    private function transition(Import $import, array $expected, array $attributes): bool
+    {
+        $import->forceFill($attributes + ['updated_at' => Carbon::now()]);
+        $changed = Import::query()->whereKey($import->getKey())->whereIn('status', $expected)
+            ->toBase()->update($import->getDirty()) === 1;
+        if ($changed) {
+            $import->syncOriginal();
+        } else {
+            $import->refresh();
+        }
+
+        return $changed;
     }
 
     private function deleteFile(Import $import): void

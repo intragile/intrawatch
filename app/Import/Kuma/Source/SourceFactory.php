@@ -8,17 +8,18 @@ final class SourceFactory
 {
     /**
      * Opens a file path (SQLite database or 1.23 JSON backup) or a `mysql://user:pass@host:port/db` DSN.
+     * A SQLite database is read from a private copy in $tempDir (the system temp directory when null).
      *
      * @throws UnreadableSource
      */
-    public static function open(string $source): KumaSource
+    public static function open(string $source, ?string $tempDir = null): KumaSource
     {
         if (preg_match('#^mysql://#i', $source) === 1) {
             return PdoKumaSource::mysql($source);
         }
 
         return match (self::detect($source)) {
-            SourceKind::Sqlite => PdoKumaSource::sqlite($source),
+            SourceKind::Sqlite => PdoKumaSource::sqlite($source, $tempDir),
             SourceKind::Json => JsonBackupSource::fromFile($source),
             SourceKind::Mysql => throw new UnreadableSource('A MySQL source must be given as a mysql:// DSN.'),
         };

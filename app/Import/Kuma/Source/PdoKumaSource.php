@@ -44,11 +44,23 @@ final class PdoKumaSource implements KumaSource
     }
 
     /**
+     * Opens a read-only copy of the database in $tempDir (created when missing; the system temp directory when
+     * null). The copy is removed by close().
+     *
      * @throws UnreadableSource
      */
-    public static function sqlite(string $path): self
+    public static function sqlite(string $path, ?string $tempDir = null): self
     {
-        $temp = tempnam(sys_get_temp_dir(), 'kuma-import-');
+        $dir = $tempDir ?? sys_get_temp_dir();
+        if (! is_dir($dir) && ! @mkdir($dir, 0700, true) && ! is_dir($dir)) {
+            throw new UnreadableSource('The source file cannot be copied for reading.');
+        }
+        $temp = @tempnam($dir, 'kuma-import-');
+        // tempnam() silently falls back to the system temp directory when $dir is not writable.
+        if ($temp !== false && dirname($temp) !== (realpath($dir) ?: $dir)) {
+            @unlink($temp);
+            $temp = false;
+        }
         if ($temp === false) {
             throw new UnreadableSource('The source file cannot be copied for reading.');
         }
