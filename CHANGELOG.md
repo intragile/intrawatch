@@ -6,7 +6,7 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [1.0.0] - unreleased
+## [1.0.0] - 2026-11-08
 
 First release: a free, self-hosted uptime monitor and status page, shipped as
 one Docker image with all state in a single volume.
