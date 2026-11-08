@@ -42,13 +42,15 @@ RUN install-php-extensions pdo_sqlite pdo_mysql pdo_pgsql intl pcntl bcmath opca
     && grep -qx 'memory_limit = 512M' "$PHP_INI_DIR/php-cli.ini" \
     && useradd --uid 1000 --create-home --shell /usr/sbin/nologin app \
     && mkdir -p /data /app \
-    && chown app:app /data /app \
+    && chown app:app /data \
     && (setcap -r /usr/local/bin/frankenphp || true) \
     && (setcap -r /usr/bin/ping 2>/dev/null || true)
 
 WORKDIR /app
-COPY --from=composer --chown=app:app /app /app
-COPY --from=spa --chown=app:app /spa/dist /app/spa/dist
+# The application stays owned by root, so a compromised process cannot rewrite its own code. The app user only
+# writes bootstrap/cache and the storage directory, which is a symlink into the /data volume.
+COPY --from=composer /app /app
+COPY --from=spa /spa/dist /app/spa/dist
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY docker/php/intrawatch.ini /usr/local/etc/php/conf.d/zz-intrawatch.ini
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
@@ -56,14 +58,15 @@ COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chmod=0755 docker/supervisor-fatal-exit /usr/local/bin/supervisor-fatal-exit
 COPY --chmod=0755 docker/checker.sh /usr/local/bin/checker.sh
 COPY --chmod=0755 docker/healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN rm -rf storage \
+    && ln -s /data/storage storage \
+    && chown -R app:app bootstrap/cache
 
 USER app
 # Fails the build when the runtime image lacks a PHP extension or version the lock file requires.
 RUN --mount=type=bind,from=composer,source=/usr/bin/composer,target=/usr/local/bin/composer \
     composer check-platform-reqs --no-dev
-RUN php artisan package:discover --ansi \
-    && rm -rf storage \
-    && ln -s /data/storage storage
+RUN php artisan package:discover --ansi
 
 ENV APP_ENV=production \
     APP_DEBUG=false \

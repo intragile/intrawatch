@@ -82,7 +82,16 @@ return [
                     'scheme' => env('REVERB_SCHEME', 'https'),
                     'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 ],
-                'allowed_origins' => ['*'],
+                // Browsers may only open websockets from the APP_URL host; REVERB_ALLOWED_ORIGINS adds a
+                // comma-separated list of further hosts or Str::is patterns (no port), '*' allows any origin.
+                // Lowercased: browsers send the Origin host in lowercase and Reverb compares case-sensitively.
+                'allowed_origins' => array_values(array_unique(array_filter(array_map(
+                    static fn (string $origin): string => strtolower(trim($origin)),
+                    [
+                        parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST) ?: 'localhost',
+                        ...explode(',', (string) env('REVERB_ALLOWED_ORIGINS', '')),
+                    ],
+                )))),
                 'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
                 'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
                 'max_connections' => env('REVERB_APP_MAX_CONNECTIONS'),

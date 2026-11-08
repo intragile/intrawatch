@@ -183,11 +183,48 @@ ok "/me returns 200"
 
 KEY="$(timeout 30 docker exec "$NAME" sh -c 'grep ^REVERB_APP_KEY= /data/reverb.env | cut -d= -f2')"
 [[ -n "$KEY" ]] || fail "no reverb key persisted"
-ws="$(curl -s -i --max-time 3 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
-  -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
-  "$BASE/app/${KEY}?protocol=7" 2>/dev/null | head -n 1 || true)"
-[[ "$ws" == *"101"* ]] || fail "websocket upgrade via /app did not return 101 (got: $ws)"
-ok "reverb reachable through /app"
+# ws_open <origin>: prints the upgrade response and the first websocket frames (curl passes them through raw).
+ws_open() {
+  curl -s -i --max-time 3 -H "Origin: $1" -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+    -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+    "$BASE/app/${KEY}?protocol=7" 2>/dev/null | LC_ALL=C tr -c '[:print:]\n' '.' || true
+}
+ws="$(ws_open http://localhost:3000)"
+[[ "$(head -n 1 <<<"$ws")" == *"101"* ]] || fail "websocket upgrade via /app did not return 101 (got: $ws)"
+[[ "$ws" == *'pusher:connection_established'* ]] || fail "websocket from the APP_URL origin was not established (got: $ws)"
+ok "reverb reachable through /app from the APP_URL origin"
+# allowed_origins defaults to the APP_URL host, not '*' (config/reverb.php): other origins get error 4009.
+ws="$(ws_open http://evil.example)"
+[[ "$ws" != *'pusher:connection_established'* && "$ws" == *'4009'* ]] || fail "websocket from a foreign origin was not refused (got: $ws)"
+ok "reverb refuses a foreign origin"
+
+echo "== container hardening"
+up_headers="$(curl -s -o /dev/null -D - --max-time 10 "$BASE/up" || true)"
+if grep -qi '^x-powered-by:' <<<"$up_headers"; then fail "PHP still sends X-Powered-By: $up_headers"; fi
+[[ "$(timeout 30 docker exec "$NAME" php -r 'echo ini_get("expose_php") ? "On" : "Off";')" == "Off" ]] || fail "expose_php is not Off"
+ok "expose_php is Off, no X-Powered-By header"
+owners="$(timeout 30 docker exec "$NAME" stat -c '%U %n' /app /app/bootstrap/cache /app/config /app/vendor)" || fail "could not stat /app"
+[[ "$owners" == "root /app
+app /app/bootstrap/cache
+root /app/config
+root /app/vendor" ]] || fail "unexpected /app ownership: $owners"
+ok "/app is owned by root, only bootstrap/cache by app"
+# shellcheck disable=SC2016 # expands in the container
+umask_line="$(timeout 30 docker exec "$NAME" sh -c 'grep "^Umask:" /proc/$(cat /tmp/supervisord.pid)/status')" || fail "could not read the supervisord umask"
+[[ "$umask_line" == *"0027" ]] || fail "supervisord does not run with umask 0027: $umask_line"
+ok "services run with umask 0027"
+if [[ $USE_PGSQL -eq 0 ]]; then
+  [[ "$(timeout 30 docker exec "$NAME" stat -c %a /data/database.sqlite)" == "640" ]] || fail "database.sqlite is not 640"
+  ok "database.sqlite is 640"
+fi
+logs="$(timeout 30 docker logs "$NAME" 2>&1)" || fail "could not read container logs"
+if [[ $USE_PGSQL -eq 1 ]]; then
+  grep -qF 'WARNING: multi-host deployments must share APP_KEY and REVERB_*' <<<"$logs" || fail "no multi-host warning with pgsql and generated secrets"
+  ok "multi-host warning logged for pgsql with generated secrets"
+else
+  if grep -qF 'multi-host deployments' <<<"$logs"; then fail "multi-host warning logged for sqlite"; fi
+  ok "no multi-host warning for sqlite"
+fi
 
 echo "== monitors and checker"
 WS_URL="$BASE/api/v1/workspaces/smoke-ops"

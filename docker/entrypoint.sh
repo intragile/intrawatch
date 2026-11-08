@@ -1,5 +1,8 @@
 #!/bin/sh
 set -eu
+umask 027
+# Files and directories created from here on, by this script and the services it starts (supervisord runs in
+# the foreground and keeps this umask), are not readable by other users: 0640 files, 0750 directories.
 
 DATA_DIR="${DATA_DIR:-/data}"
 FATAL_MARKER=/tmp/intrawatch-fatal
@@ -52,6 +55,15 @@ mkdir -p \
 REVERB_FILE="$DATA_DIR/reverb.env"
 REVERB_VARS="REVERB_APP_ID REVERB_APP_KEY REVERB_APP_SECRET"
 
+# Every host of a deployment must use the same application key and websocket credentials; values generated per
+# container only work for a single host. Recorded before the blocks below fill them in.
+generated_here=""
+[ -n "${APP_KEY:-}" ] || generated_here="APP_KEY"
+for var in $REVERB_VARS; do
+  eval "current=\${$var:-}"
+  [ -n "$current" ] || generated_here="${generated_here:+$generated_here }$var"
+done
+
 reverb_value() {
   grep "^$1=" "$REVERB_FILE" 2>/dev/null | head -n 1 | cut -d= -f2-
 }
@@ -96,22 +108,63 @@ if [ -z "${APP_KEY:-}" ]; then
   export APP_KEY
 fi
 
+# A shared database (anything but sqlite) suggests several hosts; warn, but keep single-host installs working.
+if [ "${DB_CONNECTION:-sqlite}" != "sqlite" ] && [ -n "$generated_here" ]; then
+  echo "WARNING: multi-host deployments must share APP_KEY and REVERB_* (generated here: $generated_here). Set them in the environment of every host." >&2
+fi
+
 if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
   : "${DB_DATABASE:=$DATA_DIR/database.sqlite}"
   export DB_DATABASE
   touch "$DB_DATABASE"
+  # The umask only covers new files; databases created by older images were world-readable. Only the owner may
+  # chmod, so a writable file owned by another uid (bind mount, custom DB_DATABASE) must not stop the start.
+  chmod o-rwx "$DB_DATABASE" 2>/dev/null \
+    || echo "WARNING: could not restrict $DB_DATABASE to its owner and group; check its permissions." >&2
 fi
 
 # External databases may still be starting; retry for up to a minute. INTRAWATCH_SKIP_MIGRATE=1 leaves the
 # schema alone, for one-off commands against a database another version of the image manages.
-attempt=0
-until [ "${INTRAWATCH_SKIP_MIGRATE:-0}" = "1" ] || php artisan migrate --force; do
-  attempt=$((attempt + 1))
-  if [ "$attempt" -ge 30 ]; then
-    echo "migrate failed after $attempt attempts" >&2
-    exit 1
+#
+# Only one host migrates at a time: `php artisan migrate --force --isolated` holds a lock in the cache store
+# (shared through the database or redis). The cache table migration runs first because the database store keeps
+# its locks in that table; it does nothing once the table exists. --isolated=75 makes a held lock exit 75 (plain
+# --isolated would exit 0 and let this host start on a half-migrated schema), which waits without counting as a
+# failure, for up to ten minutes. A host that died mid-migration leaves the lock for an hour; clear it with
+# `php artisan cache:clear`.
+#
+# sqlite lives in this container's data volume, so no other host can be migrating: a held lock could only be
+# stale (left by a migration killed on `docker stop`, a reboot or the OOM killer) and would block every start
+# for that hour. sqlite therefore migrates without the lock.
+migrate() {
+  if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
+    php artisan migrate --force
+    return
   fi
-  echo "migrate failed, retrying in 2s ($attempt/30)" >&2
+  php artisan migrate --force --path=database/migrations/0001_01_01_000001_create_cache_table.php \
+    && php artisan migrate --force --isolated=75
+}
+attempt=0
+waited=0
+while [ "${INTRAWATCH_SKIP_MIGRATE:-0}" != "1" ]; do
+  status=0
+  migrate || status=$?
+  [ "$status" -eq 0 ] && break
+  if [ "$status" -eq 75 ]; then
+    waited=$((waited + 1))
+    if [ "$waited" -ge 300 ]; then
+      echo "FATAL: another host held the migration lock for $waited checks (about ten minutes). If no host is migrating, clear the stale lock with: php artisan cache:clear" >&2
+      exit 1
+    fi
+    echo "another host is migrating, waiting 2s ($waited/300)" >&2
+  else
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 30 ]; then
+      echo "migrate failed after $attempt attempts" >&2
+      exit 1
+    fi
+    echo "migrate failed, retrying in 2s ($attempt/30)" >&2
+  fi
   sleep 2
 done
 

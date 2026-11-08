@@ -39,6 +39,33 @@ if [[ -n "$LOAD_PLATFORM" && ",${PLATFORMS}," != *",${LOAD_PLATFORM},"* ]]; then
   exit 2
 fi
 
+# Prints the absolute physical path of $1: the nearest existing ancestor resolved with `pwd -P` (symlinks
+# followed), plus the part that does not exist yet. Fails when that part contains `..`.
+physical_path() {
+  local base="$1" rest=""
+  [[ "$base" == /* ]] || base="$PWD/$base"
+  while [[ "$base" == */ && "$base" != / ]]; do base="${base%/}"; done
+  while [[ ! -d "$base" ]]; do
+    rest="/${base##*/}${rest}"
+    base="$(dirname "$base")"
+  done
+  [[ "${rest}/" != */../* ]] || return 1
+  base="$(cd "$base" && pwd -P)"
+  printf '%s\n' "${base%/}${rest}"
+}
+
+# The archive must never land in the Docker build context (the repository, minus .dockerignore): only build/
+# (ignored) and paths outside the repository are allowed. Compared case-insensitively, for macOS volumes.
+REPO="$(pwd -P)"
+OUT_ABS="$(physical_path "$OUT")" || { echo "error: --out must not contain .. below a directory that does not exist yet: $OUT" >&2; exit 2; }
+lower() { tr '[:upper:]' '[:lower:]' <<<"$1"; }
+out_lc="$(lower "$OUT_ABS")" repo_lc="$(lower "$REPO")"
+if [[ "$out_lc" == "$repo_lc" || "$out_lc" == "$repo_lc"/* ]] \
+  && [[ "$out_lc" != "$repo_lc/build" && "$out_lc" != "$repo_lc"/build/* ]]; then
+  echo "error: --out must be under build/ or outside the repository, got $OUT ($OUT_ABS)" >&2
+  exit 2
+fi
+
 # Prints the os/arch[/variant] of every platform manifest in an OCI archive, one per line.
 archive_platforms() {
   local archive="$1" index digest blob
