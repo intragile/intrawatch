@@ -57,7 +57,8 @@ final class HttpChecker implements Checker
             $client = $this->clients->create($spec);
             $response = $client->http->request($client->request, $deadline);
             $body = $this->readBody($response, $deadline);
-            $latencyMs = (int) round((hrtime(true) - $started) / 1_000_000);
+            // The local check of a proxied target is not on the request path; it still counts against the timeout.
+            $latencyMs = (int) round(max(0, hrtime(true) - $started - $client->guardNanoseconds()) / 1_000_000);
 
             return $this->evaluate($spec, $client, $response, $body, $latencyMs, $deadline);
         } catch (CancelledException) {

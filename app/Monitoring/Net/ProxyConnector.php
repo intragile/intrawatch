@@ -18,6 +18,10 @@ use Amp\Socket\SocketConnector;
  * to reach a blocked address: literal IPs are checked exactly, hostnames by a best-effort local resolution (see
  * GuardedConnector::assertTunnelTarget()). The hop to the proxy itself goes through the guarded connector inside
  * the tunnel.
+ *
+ * The time spent on that local check is counted separately (guardNanoseconds()): the proxy resolves the name
+ * itself, so the local lookup is not on the request path and the checker keeps it out of the measured latency.
+ * A ProxyConnector is created per check, so the counter covers exactly one check, redirect hops included.
  */
 final class ProxyConnector implements SocketConnector
 {
@@ -25,6 +29,16 @@ final class ProxyConnector implements SocketConnector
         private readonly ?SocketConnector $tunnel,
         private readonly GuardedConnector $targets,
     ) {}
+
+    private int $guardNanoseconds = 0;
+
+    /**
+     * Nanoseconds spent checking tunnel targets against the network policy so far, blocked targets included.
+     */
+    public function guardNanoseconds(): int
+    {
+        return $this->guardNanoseconds;
+    }
 
     #[\Override]
     public function connect(SocketAddress|string $uri, ?ConnectContext $context = null, ?Cancellation $cancellation = null): Socket
@@ -34,7 +48,12 @@ final class ProxyConnector implements SocketConnector
         }
 
         try {
-            $this->targets->assertTunnelTarget($uri, $context, $cancellation);
+            $started = hrtime(true);
+            try {
+                $this->targets->assertTunnelTarget($uri, $context, $cancellation);
+            } finally {
+                $this->guardNanoseconds += hrtime(true) - $started;
+            }
 
             return $this->tunnel->connect($uri, $context, $cancellation);
         } catch (BlockedTarget|ProxyFailure $e) {

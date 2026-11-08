@@ -65,7 +65,8 @@ final class ClientFactory
             }
 
             $context = (new ConnectContext)->withTlsContext($tls)->withConnectTimeout($timeout);
-            $tracker = new ConnectionTracker(new DefaultConnectionFactory($this->connectorFor($config, $secrets), $context));
+            $connector = $this->connectorFor($config, $secrets);
+            $tracker = new ConnectionTracker(new DefaultConnectionFactory($connector, $context));
 
             $redirects = is_int($config['max_redirects'] ?? null) ? $config['max_redirects'] : 0;
             $builder = (new HttpClientBuilder)
@@ -86,7 +87,10 @@ final class ClientFactory
                 ->intercept(new SetRequestHeaderIfUnset('user-agent', 'IntraWatch/'.config()->string('app.version', '1')))
                 ->build();
 
-            return new CheckClient($http, $this->request($config, $secrets, $timeout), $tracker, $temporaryFiles);
+            // The proxy connector is per check, so its guard timer covers this check's hops only.
+            $proxy = $connector instanceof ProxyConnector ? $connector : null;
+
+            return new CheckClient($http, $this->request($config, $secrets, $timeout), $tracker, $temporaryFiles, $proxy);
         } catch (Throwable $e) {
             foreach ($temporaryFiles as $file) {
                 @unlink($file);

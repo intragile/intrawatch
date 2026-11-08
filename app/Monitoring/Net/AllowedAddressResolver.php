@@ -14,6 +14,10 @@ use Amp\TimeoutCancellation;
 
 /**
  * Resolves a host and keeps only the addresses the network policy permits. Literal IPs skip DNS.
+ *
+ * The verdicts of the best-effort proxy target check (assertNotBlocked() for a hostname) are kept for a few seconds
+ * per host, so a redirect chain or repeated checks do not repeat the local lookup on every hop. resolve(), which a
+ * direct connection relies on for resolve-then-connect, is never cached.
  */
 final class AllowedAddressResolver
 {
@@ -23,10 +27,38 @@ final class AllowedAddressResolver
      */
     public const float TUNNEL_TARGET_DNS_TIMEOUT = 1.0;
 
+    /** Seconds an allowed (resolved, nothing blocked) proxy target verdict is reused, at most. */
+    public const float ALLOWED_TTL = 30.0;
+
+    /** Seconds a verdict for a proxy target that did not resolve locally, or timed out, is reused. */
+    public const float UNRESOLVED_TTL = 10.0;
+
+    /** Seconds a blocked proxy target verdict is reused. A cached block is always a block. */
+    public const float BLOCKED_TTL = 60.0;
+
+    /** Most proxy target verdicts kept; beyond that the expired ones and then the oldest ones are dropped. */
+    public const int MAX_VERDICTS = 1024;
+
+    /** @var \Closure(): float */
+    private readonly \Closure $now;
+
+    /**
+     * Proxy target verdicts by "host|type restriction": whether the host is blocked, and when the verdict expires.
+     *
+     * @var array<string, array{blocked: bool, expires: float}>
+     */
+    private array $verdicts = [];
+
+    /**
+     * @param  (\Closure(): float)|null  $now  Monotonic seconds; tests pass a fake clock.
+     */
     public function __construct(
         private readonly DnsResolver $resolver,
         private readonly NetworkPolicy $policy,
-    ) {}
+        ?\Closure $now = null,
+    ) {
+        $this->now = $now ?? static fn (): float => hrtime(true) / 1e9;
+    }
 
     /**
      * IPv4 addresses first, then IPv6.
@@ -68,6 +100,10 @@ final class AllowedAddressResolver
      * resolve names the worker cannot. The lookup gives up after TUNNEL_TARGET_DNS_TIMEOUT for the same reason. The
      * proxy may still resolve the name differently.
      *
+     * A hostname's verdict is cached for a few seconds (see the *_TTL constants). That is safe: a cached block is
+     * still a block, and an allowed verdict was only ever best effort, because the proxy resolves the name itself.
+     * A cancelled check caches nothing. Literal and numeric forms are always checked exactly, without the cache.
+     *
      * @throws BlockedTarget When the address, or any locally resolved address, is blocked.
      * @throws CancelledException When the check is cancelled during resolution.
      */
@@ -86,23 +122,9 @@ final class AllowedAddressResolver
             }
             $addresses = [$address];
         } else {
-            $cancellation ??= new NullCancellation;
-            try {
-                $records = $this->resolver->resolve(
-                    $host,
-                    $typeRestriction,
-                    new CompositeCancellation($cancellation, new TimeoutCancellation(self::TUNNEL_TARGET_DNS_TIMEOUT)),
-                );
-            } catch (DnsException) {
-                return;
-            } catch (CancelledException $e) {
-                // Only our own lookup deadline expired: let the proxy resolve the name. A cancelled check propagates.
-                $cancellation->throwIfRequested();
+            $this->assertHostNotBlocked($host, $typeRestriction, $cancellation ?? new NullCancellation);
 
-                return;
-            }
-
-            $addresses = array_map(static fn (DnsRecord $r): string => $r->getValue(), $records);
+            return;
         }
 
         foreach ($addresses as $address) {
@@ -110,6 +132,80 @@ final class AllowedAddressResolver
                 throw new BlockedTarget('Blocked target');
             }
         }
+    }
+
+    /**
+     * The hostname branch of assertNotBlocked(), with its verdict cache.
+     *
+     * @throws BlockedTarget
+     * @throws CancelledException
+     */
+    private function assertHostNotBlocked(string $host, ?int $typeRestriction, Cancellation $cancellation): void
+    {
+        $key = strtolower($host).'|'.($typeRestriction ?? '*');
+        $now = ($this->now)();
+
+        $cached = $this->verdicts[$key] ?? null;
+        if ($cached !== null && $cached['expires'] > $now) {
+            if ($cached['blocked']) {
+                throw new BlockedTarget('Blocked target');
+            }
+
+            return;
+        }
+
+        try {
+            $records = $this->resolver->resolve(
+                $host,
+                $typeRestriction,
+                new CompositeCancellation($cancellation, new TimeoutCancellation(self::TUNNEL_TARGET_DNS_TIMEOUT)),
+            );
+        } catch (DnsException) {
+            $this->remember($key, false, self::UNRESOLVED_TTL, $now);
+
+            return;
+        } catch (CancelledException $e) {
+            // Only our own lookup deadline expired: let the proxy resolve the name. A cancelled check propagates,
+            // and caches nothing.
+            $cancellation->throwIfRequested();
+            $this->remember($key, false, self::UNRESOLVED_TTL, $now);
+
+            return;
+        }
+
+        foreach ($records as $record) {
+            if (! $this->policy->allows($record->getValue())) {
+                $this->remember($key, true, self::BLOCKED_TTL, $now);
+
+                throw new BlockedTarget('Blocked target');
+            }
+        }
+
+        $ttl = self::ALLOWED_TTL;
+        foreach ($records as $record) {
+            $recordTtl = $record->getTtl();
+            if ($recordTtl !== null) {
+                $ttl = min($ttl, (float) $recordTtl);
+            }
+        }
+        $this->remember($key, false, $ttl, $now);
+    }
+
+    private function remember(string $key, bool $blocked, float $ttl, float $now): void
+    {
+        if ($ttl <= 0) {
+            return;
+        }
+
+        unset($this->verdicts[$key]);
+        if (count($this->verdicts) >= self::MAX_VERDICTS) {
+            $this->verdicts = array_filter($this->verdicts, static fn (array $v): bool => $v['expires'] > $now);
+        }
+        while (count($this->verdicts) >= self::MAX_VERDICTS) {
+            unset($this->verdicts[array_key_first($this->verdicts)]);
+        }
+
+        $this->verdicts[$key] = ['blocked' => $blocked, 'expires' => $now + $ttl];
     }
 
     /**

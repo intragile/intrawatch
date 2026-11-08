@@ -6,8 +6,10 @@ use Amp\Cancellation;
 use Amp\CancelledException;
 use Amp\DeferredCancellation;
 use Amp\Dns\DnsException;
+use Amp\Dns\DnsRecord;
 use Amp\Dns\DnsResolver;
 use App\Monitoring\Net\AllowedAddressResolver;
+use App\Monitoring\Net\BlockedTarget;
 use App\Monitoring\Net\NetworkPolicy;
 use PHPUnit\Framework\TestCase;
 
@@ -40,6 +42,63 @@ class AllowedAddressResolverTest extends TestCase
 
         $this->expectException(CancelledException::class);
         $resolver->assertNotBlocked('example.com', null, $deferred->getCancellation());
+    }
+
+    public function test_literal_and_numeric_targets_never_query_dns_even_with_the_cache(): void
+    {
+        $lookups = 0;
+        $resolver = new AllowedAddressResolver($this->countingResolver($lookups), new NetworkPolicy(['169.254.169.254/32']));
+
+        foreach (['169.254.169.254', '[fd00:ec2::254]', '2852039166', '0xa9fea9fe'] as $host) {
+            foreach ([1, 2] as $attempt) {
+                try {
+                    $resolver->assertNotBlocked($host);
+                    if ($host !== '[fd00:ec2::254]') {
+                        $this->fail("{$host} was not blocked on attempt {$attempt}");
+                    }
+                } catch (BlockedTarget) {
+                    $this->assertNotSame('[fd00:ec2::254]', $host);
+                }
+            }
+        }
+        $resolver->assertNotBlocked('127.0.0.1');
+
+        $this->assertSame(0, $lookups);
+    }
+
+    public function test_resolving_for_a_direct_connection_is_never_cached(): void
+    {
+        $lookups = 0;
+        $resolver = new AllowedAddressResolver($this->countingResolver($lookups), new NetworkPolicy([]));
+
+        $resolver->resolve('example.test');
+        $resolver->resolve('example.test');
+
+        $this->assertSame(2, $lookups);
+    }
+
+    private function countingResolver(int &$lookups): DnsResolver
+    {
+        $count = function () use (&$lookups): void {
+            $lookups++;
+        };
+
+        return new class($count) implements DnsResolver
+        {
+            public function __construct(private readonly \Closure $count) {}
+
+            public function resolve(string $name, ?int $typeRestriction = null, ?Cancellation $cancellation = null): array
+            {
+                ($this->count)();
+
+                return [new DnsRecord('93.184.216.34', DnsRecord::A, null)];
+            }
+
+            public function query(string $name, int $type, ?Cancellation $cancellation = null): array
+            {
+                return $this->resolve($name, $type, $cancellation);
+            }
+        };
     }
 
     private function hangingResolver(): DnsResolver

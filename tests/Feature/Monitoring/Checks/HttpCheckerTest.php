@@ -3,6 +3,9 @@
 namespace Tests\Feature\Monitoring\Checks;
 
 use Amp\Cancellation;
+use Amp\Dns\DnsException;
+use Amp\Dns\DnsRecord;
+use Amp\Dns\DnsResolver;
 use Amp\Future;
 use Amp\NullCancellation;
 use Amp\Socket\ConnectContext;
@@ -30,6 +33,7 @@ use Tests\Support\TestCertificates;
 use Tests\TestCase;
 
 use function Amp\async;
+use function Amp\delay;
 
 class HttpCheckerTest extends TestCase
 {
@@ -501,6 +505,101 @@ class HttpCheckerTest extends TestCase
         }
 
         $this->assertSame(["internal.test:{$s->port()}", "internal.test:{$s->port()}"], $proxyServer->targets);
+    }
+
+    public function test_proxied_latency_excludes_local_tunnel_target_lookup(): void
+    {
+        // The proxy resolves the target itself, so the worker's own best-effort lookup of it is not on the
+        // request path and must not show up as latency, even when the local resolver never answers.
+        [$s, $proxyServer, $credentials] = $this->proxied();
+
+        foreach (['http', 'socks5'] as $scheme) {
+            $lookups = 0;
+            // A checker per scheme, so the second scheme is not helped by the first one's cached verdict.
+            $checker = $this->checkerWithResolver($this->slowResolver([], $lookups, hang: true));
+            $outcome = $this->probe(['url' => "http://slow.test:{$s->port()}/fast", 'proxy' => $this->proxyConfig($scheme, $proxyServer)], $credentials, checker: $checker);
+
+            $this->assertUp($outcome, $scheme);
+            $this->assertSame(1, $lookups, $scheme);
+            $this->assertNotNull($outcome->latencyMs, $scheme);
+            $this->assertLessThan(500, $outcome->latencyMs, $scheme);
+        }
+    }
+
+    public function test_proxied_redirect_chain_looks_up_each_host_once(): void
+    {
+        [$s, $proxyServer, $credentials] = $this->proxied();
+        $lookups = 0;
+        $checker = $this->checkerWithResolver($this->slowResolver(['slow.test' => ['127.0.0.1']], $lookups, delay: 0.2));
+        $target = rawurlencode("http://slow.test:{$s->port()}/fast");
+
+        $outcome = $this->probe(['url' => "http://slow.test:{$s->port()}/redirect-to?target={$target}", 'proxy' => $this->proxyConfig('http', $proxyServer)], $credentials, checker: $checker);
+
+        $this->assertUp($outcome);
+        $this->assertSame(1, $lookups);
+        $this->assertSame(["slow.test:{$s->port()}", "slow.test:{$s->port()}"], $proxyServer->targets);
+    }
+
+    public function test_proxy_blocked_hostname_stays_blocked_from_cache(): void
+    {
+        [$s, $proxyServer, $credentials] = $this->proxied();
+        $lookups = 0;
+        $checker = $this->checkerWithResolver($this->slowResolver(['meta.test' => ['169.254.169.254']], $lookups), ['169.254.169.254/32']);
+
+        foreach (['http', 'socks5'] as $scheme) {
+            $this->assertDown('Blocked target', $this->probe(['url' => "http://meta.test:{$s->port()}/fast", 'proxy' => $this->proxyConfig($scheme, $proxyServer)], $credentials, checker: $checker));
+        }
+
+        $this->assertSame(1, $lookups);
+        $this->assertSame([], $proxyServer->targets);
+    }
+
+    /**
+     * @param  list<string>  $blocked
+     */
+    private function checkerWithResolver(DnsResolver $resolver, array $blocked = []): HttpChecker
+    {
+        return new HttpChecker(new ClientFactory(new GuardedConnector($resolver, new NetworkPolicy($blocked)), caFile: $this->certificates()->caFile));
+    }
+
+    /**
+     * A resolver that answers from a fixed map after $delay seconds, or with $hang never, counting its lookups.
+     *
+     * @param  array<string, non-empty-list<string>>  $hosts
+     */
+    private function slowResolver(array $hosts, int &$lookups, float $delay = 0.0, bool $hang = false): DnsResolver
+    {
+        $count = function () use (&$lookups): void {
+            $lookups++;
+        };
+
+        return new class($hosts, $count, $delay, $hang) implements DnsResolver
+        {
+            /**
+             * @param  array<string, non-empty-list<string>>  $hosts
+             */
+            public function __construct(
+                private readonly array $hosts,
+                private readonly \Closure $count,
+                private readonly float $delay,
+                private readonly bool $hang,
+            ) {}
+
+            public function resolve(string $name, ?int $typeRestriction = null, ?Cancellation $cancellation = null): array
+            {
+                ($this->count)();
+                delay($this->hang ? 30 : $this->delay, true, $cancellation);
+
+                $ips = $this->hosts[$name] ?? throw new DnsException("No such host {$name}");
+
+                return array_map(static fn (string $ip): DnsRecord => new DnsRecord($ip, DnsRecord::A, null), $ips);
+            }
+
+            public function query(string $name, int $type, ?Cancellation $cancellation = null): array
+            {
+                return $this->resolve($name, $type, $cancellation);
+            }
+        };
     }
 
     public function test_unusable_proxy_fails_closed_instead_of_connecting_directly(): void
