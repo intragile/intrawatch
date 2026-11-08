@@ -64,6 +64,17 @@ class RecoveryCommandsTest extends TestCase
         ])->assertSuccessful();
     }
 
+    public function test_reset_password_revokes_api_tokens(): void
+    {
+        // Same as the e-mail reset: whoever forced the reset may also hold a token minted with the old password.
+        $user = User::factory()->create(['email' => 'ada@example.com']);
+        $user->createToken('ci');
+
+        $this->assertSame(0, Artisan::call('intrawatch:user:reset-password', ['email' => 'ada@example.com', '--password' => 'brand-new-password']));
+
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
     public function test_recovery_commands_reject_unknown_users_and_weak_passwords(): void
     {
         User::factory()->create(['email' => 'ada@example.com']);

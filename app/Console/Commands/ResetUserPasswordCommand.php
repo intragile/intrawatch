@@ -15,7 +15,7 @@ use Illuminate\Validation\Rules\Password;
 use function Laravel\Prompts\password;
 
 #[Signature('intrawatch:user:reset-password {email} {--password=}')]
-#[Description('Set a new password for a user and sign out their existing sessions')]
+#[Description('Set a new password for a user, sign out their existing sessions and revoke their API tokens')]
 class ResetUserPasswordCommand extends Command
 {
     public function handle(): int
@@ -53,6 +53,9 @@ class ResetUserPasswordCommand extends Command
                     ->where('user_id', $user->id)
                     ->delete();
             }
+
+            // Tokens minted with the old password must not outlive it, as with the e-mail reset.
+            $user->tokens()->delete();
 
             // The password itself is never part of the trail.
             Audit::record('auth.password_reset', $user);
