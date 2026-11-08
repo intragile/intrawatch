@@ -33,7 +33,8 @@ if [[ "${E2E_SKIP_BUILD:-0}" != "1" ]]; then
 fi
 
 echo "== start $NAME on $BASE"
-timeout 120 docker run -d --name "$NAME" -e "APP_URL=${BASE}" \
+# Custom domains are off unless allowed; test 5 sets the domain from env.ts (CUSTOM_DOMAIN).
+timeout 120 docker run -d --name "$NAME" -e "APP_URL=${BASE}" -e "STATUS_CUSTOM_DOMAINS=status.e2e.test" \
   -p "127.0.0.1:${PORT}:3000" -v "${VOLUME}:/data" "$IMAGE" >/dev/null || fail "container start failed"
 
 # Polls run against a wall-clock deadline, so slow requests cannot stretch the wait.
