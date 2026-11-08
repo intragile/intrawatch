@@ -142,4 +142,11 @@ behaviour that an existing installation may rely on.
   header; `STATUS_RATE_LIMIT` makes the public status rate limit configurable.
 - `scripts/build-image.sh` refuses an `--out` inside the build context.
 
+### Known limitations
+
+- On a shared MySQL or PostgreSQL database, a host killed while migrating
+  leaves the migration lock behind for up to an hour, and the other hosts wait
+  for it. If no host is migrating, `php artisan cache:clear` releases it (see
+  the README, multi-host deployments).
+
 Developed and maintained by [IntrAgile Kft.](https://intragile.eu)
