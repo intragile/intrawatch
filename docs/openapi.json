@@ -6518,6 +6518,14 @@
                                     },
                                     "role": {
                                         "$ref": "#/components/schemas/WorkspaceRole"
+                                    },
+                                    "locale": {
+                                        "type": "string",
+                                        "description": "The language of the e-mail; the admin interface sends its own. The invitee's language is unknown\nhere (they may have no account), so the inviter's is the best guess.",
+                                        "enum": [
+                                            "en",
+                                            "hu"
+                                        ]
                                     }
                                 },
                                 "required": [

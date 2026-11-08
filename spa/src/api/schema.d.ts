@@ -3836,6 +3836,12 @@ export interface operations {
                     /** Format: email */
                     email: string;
                     role: components["schemas"]["WorkspaceRole"];
+                    /**
+                     * @description The language of the e-mail; the admin interface sends its own. The invitee's language is unknown
+                     *     here (they may have no account), so the inviter's is the best guess.
+                     * @enum {string}
+                     */
+                    locale?: "en" | "hu";
                 };
             };
         };

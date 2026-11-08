@@ -55,10 +55,14 @@ class MemberController extends Controller
         $request->validate([
             'email' => ['required', 'string', 'email', 'max:255'],
             'role' => ['required', Rule::enum(WorkspaceRole::class)],
+            // The language of the e-mail; the admin interface sends its own. The invitee's language is unknown
+            // here (they may have no account), so the inviter's is the best guess.
+            'locale' => ['sometimes', Rule::in(['en', 'hu'])],
         ]);
         $role = $request->enum('role', WorkspaceRole::class) ?? throw new LogicException('Validated role is missing.');
         $this->authorizeGrant($role);
         $email = $request->string('email')->toString();
+        $locale = $request->string('locale', 'en')->toString();
 
         // One query of the same shape for every address: it never tells an unknown address from a known one.
         if ($workspace->members()->where('users.email', $email)->exists()) {
@@ -76,7 +80,7 @@ class MemberController extends Controller
 
         /** @var User $inviter */
         $inviter = $request->user();
-        $invitation = WorkspaceInvitation::issue($workspace, $email, $role, $inviter);
+        $invitation = WorkspaceInvitation::issue($workspace, $email, $role, $inviter, $locale);
 
         return response()->json(['data' => [
             'email' => $invitation->email,

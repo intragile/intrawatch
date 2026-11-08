@@ -3,6 +3,7 @@
 namespace Tests\Feature\Workspaces;
 
 use App\Mail\WorkspaceInvitationMail;
+use Illuminate\Support\Facades\App;
 use Tests\TestCase;
 
 /**
@@ -98,5 +99,34 @@ class InvitationMailTest extends TestCase
 
         $mail->assertSeeInText('Team &#35;1 &amp; more');
         $this->assertStringContainsString('Team &#35;1 &amp; more', html_entity_decode($mail->render(), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+
+    public function test_renders_in_english_by_default(): void
+    {
+        $mail = $this->mail('Acme', role: 'editor');
+
+        $mail->assertSeeInText('You have been invited to Acme');
+        $mail->assertSeeInText('editor');
+        $mail->assertSeeInText('Accept the invitation');
+        $mail->assertSeeInText('All rights reserved.');
+    }
+
+    public function test_renders_in_hungarian_with_the_hungarian_locale(): void
+    {
+        $mail = $this->mail('Acme', role: 'editor')->locale('hu');
+
+        $mail->assertSeeInText('Meghívó munkaterületre: Acme');
+        $mail->assertSeeInText('szerkesztő');
+        $mail->assertSeeInText('Meghívó elfogadása');
+        $mail->assertSeeInText('Minden jog fenntartva.');
+        $mail->assertDontSeeInText('You have been invited');
+    }
+
+    public function test_subject_follows_the_locale(): void
+    {
+        App::setLocale('hu');
+        $subject = $this->mail('Acme')->envelope()->subject;
+
+        $this->assertSame('Meghívó: Acme ('.config()->string('app.name').')', $subject);
     }
 }

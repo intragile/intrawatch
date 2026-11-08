@@ -125,7 +125,8 @@ served: `/admin/`, `/api/`, `/sanctum/` and `/broadcasting/` answer 404 there.
 ### Members and invitations
 
 Members are invited by e-mail. `POST /api/v1/workspaces/{workspace}/members`
-(`email`, `role`; `members:manage`) answers `202` for every address, whether
+(`email`, `role`, optional `locale` `en` or `hu` for the language of the e-mail,
+default `en`; the admin interface sends its own language; `members:manage`) answers `202` for every address, whether
 or not an account exists for it, and mails a link to
 `{APP_URL}/admin/invitations#token={token}`; the token sits in the fragment, so
 browsers never send it and it stays out of access logs. Only an address that is

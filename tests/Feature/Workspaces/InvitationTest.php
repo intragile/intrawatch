@@ -184,6 +184,28 @@ class InvitationTest extends TestCase
         $this->assertArrayNotHasKey('token_hash', WorkspaceInvitation::query()->sole()->toArray());
     }
 
+    public function test_the_mail_goes_out_in_the_locale_the_inviter_sends(): void
+    {
+        Mail::fake();
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson($this->url('/members'), ['email' => 'hu@example.com', 'role' => 'editor', 'locale' => 'hu'])
+            ->assertAccepted();
+        $this->invite('en@example.com')->assertAccepted();
+
+        Mail::assertQueued(WorkspaceInvitationMail::class, fn (WorkspaceInvitationMail $mail): bool => $mail->hasTo('hu@example.com') && $mail->locale === 'hu');
+        Mail::assertQueued(WorkspaceInvitationMail::class, fn (WorkspaceInvitationMail $mail): bool => $mail->hasTo('en@example.com') && $mail->locale === 'en');
+    }
+
+    public function test_an_unknown_locale_is_refused(): void
+    {
+        Mail::fake();
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson($this->url('/members'), ['email' => 'x@example.com', 'role' => 'editor', 'locale' => 'de'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['locale']);
+        Mail::assertNothingQueued();
+    }
+
     public function test_invitations_expire_after_seven_days(): void
     {
         $this->invite('cy@example.com')->assertStatus(202);

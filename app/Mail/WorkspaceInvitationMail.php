@@ -9,6 +9,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Lang;
 
 /**
  * The invitation into a workspace. It goes to every invited address alike and never says whether an account
@@ -32,7 +33,10 @@ class WorkspaceInvitationMail extends Mailable implements ShouldBeEncrypted, Sho
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'You have been invited to '.self::plainText($this->workspaceName).' on '.config()->string('app.name'),
+            subject: __('invitation.subject', [
+                'workspace' => self::plainText($this->workspaceName),
+                'app' => self::plainText(config()->string('app.name')),
+            ]),
         );
     }
 
@@ -44,10 +48,21 @@ class WorkspaceInvitationMail extends Mailable implements ShouldBeEncrypted, Sho
                 // New names on purpose: public properties are merged after `with` and would overwrite these.
                 'markdownWorkspaceName' => self::markdownText($this->workspaceName),
                 'markdownInviterName' => self::markdownText($this->inviterName),
-                'markdownRole' => self::markdownText($this->role),
-                'appName' => config()->string('app.name'),
+                'markdownRole' => self::markdownText($this->roleName()),
+                'markdownAppName' => self::markdownText(config()->string('app.name')),
             ],
         );
+    }
+
+    /**
+     * The role in the mail's language. Rendering runs inside the mailable's locale (set by the inviter), so the
+     * translator already answers in that language; an unknown role is shown as it is.
+     */
+    private function roleName(): string
+    {
+        $key = 'invitation.roles.'.$this->role;
+
+        return Lang::has($key) ? __($key) : $this->role;
     }
 
     /**

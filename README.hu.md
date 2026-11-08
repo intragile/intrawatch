@@ -138,7 +138,8 @@ a `/broadcasting/` ott 404-et ad.
 ### Tagok és meghívók
 
 A tagokat e-mailben kell meghívni. A `POST /api/v1/workspaces/{workspace}/members`
-(`email`, `role`; `members:manage`) minden címre `202`-vel válaszol, akár létezik
+(`email`, `role`, opcionális `locale`: `en` vagy `hu`, a levél nyelve, alapból
+`en`; az admin felület a saját nyelvét küldi; `members:manage`) minden címre `202`-vel válaszol, akár létezik
 hozzá fiók, akár nem, és a `{APP_URL}/admin/invitations#token={token}` címre
 mutató hivatkozást küld. A token a fragmentben van, ezért a böngésző nem küldi el
 a szervernek, és nem kerül access logba. Csak a már tag címet utasítja el (422). A hivatkozás 7 napig

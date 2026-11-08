@@ -118,7 +118,7 @@ describe('members', () => {
     fill('input[name="member_email"]', 'cy@example.com')
     await submit('input[name="member_email"]')
     await expect.poll(() => server.of('POST /workspaces/acme/members')).toHaveLength(2)
-    expect(server.of('POST /workspaces/acme/members')[1]?.body).toEqual({ email: 'cy@example.com', role: 'viewer' })
+    expect(server.of('POST /workspaces/acme/members')[1]?.body).toEqual({ email: 'cy@example.com', role: 'viewer', locale: 'en' })
     await expect.poll(() => document.body.textContent).toContain('Invitation sent to cy@example.com.')
     await expect.poll(() => document.querySelector('[data-test="invitation-7"]')?.textContent).toContain('cy@example.com')
     expect(server.of('GET /workspaces/acme/invitations')).toHaveLength(2)

@@ -17,7 +17,7 @@ import { useSession } from '../../stores/session'
 import { bodyOf } from '../../utils/cursorPage'
 import { ROLES } from '../../utils/roles'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const session = useSession()
 const can = useCan()
@@ -188,6 +188,8 @@ async function invite(): Promise<void> {
       body: {
         email: email.value.trim(),
         role: role.value,
+        // The e-mail goes out in the inviter's interface language.
+        locale: locale.value === 'hu' ? 'hu' : 'en',
       },
     }))
     email.value = ''

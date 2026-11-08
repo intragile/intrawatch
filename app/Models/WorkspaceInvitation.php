@@ -61,12 +61,12 @@ class WorkspaceInvitation extends Model
      * The link carries the token in the URL fragment: browsers never send the fragment, so the token
      * stays out of proxy and server access logs and the Referer header. The SPA reads it from the hash.
      */
-    public static function issue(Workspace $workspace, string $email, WorkspaceRole $role, User $inviter): self
+    public static function issue(Workspace $workspace, string $email, WorkspaceRole $role, User $inviter, string $locale = 'en'): self
     {
         $token = Str::random(64);
         $days = max(1, config()->integer('intrawatch.workspaces.invitations.expire_days', 7));
 
-        $invitation = DB::transaction(function () use ($workspace, $email, $role, $inviter, $token, $days): self {
+        $invitation = DB::transaction(function () use ($workspace, $email, $role, $inviter, $token, $days, $locale): self {
             $invitation = self::query()->updateOrCreate(
                 ['workspace_id' => $workspace->id, 'email' => $email],
                 [
@@ -79,7 +79,7 @@ class WorkspaceInvitation extends Model
             );
             Audit::record('member.invited', $invitation, ['email' => [null, $email], 'role' => [null, $role->value]], null, $workspace);
 
-            Mail::to($email)->queue(new WorkspaceInvitationMail(
+            Mail::to($email)->locale($locale)->queue(new WorkspaceInvitationMail(
                 $workspace->name,
                 $inviter->name,
                 $role->value,

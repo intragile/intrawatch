@@ -126,7 +126,9 @@ behaviour that an existing installation may rely on.
 - Invitation links carry the token in the URL fragment
   (`/admin/invitations#token=…`), so it no longer reaches access logs; links
   sent in the old path form still work. Workspace and inviter names can no
-  longer inject Markdown (links, emphasis) into the invitation e-mail.
+  longer inject Markdown (links, emphasis) into the invitation e-mail, which
+  now goes out in English or Hungarian (`locale`; the admin interface sends
+  its own language).
 - The audit log masks the same channel settings as the channel endpoints, so
   `audit:read` no longer reveals webhook URLs, ntfy topics or Apprise config
   keys. (Monitor audit entries never held secrets; a test now guards that.)
