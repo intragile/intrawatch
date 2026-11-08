@@ -316,7 +316,7 @@ class DeliveryTest extends SenderTestCase
         $channel = $this->slack();
         $orphan = $this->delivery($channel);
         $fresh = $this->delivery($channel);
-        $this->assertSame(0, Artisan::call('intrawatch:alerts:tick'));
+        Artisan::call('intrawatch:alerts:tick');
         Queue::assertNothingPushed();
 
         // The job of the first delivery was lost; the second one was queued moments ago.

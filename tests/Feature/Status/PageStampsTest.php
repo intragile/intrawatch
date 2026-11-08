@@ -250,9 +250,10 @@ class PageStampsTest extends TestCase
         Exceptions::fake();
         $base = "/api/v1/workspaces/{$ws->slug}";
 
-        $created = $this->actingAs($editor)->postJson("{$base}/status-pages", ['title' => 'Public', 'slug' => 'public-one'])->assertCreated();
+        $this->actingAs($editor)->postJson("{$base}/status-pages", ['title' => 'Public', 'slug' => 'public-one'])->assertCreated();
+        $createdId = StatusPage::query()->where('slug', 'public-one')->firstOrFail()->id;
         $this->assertSame(1, StatusPage::query()->where('slug', 'public-one')->count());
-        $this->actingAs($editor)->patchJson("{$base}/status-pages/{$created->json('data.id')}", ['slug' => 'public-two'])->assertOk();
+        $this->actingAs($editor)->patchJson("{$base}/status-pages/{$createdId}", ['slug' => 'public-two'])->assertOk();
         $this->assertSame(1, StatusPage::query()->where('slug', 'public-two')->count());
         $this->actingAs($editor)->deleteJson("{$base}/status-pages/{$page->id}")->assertNoContent();
         $this->assertNull(StatusPage::query()->find($page->id));
