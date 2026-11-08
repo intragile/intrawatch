@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { Ability } from '../api/types'
 import {
-  mdiAccountCircle,
   mdiAccountGroup,
   mdiAlertOutline,
   mdiBellOutline,
@@ -23,6 +22,8 @@ import {
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { useDisplay } from 'vuetify'
+import AppLogo from '../components/common/AppLogo.vue'
 import { useCan } from '../composables/useCan'
 import { useNotify } from '../composables/useNotify'
 import { usePreferences } from '../composables/usePreferences'
@@ -44,6 +45,14 @@ const router = useRouter()
 const can = useCan()
 const { notify } = useNotify()
 const { isDark, toggleTheme, locale, locales, setLocale } = usePreferences()
+// Below md the rail becomes a temporary drawer behind a slim top bar.
+const { smAndDown: mobile } = useDisplay()
+
+const initials = computed(() => {
+  const name = session.user?.name?.trim() ?? ''
+  const parts = name.split(/\s+/).filter(Boolean)
+  return parts.slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || '?'
+})
 
 // Null lets Vuetify open the drawer on wide screens and keep it closed on narrow ones.
 const drawer = ref<boolean | null>(null)
@@ -178,88 +187,57 @@ watch(() => session.me, (current) => {
 </script>
 
 <template>
-  <v-app-bar flat border density="comfortable">
-    <v-app-bar-nav-icon v-if="workspace" :aria-label="t('nav.toggleMenu')" @click="drawer = !drawer" />
-    <v-app-bar-title>
-      <router-link :to="{ name: 'home' }" class="app-title">
-        {{ t('app.name') }}
-      </router-link>
-    </v-app-bar-title>
-
-    <v-select
-      v-if="session.workspaces.length > 0"
-      :model-value="workspace?.slug ?? null"
-      :items="session.workspaces"
-      item-title="name"
-      item-value="slug"
-      :label="t('nav.workspace')"
-      density="compact"
-      variant="outlined"
-      hide-details
-      class="workspace-switcher mx-2"
-      @update:model-value="switchWorkspace"
-    />
-    <v-btn
-      v-if="session.workspaces.length > 0 && session.canCreateWorkspace"
-      data-test="create-workspace"
-      icon
-      size="small"
-      variant="text"
-      :aria-label="t('nav.createWorkspace')"
-      :title="t('nav.createWorkspace')"
-      @click="createDialog = true"
-    >
-      <v-icon :icon="mdiPlus" />
-    </v-btn>
-
-    <div class="mx-2 d-flex align-center">
+  <v-app-bar v-if="mobile" flat border density="compact" class="top-bar">
+    <v-app-bar-nav-icon :aria-label="t('nav.toggleMenu')" @click="drawer = !drawer" />
+    <router-link :to="{ name: 'home' }" class="logo-link" :aria-label="t('app.name')">
+      <AppLogo :size="24" />
+    </router-link>
+    <v-spacer />
+    <div class="mr-3 d-flex align-center">
       <slot name="status" />
     </div>
-
-    <v-menu location="bottom end">
-      <template #activator="{ props: activator }">
-        <v-btn v-bind="activator" icon :aria-label="t('nav.accountMenu')">
-          <v-icon :icon="mdiAccountCircle" />
-        </v-btn>
-      </template>
-      <v-list density="compact" min-width="240">
-        <v-list-item
-          v-if="session.user"
-          :title="session.user.name"
-          :subtitle="session.user.email"
-        />
-        <v-divider />
-        <v-list-item
-          :to="{ name: 'account' }"
-          :prepend-icon="mdiShieldAccountOutline"
-          :title="t('nav.account')"
-        />
-        <v-list-item
-          :prepend-icon="isDark ? mdiWeatherSunny : mdiWeatherNight"
-          :title="isDark ? t('theme.toLight') : t('theme.toDark')"
-          @click="toggleTheme"
-        />
-        <v-list-subheader>{{ t('locale.label') }}</v-list-subheader>
-        <v-list-item
-          v-for="code in locales"
-          :key="code"
-          :title="t(`locale.${code}`)"
-          :lang="code"
-          :active="code === locale"
-          @click="setLocale(code)"
-        >
-          <template #append>
-            <v-icon v-if="code === locale" :icon="mdiCheck" size="small" />
-          </template>
-        </v-list-item>
-        <v-divider />
-        <v-list-item :prepend-icon="mdiLogout" :title="t('nav.signOut')" @click="signOut" />
-      </v-list>
-    </v-menu>
   </v-app-bar>
 
-  <v-navigation-drawer v-if="workspace" v-model="drawer">
-    <v-list nav density="comfortable" :aria-label="t('nav.mainMenu')">
+  <v-navigation-drawer
+    v-model="drawer"
+    mobile-breakpoint="md"
+    width="256"
+    class="rail"
+    :aria-label="t('nav.mainMenu')"
+  >
+    <div class="rail-head">
+      <router-link :to="{ name: 'home' }" class="logo-link" :aria-label="t('app.name')">
+        <AppLogo />
+      </router-link>
+    </div>
+
+    <div v-if="session.workspaces.length > 0" class="workspace-row">
+      <v-select
+        :model-value="workspace?.slug ?? null"
+        :items="session.workspaces"
+        item-title="name"
+        item-value="slug"
+        :label="t('nav.workspace')"
+        density="compact"
+        hide-details
+        class="workspace-switcher"
+        @update:model-value="switchWorkspace"
+      />
+      <v-btn
+        v-if="session.canCreateWorkspace"
+        data-test="create-workspace"
+        icon
+        size="small"
+        variant="text"
+        :aria-label="t('nav.createWorkspace')"
+        :title="t('nav.createWorkspace')"
+        @click="createDialog = true"
+      >
+        <v-icon :icon="mdiPlus" />
+      </v-btn>
+    </div>
+
+    <v-list v-if="workspace" nav density="compact" class="rail-list">
       <v-list-item
         v-for="item in visibleItems"
         :key="item.route"
@@ -267,33 +245,218 @@ watch(() => session.me, (current) => {
         :prepend-icon="item.icon"
         :title="item.label"
       />
-      <v-divider v-if="visibleAdminItems.length > 0" class="my-2" />
-      <v-list-item
-        v-for="item in visibleAdminItems"
-        :key="item.route"
-        :to="{ name: item.route, params: { workspace: workspace.slug } }"
-        :prepend-icon="item.icon"
-        :title="item.label"
-      />
+      <template v-if="visibleAdminItems.length > 0">
+        <v-list-subheader class="rail-subheader">
+          {{ t('nav.manage') }}
+        </v-list-subheader>
+        <v-list-item
+          v-for="item in visibleAdminItems"
+          :key="item.route"
+          :to="{ name: item.route, params: { workspace: workspace.slug } }"
+          :prepend-icon="item.icon"
+          :title="item.label"
+        />
+      </template>
     </v-list>
+
+    <template #append>
+      <div class="rail-foot">
+        <div v-if="!mobile" class="rail-status">
+          <slot name="status" />
+        </div>
+        <v-menu location="top start">
+          <template #activator="{ props: activator }">
+            <button v-bind="activator" type="button" class="account" :aria-label="t('nav.accountMenu')">
+              <span class="avatar" aria-hidden="true">{{ initials }}</span>
+              <span class="account-text">
+                <span class="account-name">{{ session.user?.name }}</span>
+                <span v-if="workspace" class="account-role">{{ t(`roles.${workspace.role}`) }}</span>
+              </span>
+            </button>
+          </template>
+          <v-list density="compact" min-width="260">
+            <v-list-item
+              v-if="session.user"
+              :title="session.user.name"
+              :subtitle="session.user.email"
+            />
+            <v-divider />
+            <v-list-item
+              :to="{ name: 'account' }"
+              :prepend-icon="mdiShieldAccountOutline"
+              :title="t('nav.account')"
+            />
+            <v-list-item
+              :prepend-icon="isDark ? mdiWeatherSunny : mdiWeatherNight"
+              :title="isDark ? t('theme.toLight') : t('theme.toDark')"
+              @click="toggleTheme"
+            />
+            <v-list-subheader>{{ t('locale.label') }}</v-list-subheader>
+            <v-list-item
+              v-for="code in locales"
+              :key="code"
+              :title="t(`locale.${code}`)"
+              :lang="code"
+              :active="code === locale"
+              @click="setLocale(code)"
+            >
+              <template #append>
+                <v-icon v-if="code === locale" :icon="mdiCheck" size="small" />
+              </template>
+            </v-list-item>
+            <v-divider />
+            <v-list-item :prepend-icon="mdiLogout" :title="t('nav.signOut')" @click="signOut" />
+          </v-list>
+        </v-menu>
+      </div>
+    </template>
   </v-navigation-drawer>
 
   <CreateWorkspaceDialog v-model="createDialog" />
 
   <v-main>
-    <v-container fluid>
+    <v-container fluid class="page">
       <slot />
     </v-container>
   </v-main>
 </template>
 
 <style scoped>
-.app-title {
+.logo-link {
+  display: inline-flex;
   color: inherit;
   text-decoration: none;
+  border-radius: 6px;
+}
+
+.rail {
+  background: rgb(var(--v-theme-background)) !important;
+}
+
+.rail-head {
+  padding: 18px 20px 14px;
+}
+
+.workspace-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px 8px 16px;
 }
 
 .workspace-switcher {
-  max-width: 240px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rail-list {
+  padding: 4px 8px;
+  background: transparent;
+}
+
+.rail-list :deep(.v-list-item) {
+  min-height: 36px;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.rail-list :deep(.v-list-item-title) {
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.rail-list :deep(.v-list-item__spacer) {
+  width: 12px !important;
+}
+
+.rail-list :deep(.v-list-item--active) {
+  color: rgb(var(--v-theme-on-surface));
+  background: rgb(var(--v-theme-surface));
+  box-shadow: inset 3px 0 0 rgb(var(--v-theme-primary));
+}
+
+.rail-list :deep(.v-list-item--active > .v-list-item__overlay) {
+  opacity: 0;
+}
+
+.rail-subheader {
+  margin-top: 12px;
+  min-height: 32px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding-inline-start: 10px !important;
+}
+
+.rail-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--iw-line);
+}
+
+.rail-status {
+  padding: 0 8px;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.account:hover {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--iw-selected);
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.account-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.account-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-role {
+  font-size: 0.8125rem;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.page {
+  max-width: 1600px;
+  padding: 24px 28px 48px;
+}
+
+@media (max-width: 599.98px) {
+  .page {
+    padding: 16px 16px 40px;
+  }
 }
 </style>

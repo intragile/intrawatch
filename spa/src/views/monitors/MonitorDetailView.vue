@@ -10,20 +10,22 @@ import { api, unwrap, useCursorList } from '../../api'
 import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
-import StatusChip from '../../components/common/StatusChip.vue'
 import AlertsTable from '../../components/monitors/AlertsTable.vue'
 import { pointsFromRollups, RANGES, withLive } from '../../components/monitors/chartData'
 import EventsTable from '../../components/monitors/EventsTable.vue'
+import HeartbeatBar from '../../components/monitors/HeartbeatBar.vue'
 import LatencyChart from '../../components/monitors/LatencyChart.vue'
 import MonitorActions from '../../components/monitors/MonitorActions.vue'
 import PushUrlCard from '../../components/monitors/PushUrlCard.vue'
 import ResultsTable from '../../components/monitors/ResultsTable.vue'
+import { monitorTarget } from '../../components/monitors/target'
 import UptimeStats from '../../components/monitors/UptimeStats.vue'
 import { useCan } from '../../composables/useCan'
 import { useWorkspaceLive } from '../../live/useWorkspaceLive'
 import { useMonitors } from '../../stores/monitors'
 import { useSession } from '../../stores/session'
 import { bodyOf } from '../../utils/cursorPage'
+import { formatDuration } from '../../utils/duration'
 import { asApiError } from '../../utils/errors'
 
 /** Rollup page size (the API maximum) and the page cap: 1,440 minute buckets fit in eight pages. */
@@ -34,7 +36,7 @@ const MAX_LIVE = 1440
 
 type Section = 'results' | 'events' | 'alerts'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const session = useSession()
 const store = useMonitors()
@@ -264,105 +266,277 @@ watch(monitorId, () => {
 }, { immediate: false })
 watch(section, openSection)
 
+// Hero: the status and how long it has lasted, refreshed every 30 s.
+const now = ref(Date.now())
+const ticker = setInterval(() => {
+  now.value = Date.now()
+}, 30_000)
+onBeforeUnmount(() => clearInterval(ticker))
+
+const STATUS_TEXT: Record<Monitor['state']['status'], string> = {
+  up: 'text-success',
+  down: 'text-error',
+  degraded: 'text-warning',
+  maintenance: 'text-maintenance',
+  pending: 'text-idle',
+  paused: 'text-idle',
+}
+const lasted = computed(() => {
+  const since = Date.parse(monitor.value?.state.since ?? '')
+  return Number.isNaN(since)
+    ? ''
+    : formatDuration(now.value - since, locale.value)
+})
+const target = computed(() => monitor.value
+  ? monitorTarget(monitor.value)
+  : '')
+
+/** Beats for the large strip: the live list's beats, else the newest loaded results. */
+const STRIP_SLOTS = 50
+const stripBeats = computed(() => {
+  const fromStore = store.beats.get(monitorId.value)
+  if (fromStore && fromStore.length > 0)
+    return fromStore
+  return results.items.value.slice(0, STRIP_SLOTS).reverse().map(r => ({
+    status: r.status,
+    latency_ms: r.latency_ms,
+    at: r.checked_at,
+  }))
+})
+
 void load()
 </script>
 
 <template>
-  <v-btn
-    variant="text"
-    :prepend-icon="mdiArrowLeft"
-    :to="{ name: 'ws.monitors', params: { workspace: slug } }"
-    class="mb-2"
-  >
-    {{ t('monitorDetail.back') }}
-  </v-btn>
-
-  <v-progress-linear v-if="loading" indeterminate :aria-label="t('monitorDetail.loading')" />
-  <template v-else-if="loadError !== null">
-    <ProblemAlert :error="loadError" />
-    <v-btn variant="tonal" @click="load">
-      {{ t('monitors.retry') }}
+  <div class="detail">
+    <v-btn
+      variant="text"
+      :prepend-icon="mdiArrowLeft"
+      :to="{ name: 'ws.monitors', params: { workspace: slug } }"
+      class="back d-lg-none"
+    >
+      {{ t('monitorDetail.back') }}
     </v-btn>
-  </template>
-  <EmptyState v-else-if="monitor === null" :title="t('monitorDetail.missing')" />
 
-  <template v-else>
-    <header class="d-flex flex-wrap align-center ga-3 mb-4">
-      <h1 class="text-h5">
-        {{ monitor.name }}
-      </h1>
-      <StatusChip :status="monitor.state.status" />
-      <v-chip size="small" label>
-        {{ t(`monitors.types.${monitor.type}`) }}
-      </v-chip>
-      <v-chip v-for="tag in monitor.tags" :key="tag.id" size="small" label :color="tag.color">
-        {{ tag.value ? `${tag.name}: ${tag.value}` : tag.name }}
-      </v-chip>
-    </header>
+    <v-progress-linear v-if="loading" indeterminate :aria-label="t('monitorDetail.loading')" />
+    <template v-else-if="loadError !== null">
+      <ProblemAlert :error="loadError" />
+      <v-btn variant="tonal" @click="load">
+        {{ t('monitors.retry') }}
+      </v-btn>
+    </template>
+    <EmptyState v-else-if="monitor === null" :title="t('monitorDetail.missing')" />
 
-    <p v-if="monitor.description" class="mb-2">
-      {{ monitor.description }}
-    </p>
-    <dl class="d-flex flex-wrap ga-6 mb-4 text-body-2">
-      <div>
-        <dt class="text-caption">
-          {{ t('monitorDetail.since') }}
-        </dt>
-        <dd><DateTime :value="monitor.state.since" /></dd>
-      </div>
-      <div>
-        <dt class="text-caption">
-          {{ t('monitorDetail.lastCheck') }}
-        </dt>
-        <dd><DateTime :value="monitor.state.last_checked_at" /></dd>
-      </div>
-      <div>
-        <dt class="text-caption">
-          {{ t('monitorDetail.latency') }}
-        </dt>
-        <dd>{{ monitor.state.last_latency_ms === null ? '—' : t('monitors.latencyMs', { ms: monitor.state.last_latency_ms }) }}</dd>
-      </div>
-      <div v-if="monitor.state.last_message">
-        <dt class="text-caption">
-          {{ t('monitorDetail.message') }}
-        </dt>
-        <dd>{{ monitor.state.last_message }}</dd>
-      </div>
-    </dl>
+    <template v-else>
+      <header class="head">
+        <div class="meta-row">
+          <span class="tag">{{ t(`monitors.types.${monitor.type}`) }}</span>
+          <span v-if="target" class="target">{{ target }}</span>
+          <v-chip v-for="tag in monitor.tags" :key="tag.id" size="small" :color="tag.color" variant="tonal">
+            {{ tag.value ? `${tag.name}: ${tag.value}` : tag.name }}
+          </v-chip>
+        </div>
+        <div class="hero-row">
+          <div class="hero-text">
+            <h1 class="name">
+              {{ monitor.name }}
+            </h1>
+            <p class="hero iw-display" data-test="hero" :data-status="monitor.state.status">
+              <span :class="STATUS_TEXT[monitor.state.status]">{{ t(`status.${monitor.state.status}`) }}</span>
+              <span v-if="lasted" class="hero-for">{{ t('monitorDetail.heroFor', { duration: lasted }) }}</span>
+            </p>
+          </div>
+          <MonitorActions :monitor="monitor" :checkable="checkable" @updated="applyUpdate" />
+        </div>
+        <p v-if="monitor.state.last_message" class="message">
+          <span class="muted">{{ t('monitorDetail.message') }}:</span> {{ monitor.state.last_message }}
+        </p>
+        <p v-if="monitor.description" class="description">
+          {{ monitor.description }}
+        </p>
+      </header>
 
-    <MonitorActions :monitor="monitor" :checkable="checkable" class="mb-6" @updated="applyUpdate" />
+      <section class="strip" :aria-label="t('monitorDetail.strip.label')">
+        <HeartbeatBar :beats="stripBeats" :slots="STRIP_SLOTS" size="large" />
+        <div class="strip-scale">
+          <span>{{ t('monitorDetail.strip.count', { count: STRIP_SLOTS }) }}</span>
+          <span>{{ t('monitorDetail.strip.now') }}</span>
+        </div>
+      </section>
 
-    <PushUrlCard
-      v-if="monitor.type === 'push' || monitor.type === 'cron'"
-      :monitor="monitor"
-      class="mb-6"
-      @rotated="onRotated"
-    />
+      <dl class="facts">
+        <div>
+          <dt>{{ t('monitorDetail.since') }}</dt>
+          <dd><DateTime :value="monitor.state.since" /></dd>
+        </div>
+        <div>
+          <dt>{{ t('monitorDetail.lastCheck') }}</dt>
+          <dd><DateTime :value="monitor.state.last_checked_at" /></dd>
+        </div>
+        <div>
+          <dt>{{ t('monitorDetail.latency') }}</dt>
+          <dd>{{ monitor.state.last_latency_ms === null ? '—' : t('monitors.latencyMs', { ms: monitor.state.last_latency_ms }) }}</dd>
+        </div>
+      </dl>
 
-    <ProblemAlert :error="rollupError" />
-    <LatencyChart v-model:range="range" :points="chartPoints" :loading="chartLoading" class="mb-6" />
-    <UptimeStats :ranges="rollups" class="mb-6" />
+      <PushUrlCard
+        v-if="monitor.type === 'push' || monitor.type === 'cron'"
+        :monitor="monitor"
+        @rotated="onRotated"
+      />
 
-    <v-tabs v-model="section" :aria-label="t('monitorDetail.history')">
-      <v-tab value="results" data-test="tab-results">
-        {{ t('monitorDetail.results.title') }}
-      </v-tab>
-      <v-tab value="events" data-test="tab-events">
-        {{ t('monitorDetail.events.title') }}
-      </v-tab>
-      <v-tab v-if="canSeeAlerts" value="alerts" data-test="tab-alerts">
-        {{ t('monitorDetail.alerts.title') }}
-      </v-tab>
-    </v-tabs>
-    <div class="mt-4">
-      <div v-if="section === 'results'">
-        <v-btn size="small" variant="text" class="mb-2" @click="results.reload()">
-          {{ t('monitorDetail.refresh') }}
-        </v-btn>
-        <ResultsTable :list="results" />
-      </div>
-      <EventsTable v-else-if="section === 'events'" :list="events" />
-      <AlertsTable v-else-if="section === 'alerts' && canSeeAlerts" :list="alerts" />
-    </div>
-  </template>
+      <ProblemAlert :error="rollupError" />
+      <UptimeStats :ranges="rollups" />
+      <LatencyChart v-model:range="range" :points="chartPoints" :loading="chartLoading" />
+
+      <section>
+        <v-tabs v-model="section" :aria-label="t('monitorDetail.history')" class="history-tabs">
+          <v-tab value="results" data-test="tab-results">
+            {{ t('monitorDetail.results.title') }}
+          </v-tab>
+          <v-tab value="events" data-test="tab-events">
+            {{ t('monitorDetail.events.title') }}
+          </v-tab>
+          <v-tab v-if="canSeeAlerts" value="alerts" data-test="tab-alerts">
+            {{ t('monitorDetail.alerts.title') }}
+          </v-tab>
+        </v-tabs>
+        <div class="mt-3">
+          <div v-if="section === 'results'">
+            <v-btn size="small" variant="text" class="mb-2" @click="results.reload()">
+              {{ t('monitorDetail.refresh') }}
+            </v-btn>
+            <ResultsTable :list="results" />
+          </div>
+          <EventsTable v-else-if="section === 'events'" :list="events" />
+          <AlertsTable v-else-if="section === 'alerts' && canSeeAlerts" :list="alerts" />
+        </div>
+      </section>
+    </template>
+  </div>
 </template>
+
+<style scoped>
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  max-width: 1100px;
+}
+
+.back {
+  align-self: flex-start;
+  margin-bottom: -14px;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--iw-line);
+  border-radius: 4px;
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+  font-weight: 500;
+}
+
+.target {
+  overflow-wrap: anywhere;
+}
+
+.hero-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.hero-text {
+  min-width: 0;
+}
+
+.name {
+  margin: 0 0 2px;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.hero {
+  margin: 0;
+  font-size: 2.75rem;
+  line-height: 1.05;
+}
+
+.hero-for {
+  margin-inline-start: 0.3em;
+  font-weight: 500;
+}
+
+.message,
+.description {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.muted {
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.strip-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.facts dt {
+  font-size: 0.8125rem;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.history-tabs {
+  border-bottom: 1px solid var(--iw-line);
+}
+
+@media (max-width: 599.98px) {
+  .hero {
+    font-size: 2.125rem;
+  }
+}
+</style>

@@ -57,6 +57,7 @@
     "workspace": "Workspace",
     "accountMenu": "Account menu",
     "mainMenu": "Main menu",
+    "manage": "Manage workspace",
     "toggleMenu": "Show or hide the menu",
     "signOut": "Sign out",
     "signOutFailed": "Signing out failed. Try again.",
@@ -332,7 +333,8 @@
       "all": "All",
       "activeOnly": "Active",
       "pausedOnly": "Paused",
-      "reset": "Clear filters"
+      "reset": "Clear filters",
+      "more": "More filters"
     },
     "types": {
       "http": "HTTP",
@@ -375,7 +377,16 @@
     },
     "more": "Load more monitors",
     "loadingMore": "Loading monitors",
-    "retry": "Retry"
+    "retry": "Retry",
+    "selectMode": "Select",
+    "selectModeDone": "Done selecting",
+    "overview": {
+      "title": "Overview",
+      "hint": "Choose a monitor in the list to see its details.",
+      "attention": "Needs attention",
+      "allGood": "Every loaded monitor is up or deliberately paused.",
+      "loadedNote": "Counts cover the loaded monitors."
+    }
   },
   "secret": {
     "set": "Set",
@@ -661,6 +672,12 @@
       "rotateTitle": "Rotate the push token",
       "rotateText": "The current URL stops working immediately. Update every job that reports to this monitor.",
       "rotated": "Push token rotated."
+    },
+    "heroFor": "for {duration}",
+    "strip": {
+      "label": "Recent checks",
+      "count": "Last {count} checks",
+      "now": "now"
     }
   },
   "channels": {

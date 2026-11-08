@@ -127,10 +127,10 @@ test('2. an HTTP monitor turns Up live, without a reload', async () => {
 
   await expect(page).toHaveURL(new RegExp(`/admin/w/${WORKSPACE.slug}/monitors/\\d+$`))
   await expect(page.getByRole('heading', { name: MONITOR })).toBeVisible()
-  const header = page.locator('header').filter({
-    has: page.getByRole('heading', { name: MONITOR }),
-  })
-  await expect(header.locator('.v-chip').filter({ hasText: /^\s*Up\s*$/ })).toBeVisible({ timeout: 90_000 })
+  // The status line under the name leads with the monitor's status.
+  const hero = page.locator('[data-test="hero"]')
+  await expect(hero).toHaveAttribute('data-status', 'up', { timeout: 90_000 })
+  await expect(hero).toContainText('Up')
 
   const id = page.url().match(/monitors\/(\d+)$/)?.[1]
   expect(frames.some(f => f.includes('monitor.status_changed') && f.includes(`\\"monitor_id\\":${id}`)), 'a status_changed broadcast for the monitor arrived over the websocket').toBe(true)

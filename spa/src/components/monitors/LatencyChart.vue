@@ -40,9 +40,10 @@ const summary = computed(() => {
 function colors() {
   const c = theme.current.value.colors
   return {
-    line: c.primary ?? '#3FB68B',
-    text: c['on-surface'] ?? '#888888',
-    grid: theme.current.value.dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
+    line: c.primary ?? '#2346B5',
+    fill: theme.current.value.dark ? 'rgba(143,167,244,0.10)' : 'rgba(35,70,181,0.08)',
+    text: theme.current.value.dark ? '#9AA6B6' : '#526070',
+    grid: theme.current.value.dark ? '#2A3544' : '#D3DAE2',
   }
 }
 
@@ -51,12 +52,13 @@ function options(): UPlot.Options {
   const zone = session.current?.timezone ?? 'UTC'
   const axis = {
     stroke: palette.text,
+    font: '12px Barlow, system-ui, sans-serif',
     grid: { stroke: palette.grid, width: 1 },
     ticks: { stroke: palette.grid, width: 1 },
   }
   return {
     width: host.value?.clientWidth || 600,
-    height: 260,
+    height: 220,
     legend: { show: false },
     cursor: {
       drag: { x: false, y: false },
@@ -84,7 +86,8 @@ function options(): UPlot.Options {
       {
         label: t('monitorDetail.chart.latency'),
         stroke: palette.line,
-        width: 2,
+        fill: palette.fill,
+        width: 1.75,
         spanGaps: false,
         points: { show: false },
       },
@@ -124,11 +127,11 @@ watch(() => [theme.current.value.dark, locale.value, session.current?.timezone],
 
 <template>
   <section :aria-label="t('monitorDetail.chart.title')">
-    <div class="d-flex flex-wrap align-center justify-space-between mb-2">
-      <h2 class="text-h6">
+    <div class="d-flex flex-wrap align-center justify-space-between mb-1">
+      <h2 class="text-subtitle-1">
         {{ t('monitorDetail.chart.title') }}
       </h2>
-      <v-tabs v-model="range" density="compact" :aria-label="t('monitorDetail.chart.range')">
+      <v-tabs v-model="range" density="compact" class="range-tabs" :aria-label="t('monitorDetail.chart.range')">
         <v-tab v-for="r in RANGES" :key="r.key" :value="r.key" :data-test="`range-${r.key}`">
           {{ t(`monitorDetail.ranges.${r.key}`) }}
         </v-tab>
@@ -143,8 +146,13 @@ watch(() => [theme.current.value.dark, locale.value, session.current?.timezone],
 </template>
 
 <style scoped>
+.range-tabs :deep(.v-tab) {
+  min-width: 0;
+  padding: 0 12px;
+}
+
 .latency-chart {
-  min-height: 260px;
+  min-height: 220px;
   width: 100%;
 }
 </style>

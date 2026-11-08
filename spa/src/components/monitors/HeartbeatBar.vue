@@ -3,14 +3,22 @@ import type { Beat } from '../../stores/monitors'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   beats: Beat[] | undefined
-}>()
+  /** Fixed number of slots; the newest beat is always at the right edge, empty slots fill the left. */
+  slots?: number
+  size?: 'small' | 'large'
+}>(), {
+  slots: 40,
+  size: 'small',
+})
 
 const { t } = useI18n()
 
+const shown = computed(() => (props.beats ?? []).slice(-props.slots))
+
 const label = computed(() => {
-  const beats = props.beats ?? []
+  const beats = shown.value
   if (beats.length === 0)
     return t('monitors.beats.none')
   const up = beats.filter(b => b.status === 'up').length
@@ -23,47 +31,73 @@ const label = computed(() => {
   })
 })
 
-// Colour is backed by bar height and the text label of the whole bar.
-function look(status: Beat['status']): { cls: string, height: number } {
-  switch (status) {
-    case 'up':
-      return { cls: 'bg-success', height: 16 }
-    case 'down':
-      return { cls: 'bg-error', height: 8 }
-    case 'degraded':
-      return { cls: 'bg-warning', height: 12 }
-    default:
-      return { cls: 'bg-grey', height: 12 }
-  }
-}
+const empty = computed(() => Math.max(0, props.slots - shown.value.length))
 </script>
 
 <template>
-  <span class="heartbeat" role="img" :aria-label="label" :title="label">
-    <template v-if="beats && beats.length > 0">
-      <span
-        v-for="(beat, i) in beats"
-        :key="`${i}-${beat.at}`"
-        class="beat"
-        :class="look(beat.status).cls"
-        :style="{ height: `${look(beat.status).height}px` }"
-      />
-    </template>
-    <span v-else class="text-medium-emphasis" aria-hidden="true">—</span>
+  <span class="heartbeat" :class="`heartbeat--${size}`" role="img" :aria-label="label" :title="label">
+    <span v-for="i in empty" :key="`e${i}`" class="beat beat--empty" />
+    <span
+      v-for="(beat, i) in shown"
+      :key="`${i}-${beat.at}`"
+      class="beat"
+      :class="`beat--${beat.status}`"
+    />
   </span>
 </template>
 
 <style scoped>
 .heartbeat {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 1px;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.heartbeat--small {
+  gap: 2px;
   height: 16px;
 }
 
+.heartbeat--large {
+  gap: 3px;
+  height: 44px;
+}
+
 .beat {
-  display: inline-block;
-  width: 3px;
-  border-radius: 1px;
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--iw-empty);
+}
+
+.heartbeat--large .beat {
+  border-radius: 3px;
+}
+
+.beat--up {
+  background: var(--iw-up-fill);
+}
+
+/* Hatched as well as red, so an outage reads without colour. */
+.beat--down {
+  background: repeating-linear-gradient(135deg, var(--iw-down-fill) 0 2px, var(--iw-down-hatch) 2px 4px);
+}
+
+.heartbeat--large .beat--down {
+  background: repeating-linear-gradient(135deg, var(--iw-down-fill) 0 3px, var(--iw-down-hatch) 3px 6px);
+}
+
+.beat--degraded {
+  background: var(--iw-degraded-fill);
+}
+
+.beat--maintenance {
+  background: var(--iw-maintenance-fill);
+}
+
+.beat--pending,
+.beat--paused {
+  background: var(--iw-idle-fill);
 }
 </style>

@@ -1,0 +1,121 @@
+/*
+ * IntraWatch design tokens beyond the Vuetify theme.
+ * Status fills are the bright shades for heartbeat strips and status marks; text uses the theme colours.
+ * A down beat is hatched as well as red, so it reads without colour.
+ */
+.v-theme--light {
+  --iw-up-fill: #22a565;
+  --iw-down-fill: #d93a42;
+  --iw-down-hatch: #f3b9bc;
+  --iw-degraded-fill: #e0a11b;
+  --iw-maintenance-fill: #8467d6;
+  --iw-idle-fill: #b5bdc8;
+  --iw-empty: #e2e7ed;
+  --iw-selected: #e3e9fa;
+  --iw-line: #d3dae2;
+}
+
+.v-theme--dark {
+  --iw-up-fill: #2fa36a;
+  --iw-down-fill: #e0464e;
+  --iw-down-hatch: #6e2328;
+  --iw-degraded-fill: #d69a1c;
+  --iw-maintenance-fill: #8467d6;
+  --iw-idle-fill: #465163;
+  --iw-empty: #243040;
+  --iw-selected: #243156;
+  --iw-line: #2a3544;
+}
+
+.v-application {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The condensed face for headings and big numbers. */
+.iw-display {
+  font-family: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+  font-weight: 600;
+}
+
+.v-application :focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-application *,
+  .v-application *::before,
+  .v-application *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * Page patterns shared by the admin views.
+ * Section headings inside a form card get a rule above them, so a long form reads as separate parts.
+ */
+.v-card .text-h6 {
+  font-family: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+}
+
+.v-card-text > .text-h6:not(:first-child),
+.v-card-text > div > .text-h6:not(:first-child),
+form > .text-h6:not(:first-child) {
+  margin-top: 28px !important;
+  padding-top: 20px;
+  border-top: 1px solid var(--iw-line);
+}
+
+/* An intro line under a page title: muted and at reading length. */
+.v-main h1.text-h5 + p {
+  max-width: 72ch;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+/* Lists sit on a surface panel, never directly on the page background. */
+.v-main .v-table {
+  border: 1px solid var(--iw-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.v-main .v-card .v-table {
+  border: 0;
+  border-radius: 0;
+}
+
+.v-main .v-table > .v-table__wrapper > table > thead > tr > th {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+  background: rgb(var(--v-theme-surface-light));
+}
+
+/* Segmented filters read like the monitor status chips: separate pills, the chosen one inverted. */
+.v-main .v-btn-toggle {
+  gap: 6px;
+  height: auto !important;
+  border: 0 !important;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.v-main .v-btn-toggle > .v-btn {
+  height: 30px !important;
+  padding: 0 12px;
+  border: 1px solid var(--iw-line) !important;
+  border-radius: 15px !important;
+  background: rgb(var(--v-theme-surface));
+  font-size: 0.875rem;
+}
+
+.v-main .v-btn-toggle > .v-btn.v-btn--active {
+  background: rgb(var(--v-theme-on-surface));
+  border-color: rgb(var(--v-theme-on-surface)) !important;
+  color: rgb(var(--v-theme-surface));
+}
+
+.v-main .v-btn-toggle > .v-btn.v-btn--active > .v-btn__overlay {
+  opacity: 0;
+}

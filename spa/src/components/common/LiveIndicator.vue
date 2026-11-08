@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { mdiCircle, mdiCircleOutline, mdiProgressClock } from '@mdi/js'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceLive } from '../../live/useWorkspaceLive'
@@ -7,25 +6,22 @@ import { useWorkspaceLive } from '../../live/useWorkspaceLive'
 const { t } = useI18n()
 const live = useWorkspaceLive()
 
-// The dot colour is always paired with an icon shape and the text.
+// The dot's colour is paired with its shape (filled, ring, hollow) and the text.
 const look = computed(() => {
   switch (live.state) {
     case 'live':
       return {
-        color: 'success',
-        icon: mdiCircle,
+        cls: 'live',
         text: t('live.live'),
       }
     case 'connecting':
       return {
-        color: 'warning',
-        icon: mdiProgressClock,
+        cls: 'connecting',
         text: t('live.connecting'),
       }
     default:
       return {
-        color: 'grey',
-        icon: mdiCircleOutline,
+        cls: 'offline',
         text: t('live.offline'),
       }
   }
@@ -33,16 +29,52 @@ const look = computed(() => {
 </script>
 
 <template>
-  <v-chip
-    :color="look.color"
-    :prepend-icon="look.icon"
+  <span
+    class="live-indicator"
+    :class="look.cls"
     :data-state="live.state"
-    size="small"
-    variant="tonal"
     role="status"
     :aria-label="`${t('live.label')}: ${look.text}`"
     data-test="live-indicator"
   >
-    {{ look.text }}
-  </v-chip>
+    <span class="dot" aria-hidden="true" />
+    <span class="text">{{ look.text }}</span>
+  </span>
 </template>
+
+<style scoped>
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.live .dot {
+  background: var(--iw-up-fill);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--iw-up-fill) 25%, transparent);
+}
+
+.connecting .dot {
+  border: 2px solid var(--iw-degraded-fill);
+}
+
+.offline .dot {
+  border: 2px solid var(--iw-idle-fill);
+}
+</style>

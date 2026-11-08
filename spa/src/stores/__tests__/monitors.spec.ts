@@ -114,4 +114,19 @@ describe('monitors store', () => {
     expect(store.items.has(3)).toBe(false)
     expect(store.beats.has(3)).toBe(false)
   })
+  it('seeds a strip from the list and keeps live beats that are newer', () => {
+    const store = useMonitors()
+    store.upsert(monitor({ id: 4 }))
+    store.beats.set(4, [
+      { status: 'up', latency_ms: 10, at: '2026-01-01T00:00:00Z' },
+      { status: 'down', latency_ms: null, at: '2026-01-01T00:03:00Z' },
+    ])
+
+    store.seedBeats(4, [
+      { status: 'up', latency_ms: 11, at: '2026-01-01T00:01:00+00:00' },
+      { status: 'degraded', latency_ms: 900, at: '2026-01-01T00:02:00+00:00' },
+    ])
+
+    expect(store.beats.get(4)?.map(b => b.status)).toEqual(['up', 'degraded', 'down'])
+  })
 })

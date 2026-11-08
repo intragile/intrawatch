@@ -103,6 +103,21 @@ export const useMonitors = defineStore('monitors', () => {
       : FLUSH_FALLBACK_MS)
   }
 
+  /**
+   * Seeds a monitor's strip from the list response. Live beats newer than the newest seeded one are kept,
+   * so a reload never drops checks that arrived meanwhile.
+   */
+  function seedBeats(id: number, seeded: Beat[]): void {
+    const newest = seeded.length > 0
+      ? Date.parse(seeded[seeded.length - 1]!.at)
+      : Number.NEGATIVE_INFINITY
+    const newer = (beats.value.get(id) ?? []).filter(b => Date.parse(b.at) > newest)
+    beats.value.set(id, [
+      ...seeded,
+      ...newer,
+    ].slice(-MAX_BEATS))
+  }
+
   function applyStatus(e: StatusChangedEvent): void {
     statusQueue.push(e)
     schedule()
@@ -117,6 +132,7 @@ export const useMonitors = defineStore('monitors', () => {
     items,
     beats,
     upsert,
+    seedBeats,
     remove,
     clear,
     applyStatus,

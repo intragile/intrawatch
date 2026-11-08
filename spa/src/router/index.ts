@@ -17,19 +17,26 @@ const auth = { layout: 'auth', guest: true } as const
 // Workspace screens, each in its own chunk.
 const workspaceRoutes: RouteRecordRaw[] = [
   {
-    path: 'monitors',
-    name: 'ws.monitors',
-    component: () => import('../views/monitors/MonitorListView.vue'),
-  },
-  {
     path: 'monitors/new',
     name: 'ws.monitor.new',
     component: () => import('../views/monitors/MonitorEditView.vue'),
   },
+  // Master-detail: the list stays mounted while the selected monitor changes beside it.
   {
-    path: 'monitors/:monitor(\\d+)',
-    name: 'ws.monitor',
-    component: () => import('../views/monitors/MonitorDetailView.vue'),
+    path: 'monitors',
+    component: () => import('../views/monitors/MonitorListView.vue'),
+    children: [
+      {
+        path: '',
+        name: 'ws.monitors',
+        component: () => import('../views/monitors/MonitorOverview.vue'),
+      },
+      {
+        path: ':monitor(\\d+)',
+        name: 'ws.monitor',
+        component: () => import('../views/monitors/MonitorDetailView.vue'),
+      },
+    ],
   },
   {
     path: 'monitors/:monitor(\\d+)/edit',

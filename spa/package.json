@@ -19,6 +19,8 @@
     "e2e": "bash e2e/run.sh"
   },
   "dependencies": {
+    "@fontsource/barlow": "^5.3.0",
+    "@fontsource/barlow-semi-condensed": "^5.3.0",
     "@mdi/js": "^7.4.47",
     "laravel-echo": "^2.6.3",
     "openapi-fetch": "^0.17.0",
@@ -42,6 +44,7 @@
     "jsdom": "^31.0.0",
     "openapi-typescript": "^7.13.0",
     "otpauth": "^9.6.0",
+    "sass-embedded": "^1.108.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.7",
     "vite-plugin-vuetify": "^2.1.3",

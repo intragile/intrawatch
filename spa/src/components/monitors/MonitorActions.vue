@@ -103,7 +103,7 @@ async function checkNow(): Promise<void> {
         v-if="checkable"
         data-test="check"
         :prepend-icon="mdiRefresh"
-        variant="tonal"
+        variant="outlined"
         :loading="busy && !waiting"
         :disabled="waiting || !monitor.active"
         @click="checkNow"
@@ -113,7 +113,7 @@ async function checkNow(): Promise<void> {
       <v-btn
         :data-test="monitor.active ? 'pause' : 'resume'"
         :prepend-icon="monitor.active ? mdiPause : mdiPlay"
-        variant="tonal"
+        variant="outlined"
         :disabled="busy"
         @click="toggle"
       >
@@ -122,7 +122,7 @@ async function checkNow(): Promise<void> {
       <v-btn
         data-test="edit"
         :prepend-icon="mdiPencil"
-        variant="tonal"
+        variant="outlined"
         :to="{ name: 'ws.monitor.edit', params: { workspace: slug, monitor: String(monitor.id) } }"
       >
         {{ t('monitorDetail.actions.edit') }}

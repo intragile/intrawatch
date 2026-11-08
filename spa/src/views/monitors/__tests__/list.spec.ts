@@ -131,6 +131,7 @@ describe('monitor list', () => {
     await mountApp('/w/acme/monitors')
     await expect.poll(() => text()).toContain('Two')
 
+    await click('[data-test="select-mode"]')
     await click('[data-test="select-1"]')
     await click('[data-test="select-2"]')
     await click('[data-test="bulk-pause"]')
@@ -150,6 +151,7 @@ describe('monitor list', () => {
     await mountApp('/w/acme/monitors')
     await expect.poll(() => text()).toContain('M501')
 
+    await click('[data-test="select-mode"]')
     await click('[data-test="select-all"]')
     await expect.poll(() => document.querySelector('[data-test="bulk-limit"]')).not.toBeNull()
     expect(document.querySelector<HTMLButtonElement>('[data-test="bulk-pause"]')?.disabled).toBe(true)
@@ -220,6 +222,7 @@ describe('monitor list', () => {
     })
     await mountApp('/w/acme/monitors')
     await expect.poll(() => document.querySelector('[data-test="expand-5"]')).not.toBeNull()
+    await click('[data-test="select-mode"]')
     await click('[data-test="expand-5"]')
     await expect.poll(() => document.querySelector('[data-test="select-6"]')).not.toBeNull()
 
@@ -284,6 +287,7 @@ describe('monitor list', () => {
     })
     const { wrapper } = await mountApp('/w/acme/monitors')
     await expect.poll(() => text()).toContain('One')
+    await click('[data-test="select-mode"]')
     await click('[data-test="select-1"]')
     await click('[data-test="bulk-delete"]')
     await click('[data-test="confirm"]')
@@ -304,5 +308,74 @@ describe('monitor list', () => {
     await expect.poll(() => router.currentRoute.value.query.q).toBe('a')
     await flushPromises()
     expect(document.querySelector<HTMLInputElement>('input[name="q"]')?.value).toBe('a ')
+  })
+  it('shows checkboxes only in selection mode and clears the selection when it ends', async () => {
+    monitorsApi({
+      null: [
+        monitor({ id: 1, name: 'One' }),
+      ],
+    })
+    await mountApp('/w/acme/monitors')
+    await expect.poll(() => text()).toContain('One')
+    expect(document.querySelector('[data-test="select-1"]')).toBeNull()
+
+    await click('[data-test="select-mode"]')
+    await click('[data-test="select-1"]')
+    await expect.poll(() => document.querySelector('[data-test="bulk-bar"]')).not.toBeNull()
+
+    await click('[data-test="select-mode"]')
+    await expect.poll(() => document.querySelector('[data-test="select-1"]')).toBeNull()
+    expect(document.querySelector('[data-test="bulk-bar"]')).toBeNull()
+  })
+
+  it('status chips count the loaded monitors and filter by status', async () => {
+    const { queries } = monitorsApi({
+      null: [
+        monitor({
+          id: 1,
+          name: 'One',
+          state: {
+            ...monitor().state,
+            status: 'down',
+          },
+        }),
+        monitor({ id: 2, name: 'Two' }),
+      ],
+      all: [
+        monitor({
+          id: 1,
+          name: 'One',
+          state: {
+            ...monitor().state,
+            status: 'down',
+          },
+        }),
+      ],
+    })
+    const { router } = await mountApp('/w/acme/monitors')
+    await expect.poll(() => document.querySelector('[data-test="summary-down"]')?.textContent).toContain('1')
+    expect(document.querySelector('[data-test="status-all"]')?.textContent).toContain('2')
+
+    await click('[data-test="summary-down"]')
+    await expect.poll(() => router.currentRoute.value.query.status).toBe('down')
+    expect(queries.at(-1)?.get('status')).toBe('down')
+    expect(queries.at(-1)?.get('beats')).toBe('50')
+  })
+
+  it('fills the strips from the beats in the list response', async () => {
+    monitorsApi({
+      null: [
+        {
+          ...monitor({ id: 1, name: 'One' }),
+          recent_beats: [
+            { status: 'up', latency_ms: 20, checked_at: '2026-01-01T00:00:00+00:00' },
+            { status: 'down', latency_ms: null, checked_at: '2026-01-01T00:01:00+00:00' },
+          ],
+        } as Monitor,
+      ],
+    })
+    await mountApp('/w/acme/monitors')
+    await expect.poll(() => useMonitors().beats.get(1)?.length).toBe(2)
+    await expect.poll(() => document.querySelector('[data-test="row-1"] [role="img"]')?.getAttribute('aria-label')).toContain('2')
   })
 })

@@ -83,6 +83,11 @@ function detailApi(mon: Monitor, opts: { rollups?: (bucket: string) => unknown[]
       { type: 'http', scheduled: true },
     ]),
     'GET /workspaces/acme/monitors/1': json({ data: mon }),
+    // The list pane renders beside the detail (master-detail).
+    'GET /workspaces/acme/monitors': json(page([
+      { ...mon, recent_beats: [] },
+    ])),
+    'GET /workspaces/acme/tags': json(page([])),
     'GET /workspaces/acme/monitors/1/results': json(page([])),
     'GET /workspaces/acme/monitors/1/events': json(page([])),
     'GET /workspaces/acme/monitors/1/alerts': json(page([])),
@@ -269,5 +274,45 @@ describe('monitor detail', () => {
       ],
     })
     await expect.poll(() => button().disabled).toBe(false)
+  })
+  it('leads with the status and how long it has lasted, and fills the strip from the results', async () => {
+    const since = new Date(Date.now() - 32 * 60_000).toISOString()
+    const mon = monitor({
+      state: {
+        ...monitor().state,
+        status: 'down',
+        since,
+        last_message: 'HTTP 503',
+      },
+    })
+    detailApi(mon, {
+      extra: {
+        'GET /workspaces/acme/monitors/1/results': json(page([
+          {
+            id: 2,
+            status: 'down',
+            latency_ms: null,
+            message: 'HTTP 503',
+            facts: null,
+            checked_at: '2026-01-01T00:01:00+00:00',
+          },
+          {
+            id: 1,
+            status: 'up',
+            latency_ms: 90,
+            message: null,
+            facts: null,
+            checked_at: '2026-01-01T00:00:00+00:00',
+          },
+        ])),
+        // Not in the list beside it, so the strip falls back to the results.
+        'GET /workspaces/acme/monitors': json(page([])),
+      },
+    })
+    await mountApp('/w/acme/monitors/1')
+    await expect.poll(() => document.querySelector('[data-test="hero"]')?.textContent).toContain('Down')
+    expect(document.querySelector('[data-test="hero"]')?.textContent).toContain('32 minutes')
+    expect(text()).toContain('HTTP 503')
+    await expect.poll(() => document.querySelector('.heartbeat--large')?.getAttribute('aria-label')).toContain('2')
   })
 })

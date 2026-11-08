@@ -57,6 +57,7 @@
     "workspace": "Munkaterület",
     "accountMenu": "Fiókmenü",
     "mainMenu": "Főmenü",
+    "manage": "Munkaterület kezelése",
     "toggleMenu": "Menü megjelenítése vagy elrejtése",
     "signOut": "Kijelentkezés",
     "signOutFailed": "A kijelentkezés nem sikerült. Próbálja újra.",
@@ -332,7 +333,8 @@
       "all": "Mind",
       "activeOnly": "Aktív",
       "pausedOnly": "Szüneteltetett",
-      "reset": "Szűrők törlése"
+      "reset": "Szűrők törlése",
+      "more": "További szűrők"
     },
     "types": {
       "http": "HTTP",
@@ -375,7 +377,16 @@
     },
     "more": "További monitorok betöltése",
     "loadingMore": "Monitorok betöltése",
-    "retry": "Újra"
+    "retry": "Újra",
+    "selectMode": "Kijelölés",
+    "selectModeDone": "Kijelölés vége",
+    "overview": {
+      "title": "Áttekintés",
+      "hint": "Válasszon monitort a listából a részletek megtekintéséhez.",
+      "attention": "Figyelmet igényel",
+      "allGood": "Minden betöltött monitor működik vagy szándékosan szünetel.",
+      "loadedNote": "A számok a betöltött monitorokra vonatkoznak."
+    }
   },
   "secret": {
     "set": "Beállítva",
@@ -661,6 +672,12 @@
       "rotateTitle": "Push token cseréje",
       "rotateText": "A jelenlegi URL azonnal érvénytelen lesz. Frissítsd az összes feladatot, amely ide jelent.",
       "rotated": "A push token kicserélve."
+    },
+    "heroFor": "{duration} óta",
+    "strip": {
+      "label": "Legutóbbi ellenőrzések",
+      "count": "Legutóbbi {count} ellenőrzés",
+      "now": "most"
     }
   },
   "channels": {

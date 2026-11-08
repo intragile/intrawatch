@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { mdiTranslate, mdiWeatherNight, mdiWeatherSunny } from '@mdi/js'
 import { useI18n } from 'vue-i18n'
+import AppLogo from '../components/common/AppLogo.vue'
 import { usePreferences } from '../composables/usePreferences'
 
 const { t } = useI18n()
@@ -10,8 +11,8 @@ const { isDark, toggleTheme, locale, locales, setLocale } = usePreferences()
 <template>
   <v-main>
     <v-container class="auth-container">
-      <div class="d-flex align-center mb-4">
-        <span class="text-h5 font-weight-medium">{{ t('app.name') }}</span>
+      <div class="d-flex align-center mb-6">
+        <AppLogo :size="32" />
         <v-spacer />
         <v-menu>
           <template #activator="{ props: activator }">
@@ -39,7 +40,7 @@ const { isDark, toggleTheme, locale, locales, setLocale } = usePreferences()
           <v-icon :icon="isDark ? mdiWeatherSunny : mdiWeatherNight" />
         </v-btn>
       </div>
-      <v-card>
+      <v-card class="auth-card">
         <slot />
       </v-card>
     </v-container>
@@ -48,7 +49,20 @@ const { isDark, toggleTheme, locale, locales, setLocale } = usePreferences()
 
 <style scoped>
 .auth-container {
-  max-width: 480px;
-  padding-top: 8vh;
+  max-width: 460px;
+  padding-top: 10vh;
+}
+
+.auth-card {
+  padding: 12px 8px 8px;
+}
+
+.auth-card :deep(.v-card-title) {
+  font-family: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+  font-size: 1.5rem !important;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: normal;
+  padding-bottom: 16px;
 }
 </style>

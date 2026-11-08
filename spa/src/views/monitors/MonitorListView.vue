@@ -1,30 +1,33 @@
 <script setup lang="ts">
 import type { ApiError, CursorList } from '../../api'
-import type { Monitor, MonitorStatus, MonitorType } from '../../api/types'
+import type { ListedMonitor, Monitor, MonitorStatus, MonitorType } from '../../api/types'
 import type { BulkAction } from '../../components/monitors/BulkBar.vue'
 import type { MonitorFilterValues } from '../../components/monitors/filters'
-import { mdiPlus, mdiServerOff } from '@mdi/js'
-import { computed, onBeforeUnmount, onMounted, ref, shallowReactive, watch } from 'vue'
+import { mdiCheckboxMultipleMarkedOutline, mdiPlus, mdiServerOff } from '@mdi/js'
+import { computed, onBeforeUnmount, onMounted, provide, ref, shallowReactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { api, useCursorList } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import StatusMark from '../../components/common/StatusMark.vue'
 import BulkBar from '../../components/monitors/BulkBar.vue'
 import { BULK_MAX_IDS } from '../../components/monitors/filters'
 import MonitorFilters from '../../components/monitors/MonitorFilters.vue'
 import MonitorRow from '../../components/monitors/MonitorRow.vue'
-import StatusSummary from '../../components/monitors/StatusSummary.vue'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
 import { useWorkspaceLive } from '../../live/useWorkspaceLive'
-import { useMonitors } from '../../stores/monitors'
+import { MAX_BEATS, useMonitors } from '../../stores/monitors'
 import { bodyOf } from '../../utils/cursorPage'
+import { MONITOR_OVERVIEW } from './overview'
 
 /** Page size of every monitor list request. */
 const PAGE_LIMIT = 100
+/** Heartbeats requested per monitor: enough for the detail strip (50); list rows show the newest 40. */
+const STRIP_BEATS = MAX_BEATS
 /** How often relative "since" times are recomputed. */
 const NOW_REFRESH_MS = 30_000
 
@@ -117,6 +120,7 @@ function fetchPage(parent: number | 'null' | null) {
         query: {
           cursor: cursor ?? undefined,
           limit: PAGE_LIMIT,
+          beats: STRIP_BEATS,
           ...(parent === null
             ? {
                 type: f.type ?? undefined,
@@ -136,7 +140,7 @@ function fetchPage(parent: number | 'null' | null) {
   }
 }
 
-const list = useCursorList<Monitor>((cursor) => {
+const list = useCursorList<ListedMonitor>((cursor) => {
   // Without filters only the top level loads; group members load when a group is expanded.
   return fetchPage(flat.value
     ? null
@@ -145,7 +149,7 @@ const list = useCursorList<Monitor>((cursor) => {
 
 const selected = ref(new Set<number>())
 
-const children = shallowReactive(new Map<number, CursorList<Monitor>>())
+const children = shallowReactive(new Map<number, CursorList<ListedMonitor>>())
 const expanded = ref(new Set<number>())
 // Child lists of collapsed groups that were not refreshed along with the others.
 const stale = new Set<number>()
@@ -164,7 +168,7 @@ function toggleGroup(id: number): void {
   expanded.value = open
   let child = children.get(id)
   if (!child) {
-    child = useCursorList<Monitor>(fetchPage(id))
+    child = useCursorList<ListedMonitor>(fetchPage(id))
     children.set(id, child)
     void child.loadMore()
   }
@@ -250,6 +254,13 @@ watch(loaded, (items) => {
   for (const m of items) {
     store.upsert(m)
     registered.add(m.id)
+    if (m.recent_beats) {
+      store.seedBeats(m.id, m.recent_beats.map(b => ({
+        status: b.status,
+        latency_ms: b.latency_ms,
+        at: b.checked_at,
+      })))
+    }
   }
 }, { immediate: true })
 
@@ -447,149 +458,218 @@ function open(id: number): void {
   })
 }
 
-const columns = computed(() => canManage.value
-  ? 8
-  : 7)
+// Selection mode: checkboxes and the bulk bar only appear once the user asks to select.
+const selectMode = ref(false)
+const selectable = computed(() => canManage.value && selectMode.value)
+function toggleSelectMode(): void {
+  selectMode.value = !selectMode.value
+  if (!selectMode.value)
+    selected.value = new Set()
+}
+
+// Status chips double as the status filter. Counts come from the unfiltered top level that is loaded,
+// and are kept while a filter narrows the list so the chips do not jump.
+const STATUS_ORDER: MonitorStatus[] = [
+  'down',
+  'degraded',
+  'maintenance',
+  'pending',
+  'paused',
+  'up',
+]
+const counts = ref(new Map<MonitorStatus, number>())
+watch([
+  () => list.items.value,
+  flat,
+], ([items, isFlat]) => {
+  if (isFlat)
+    return
+  const next = new Map<MonitorStatus, number>()
+  for (const m of items) {
+    const status = resolve(m).state.status
+    next.set(status, (next.get(status) ?? 0) + 1)
+  }
+  counts.value = next
+}, { immediate: true, deep: true })
+const total = computed(() => [
+  ...counts.value.values(),
+].reduce((sum, n) => sum + n, 0))
+const statusChips = computed(() => STATUS_ORDER
+  .filter(s => (counts.value.get(s) ?? 0) > 0 || filters.value.status === s)
+  .map(s => ({ status: s, count: counts.value.get(s) ?? 0 })))
+function setStatus(status: MonitorStatus | null): void {
+  setFilters({ ...filters.value, status })
+}
+
+const currentId = computed(() => route.name === 'ws.monitor'
+  ? Number(route.params.monitor)
+  : null)
+const detailOpen = computed(() => currentId.value !== null)
+
+provide(MONITOR_OVERVIEW, {
+  counts,
+  total,
+  monitors: shown,
+  now,
+})
 </script>
 
 <template>
-  <div class="d-flex flex-wrap align-center ga-3 mb-4">
-    <h1 class="text-h5">
-      {{ t('monitors.title') }}
-    </h1>
-    <v-spacer />
-    <v-btn
-      v-if="canManage"
-      data-test="new-monitor"
-      color="primary"
-      variant="flat"
-      :prepend-icon="mdiPlus"
-      :to="{ name: 'ws.monitor.new', params: { workspace: slug } }"
-    >
-      {{ t('monitors.new') }}
-    </v-btn>
-  </div>
+  <div class="monitors" :class="{ 'detail-open': detailOpen }">
+    <section class="list-pane" aria-labelledby="monitors-title">
+      <header class="pane-head">
+        <div class="head-row">
+          <h1 id="monitors-title" class="text-h5">
+            {{ t('monitors.title') }}
+          </h1>
+          <v-spacer />
+          <v-btn
+            v-if="canManage"
+            data-test="select-mode"
+            variant="text"
+            :prepend-icon="mdiCheckboxMultipleMarkedOutline"
+            :aria-pressed="selectMode"
+            :color="selectMode ? 'primary' : undefined"
+            @click="toggleSelectMode"
+          >
+            {{ selectMode ? t('monitors.selectModeDone') : t('monitors.selectMode') }}
+          </v-btn>
+          <v-btn
+            v-if="canManage"
+            data-test="new-monitor"
+            color="primary"
+            variant="flat"
+            :prepend-icon="mdiPlus"
+            :to="{ name: 'ws.monitor.new', params: { workspace: slug } }"
+          >
+            {{ t('monitors.new') }}
+          </v-btn>
+        </div>
 
-  <MonitorFilters
-    :model-value="filters"
-    :tags="tags"
-    :any-active="flat"
-    @update:model-value="setFilters"
-    @reset="setFilters({ type: null, status: null, tag: null, q: '', active: null })"
-  />
+        <MonitorFilters
+          :model-value="filters"
+          :tags="tags"
+          :any-active="flat"
+          @update:model-value="setFilters"
+          @reset="setFilters({ type: null, status: null, tag: null, q: '', active: null })"
+        />
 
-  <StatusSummary :monitors="shown" />
+        <div class="chips" role="group" :aria-label="t('monitors.filters.status')" data-test="summary">
+          <button
+            type="button"
+            class="chip"
+            :class="{ on: filters.status === null }"
+            :aria-pressed="filters.status === null"
+            data-test="status-all"
+            @click="setStatus(null)"
+          >
+            {{ t('monitors.filters.all') }}
+            <span class="n">{{ total }}</span>
+          </button>
+          <button
+            v-for="chip in statusChips"
+            :key="chip.status"
+            type="button"
+            class="chip"
+            :class="{ on: filters.status === chip.status }"
+            :aria-pressed="filters.status === chip.status"
+            :data-test="`summary-${chip.status}`"
+            @click="setStatus(filters.status === chip.status ? null : chip.status)"
+          >
+            <StatusMark :status="chip.status" :size="10" />
+            {{ t(`status.${chip.status}`) }}
+            <span class="n">{{ chip.count }}</span>
+          </button>
+        </div>
 
-  <BulkBar
-    v-if="canManage && selected.size > 0"
-    :count="selected.size"
-    :busy="bulkBusy"
-    :tags="tags"
-    :channels="channels"
-    @run="runBulk"
-    @clear="selected = new Set()"
-  />
-
-  <ProblemAlert :error="bulkError" />
-  <ProblemAlert :error="list.error.value" />
-
-  <v-progress-linear v-if="list.loading.value" indeterminate :aria-label="t('monitors.loadingMore')" class="mb-2" />
-
-  <v-table v-if="list.items.value.length > 0" density="comfortable">
-    <caption class="d-sr-only">
-      {{ t('monitors.list') }}
-    </caption>
-    <thead>
-      <tr>
-        <th v-if="canManage" scope="col" class="select-col">
+        <label v-if="selectable && shown.length > 0" class="select-all">
           <input
             type="checkbox"
             data-test="select-all"
             :checked="allSelected"
             :indeterminate="someSelected"
-            :aria-label="t('monitors.selectAll')"
             @change="toggleAll"
           >
-        </th>
-        <th scope="col">
-          {{ t('monitors.columns.status') }}
-        </th>
-        <th scope="col">
-          {{ t('monitors.columns.name') }}
-        </th>
-        <th scope="col">
-          {{ t('monitors.columns.type') }}
-        </th>
-        <th scope="col">
-          {{ t('monitors.columns.latency') }}
-        </th>
-        <th scope="col">
-          {{ t('monitors.columns.since') }}
-        </th>
-        <th scope="col">
-          {{ t('monitors.columns.tags') }}
-        </th>
-        <th scope="col">
-          {{ t('monitors.columns.beats') }}
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      <template v-for="entry in entries" :key="entry.key">
-        <MonitorRow
-          v-if="entry.kind === 'monitor'"
-          :monitor="entry.monitor"
-          :beats="store.beats.get(entry.monitor.id)"
-          :depth="entry.depth"
-          :selectable="canManage"
-          :selected="selected.has(entry.monitor.id)"
-          :expandable="!flat && entry.depth === 0 && entry.monitor.type === 'group'"
-          :expanded="expanded.has(entry.monitor.id)"
-          :now="now"
-          @select="toggleSelect(entry.monitor.id)"
-          @expand="toggleGroup(entry.monitor.id)"
-          @open="open(entry.monitor.id)"
+          {{ t('monitors.selectAll') }}
+        </label>
+      </header>
+
+      <BulkBar
+        v-if="selectable && selected.size > 0"
+        class="bulk"
+        :count="selected.size"
+        :busy="bulkBusy"
+        :tags="tags"
+        :channels="channels"
+        @run="runBulk"
+        @clear="selected = new Set()"
+      />
+
+      <div class="pane-body">
+        <div v-if="bulkError || list.error.value" class="pa-3">
+          <ProblemAlert :error="bulkError" />
+          <ProblemAlert :error="list.error.value" />
+        </div>
+
+        <v-progress-linear v-if="list.loading.value" indeterminate :aria-label="t('monitors.loadingMore')" />
+
+        <ul v-if="list.items.value.length > 0" class="rows" :aria-label="t('monitors.list')">
+          <template v-for="entry in entries" :key="entry.key">
+            <MonitorRow
+              v-if="entry.kind === 'monitor'"
+              :monitor="entry.monitor"
+              :beats="store.beats.get(entry.monitor.id)"
+              :depth="entry.depth"
+              :selectable="selectable"
+              :selected="selected.has(entry.monitor.id)"
+              :expandable="!flat && entry.depth === 0 && entry.monitor.type === 'group'"
+              :expanded="expanded.has(entry.monitor.id)"
+              :current="currentId === entry.monitor.id"
+              :now="now"
+              @select="toggleSelect(entry.monitor.id)"
+              @expand="toggleGroup(entry.monitor.id)"
+              @open="open(entry.monitor.id)"
+            />
+            <li v-else-if="entry.kind === 'more'" class="note-row">
+              <v-btn
+                :data-test="`more-${entry.group}`"
+                variant="text"
+                size="small"
+                :loading="entry.loading"
+                @click="children.get(entry.group)?.loadMore()"
+              >
+                {{ t('monitors.more') }}
+              </v-btn>
+            </li>
+            <li v-else-if="entry.kind === 'failed'" class="note-row" :data-test="`failed-${entry.group}`">
+              <ProblemAlert :error="entry.error" />
+              <v-btn :data-test="`retry-${entry.group}`" variant="tonal" size="small" class="mt-2" @click="children.get(entry.group)?.loadMore()">
+                {{ t('monitors.retry') }}
+              </v-btn>
+            </li>
+            <li v-else class="note-row text-medium-emphasis">
+              {{ t('monitors.noChildren') }}
+            </li>
+          </template>
+        </ul>
+
+        <EmptyState
+          v-else-if="!list.loading.value && !list.error.value"
+          :icon="mdiServerOff"
+          :title="flat ? t('monitors.emptyFiltered') : t('monitors.empty')"
         />
-        <tr v-else-if="entry.kind === 'more'">
-          <td :colspan="columns">
-            <v-btn
-              :data-test="`more-${entry.group}`"
-              variant="text"
-              size="small"
-              :loading="entry.loading"
-              @click="children.get(entry.group)?.loadMore()"
-            >
-              {{ t('monitors.more') }}
-            </v-btn>
-          </td>
-        </tr>
-        <tr v-else-if="entry.kind === 'failed'" :data-test="`failed-${entry.group}`">
-          <td :colspan="columns">
-            <ProblemAlert :error="entry.error" />
-            <v-btn :data-test="`retry-${entry.group}`" variant="tonal" size="small" @click="children.get(entry.group)?.loadMore()">
-              {{ t('monitors.retry') }}
-            </v-btn>
-          </td>
-        </tr>
-        <tr v-else>
-          <td :colspan="columns" class="text-medium-emphasis">
-            {{ t('monitors.noChildren') }}
-          </td>
-        </tr>
-      </template>
-    </tbody>
-  </v-table>
 
-  <EmptyState
-    v-else-if="!list.loading.value && !list.error.value"
-    :icon="mdiServerOff"
-    :title="flat ? t('monitors.emptyFiltered') : t('monitors.empty')"
-  />
+        <div v-if="list.hasMore.value && list.items.value.length > 0" v-intersect="(visible: boolean) => visible && !list.loading.value && list.loadMore()" class="pa-3">
+          <v-btn data-test="load-more" variant="tonal" block :loading="list.loading.value" @click="list.loadMore()">
+            {{ t('common.loadMore') }}
+          </v-btn>
+        </div>
+      </div>
+    </section>
 
-  <div v-if="list.hasMore.value && list.items.value.length > 0" v-intersect="(visible: boolean) => visible && !list.loading.value && list.loadMore()" class="mt-4">
-    <v-btn data-test="load-more" variant="tonal" :loading="list.loading.value" @click="list.loadMore()">
-      {{ t('common.loadMore') }}
-    </v-btn>
+    <section class="detail-pane">
+      <router-view />
+    </section>
   </div>
 
   <ConfirmDialog
@@ -604,7 +684,144 @@ const columns = computed(() => canManage.value
 </template>
 
 <style scoped>
-.select-col {
-  width: 2.5rem;
+.monitors {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.list-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid var(--iw-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pane-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--iw-line);
+}
+
+.head-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--iw-line);
+  border-radius: 15px;
+  background: rgb(var(--v-theme-surface));
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: rgba(var(--v-theme-on-surface), 0.04);
+}
+
+.chip.on {
+  background: rgb(var(--v-theme-on-surface));
+  border-color: rgb(var(--v-theme-on-surface));
+  color: rgb(var(--v-theme-surface));
+}
+
+.chip .n {
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.chip.on .n {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.select-all input {
+  width: 16px;
+  height: 16px;
+  accent-color: rgb(var(--v-theme-primary));
+}
+
+.bulk {
+  margin: 12px;
+}
+
+.pane-body {
+  min-height: 0;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+}
+
+.note-row {
+  list-style: none;
+  padding: 10px 16px 10px 40px;
+  border-bottom: 1px solid var(--iw-line);
+}
+
+.detail-pane {
+  min-width: 0;
+}
+
+/* Wide screens: list and detail side by side, the list scrolls on its own. */
+@media (min-width: 1280px) {
+  .monitors {
+    grid-template-columns: 430px minmax(0, 1fr);
+  }
+
+  .list-pane {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+  }
+
+  .pane-body {
+    flex: 1;
+    overflow-y: auto;
+  }
+}
+
+/* Narrow screens: one pane at a time. */
+@media (max-width: 1279.98px) {
+  .detail-open .list-pane {
+    display: none;
+  }
+
+  .monitors:not(.detail-open) .detail-pane {
+    display: none;
+  }
 }
 </style>

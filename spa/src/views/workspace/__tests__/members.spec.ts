@@ -74,7 +74,8 @@ describe('members', () => {
       }),
     })
     const { wrapper } = await mountApp('/w/acme/members')
-    await expect.poll(() => document.body.textContent).toContain('Ada Lovelace')
+    // The row, not the name: the signed-in user's name is also in the navigation rail.
+    await expect.poll(() => document.querySelector('[data-test="role-1"]')).not.toBeNull()
 
     choose(wrapper, 'role-1', 'admin')
 
