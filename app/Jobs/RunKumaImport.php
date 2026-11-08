@@ -126,6 +126,10 @@ class RunKumaImport implements ShouldQueue
 
     /**
      * Called by the worker when the job is killed (timeout) or otherwise fails outside handle().
+     *
+     * A timeout arrives as TimeoutExceededException. A worker that died while running the job (out of memory,
+     * killed) leaves it reserved; once it is picked up again it fails with MaxAttemptsExceededException, which
+     * is reported as interrupted rather than as too slow.
      */
     public function failed(?Throwable $e): void
     {
@@ -134,9 +138,14 @@ class RunKumaImport implements ShouldQueue
             return;
         }
 
-        $timedOut = $e instanceof TimeoutExceededException || $e instanceof MaxAttemptsExceededException;
+        // TimeoutExceededException extends MaxAttemptsExceededException, so it is matched first.
+        $message = match (true) {
+            $e instanceof TimeoutExceededException => self::TIMED_OUT,
+            $e instanceof MaxAttemptsExceededException => ImportPruner::INTERRUPTED,
+            default => self::UNEXPECTED,
+        };
         Log::error('Kuma import job failed', ['import_id' => $this->importId, 'dry_run' => $this->dryRun, 'exception' => $e !== null ? $e::class : null]);
-        $this->fail($import, null, $timedOut ? self::TIMED_OUT : self::UNEXPECTED, [$import->status]);
+        $this->fail($import, null, $message, [$import->status]);
     }
 
     /**

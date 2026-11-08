@@ -232,6 +232,67 @@ final class SourceTest extends TestCase
         }
     }
 
+    /**
+     * A database whose tables Kuma reads are created by the given statements.
+     *
+     * @param  list<string>  $statements
+     */
+    private function database(array $statements): string
+    {
+        $path = $this->tempFile('');
+        $pdo = new PDO('sqlite:'.$path);
+        foreach ($statements as $sql) {
+            $pdo->exec($sql);
+        }
+
+        return $path;
+    }
+
+    private function openError(string $path): string
+    {
+        try {
+            SourceFactory::open($path)->close();
+        } catch (UnreadableSource $e) {
+            return $e->getMessage();
+        }
+        $this->fail('The database was accepted.');
+    }
+
+    public function test_virtual_monitor_table_is_rejected(): void
+    {
+        $path = $this->database([
+            'CREATE TABLE setting (id INTEGER PRIMARY KEY, "key" TEXT, value TEXT)',
+            'CREATE VIRTUAL TABLE monitor USING fts5(name, type, url)',
+            "INSERT INTO monitor (name, type, url) VALUES ('m', 'http', 'https://example.com')",
+        ]);
+
+        $this->assertStringContainsString('virtual table (monitor)', $this->openError($path));
+    }
+
+    public function test_any_virtual_table_kuma_reads_is_rejected_when_opened(): void
+    {
+        $path = $this->database([
+            'CREATE TABLE setting (id INTEGER PRIMARY KEY, "key" TEXT, value TEXT)',
+            'CREATE TABLE monitor (id INTEGER PRIMARY KEY, name TEXT, type TEXT)',
+            'create  virtual table tag using fts5(name, color)',
+        ]);
+
+        $this->assertStringContainsString('virtual table (tag)', $this->openError($path));
+    }
+
+    public function test_virtual_tables_kuma_does_not_read_are_ignored(): void
+    {
+        $path = $this->database([
+            'CREATE TABLE setting (id INTEGER PRIMARY KEY, "key" TEXT, value TEXT)',
+            'CREATE TABLE monitor (id INTEGER PRIMARY KEY, name TEXT, type TEXT)',
+            'CREATE VIRTUAL TABLE search_index USING fts5(body)',
+        ]);
+
+        $source = SourceFactory::open($path);
+        $this->assertSame([], $source->monitors());
+        $source->close();
+    }
+
     public function test_wal_copy_without_sidecar_opens(): void
     {
         $path = $this->copyOf('kuma2.db');

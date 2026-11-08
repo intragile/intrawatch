@@ -27,7 +27,10 @@ final class ImportMonitors implements ImportStep
 {
     public const ENTITY = 'monitor';
 
-    /** Push tokens IntraWatch accepts in its push URLs and stores (48 characters at most). */
+    /**
+     * Push tokens IntraWatch accepts in its push URLs and stores (48 characters at most). Short Kuma tokens are
+     * kept on purpose: the /api/push alias exists so that existing Kuma push clients keep working unchanged.
+     */
     private const PUSH_TOKEN = '/^[A-Za-z0-9]{1,48}$/';
 
     private const DEFAULT_EXPIRY_DAYS = [7, 14, 21];
@@ -303,7 +306,8 @@ final class ImportMonitors implements ImportStep
     }
 
     /**
-     * The Kuma token when IntraWatch can serve it and no other monitor holds it; a fresh one otherwise.
+     * The Kuma token when IntraWatch can serve it and no other monitor holds it; a fresh one otherwise. The note never says which of these failed: telling a collision apart would reveal that a
+     * token is in use, possibly in another workspace.
      *
      * @param  array<string, mixed>  $row
      * @return array{0: string, 1: ?Note}
@@ -314,11 +318,8 @@ final class ImportMonitors implements ImportStep
         if ($token === '') {
             return [Str::random(48), Note::of('push_token_generated', 'The push monitor had no token; a new one was generated, so its push URL changes.')];
         }
-        if (preg_match(self::PUSH_TOKEN, $token) !== 1) {
-            return [Str::random(48), Note::of('push_token_regenerated', 'The push token contains characters IntraWatch does not accept in push URLs; a new token was generated, so the push URL changes.')];
-        }
-        if (Monitor::query()->where('push_token', $token)->exists()) {
-            return [Str::random(48), Note::of('push_token_collision', 'Another monitor already uses this push token; a new token was generated, so the push URL changes.')];
+        if (preg_match(self::PUSH_TOKEN, $token) !== 1 || Monitor::query()->where('push_token', $token)->exists()) {
+            return [Str::random(48), Note::of('push_token_regenerated', 'The push token was replaced with a new one, so the push URL changes.')];
         }
 
         return [$token, null];

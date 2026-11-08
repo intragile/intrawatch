@@ -34,6 +34,9 @@ final class ImportMonitorsTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** The one note for every replaced push token, whatever the reason. */
+    private const REGENERATED = ['code' => 'push_token_regenerated', 'message' => 'The push token was replaced with a new one, so the push URL changes.'];
+
     /** @var list<KumaSource> */
     private array $sources = [];
 
@@ -281,18 +284,72 @@ final class ImportMonitorsTest extends TestCase
         $this->assertSame(5, GroupHierarchy::MAX_DEPTH);
     }
 
-    public function test_push_token_collision_gets_new_token(): void
+    public function test_push_token_held_in_another_workspace_is_regenerated_without_saying_why(): void
     {
+        $token = str_repeat('aB3', 10).'xy'; // 32 characters, so only the collision applies
         $other = Workspace::factory()->create();
-        Monitor::factory()->for($other)->push()->create(['push_token' => 'researchPushToken01']);
+        Monitor::factory()->for($other)->push()->create(['push_token' => $token]);
         $ws = Workspace::factory()->create();
+        $path = $this->backup([['id' => 1, 'type' => 'push', 'pushToken' => $token]]);
 
-        $report = $this->import(ImporterTest::fixture('kuma2.db'), $ws);
+        foreach ([true, false] as $dryRun) {
+            $report = $this->import($path, $ws, dryRun: $dryRun);
 
-        $push = $this->monitor($report, 9);
-        $this->assertNotSame('researchPushToken01', $push->push_token);
-        $this->assertSame(48, strlen((string) $push->push_token));
-        $this->assertContains('push_token_collision', self::codes($this->entries($report)[9]));
+            $this->assertSame([self::REGENERATED], $this->entries($report)[1]['notes']);
+            $this->assertStringNotContainsString('push_token_collision', (string) json_encode($report));
+            $this->assertStringNotContainsString($token, (string) json_encode($report));
+        }
+
+        $push = $this->monitor($report, 1);
+        $this->assertNotSame($token, $push->push_token);
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9]{48}$/', (string) $push->push_token);
+        $this->assertSame(1, Monitor::query()->where('push_token', $token)->count());
+    }
+
+    public function test_short_push_token_is_kept_for_the_kuma_push_alias(): void
+    {
+        $ws = Workspace::factory()->create();
+        $short = str_repeat('aB3', 10).'x'; // 31 characters
+        $path = $this->backup([
+            ['id' => 1, 'type' => 'push', 'pushToken' => $short],
+            ['id' => 2, 'type' => 'push', 'pushToken' => 'a'],
+            ['id' => 3, 'type' => 'push', 'pushToken' => 'researchPushToken01'],
+        ]);
+
+        $dry = $this->entries($this->import($path, $ws, dryRun: true));
+        $report = $this->import($path, $ws);
+        $entries = $this->entries($report);
+
+        foreach ([1 => $short, 2 => 'a', 3 => 'researchPushToken01'] as $id => $token) {
+            $this->assertSame([], $dry[$id]['notes']);
+            $this->assertSame([], $entries[$id]['notes']);
+            $this->assertSame($token, $this->monitor($report, $id)->push_token);
+        }
+    }
+
+    public function test_push_token_with_unsupported_characters_is_regenerated(): void
+    {
+        $ws = Workspace::factory()->create();
+        $report = $this->import($this->backup([['id' => 1, 'type' => 'push', 'pushToken' => 'bad-token!']]), $ws);
+
+        $this->assertSame([self::REGENERATED], $this->entries($report)[1]['notes']);
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9]{48}$/', (string) $this->monitor($report, 1)->push_token);
+    }
+
+    public function test_long_unique_push_token_is_kept(): void
+    {
+        $ws = Workspace::factory()->create();
+        $token32 = str_repeat('Kp7', 10).'Zz';
+        $token48 = str_repeat('Kp7Q', 12);
+
+        $report = $this->import($this->backup([
+            ['id' => 1, 'type' => 'push', 'pushToken' => $token32],
+            ['id' => 2, 'type' => 'push', 'pushToken' => $token48],
+        ]), $ws);
+
+        $this->assertSame($token32, $this->monitor($report, 1)->push_token);
+        $this->assertSame($token48, $this->monitor($report, 2)->push_token);
+        $this->assertSame([], $this->entries($report)[1]['notes']);
     }
 
     public function test_push_token_with_foreign_characters_is_regenerated(): void
@@ -303,7 +360,7 @@ final class ImportMonitorsTest extends TestCase
 
         $push = $this->monitor($report, 1);
         $this->assertNotSame('abc-def', $push->push_token);
-        $this->assertSame(['push_token_regenerated'], self::codes($this->entries($report)[1]));
+        $this->assertSame([self::REGENERATED], $this->entries($report)[1]['notes']);
     }
 
     public function test_rerun_keeps_local_edits_and_deletions(): void

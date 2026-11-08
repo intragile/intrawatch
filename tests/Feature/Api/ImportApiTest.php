@@ -6,6 +6,7 @@ namespace Tests\Feature\Api;
 
 use App\Enums\ImportStatus;
 use App\Enums\WorkspaceRole;
+use App\Http\Requests\StoreImportRequest;
 use App\Jobs\RunKumaImport;
 use App\Models\AuditEvent;
 use App\Models\Import;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use PDO;
+use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use Tests\Concerns\AssertsWorkspaceIsolation;
 use Tests\Feature\Import\Kuma\ImporterTest;
 use Tests\TestCase;
@@ -152,6 +154,98 @@ final class ImportApiTest extends TestCase
         $this->assertSame([], Storage::disk('local')->allFiles());
     }
 
+    /**
+     * Makes the request see the given PHP upload limit (upload_max_filesize/post_max_size cannot change at run
+     * time).
+     */
+    private function phpUploadLimit(int $bytes): void
+    {
+        $this->app->bind(StoreImportRequest::class, fn () => new class($bytes) extends StoreImportRequest
+        {
+            public function __construct(private readonly int $phpLimit)
+            {
+                parent::__construct();
+            }
+
+            protected function phpMaxBytes(): int
+            {
+                return $this->phpLimit;
+            }
+        });
+    }
+
+    public function test_upload_limit_is_clamped_to_the_php_limit_and_the_message_says_the_real_limit(): void
+    {
+        config(['intrawatch.import.max_upload_mb' => 256]);
+        $this->phpUploadLimit(1024 * 1024);
+
+        $response = $this->actingAs($this->admin)
+            ->post($this->url(), ['file' => UploadedFile::fake()->create('kuma.db', 2048)], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('file');
+
+        $message = (string) json_encode($response->json());
+        $this->assertStringContainsString('upload limit of 1 MB', $message);
+        $this->assertStringNotContainsString('256', $message);
+        $this->assertSame(0, Import::count());
+    }
+
+    public function test_configured_limit_below_the_php_limit_is_the_one_reported(): void
+    {
+        config(['intrawatch.import.max_upload_mb' => 1]);
+        $this->phpUploadLimit(512 * 1024 * 1024);
+
+        $response = $this->actingAs($this->admin)
+            ->post($this->url(), ['file' => UploadedFile::fake()->create('kuma.db', 2048)], ['Accept' => 'application/json'])
+            ->assertStatus(422);
+
+        $this->assertStringContainsString('upload limit of 1 MB', (string) json_encode($response->json()));
+    }
+
+    public function test_php_limit_under_one_megabyte_is_reported_in_kilobytes(): void
+    {
+        config(['intrawatch.import.max_upload_mb' => 256]);
+        $this->phpUploadLimit(512 * 1024);
+
+        $response = $this->actingAs($this->admin)
+            ->post($this->url(), ['file' => UploadedFile::fake()->create('kuma.db', 600)], ['Accept' => 'application/json'])
+            ->assertStatus(422);
+
+        $this->assertStringContainsString('upload limit of 512 KB', (string) json_encode($response->json()));
+    }
+
+    public function test_upload_cut_off_by_php_says_the_real_limit(): void
+    {
+        config(['intrawatch.import.max_upload_mb' => 256]);
+        $this->phpUploadLimit(2 * 1024 * 1024);
+        $path = (string) tempnam(sys_get_temp_dir(), 'iw-upload-');
+        file_put_contents($path, '');
+        $file = new UploadedFile($path, 'kuma.db', null, UPLOAD_ERR_INI_SIZE, true);
+
+        $response = $this->actingAs($this->admin)
+            ->post($this->url(), ['file' => $file], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('file');
+        @unlink($path);
+
+        $message = (string) json_encode($response->json());
+        $this->assertStringContainsString('upload limit of 2 MB', $message);
+        $this->assertStringNotContainsString('256', $message);
+    }
+
+    public function test_php_limit_defaults_to_the_ini_settings(): void
+    {
+        $request = new class extends StoreImportRequest
+        {
+            public function phpLimit(): int
+            {
+                return $this->phpMaxBytes();
+            }
+        };
+
+        $this->assertSame((int) SymfonyUploadedFile::getMaxFilesize(), $request->phpLimit());
+    }
+
     public function test_second_import_while_running_is_409(): void
     {
         $first = $this->upload();
@@ -214,6 +308,29 @@ final class ImportApiTest extends TestCase
         $this->assertNull(Import::find($id));
         Storage::disk('local')->assertMissing('imports/'.$id);
         $this->actingAs($this->admin)->getJson($this->url("/{$id}"))->assertNotFound();
+    }
+
+    public function test_delete_is_409_when_the_import_turns_busy_after_it_was_loaded(): void
+    {
+        $id = $this->upload();
+        Import::whereKey($id)->update(['status' => ImportStatus::Analyzed]);
+
+        // A worker claims the import between the route binding loading it and the delete.
+        $claimed = false;
+        Import::retrieved(function (Import $import) use ($id, &$claimed): void {
+            if ($import->id === $id && ! $claimed) {
+                $claimed = true;
+                Import::query()->whereKey($id)->toBase()->update(['status' => ImportStatus::Running->value]);
+            }
+        });
+
+        $this->actingAs($this->admin)->deleteJson($this->url("/{$id}"))
+            ->assertStatus(409)
+            ->assertJsonPath('type', 'urn:problem:import-in-progress');
+
+        $this->assertTrue($claimed, 'the import was not loaded through Eloquent');
+        $this->assertSame(ImportStatus::Running, Import::query()->findOrFail($id)->status);
+        Storage::disk('local')->assertExists('imports/'.$id);
     }
 
     public function test_viewer_and_editor_get_403_token_needs_workspace_manage(): void

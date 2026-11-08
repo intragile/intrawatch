@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Import\Kuma\Source;
 
+use Illuminate\Container\Container;
 use JsonException;
 
 /**
@@ -18,6 +19,12 @@ final class JsonBackupSource implements KumaSource
     ];
 
     /**
+     * Values allowed per allowed object or list. A real backup has about 15 per object or list; without this
+     * limit, a single object with millions of keys still fits the size limit but not the worker's memory.
+     */
+    private const VALUES_PER_ITEM = 20;
+
+    /**
      * @param  list<array<string, mixed>>  $monitorList
      * @param  list<array<string, mixed>>  $notificationList
      */
@@ -27,28 +34,110 @@ final class JsonBackupSource implements KumaSource
     ) {}
 
     /**
+     * Reads the backup. json_decode() builds the whole document in memory, at many times the file size for
+     * small objects and lists, so the file size and the number of objects and lists are checked before it
+     * runs (IMPORT_MAX_JSON_MB, IMPORT_MAX_JSON_ITEMS).
+     *
      * @throws UnreadableSource
      */
     public static function fromFile(string $path): self
     {
-        $raw = is_file($path) && is_readable($path) ? file_get_contents($path) : false;
+        $size = is_file($path) && is_readable($path) ? filesize($path) : false;
+        if ($size === false) {
+            throw new UnreadableSource('The source file does not exist or cannot be read.');
+        }
+        $maxMb = self::limit('intrawatch.import.max_json_mb', 20);
+        if ($size > $maxMb * 1024 * 1024) {
+            throw new UnreadableSource("The JSON backup is larger than the limit of {$maxMb} MB (IMPORT_MAX_JSON_MB).");
+        }
+
+        $raw = file_get_contents($path);
         if ($raw === false) {
             throw new UnreadableSource('The source file does not exist or cannot be read.');
         }
+        if (str_starts_with($raw, "\xEF\xBB\xBF")) {
+            $raw = substr($raw, 3);
+        }
+        $maxItems = self::limit('intrawatch.import.max_json_items', 50000);
+        self::assertContainersWithin($raw, $maxItems);
 
         try {
-            $data = json_decode(str_starts_with($raw, "\xEF\xBB\xBF") ? substr($raw, 3) : $raw, true, 512, JSON_THROW_ON_ERROR);
+            $data = json_decode($raw, true, 64, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
             throw new UnreadableSource('The file is not valid JSON.');
         }
+        unset($raw);
         if (! is_array($data) || ! isset($data['monitorList']) || ! is_array($data['monitorList'])) {
             throw new UnreadableSource('The JSON file is not an Uptime Kuma backup (no monitorList).');
         }
+        $notifications = isset($data['notificationList']) && is_array($data['notificationList']) ? $data['notificationList'] : [];
+        if (count($data['monitorList']) > $maxItems || count($notifications) > $maxItems) {
+            throw self::tooManyItems($maxItems);
+        }
 
-        return new self(
-            self::rows($data['monitorList']),
-            isset($data['notificationList']) && is_array($data['notificationList']) ? self::rows($data['notificationList']) : [],
-        );
+        return new self(self::rows($data['monitorList']), self::rows($notifications));
+    }
+
+    /**
+     * A positive integer limit from the configuration; the default when no application is booted (unit tests,
+     * which read sources without one).
+     */
+    private static function limit(string $key, int $default): int
+    {
+        $container = Container::getInstance();
+        $value = $container->bound('config') ? $container->make('config')->get($key, $default) : $default;
+
+        return max(1, is_numeric($value) ? (int) $value : $default);
+    }
+
+    /**
+     * Counts the objects and lists outside string literals, and the values in them (by their separating
+     * commas), and stops as soon as either is over its limit: at most $limit objects and lists and
+     * VALUES_PER_ITEM times as many values. A plain scan, not a regular expression: a long string literal can
+     * exhaust the PCRE stack.
+     *
+     * @throws UnreadableSource
+     */
+    private static function assertContainersWithin(string $raw, int $limit): void
+    {
+        $length = strlen($raw);
+        $count = 0;
+        $values = 0;
+        $maxValues = $limit * self::VALUES_PER_ITEM;
+        $pos = strcspn($raw, '{[",');
+        while ($pos < $length) {
+            if ($raw[$pos] === '"') {
+                // Skips to the closing quote: one preceded by an even number of backslashes.
+                $end = $pos;
+                do {
+                    $end = strpos($raw, '"', $end + 1);
+                    if ($end === false) {
+                        return; // An unterminated string; json_decode() reports the file as invalid.
+                    }
+                    $slashes = 0;
+                    for ($i = $end - 1; $i > $pos && $raw[$i] === '\\'; $i--) {
+                        $slashes++;
+                    }
+                } while ($slashes % 2 === 1);
+                $pos = $end + 1;
+            } elseif ($raw[$pos] === ',') {
+                if (++$values > $maxValues) {
+                    throw new UnreadableSource("The JSON backup contains more than {$maxValues} values (".self::VALUES_PER_ITEM.' per IMPORT_MAX_JSON_ITEMS).');
+                }
+                $pos++;
+            } else {
+                if (++$count > $limit) {
+                    throw self::tooManyItems($limit);
+                }
+                $pos++;
+            }
+            $pos += strcspn($raw, '{[",', $pos);
+        }
+    }
+
+    private static function tooManyItems(int $limit): UnreadableSource
+    {
+        return new UnreadableSource("The JSON backup contains more than {$limit} objects or lists (IMPORT_MAX_JSON_ITEMS).");
     }
 
     /**

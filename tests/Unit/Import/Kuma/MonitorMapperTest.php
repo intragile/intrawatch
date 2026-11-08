@@ -11,6 +11,7 @@ use App\Import\Kuma\Mapping\Note;
 use App\Import\Kuma\Mapping\Unmappable;
 use App\Import\Kuma\Source\KumaSource;
 use App\Import\Kuma\Source\SourceFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Feature\Import\Kuma\ImporterTest;
 use Tests\TestCase;
 
@@ -341,6 +342,66 @@ final class MonitorMapperTest extends TestCase
         $this->assertSame(['type' => 'basic', 'username' => 'al@ice'], self::config($mapped)['auth']);
         $this->assertSame(['basic_password' => 'p:ss'], self::secrets($mapped));
         $this->assertSame(['url_credentials_moved'], self::codes($mapped));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: string}>
+     */
+    public static function unparsableCredentialUrls(): array
+    {
+        return [
+            'slash in password' => ['https://user:pa/ss@example.com/x', 'https://example.com/x', 'pa/ss'],
+            'question mark in password' => ['https://user:pa?ss@example.com/x', 'https://example.com/x', 'pa?ss'],
+            'hash in password' => ['https://user:pa#ss@example.com/x', 'https://example.com/x', 'pa#ss'],
+            'extra slashes' => ['https:////user:pw0rd@example.com/x', 'https:////example.com/x', 'pw0rd'],
+        ];
+    }
+
+    #[DataProvider('unparsableCredentialUrls')]
+    public function test_credentials_are_stripped_from_urls_that_cannot_be_parsed(string $url, string $expected, string $password): void
+    {
+        $mapped = $this->mapped(['url' => $url]);
+
+        $this->assertSame($expected, self::config($mapped)['url']);
+        $this->assertContains('url_credentials_dropped', self::codes($mapped));
+        $this->assertStringNotContainsString($password, (string) json_encode([$mapped->attributes, $mapped->notes]));
+    }
+
+    public function test_credentials_of_a_scheme_relative_url_are_stripped(): void
+    {
+        $mapped = $this->mapped(['url' => '//user:pw0rd@example.com/x']);
+
+        $this->assertSame('//example.com/x', self::config($mapped)['url']);
+        $this->assertSame(['type' => 'basic', 'username' => 'user'], self::config($mapped)['auth']);
+        $this->assertSame(['basic_password' => 'pw0rd'], self::secrets($mapped));
+        $this->assertStringNotContainsString('pw0rd', (string) json_encode(self::config($mapped)));
+    }
+
+    public function test_credential_stripping_cuts_at_the_last_at_sign_before_the_host(): void
+    {
+        $atInPassword = $this->mapped(['url' => 'https://u:p@x@example.com/']);
+        $this->assertSame('https://example.com/', self::config($atInPassword)['url']);
+        $this->assertSame(['basic_password' => 'p@x'], self::secrets($atInPassword));
+
+        $atInQuery = $this->mapped(['url' => 'https://example.com/?to=a@b.com']);
+        $this->assertSame('https://example.com/?to=a@b.com', self::config($atInQuery)['url']);
+        $this->assertSame([], self::codes($atInQuery));
+
+        $both = $this->mapped(['url' => 'https://u:p@example.com/?to=a@b.com']);
+        $this->assertSame('https://example.com/?to=a@b.com', self::config($both)['url']);
+        $this->assertSame(['basic_password' => 'p'], self::secrets($both));
+
+        // An `@` followed by the host in the path or query must not become the cut point.
+        $hostInQuery = $this->mapped(['url' => 'https://u:p@example.com/check?from=ops@example.com']);
+        $this->assertSame('https://example.com/check?from=ops@example.com', self::config($hostInQuery)['url']);
+        $this->assertSame(['basic_password' => 'p'], self::secrets($hostInQuery));
+
+        $hostInPath = $this->mapped(['url' => 'https://u:p@example.com/users/x@example.com/profile']);
+        $this->assertSame('https://example.com/users/x@example.com/profile', self::config($hostInPath)['url']);
+
+        $hostInUser = $this->mapped(['url' => 'https://u@example.com:p@example.com/']);
+        $this->assertSame('https://example.com/', self::config($hostInUser)['url']);
+        $this->assertSame(['basic_password' => 'p'], self::secrets($hostInUser));
     }
 
     public function test_body_encoding_adds_a_content_type_when_none_is_set(): void

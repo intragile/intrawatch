@@ -342,8 +342,8 @@ final class MonitorMapper
     private function url(string $url, array &$auth, array &$secrets): string
     {
         $url = trim($url);
-        $stripped = (string) preg_replace('#^([a-z][a-z0-9+.\-]*://)[^/?\#]*@#i', '$1', $url);
         $parts = parse_url($url);
+        $stripped = self::stripCredentials($url, is_array($parts) && isset($parts['host']) ? $parts['host'] : null);
         if (! is_array($parts)) {
             // An unparsable URL fails validation later; its credentials must not reach the config or the errors.
             if ($stripped !== $url) {
@@ -371,6 +371,39 @@ final class MonitorMapper
         $this->note('url_credentials_moved', 'The URL contained credentials; they were moved to basic authentication.');
 
         return $stripped;
+    }
+
+    /**
+     * The URL without the user information between `//` and the host. When the URL parses ($host known), this
+     * mirrors parse_url(): the authority ends at the first `/`, `?` or `#`, and the user information ends at the
+     * last `@` inside it that the host follows, so an `@` in the password stays out and one in the path, query
+     * or fragment stays in. When the URL cannot be parsed ($host null), everything up to the last `@` goes;
+     * such a URL fails validation anyway, and its credentials (which may contain `/`, `?` or `#`) must not
+     * survive into the config or the errors.
+     */
+    private static function stripCredentials(string $url, ?string $host): string
+    {
+        if (preg_match('#^((?:[a-z][a-z0-9+.\-]*:)?//+)#i', $url, $m) !== 1) {
+            return $url;
+        }
+        $prefix = $m[1];
+        $rest = substr($url, strlen($prefix));
+
+        if ($host === null || $host === '') {
+            $cut = strrpos($rest, '@');
+
+            return $cut === false ? $url : $prefix.substr($rest, $cut + 1);
+        }
+
+        $authority = substr($rest, 0, strcspn($rest, '/?#'));
+        for ($at = strrpos($authority, '@'); $at !== false; $at = $at > 0 ? strrpos($authority, '@', $at - strlen($authority) - 1) : false) {
+            $after = substr($authority, $at + 1);
+            if (strcasecmp(substr($after, 0, strlen($host)), $host) === 0 && in_array(substr($after, strlen($host), 1), ['', ':'], true)) {
+                return $prefix.substr($rest, $at + 1);
+            }
+        }
+
+        return $url;
     }
 
     /**

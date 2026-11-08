@@ -155,10 +155,14 @@ class ImportController extends Controller
             throw ImportConflict::busy();
         }
 
+        // Deletes only while no job holds the import: a worker may have claimed it since it was loaded.
+        $deleted = Import::query()->whereKey($import->id)->whereNotIn('status', self::BUSY)->delete();
+        if ($deleted !== 1) {
+            throw ImportConflict::busy();
+        }
         if ($import->file_path !== null) {
             Storage::disk('local')->delete($import->file_path);
         }
-        $import->delete();
 
         return response()->noContent();
     }

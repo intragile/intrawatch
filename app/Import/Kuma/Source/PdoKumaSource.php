@@ -22,6 +22,14 @@ final class PdoKumaSource implements KumaSource
 {
     private const SQLITE_MAGIC = "SQLite format 3\0";
 
+    /** Every table read from a source; in SQLite each must be a regular table. */
+    private const TABLES = [
+        'api_key', 'docker_host', 'group', 'heartbeat', 'incident', 'maintenance', 'maintenance_status_page',
+        'monitor', 'monitor_group', 'monitor_maintenance', 'monitor_notification', 'monitor_tag', 'notification',
+        'proxy', 'remote_browser', 'setting', 'stat_daily', 'stat_hourly', 'status_page', 'status_page_cname',
+        'tag', 'user',
+    ];
+
     /** @var array<string, bool> */
     private array $tableCache = [];
 
@@ -160,10 +168,17 @@ final class PdoKumaSource implements KumaSource
         }
     }
 
+    /**
+     * @throws UnreadableSource
+     */
     private function assertKuma(): void
     {
         if (! $this->hasTable('monitor') || ! $this->hasTable('setting')) {
             throw new UnreadableSource('The database is not an Uptime Kuma database (no monitor table).');
+        }
+        // Looks up every table now, so a virtual one is rejected when the source is opened, not halfway through.
+        foreach (self::TABLES as $table) {
+            $this->hasTable($table);
         }
     }
 
@@ -465,17 +480,34 @@ final class PdoKumaSource implements KumaSource
         return $this->tableCache[$table] ??= $this->lookupTable($table);
     }
 
+    /**
+     * @throws UnreadableSource when a SQLite table is virtual: its rows come from a module, not from the file
+     *                          as Kuma writes it
+     */
     private function lookupTable(string $table): bool
     {
-        $sql = $this->kind === SourceKind::Sqlite
-            ? "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
-            : 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?';
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([$table]);
-        $found = Cast::int($stmt->fetchColumn()) > 0;
-        $stmt->closeCursor();
+        if ($this->kind !== SourceKind::Sqlite) {
+            $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?');
+            $stmt->execute([$table]);
+            $found = Cast::int($stmt->fetchColumn()) > 0;
+            $stmt->closeCursor();
 
-        return $found;
+            return $found;
+        }
+
+        $stmt = $this->pdo->prepare("SELECT sql, rootpage FROM sqlite_master WHERE type = 'table' AND name = ?");
+        $stmt->execute([$table]);
+        $rows = $stmt->fetchAll();
+        $stmt->closeCursor();
+        foreach ($rows as $row) {
+            $sql = is_array($row) && is_string($row['sql'] ?? null) ? $row['sql'] : '';
+            // A virtual table has no b-tree of its own (root page 0).
+            if (preg_match('/^\s*CREATE\s+VIRTUAL\b/i', $sql) === 1 || ! is_array($row) || Cast::int($row['rootpage'] ?? 0) === 0) {
+                throw new UnreadableSource('The database contains a virtual table ('.$table.') where Uptime Kuma uses a regular table.');
+            }
+        }
+
+        return $rows !== [];
     }
 
     /**

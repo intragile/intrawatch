@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Queue\TimeoutExceededException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
@@ -122,6 +123,48 @@ final class RunKumaImportTest extends TestCase
         $this->assertSame(ImportStatus::Failed, $import->status);
         $this->assertSame('The import did not finish in time. Large databases can be imported with the command-line importer.', $import->error);
         $this->assertNull($import->file_path);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_failed_handler_reports_a_crashed_worker_as_interrupted_not_timed_out(): void
+    {
+        // A worker that dies (out of memory, killed) leaves the job reserved; when it is picked up again it
+        // fails with MaxAttemptsExceededException, while a timeout fails with TimeoutExceededException.
+        $import = $this->stored(ImportStatus::Analyzing, 'SQLite format 3');
+
+        (new RunKumaImport($import->id, dryRun: true))->failed(new MaxAttemptsExceededException('attempted too many times'));
+
+        $import->refresh();
+        $this->assertSame(ImportStatus::Failed, $import->status);
+        $this->assertSame(ImportPruner::INTERRUPTED, $import->error);
+        $this->assertNull($import->file_path);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_oversized_json_backup_fails_with_the_limit_message(): void
+    {
+        config()->set('intrawatch.import.max_json_mb', 1);
+        $import = $this->stored(ImportStatus::Pending, '{"monitorList":[],"x":"'.str_repeat('x', 1024 * 1024).'"}');
+
+        $this->handle(new RunKumaImport($import->id, dryRun: true));
+
+        $import->refresh();
+        $this->assertSame(ImportStatus::Failed, $import->status);
+        $this->assertSame('The JSON backup is larger than the limit of 1 MB (IMPORT_MAX_JSON_MB).', $import->error);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_json_backup_with_too_many_items_fails_with_the_limit_message(): void
+    {
+        config()->set('intrawatch.import.max_json_items', 10);
+        $import = $this->stored(ImportStatus::Pending, '{"monitorList":['.implode(',', array_fill(0, 20, '{}')).']}');
+
+        $this->handle(new RunKumaImport($import->id, dryRun: true));
+
+        $import->refresh();
+        $this->assertSame(ImportStatus::Failed, $import->status);
+        $this->assertSame('The JSON backup contains more than 10 objects or lists (IMPORT_MAX_JSON_ITEMS).', $import->error);
+        $this->assertNotSame(RunKumaImport::TIMED_OUT, $import->error);
         $this->assertSame([], Storage::disk('local')->allFiles());
     }
 
