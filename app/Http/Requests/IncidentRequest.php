@@ -21,6 +21,19 @@ class IncidentRequest extends FormRequest
 {
     private const CHUNK = 500;
 
+    private bool $ownershipChecked = true;
+
+    /**
+     * Skips the check that the referenced monitors and status pages exist in the workspace, for callers that
+     * validate a definition whose targets are not created yet.
+     */
+    public function withoutOwnershipChecks(): static
+    {
+        $this->ownershipChecked = false;
+
+        return $this;
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -72,8 +85,10 @@ class IncidentRequest extends FormRequest
             if ($validator->errors()->isNotEmpty()) {
                 return;
             }
-            $this->checkOwnership($validator, 'monitor_ids', 'monitors');
-            $this->checkOwnership($validator, 'status_page_ids', 'status_pages');
+            if ($this->ownershipChecked) {
+                $this->checkOwnership($validator, 'monitor_ids', 'monitors');
+                $this->checkOwnership($validator, 'status_page_ids', 'status_pages');
+            }
 
             $stored = $this->stored();
             $started = $this->startedAt();

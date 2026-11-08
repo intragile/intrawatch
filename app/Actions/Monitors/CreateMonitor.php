@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions\Monitors;
 
+use App\Actions\Concerns\RunsInWorkspace;
 use App\Alerting\Engine\AlertSignals;
 use App\Enums\MonitorType;
-use App\Enums\WorkspaceRole;
 use App\Events\MonitorStatusChanged;
 use App\Http\Requests\StoreMonitorRequest;
 use App\Jobs\EvaluateAlerts;
@@ -17,7 +17,6 @@ use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\Types\GroupHierarchy;
 use App\Support\Audit;
-use App\Support\CurrentWorkspace;
 use App\Support\RequestInput;
 use Carbon\CarbonImmutable;
 use Closure;
@@ -35,6 +34,8 @@ use Illuminate\Validation\ValidationException;
  */
 class CreateMonitor
 {
+    use RunsInWorkspace;
+
     public function __construct(private readonly GroupEvaluator $groups) {}
 
     /**
@@ -106,34 +107,6 @@ class CreateMonitor
         PostCommit::queue($jobs);
 
         return $monitor;
-    }
-
-    /**
-     * Runs the callback with the given workspace as the current one, as the workspace middleware sets it for
-     * a request; the validation rules scope their existence checks to it. Only the workspace matters there,
-     * the role is never consulted.
-     *
-     * @template T
-     *
-     * @param  Closure(): T  $callback
-     * @return T
-     */
-    private function inWorkspace(Workspace $workspace, Closure $callback): mixed
-    {
-        $container = Container::getInstance();
-        $current = $container->make(CurrentWorkspace::class);
-        if ($current->isResolved() && $current->get()->is($workspace)) {
-            return $callback();
-        }
-
-        $scoped = new CurrentWorkspace;
-        $scoped->set($workspace, WorkspaceRole::Owner);
-        $container->instance(CurrentWorkspace::class, $scoped);
-        try {
-            return $callback();
-        } finally {
-            $container->instance(CurrentWorkspace::class, $current);
-        }
     }
 
     private function parent(?int $id): ?Monitor

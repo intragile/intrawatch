@@ -20,6 +20,19 @@ class StatusPageLayoutRequest extends FormRequest
 
     private const CHUNK = 500;
 
+    private bool $checkOwnership = true;
+
+    /**
+     * Skips the check that every monitor exists in the workspace, for callers that validate a layout whose
+     * monitors are not created yet.
+     */
+    public function withoutOwnershipChecks(): static
+    {
+        $this->checkOwnership = false;
+
+        return $this;
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -55,6 +68,9 @@ class StatusPageLayoutRequest extends FormRequest
             if (count($ids) > self::MAX_ITEMS) {
                 $validator->errors()->add('sections', 'A page holds at most '.self::MAX_ITEMS.' items in total.');
 
+                return;
+            }
+            if (! $this->checkOwnership) {
                 return;
             }
             $workspaceId = app(CurrentWorkspace::class)->get()->id;

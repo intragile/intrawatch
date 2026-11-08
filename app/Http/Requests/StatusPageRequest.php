@@ -22,6 +22,8 @@ class StatusPageRequest extends FormRequest
 
     public const RESERVED_SLUGS = ['api', 'admin', 'assets', 'badge', 'feed', 'status', 'setup', 'login'];
 
+    private bool $system = false;
+
     private const COLUMNS = [
         'slug', 'title', 'description', 'custom_domain', 'published', 'locale', 'accent_color', 'logo_url',
         'favicon_url', 'custom_css', 'footer', 'bar_days', 'uptime_days', 'upcoming_maintenance_days',
@@ -32,9 +34,20 @@ class StatusPageRequest extends FormRequest
      * Runs after prepareForValidation(), so it compares the normalised domain. Resending the stored value is
      * not a change.
      */
+    /**
+     * Marks the request as made by the system (an import or a console command): there is no user to check
+     * the custom domain permission against, and the caller has decided it already.
+     */
+    public function asSystem(): static
+    {
+        $this->system = true;
+
+        return $this;
+    }
+
     public function authorize(): bool
     {
-        if (! $this->exists('custom_domain') || $this->input('custom_domain') === $this->stored()?->custom_domain) {
+        if ($this->system || ! $this->exists('custom_domain') || $this->input('custom_domain') === $this->stored()?->custom_domain) {
             return true;
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Incidents\CreateIncident;
 use App\Enums\IncidentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
@@ -13,7 +14,6 @@ use App\Models\Workspace;
 use App\Status\Pages\AffectedPages;
 use App\Status\Pages\PageStamps;
 use App\Support\Audit;
-use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,36 +56,11 @@ class IncidentController extends Controller
         return $this->respond($incident->id);
     }
 
-    public function store(IncidentRequest $request, Workspace $workspace): JsonResponse
+    public function store(IncidentRequest $request, Workspace $workspace, CreateIncident $create): JsonResponse
     {
-        $monitorIds = $request->monitorIds() ?? [];
-        $statusPageIds = $request->statusPageIds() ?? [];
-        $status = IncidentStatus::from($request->string('status')->toString());
-        $now = CarbonImmutable::now();
+        $incident = $create->handle($workspace, CreateIncident::validated($request), null);
 
-        $id = DB::transaction(function () use ($request, $workspace, $monitorIds, $statusPageIds, $status, $now): int {
-            $incident = $workspace->incidents()->create($request->incidentAttributes() + [
-                'status' => $status,
-                'started_at' => $now,
-                'resolved_at' => $status->isOpen() ? null : $now,
-            ]);
-            $incident->updates()->create(['status' => $status, 'message' => $request->string('message')->toString()]);
-            $incident->monitors()->sync($monitorIds);
-            $this->syncStatusPages($incident, $statusPageIds);
-
-            Audit::record('incident.created', $incident, [
-                'title' => [null, $incident->title],
-                'impact' => [null, $incident->impact->value],
-                'status' => [null, $status->value],
-                'monitor_ids' => [[], $monitorIds],
-                'status_page_ids' => [[], $statusPageIds],
-            ]);
-
-            return $incident->id;
-        });
-        $this->stamps->bumpPage(...AffectedPages::forIncident($id));
-
-        return $this->respond($id, 201);
+        return $this->respond($incident->id, 201);
     }
 
     public function update(UpdateIncidentRequest $request, Workspace $workspace, Incident $incident): JsonResponse

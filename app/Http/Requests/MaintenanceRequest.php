@@ -38,10 +38,23 @@ class MaintenanceRequest extends FormRequest
 
     private const CHUNK = 500;
 
+    private bool $ownershipChecked = true;
+
     /**
      * Dates every supported database stores in a timestamp column: MySQL's ends in January 2038.
      */
     public const TIMESTAMP_RANGE = ['after_or_equal:1970-01-02', 'before_or_equal:2037-12-31 23:59:59'];
+
+    /**
+     * Skips the check that the referenced monitors and status pages exist in the workspace, for callers that
+     * validate a definition whose targets are not created yet.
+     */
+    public function withoutOwnershipChecks(): static
+    {
+        $this->ownershipChecked = false;
+
+        return $this;
+    }
 
     public function authorize(): bool
     {
@@ -126,8 +139,10 @@ class MaintenanceRequest extends FormRequest
                 return;
             }
             $this->checkSchedule($validator);
-            $this->checkOwnership($validator, 'monitor_ids', 'monitors');
-            $this->checkOwnership($validator, 'status_page_ids', 'status_pages');
+            if ($this->ownershipChecked) {
+                $this->checkOwnership($validator, 'monitor_ids', 'monitors');
+                $this->checkOwnership($validator, 'status_page_ids', 'status_pages');
+            }
         });
     }
 

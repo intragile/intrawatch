@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\StatusPages\CreateStatusPage;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
 use App\Http\Requests\StatusPageRequest;
@@ -36,19 +37,9 @@ class StatusPageController extends Controller
         return $this->respond($statusPage->id);
     }
 
-    public function store(StatusPageRequest $request, Workspace $workspace): JsonResponse
+    public function store(StatusPageRequest $request, Workspace $workspace, CreateStatusPage $create): JsonResponse
     {
-        $page = DB::transaction(function () use ($request, $workspace): StatusPage {
-            $page = $workspace->statusPages()->create($request->pageAttributes());
-            Audit::record('status_page.created', $page, [
-                'slug' => [null, $page->slug],
-                'title' => [null, $page->title],
-                'published' => [null, $page->published],
-            ]);
-
-            return $page;
-        });
-        $this->stamps->forgetPage($page);
+        $page = $create->handle($workspace, $request->pageAttributes(), null);
 
         return $this->respond($page->id, 201);
     }

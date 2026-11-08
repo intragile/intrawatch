@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Maintenances\CreateMaintenance;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
 use App\Http\Requests\MaintenanceRequest;
@@ -74,33 +75,11 @@ class MaintenanceController extends Controller
         return $this->respond($workspace, $maintenance->id);
     }
 
-    public function store(MaintenanceRequest $request, Workspace $workspace): JsonResponse
+    public function store(MaintenanceRequest $request, Workspace $workspace, CreateMaintenance $create): JsonResponse
     {
-        $monitorIds = $request->monitorIds() ?? [];
-        $statusPageIds = $request->statusPageIds() ?? [];
-        $id = 0;
+        $maintenance = $create->handle($workspace, CreateMaintenance::validated($request), null);
 
-        $result = $this->write(function () use ($request, $workspace, $monitorIds, $statusPageIds, &$id): SyncResult {
-            $maintenance = $workspace->maintenances()->create($request->maintenanceAttributes());
-            $id = $maintenance->id;
-            $maintenance->monitors()->sync($monitorIds);
-            $this->syncStatusPages($maintenance, $statusPageIds);
-
-            Audit::record('maintenance.created', $maintenance, [
-                'title' => [null, $maintenance->title],
-                'strategy' => [null, $maintenance->strategy->value],
-                'active' => [null, $maintenance->active],
-                'monitor_ids' => [[], $monitorIds],
-                'status_page_ids' => [[], $statusPageIds],
-            ]);
-
-            return $this->sync->applyChange(null, MaintenanceState::of($maintenance, $workspace->timezone, $monitorIds));
-        });
-        $result->afterCommit();
-        $this->oracle->warm();
-        $this->stamps->bumpPage(...AffectedPages::forMaintenance($id));
-
-        return $this->respond($workspace, $id, 201);
+        return $this->respond($workspace, $maintenance->id, 201);
     }
 
     public function update(UpdateMaintenanceRequest $request, Workspace $workspace, Maintenance $maintenance): JsonResponse
