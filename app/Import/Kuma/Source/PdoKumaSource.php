@@ -106,6 +106,9 @@ final class PdoKumaSource implements KumaSource
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_TIMEOUT => 10,
+                    // History is streamed row by row; every other read fetches its result completely, so no
+                    // second statement runs while a cursor is open.
+                    Mysql::ATTR_USE_BUFFERED_QUERY => false,
                 ],
             );
             $pdo->exec('SET SESSION TRANSACTION READ ONLY');
@@ -285,6 +288,7 @@ final class PdoKumaSource implements KumaSource
         $stmt = $this->pdo->prepare('SELECT '.$this->quote('value').' FROM '.$this->quote('setting').' WHERE '.$this->quote('key').' = ?');
         $stmt->execute([$key]);
         $value = $stmt->fetchColumn();
+        $stmt->closeCursor();
         if (! is_string($value)) {
             return $value === false ? null : $value;
         }
@@ -331,21 +335,25 @@ final class PdoKumaSource implements KumaSource
             'SELECT status, ping, '.$this->quote('time').' FROM heartbeat WHERE monitor_id = ? ORDER BY '.$this->quote('time'),
         );
         $stmt->execute([$monitorId]);
-        $utc = new DateTimeZone('UTC');
-        while (($row = $stmt->fetch()) !== false) {
-            if (! is_array($row) || ! is_string($row['time'])) {
-                continue;
+        try {
+            $utc = new DateTimeZone('UTC');
+            while (($row = $stmt->fetch()) !== false) {
+                if (! is_array($row) || ! is_string($row['time'])) {
+                    continue;
+                }
+                try {
+                    $time = (new DateTimeImmutable($row['time'], $utc))->getTimestamp();
+                } catch (Exception) {
+                    continue;
+                }
+                yield [
+                    'status' => Cast::int($row['status']),
+                    'ping' => Cast::float($row['ping']),
+                    'time' => $time,
+                ];
             }
-            try {
-                $time = (new DateTimeImmutable($row['time'], $utc))->getTimestamp();
-            } catch (Exception) {
-                continue;
-            }
-            yield [
-                'status' => Cast::int($row['status']),
-                'ping' => Cast::float($row['ping']),
-                'time' => $time,
-            ];
+        } finally {
+            $stmt->closeCursor();
         }
     }
 
@@ -366,21 +374,25 @@ final class PdoKumaSource implements KumaSource
         if ($stmt === false) {
             return;
         }
-        while (($row = $stmt->fetch()) !== false) {
-            if (! is_array($row)) {
-                continue;
+        try {
+            while (($row = $stmt->fetch()) !== false) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $extras = is_string($row['extras'] ?? null) ? json_decode($row['extras'], true) : null;
+                yield [
+                    'monitor_id' => Cast::int($row['monitor_id'] ?? null),
+                    'timestamp' => Cast::int($row['timestamp'] ?? null),
+                    'up' => Cast::int($row['up'] ?? null),
+                    'down' => Cast::int($row['down'] ?? null),
+                    'maintenance' => is_array($extras) ? Cast::int($extras['maintenance'] ?? 0) : 0,
+                    'ping' => Cast::float($row['ping'] ?? null),
+                    'ping_min' => Cast::float($row['ping_min'] ?? null),
+                    'ping_max' => Cast::float($row['ping_max'] ?? null),
+                ];
             }
-            $extras = is_string($row['extras'] ?? null) ? json_decode($row['extras'], true) : null;
-            yield [
-                'monitor_id' => Cast::int($row['monitor_id'] ?? null),
-                'timestamp' => Cast::int($row['timestamp'] ?? null),
-                'up' => Cast::int($row['up'] ?? null),
-                'down' => Cast::int($row['down'] ?? null),
-                'maintenance' => is_array($extras) ? Cast::int($extras['maintenance'] ?? 0) : 0,
-                'ping' => Cast::float($row['ping'] ?? null),
-                'ping_min' => Cast::float($row['ping_min'] ?? null),
-                'ping_max' => Cast::float($row['ping_max'] ?? null),
-            ];
+        } finally {
+            $stmt->closeCursor();
         }
     }
 
@@ -427,7 +439,13 @@ final class PdoKumaSource implements KumaSource
 
         $stmt = $this->pdo->query('SELECT COUNT(*) FROM '.$this->quote($table));
 
-        return $stmt === false ? 0 : Cast::int($stmt->fetchColumn());
+        if ($stmt === false) {
+            return 0;
+        }
+        $count = Cast::int($stmt->fetchColumn());
+        $stmt->closeCursor();
+
+        return $count;
     }
 
     private function hasTable(string $table): bool
@@ -442,8 +460,10 @@ final class PdoKumaSource implements KumaSource
             : 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([$table]);
+        $found = Cast::int($stmt->fetchColumn()) > 0;
+        $stmt->closeCursor();
 
-        return Cast::int($stmt->fetchColumn()) > 0;
+        return $found;
     }
 
     /**

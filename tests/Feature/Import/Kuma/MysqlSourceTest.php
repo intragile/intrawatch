@@ -4,14 +4,23 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Import\Kuma;
 
+use App\Import\Kuma\ImportOptions;
+use App\Import\Kuma\KumaImporter;
+use App\Import\Kuma\Source\KumaSource;
 use App\Import\Kuma\Source\SourceFactory;
 use App\Import\Kuma\Source\SourceKind;
+use App\Models\CheckRollup;
+use App\Models\Workspace;
+use Carbon\CarbonImmutable;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use PDO;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 use Tests\Unit\Import\Kuma\SourceTest;
 
 final class MysqlSourceTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const DATABASE = 'kuma_fixture';
 
     private ?PDO $admin = null;
@@ -37,7 +46,7 @@ final class MysqlSourceTest extends TestCase
         );
     }
 
-    public function test_reads_mariadb_dump(): void
+    private function openFixture(): KumaSource
     {
         $dsn = getenv('KUMA_MYSQL_TEST_DSN');
         if ($dsn === false || $dsn === '') {
@@ -68,6 +77,13 @@ final class MysqlSourceTest extends TestCase
             self::DATABASE,
         ));
 
+        return $source;
+    }
+
+    public function test_reads_mariadb_dump(): void
+    {
+        $source = $this->openFixture();
+
         $this->assertSame(SourceKind::Mysql, $source->kind());
         SourceTest::assertKuma2Contents($source);
         $this->assertSame(
@@ -75,5 +91,24 @@ final class MysqlSourceTest extends TestCase
             $source->notMigratedCounts(),
         );
         $source->close();
+    }
+
+    public function test_imports_history_through_the_unbuffered_connection(): void
+    {
+        CarbonImmutable::setTestNow('2026-11-08 12:00:00 UTC');
+        $source = $this->openFixture();
+        $workspace = Workspace::factory()->create()->refresh();
+
+        $report = app(KumaImporter::class)->run($source, $workspace, new ImportOptions, null)->toArray();
+
+        $this->assertSame(7, $report['history']['monitors']);
+        $this->assertSame(7, $report['history']['hour_rows']);
+        $this->assertSame(7, $report['history']['day_rows']);
+        $this->assertSame([], array_filter($report['history']['notes'], fn (array $n): bool => $n['code'] === 'history_failed'));
+        $this->assertSame(7, CheckRollup::query()->where('bucket', 'hour')->count());
+        $this->assertNotEmpty(iterator_to_array($source->heartbeats(1), false));
+        $this->assertSame('Websites', $source->monitors()[0]['name']);
+        $source->close();
+        CarbonImmutable::setTestNow();
     }
 }

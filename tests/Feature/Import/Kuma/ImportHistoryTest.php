@@ -285,6 +285,21 @@ final class ImportHistoryTest extends TestCase
         $this->assertSame(2000 * 4 + 5, (int) CheckRollup::query()->where('bucket', 'hour')->where('monitor_id', $http)->sum('total'));
     }
 
+    public function test_rows_in_the_same_bucket_collapse_and_are_counted_once(): void
+    {
+        $path = $this->patched('kuma2.db', [
+            'INSERT INTO stat_hourly (monitor_id, timestamp, up, down, ping, ping_min, ping_max, extras) VALUES (2, '
+                .(self::FIXTURE_HOUR + 1800).", 9, 0, 50, 40, 60, '')",
+        ]);
+
+        $report = $this->import($path, $this->workspace());
+        $http = $this->monitorId($report, 2);
+
+        $this->assertSame(8, $report['history']['hour_rows']);
+        $this->assertSame(8, CheckRollup::query()->where('bucket', 'hour')->count());
+        $this->assertRollup($this->rollup($http, 'hour', self::FIXTURE_HOUR), ['up' => 9]);
+    }
+
     public function test_history_skipped_for_existing_monitors_and_when_disabled(): void
     {
         $workspace = $this->workspace();

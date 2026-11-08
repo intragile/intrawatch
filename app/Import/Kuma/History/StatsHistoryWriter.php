@@ -14,7 +14,8 @@ use Carbon\CarbonImmutable;
  * for the days that no imported hour covers. Days an imported hour reaches into are rebuilt from the hour rows
  * by the rollup builder, so they match what the engine itself would have produced.
  *
- * The source streams the rows ordered by monitor and time, so memory does not grow with the history.
+ * The source streams the rows ordered by monitor and time, so memory does not grow with the history. Rows that
+ * land on the same bucket collapse into one (the last wins) and are counted once.
  */
 final class StatsHistoryWriter
 {
@@ -38,6 +39,8 @@ final class StatsHistoryWriter
         /** @var array<int, true> $touched */
         $touched = [];
         $hourRows = 0;
+        $previousHour = null;
+        $previousDay = null;
         $dayRows = 0;
         $windowStart = 0;
         $windowEnd = 0;
@@ -63,7 +66,10 @@ final class StatsHistoryWriter
 
             $writer->add(self::row($monitors[$kumaId], CheckRollup::BUCKET_HOUR, $start, $row));
             $touched[$kumaId] = true;
-            $hourRows++;
+            if ($previousHour !== [$kumaId, $start]) {
+                $hourRows++;
+            }
+            $previousHour = [$kumaId, $start];
         }
         $writer->flush();
 
@@ -80,7 +86,10 @@ final class StatsHistoryWriter
 
             $writer->add(self::row($monitors[$kumaId], CheckRollup::BUCKET_DAY, $start, $row));
             $touched[$kumaId] = true;
-            $dayRows++;
+            if ($previousDay !== [$kumaId, $start]) {
+                $dayRows++;
+            }
+            $previousDay = [$kumaId, $start];
         }
         $writer->flush();
 
