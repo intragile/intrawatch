@@ -2,17 +2,17 @@
 
 namespace App\Http\Requests;
 
+use App\Support\ImportUploadLimit;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
-use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 
 /**
  * An import upload: the source file plus the run options. Booleans arrive as multipart fields, so `1`/`0`
  * (or `true`/`false` in JSON) are accepted.
  *
- * The upload limit is IMPORT_MAX_UPLOAD_MB, clamped to PHP's upload_max_filesize and post_max_size: PHP drops
- * a larger file before the application sees it, so the messages name the smaller of the two.
+ * The upload limit is ImportUploadLimit: IMPORT_MAX_UPLOAD_MB, clamped to PHP's upload_max_filesize and
+ * post_max_size. PHP drops a larger file before the application sees it, so the messages name the smaller of the two.
  */
 class StoreImportRequest extends FormRequest
 {
@@ -23,7 +23,7 @@ class StoreImportRequest extends FormRequest
     {
         // `max` keeps the configured limit, so the published API description does not depend on the php.ini
         // of the machine that generated it; the closure applies the PHP limit.
-        $configuredKilobytes = max(1, config()->integer('intrawatch.import.max_upload_mb', 256)) * 1024;
+        $configuredKilobytes = ImportUploadLimit::configuredMegabytes() * 1024;
 
         return [
             'file' => ['bail', 'required', 'file', 'max:'.$configuredKilobytes, $this->phpLimitRule()],
@@ -52,9 +52,7 @@ class StoreImportRequest extends FormRequest
      */
     protected function phpMaxBytes(): int
     {
-        $max = SymfonyUploadedFile::getMaxFilesize();
-
-        return $max >= PHP_INT_MAX ? PHP_INT_MAX : (int) $max;
+        return app(ImportUploadLimit::class)->phpMaxBytes();
     }
 
     /**
@@ -62,7 +60,7 @@ class StoreImportRequest extends FormRequest
      */
     private function maxBytes(): int
     {
-        return max(1, min(max(1, config()->integer('intrawatch.import.max_upload_mb', 256)) * 1024 * 1024, $this->phpMaxBytes()));
+        return ImportUploadLimit::clamp($this->phpMaxBytes());
     }
 
     private function limitLabel(): string

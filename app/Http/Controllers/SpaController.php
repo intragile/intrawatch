@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\ImportUploadLimit;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -57,7 +58,7 @@ final class SpaController
             'version' => config()->string('app.version', 'dev'),
             'reverb' => ['key' => is_string($key) ? $key : ''],
             'locale' => config()->string('app.locale', 'en'),
-            'import' => ['max_upload_mb' => config()->integer('intrawatch.import.max_upload_mb', 256)],
+            'import' => ['max_upload_mb' => app(ImportUploadLimit::class)->megabytes()],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 }

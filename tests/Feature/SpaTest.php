@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\StatusPage;
 use App\Models\Workspace;
+use App\Support\ImportUploadLimit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
@@ -43,6 +44,60 @@ class SpaTest extends TestCase
             'broadcasting.connections.reverb.key' => 'reverb-"key"',
             'intrawatch.import.max_upload_mb' => 128,
         ]);
+        $this->phpUploadLimit(PHP_INT_MAX);
+    }
+
+    /**
+     * Makes the shell see the given PHP upload limit (upload_max_filesize/post_max_size cannot change at run time).
+     */
+    private function phpUploadLimit(int $bytes): void
+    {
+        $this->app->instance(ImportUploadLimit::class, new class($bytes) extends ImportUploadLimit
+        {
+            public function __construct(private readonly int $phpLimit) {}
+
+            public function phpMaxBytes(): int
+            {
+                return $this->phpLimit;
+            }
+        });
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    private function shellImportConfig(): array
+    {
+        $html = (string) $this->get('/admin/')->assertOk()->getContent();
+        preg_match('/<meta name="intrawatch-config" content="([^"]*)"/', $html, $match);
+        $content = $match[1] ?? null;
+        $this->assertIsString($content, 'config meta tag');
+        $config = json_decode(html_entity_decode($content, ENT_QUOTES), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertIsArray($config);
+        $this->assertIsArray($config['import']);
+
+        return $config['import'];
+    }
+
+    public function test_shell_reports_the_upload_limit_clamped_to_the_php_limit(): void
+    {
+        $this->phpUploadLimit(2 * 1024 * 1024);
+
+        $this->assertSame(['max_upload_mb' => 2], $this->shellImportConfig());
+    }
+
+    public function test_shell_reports_a_php_limit_under_one_megabyte_as_a_fraction(): void
+    {
+        $this->phpUploadLimit(512 * 1024);
+
+        $this->assertSame(['max_upload_mb' => 0.5], $this->shellImportConfig());
+    }
+
+    public function test_shell_reports_the_configured_limit_when_it_is_below_the_php_limit(): void
+    {
+        $this->phpUploadLimit(512 * 1024 * 1024);
+
+        $this->assertSame(['max_upload_mb' => 128], $this->shellImportConfig());
     }
 
     protected function tearDown(): void
