@@ -14,28 +14,35 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 5
 
       - uses: shivammathur/setup-php@v2
+        timeout-minutes: 5
         with:
           php-version: '8.4'
           coverage: none
 
       - name: Get Composer cache directory
         id: composer-cache
+        timeout-minutes: 2
         run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/cache@v4
+        timeout-minutes: 5
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: composer-${{ hashFiles('composer.lock') }}
           restore-keys: composer-
 
       - run: composer install --no-interaction --prefer-dist --no-progress
+        timeout-minutes: 10
 
       - name: Pint
+        timeout-minutes: 5
         run: vendor/bin/pint --test
 
       - name: PHPStan
+        timeout-minutes: 10
         run: vendor/bin/phpstan analyse --memory-limit=1G
 
   test:
@@ -82,8 +89,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 5
 
       - uses: shivammathur/setup-php@v2
+        timeout-minutes: 5
         with:
           php-version: '8.4'
           extensions: pdo_sqlite, pdo_mysql, pdo_pgsql
@@ -91,21 +100,26 @@ jobs:
 
       - name: Get Composer cache directory
         id: composer-cache
+        timeout-minutes: 2
         run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/cache@v4
+        timeout-minutes: 5
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: composer-${{ hashFiles('composer.lock') }}
           restore-keys: composer-
 
       - run: composer install --no-interaction --prefer-dist --no-progress
+        timeout-minutes: 10
 
       - name: Test (${{ matrix.db }})
+        timeout-minutes: 15
         run: php artisan test
 
       - name: OpenAPI spec is current
         if: matrix.db == 'sqlite'
+        timeout-minutes: 5
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: ${{ runner.temp }}/spec.sqlite
@@ -115,14 +129,103 @@ jobs:
           php artisan scramble:export --path=/tmp/o.json
           diff -q /tmp/o.json docs/openapi.json
 
-  docker:
+  spa:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: spa
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 5
+
+      - uses: actions/setup-node@v4
+        timeout-minutes: 5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: spa/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+        timeout-minutes: 10
+
+      # Lint, typecheck, API type drift, unit tests (serially: parallel files trip vitest's 5s timeouts on a
+      # shared runner) and the build: the same gate as a local release check.
+      - name: npm run verify
+        timeout-minutes: 15
+        run: npm run verify
+
+  docker-scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        timeout-minutes: 5
+
+      - name: build-image.sh --out checks
+        timeout-minutes: 3
+        run: bash tests/docker/build-image-test.sh
+
+      - name: Entrypoint test
+        timeout-minutes: 10
+        run: bash tests/docker/entrypoint-test.sh
+
+  # One image build feeds both smoke runs and the Playwright e2e run: the scripts skip their own build
+  # (SMOKE_SKIP_BUILD / E2E_SKIP_BUILD) and keep the image, so the ~10 minute build happens once.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      IMAGE: intrawatch:ci
+    steps:
+      - uses: actions/checkout@v4
+        timeout-minutes: 5
+
+      - name: Build the image
+        timeout-minutes: 30
+        run: docker build -f docker/Dockerfile -t "$IMAGE" .
 
       - name: Smoke test the image (sqlite)
+        timeout-minutes: 15
+        env:
+          SMOKE_SKIP_BUILD: '1'
+          SMOKE_IMAGE: ${{ env.IMAGE }}
         run: bash tests/docker/smoke.sh
 
       - name: Smoke test the image (pgsql)
+        timeout-minutes: 15
+        env:
+          SMOKE_SKIP_BUILD: '1'
+          SMOKE_IMAGE: ${{ env.IMAGE }}
         run: bash tests/docker/smoke.sh --pgsql
+
+      - uses: actions/setup-node@v4
+        timeout-minutes: 5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: spa/package-lock.json
+
+      - name: Install SPA dependencies and Chromium
+        timeout-minutes: 10
+        working-directory: spa
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: E2E (Playwright against the image)
+        timeout-minutes: 16
+        env:
+          E2E_SKIP_BUILD: '1'
+          E2E_IMAGE: ${{ env.IMAGE }}
+        run: bash spa/e2e/run.sh
+
+      - name: Upload Playwright traces
+        if: failure()
+        timeout-minutes: 5
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: spa/test-results
+          if-no-files-found: ignore
+          retention-days: 7
