@@ -2,6 +2,8 @@ import type { ImportReportData, ImportRun } from '../../../api/types'
 import { File as NodeFile } from 'node:buffer'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import ConfirmDialog from '../../../components/common/ConfirmDialog.vue'
+import { useSession } from '../../../stores/session'
 import { abilities, me, meWith, viewerCan, workspace } from '../../../test/fixtures'
 import { click, mountApp } from '../../../test/mount'
 import { fakeApi, json, problem } from '../../../test/server'
@@ -457,5 +459,148 @@ describe('import screen', () => {
 
     expect(document.querySelector('[data-test="confirm"]')?.hasAttribute('disabled')).toBe(true)
     expect(server.of('POST /workspaces/acme/imports/01JBBBBBBBBBBBBBBBBBBBBBBB/run')).toHaveLength(0)
+  })
+
+  it('makes no import request for a viewer, also after switching workspaces', async () => {
+    const viewer = { role: 'viewer' as const, can: viewerCan }
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({ slug: 'acme', ...viewer }, { slug: 'beta', id: '01JAAAAAAAAAAAAAAAAAAAAAAB', ...viewer }),
+      }),
+    })
+    const { router } = await mountApp('/w/acme/import')
+    await flushPromises()
+    await router.push('/w/beta/import')
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('You do not have access to this screen.')
+    expect(server.calls.filter(c => c.path.includes('/imports'))).toHaveLength(0)
+  })
+
+  it('stops loading and hides the screen when the permission is lost after mounting', async () => {
+    const server = fakeApi({
+      ...SESSION,
+      'GET /workspaces/acme/imports': json(page([
+        run({
+          status: 'completed',
+          file_name: 'kept.db',
+          report: report({ dry_run: false }),
+        }),
+      ])),
+    })
+    await mountApp('/w/acme/import')
+    await expect.poll(() => document.body.textContent).toContain('kept.db')
+    const before = server.of('GET /workspaces/acme/imports').length
+
+    const current = useSession().current
+    if (!current)
+      throw new Error('No current workspace')
+    current.can.update = false
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('You do not have access to this screen.')
+    expect(document.body.textContent).not.toContain('kept.db')
+    expect(document.querySelector('input[name="import_file"]')).toBeNull()
+    expect(server.of('GET /workspaces/acme/imports')).toHaveLength(before)
+  })
+
+  it('clears errors and the run dialog of the previous workspace on a switch', async () => {
+    const analyzed = run({
+      status: 'analyzed',
+      report: report(),
+    })
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({ slug: 'acme' }, { slug: 'beta', id: '01JAAAAAAAAAAAAAAAAAAAAAAB' }),
+      }),
+      'GET /workspaces/acme/imports': json(page([analyzed])),
+      'GET /workspaces/acme/imports/01JBBBBBBBBBBBBBBBBBBBBBBB': problem(500, { title: 'Acme show exploded' }),
+      'GET /workspaces/beta/imports': json(page([])),
+    })
+    const { wrapper, router } = await mountApp('/w/acme/import')
+    await expect.poll(() => document.body.textContent).toContain('Acme show exploded')
+    await click('[data-test="import-run"]')
+    // The dialog may linger for its leave transition, so its open state is read from the component.
+    const runDialog = (): unknown => wrapper.findAllComponents(ConfirmDialog)
+      .find(d => d.props('title') === 'Run this import?')
+      ?.props('modelValue')
+    await expect.poll(runDialog).toBe(true)
+
+    await router.push('/w/beta/import')
+    await expect.poll(runDialog).toBe(false)
+    expect(document.body.textContent).not.toContain('Acme show exploded')
+  })
+
+  it('ignores an import list of the previous workspace that arrives after a switch', async () => {
+    let release: (r: Response) => void = () => {}
+    const late = new Promise<Response>((resolve) => {
+      release = resolve
+    })
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({ slug: 'acme' }, { slug: 'beta', id: '01JAAAAAAAAAAAAAAAAAAAAAAB' }),
+      }),
+      'GET /workspaces/acme/imports': () => late,
+      'GET /workspaces/beta/imports': json(page([])),
+    })
+    const { router } = await mountApp('/w/acme/import')
+    await expect.poll(() => server.of('GET /workspaces/acme/imports')).toHaveLength(1)
+    await router.push('/w/beta/import')
+    await expect.poll(() => server.of('GET /workspaces/beta/imports')).toHaveLength(1)
+
+    release(json(page([
+      run({
+        status: 'analyzed',
+        file_name: 'late-acme.db',
+        report: report(),
+      }),
+    ])))
+    await flushPromises()
+    await flushPromises()
+
+    expect(document.body.textContent).not.toContain('late-acme.db')
+    expect(document.querySelector('[data-test="import-status"]')).toBeNull()
+  })
+
+  it('ignores a poll answer of the previous workspace that arrives after a switch', async () => {
+    vi.useFakeTimers({
+      toFake: ['setInterval', 'clearInterval'],
+    })
+    let release: (r: Response) => void = () => {}
+    const late = new Promise<Response>((resolve) => {
+      release = resolve
+    })
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({ slug: 'acme' }, { slug: 'beta', id: '01JAAAAAAAAAAAAAAAAAAAAAAB' }),
+      }),
+      'GET /workspaces/acme/imports': json(page([
+        run(),
+      ])),
+      'GET /workspaces/acme/imports/01JBBBBBBBBBBBBBBBBBBBBBBB': () => late,
+      'GET /workspaces/beta/imports': json(page([])),
+    })
+    const { router } = await mountApp('/w/acme/import')
+    await expect.poll(() => server.of('GET /workspaces/acme/imports/01JBBBBBBBBBBBBBBBBBBBBBBB')).toHaveLength(1)
+    await router.push('/w/beta/import')
+    await expect.poll(() => server.of('GET /workspaces/beta/imports')).toHaveLength(1)
+
+    release(json({
+      data: run({
+        status: 'analyzed',
+        file_name: 'late-acme.db',
+        report: report(),
+      }),
+    }))
+    await flushPromises()
+    await flushPromises()
+
+    expect(document.querySelector('[data-test="import-status"]')).toBeNull()
+    expect(document.body.textContent).not.toContain('late-acme.db')
+    expect(document.querySelector('[data-test="import-run"]')).toBeNull()
   })
 })
