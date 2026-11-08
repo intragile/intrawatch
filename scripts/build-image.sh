@@ -9,7 +9,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 PLATFORMS="linux/amd64,linux/arm64"
 OUT="build"
 LOAD_PLATFORM=""

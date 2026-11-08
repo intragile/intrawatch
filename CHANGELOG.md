@@ -6,6 +6,44 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-08
+
+A redesigned admin interface and public status page.
+
+### Admin interface
+
+- A side rail with the workspace switcher, navigation and account menu; a top
+  bar on small screens.
+- Monitors open beside the list (master-detail) on wide screens. Each row
+  shows its status mark, latency or status, how long it has lasted and a strip
+  of the last 40 checks. Status chips with counts filter the list; the rarer
+  filters sit behind "More filters", and bulk actions behind "Select".
+- With no monitor open, an overview counts monitors per status and lists the
+  ones that need attention.
+- The monitor detail leads with its status and how long it has lasted, then a
+  strip of the last 50 checks, the uptime figures and the latency chart.
+- Shared page patterns: sectioned forms, tables on a panel, filter pills.
+- Barlow type, a new light and dark palette, and down states that are hatched
+  as well as red, so they read without colour.
+- The IntraWatch pulse mark as logo, favicon and app icon.
+
+### Public status page
+
+- Self-hosted Barlow fonts and the same palette as the admin interface.
+- The overall status is a headline with a status mark instead of white text on
+  a coloured banner; status text colours meet contrast in light and dark.
+- The default favicon is the IntraWatch mark when the page sets none.
+
+### API
+
+- `GET /workspaces/{workspace}/monitors` takes an optional `beats` (1-50) and
+  then returns each monitor's most recent checks as `recent_beats`.
+
+### Security
+
+- The status page Content Security Policy allows same-origin fonts and images
+  (`font-src 'self'`, `img-src 'self' https: data:`).
+
 ## [1.0.0] - 2026-11-08
 
 First release: a free, self-hosted uptime monitor and status page, shipped as
