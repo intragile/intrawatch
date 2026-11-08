@@ -87,4 +87,53 @@ class NetworkPolicyTest extends TestCase
             $this->assertTrue($policy->allows($ip), $ip);
         }
     }
+
+    public function test_nat64_and_6to4_cannot_bypass_the_metadata_rule(): void
+    {
+        $policy = new NetworkPolicy(NetworkPolicy::METADATA_NETWORKS);
+
+        foreach (['64:ff9b::a9fe:a9fe', '64:ff9b::169.254.169.254', '2002:a9fe:a9fe::', '2002:a9fe:a9fe:1::5', '64:ff9b::6464:64c8', '2002:a9fe:aa02::'] as $ip) {
+            $this->assertFalse($policy->allows($ip), "{$ip} embeds a metadata address");
+        }
+        foreach (['64:ff9b::a9fe:a9fd', '2002:a9fe:a9fd::'] as $ip) {
+            $this->assertTrue($policy->allows($ip), "{$ip} embeds a non-metadata address");
+        }
+    }
+
+    public function test_nat64_and_6to4_cannot_bypass_a_configured_ipv4_rule(): void
+    {
+        $policy = new NetworkPolicy(['10.0.0.0/8', '192.168.0.0/16']);
+
+        foreach (['64:ff9b::a00:1', '64:ff9b::10.255.0.1', '2002:a00:1::', '2002:c0a8:101::1'] as $ip) {
+            $this->assertFalse($policy->allows($ip), "{$ip} embeds a blocked IPv4 address");
+        }
+        foreach (['64:ff9b::b00:1', '2002:b00:1::'] as $ip) {
+            $this->assertTrue($policy->allows($ip), "{$ip} embeds an allowed IPv4 address");
+        }
+    }
+
+    public function test_public_ipv4_behind_nat64_or_6to4_stays_reachable(): void
+    {
+        $policy = new NetworkPolicy([...NetworkPolicy::METADATA_NETWORKS, '10.0.0.0/8']);
+
+        foreach (['64:ff9b::808:808', '64:ff9b::8.8.8.8', '2002:0808:0808::', '2002:808:808::1'] as $ip) {
+            $this->assertTrue($policy->allows($ip), "{$ip} embeds a public address");
+        }
+    }
+
+    public function test_ipv6_rules_still_match_translation_addresses(): void
+    {
+        $policy = new NetworkPolicy(['64:ff9b::/96', '2002::/16']);
+
+        $this->assertFalse($policy->allows('64:ff9b::808:808'));
+        $this->assertFalse($policy->allows('2002:808:808::'));
+    }
+
+    public function test_non_translation_ipv6_is_not_unpacked(): void
+    {
+        $policy = new NetworkPolicy(['10.0.0.0/8']);
+
+        $this->assertTrue($policy->allows('2001:db8::a00:1'));
+        $this->assertTrue($policy->allows('64:ff9c::a00:1'));
+    }
 }

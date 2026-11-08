@@ -79,4 +79,34 @@ class NetworkPolicyConfigTest extends TestCase
         }
         $this->assertTrue($policy->allows('169.254.10.10'));
     }
+
+    public function test_nat64_and_6to4_metadata_forms_are_blocked_for_monitors(): void
+    {
+        config()->set('monitoring.worker.blocked_networks', ['10.0.0.0/8']);
+        config()->set('monitoring.worker.allow_metadata', false);
+
+        $policy = NetworkPolicy::fromConfig();
+
+        foreach (['64:ff9b::a9fe:a9fe', '2002:a9fe:a9fe::', '64:ff9b::a01:101'] as $ip) {
+            $this->assertFalse($policy->allows($ip), $ip);
+        }
+        foreach (['64:ff9b::808:808', '2002:808:808::'] as $ip) {
+            $this->assertTrue($policy->allows($ip), $ip);
+        }
+    }
+
+    public function test_allow_metadata_also_lifts_the_nat64_metadata_form_for_monitors_only(): void
+    {
+        config()->set('monitoring.worker.blocked_networks', ['10.0.0.0/8']);
+        config()->set('monitoring.worker.allow_metadata', true);
+
+        $monitors = NetworkPolicy::fromConfig();
+        $notifications = NetworkPolicy::forNotifications();
+
+        foreach (['64:ff9b::a9fe:a9fe', '2002:a9fe:a9fe::'] as $ip) {
+            $this->assertTrue($monitors->allows($ip), $ip);
+            $this->assertFalse($notifications->allows($ip), $ip);
+        }
+        $this->assertFalse($monitors->allows('64:ff9b::a00:1'));
+    }
 }

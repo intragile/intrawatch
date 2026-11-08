@@ -27,7 +27,8 @@ final class NetworkPolicy
      * monitoring.worker.allow_metadata (CHECK_ALLOW_METADATA) is set, and always blocked for notifications:
      * AWS IMDS, ECS task metadata, EKS Pod Identity, AWS IMDS over IPv6, GCP metadata over IPv6 and Alibaba Cloud.
      * The rest of 169.254.0.0/16 stays reachable for monitors, because intranet link-local devices are
-     * legitimate targets.
+     * legitimate targets. The IPv4 entries also cover their NAT64 (64:ff9b::/96) and 6to4 (2002::/16) forms,
+     * and CHECK_ALLOW_METADATA lifts those together with the plain IPv4 address.
      */
     public const METADATA_NETWORKS = [
         '169.254.169.254/32', '169.254.170.2/32', '169.254.170.23/32', 'fd00:ec2::254/128', 'fd20:ce::254/128', '100.100.100.200/32',
@@ -86,6 +87,8 @@ final class NetworkPolicy
 
     /**
      * Whether a connection to the address is permitted. Anything that is not an IP address is denied.
+     * A NAT64 or 6to4 address is checked both as itself, so IPv6 rules on the translation prefixes keep
+     * matching, and as the IPv4 address it embeds, so it cannot bypass an IPv4 rule.
      */
     public function allows(string $ip): bool
     {
@@ -94,13 +97,45 @@ final class NetworkPolicy
             return false;
         }
 
-        foreach ($this->blocked as [$network, $prefix]) {
-            if (strlen($network) === strlen($packed) && self::matches($packed, $network, $prefix)) {
-                return false;
+        $candidates = [$packed];
+        $embedded = self::embeddedIpv4($packed);
+        if ($embedded !== null) {
+            $candidates[] = $embedded;
+        }
+
+        foreach ($candidates as $address) {
+            foreach ($this->blocked as [$network, $prefix]) {
+                if (strlen($network) === strlen($address) && self::matches($address, $network, $prefix)) {
+                    return false;
+                }
             }
         }
 
         return true;
+    }
+
+    /**
+     * The IPv4 address embedded in a well-known-prefix NAT64 (64:ff9b::/96, last 32 bits) or a 6to4
+     * (2002::/16, bits 16-48) address. A translator or relay forwards such an address to the embedded IPv4
+     * host, so it could otherwise bypass an IPv4 rule; blocking the whole prefix instead would cut monitors
+     * off from legitimate public targets behind NAT64. This deliberately stays out of pack(), so explicit
+     * IPv6 rules on these prefixes still apply.
+     */
+    private static function embeddedIpv4(string $packed): ?string
+    {
+        if (strlen($packed) !== 16) {
+            return null;
+        }
+
+        if (str_starts_with($packed, "\x00\x64\xff\x9b".str_repeat("\0", 8))) {
+            return substr($packed, 12, 4);
+        }
+
+        if (str_starts_with($packed, "\x20\x02")) {
+            return substr($packed, 2, 4);
+        }
+
+        return null;
     }
 
     /**
