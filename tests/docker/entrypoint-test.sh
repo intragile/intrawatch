@@ -11,6 +11,9 @@ cd "$(dirname "$0")/../.."
 IMAGE="${ENTRYPOINT_TEST_IMAGE:-php:8.4-cli-alpine}"
 STUBS="$(mktemp -d)"
 trap 'rm -rf "$STUBS"' EXIT
+# mktemp creates the directory 0700; cases that run as another uid (--user 1000) must still reach the stubs.
+# Docker Desktop hides this by showing bind mounts as owned by the container user; Linux does not.
+chmod 0755 "$STUBS"
 
 # php: logs every call to /tmp/php.log; `key:generate --show` prints a key; a full `migrate` (not the
 # cache table one with --path) exits with the next code from /tmp/migrate-codes (one per line, 0 once the
