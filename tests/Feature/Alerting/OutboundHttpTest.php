@@ -280,6 +280,28 @@ class OutboundHttpTest extends TestCase
         $this->assertSame(200, $this->http()->send('GET', "http://127.0.0.1:{$this->port}/")->status);
     }
 
+    public function test_webhook_rejects_unspecified_address_and_port_zero(): void
+    {
+        config(['monitoring.worker.blocked_networks' => ['127.0.0.0/8', '::1/128']]);
+        $this->fakeResolver(['public.test' => ['93.184.216.34'], 'zero.test' => ['0.0.0.0']]);
+
+        $urls = [
+            'http://0.0.0.0/', 'http://0.0.0.0:8080/', 'http://[::]/', 'http://[::]:8080/', 'http://[::ffff:0.0.0.0]/',
+            'http://[::ffff:0:0]:80/', 'http://zero.test/', 'http://[::127.0.0.1]/', 'http://[::7f00:1]/',
+        ];
+        foreach ($urls as $url) {
+            $e = $this->failure(fn () => $this->http()->send('GET', $url));
+            $this->assertSame('Blocked target', $e->getMessage(), $url);
+            $this->assertTrue($e->permanent, $url);
+        }
+
+        foreach (['http://public.test:0/', 'https://public.test:0/hook', 'http://127.0.0.1:0/'] as $url) {
+            $e = $this->failure(fn () => $this->http()->send('GET', $url));
+            $this->assertTrue($e->permanent, $url);
+            $this->assertContains($e->getMessage(), ['Invalid target URL', 'Blocked target'], $url);
+        }
+    }
+
     public function test_hex_mapped_ipv6_and_ipv6_only_resolution_are_blocked(): void
     {
         config(['monitoring.worker.blocked_networks' => ['127.0.0.0/8', '::1/128']]);

@@ -165,6 +165,10 @@ final class OutboundHttp
             $authority = $host;
         }
 
+        if (isset($parts['port']) && $parts['port'] < 1) {
+            throw $invalid;
+        }
+
         $port = $parts['port'] ?? ($scheme === 'https' ? 443 : 80);
         $target = $scheme.'://'.$authority.(isset($parts['port']) ? ':'.$parts['port'] : '')
             .($parts['path'] ?? '')
