@@ -30,6 +30,7 @@ use Illuminate\Queue\TimeoutExceededException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Tests\Feature\Alerting\Senders\SenderTestCase;
 
@@ -307,6 +308,44 @@ class DeliveryTest extends SenderTestCase
         (new SendNotification($delivery->id))->failed(new RuntimeException('late'));
         $this->assertSame('Unexpected error: TimeoutExceededException', $this->reload($delivery)->last_error);
         $this->assertTrue($this->t0->addMinute()->equalTo($this->reloadChannel($channel)->last_failure_at ?? $this->t0));
+    }
+
+    public function test_orphaned_queued_delivery_is_requeued_or_abandoned(): void
+    {
+        Queue::fake([SendNotification::class]);
+        $channel = $this->slack();
+        $orphan = $this->delivery($channel);
+        $fresh = $this->delivery($channel);
+        $this->assertSame(0, Artisan::call('intrawatch:alerts:tick'));
+        Queue::assertNothingPushed();
+
+        // The job of the first delivery was lost; the second one was queued moments ago.
+        AlertDelivery::query()->whereKey($orphan->id)->toBase()->update(['updated_at' => $this->t0->subHours(2)]);
+        $this->assertSame(0, Artisan::call('intrawatch:alerts:tick'));
+
+        $resolved = $this->reload($orphan)->status !== DeliveryStatus::Queued;
+        $requeued = Queue::pushed(SendNotification::class, fn (SendNotification $job): bool => $job->deliveryId === $orphan->id)->count() === 1;
+        $this->assertTrue($resolved || $requeued, 'an orphaned delivery is neither left queued without a job nor ignored');
+        $this->assertSame(0, Queue::pushed(SendNotification::class, fn (SendNotification $job): bool => $job->deliveryId === $fresh->id)->count());
+        $this->assertSame(DeliveryStatus::Queued, $this->reload($fresh)->status);
+
+        // Re-queueing is not repeated on every tick.
+        $this->assertSame(0, Artisan::call('intrawatch:alerts:tick'));
+        $this->assertLessThanOrEqual(1, Queue::pushed(SendNotification::class)->count());
+    }
+
+    public function test_orphaned_delivery_with_attempts_used_up_is_failed(): void
+    {
+        Queue::fake([SendNotification::class]);
+        $channel = $this->slack();
+        $delivery = $this->delivery($channel);
+        AlertDelivery::query()->whereKey($delivery->id)->toBase()->update(['attempts' => DeliveryRunner::tries(), 'updated_at' => $this->t0->subHours(2)]);
+
+        $this->assertSame(0, Artisan::call('intrawatch:alerts:tick'));
+
+        Queue::assertNothingPushed();
+        $this->assertSame(DeliveryStatus::Failed, $this->reload($delivery)->status);
+        $this->assertNotNull($this->reloadChannel($channel)->last_failure_at);
     }
 
     public function test_backoff_setting_accepts_whole_seconds_as_strings_and_rejects_anything_else(): void
