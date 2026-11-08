@@ -121,7 +121,18 @@ behaviour that an existing installation may rely on.
   push token collisions are no longer disclosed (`push_token_regenerated`
   replaces `push_token_collision`) and imports started by users drop custom
   domains the allowlist does not cover.
-- A password reset revokes all API tokens and is audited;
+- Invitation links carry the token in the URL fragment
+  (`/admin/invitations#token=…`), so it no longer reaches access logs; links
+  sent in the old path form still work. Workspace and inviter names can no
+  longer inject Markdown (links, emphasis) into the invitation e-mail.
+- The audit log masks the same channel settings as the channel endpoints, so
+  `audit:read` no longer reveals webhook URLs, ntfy topics or Apprise config
+  keys. (Monitor audit entries never held secrets; a test now guards that.)
+- Monitors are blocked from the NAT64 (`64:ff9b::/96`) and 6to4 (`2002::/16`)
+  forms of every blocked IPv4 network, including the metadata endpoints.
+- The monitor and channel type endpoints publish `destination_keys`.
+- A password reset, by e-mail or on the command line, signs out every session
+  and revokes all API tokens, and is audited;
   `X-Content-Type-Options: nosniff` on every response; no `X-Powered-By`
   header; `STATUS_RATE_LIMIT` makes the public status rate limit configurable.
 - `scripts/build-image.sh` refuses an `--out` inside the build context.
