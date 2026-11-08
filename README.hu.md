@@ -66,7 +66,8 @@ Munkamenet nélküli kérésre (például ha az `Origin` nem egyezik) `400` és
 amely nem marad meg. A `GET /api/v1/setup` megmondja, szükség van-e még a
 beállításra.
 
-További felhasználókat a parancssorból lehet létrehozni; az `--owner-of` a
+További felhasználókat a parancssorból lehet létrehozni (és utána
+munkaterületekre meghívni, lásd [Tagok és meghívók](#tagok-és-meghívók)); az `--owner-of` a
 felhasználót az adott slug-ú munkaterület tulajdonosává teszi (ha még nem
 létezik, létrehozza), a jelszót pedig bekéri, ha nem adod meg a `--password`
 kapcsolót:
@@ -110,8 +111,10 @@ monitorlistáját nyitja meg.
   előnézetével.
 - **Státuszoldalak**: beállítások, szekciók és a hozzájuk tartozó monitorok,
   publikálás és egyedi domain.
-- **Munkaterület**: beállítások, tagok és szerepkörök, API-tokenek és az
-  auditnapló; további munkaterületek a munkaterület-váltóból hozhatók létre.
+- **Munkaterület**: beállítások, tagok, meghívók és szerepkörök, API-tokenek
+  és az auditnapló; további munkaterületeket a munkaterület-váltóból hozhatnak
+  létre azok, akiket a `WORKSPACE_CREATORS` enged (lásd [Tagok és
+  meghívók](#tagok-és-meghívók)).
 - **Fiók és biztonság**: kétfaktoros hitelesítés helyreállító kódokkal. A
   felület angolul és magyarul érhető el (a böngésző nyelve szerint, vagy a
   fiókmenüből).
@@ -121,23 +124,68 @@ eredmények és a riasztások a munkaterület privát websocket-csatornáján j�
 (Reverb az `/app` címen, a `/broadcasting/auth` végponton a sütialapú
 munkamenettel hitelesítve), így a monitorlista és a részletező oldalak
 újratöltés nélkül változnak. A máshol létrehozott vagy törölt monitorok akkor
-jelennek meg, amikor az ablak újra fókuszt kap, vagy a kapcsolat helyreáll.
+jelennek meg, amikor az ablak újra fókuszt kap, vagy a kapcsolat helyreáll. A
+websocket-szerver csak azokat a böngészőket fogadja, amelyek az oldalt az
+`APP_URL` hosztjáról töltötték be; ha a felület más hosztnéven vagy IP-címen is
+elérhető, add hozzá a `REVERB_ALLOWED_ORIGINS` listához, különben ott nincs élő
+frissítés.
 
 A vezérlők a hívó szerepköréhez igazodnak (`can` a `/api/v1/me` válaszban); az
 API ugyanezeket a szabályokat önállóan is érvényesíti. Egyedi státuszdomainen
-csak a státuszoldal szolgálódik ki: az `/admin/`, az `/api/` és a `/sanctum/`
-ott 404-et ad.
+csak a státuszoldal szolgálódik ki: az `/admin/`, az `/api/`, a `/sanctum/` és
+a `/broadcasting/` ott 404-et ad.
+
+### Tagok és meghívók
+
+A tagokat e-mailben kell meghívni. A `POST /api/v1/workspaces/{workspace}/members`
+(`email`, `role`; `members:manage`) minden címre `202`-vel válaszol, akár létezik
+hozzá fiók, akár nem, és a `{APP_URL}/admin/invitations/{token}` címre mutató
+hivatkozást küld; csak a már tag címet utasítja el (422). A hivatkozás 7 napig
+érvényes és egyszer használható; ha ugyanazt a címet újra meghívod, a függő
+meghívó lecserélődik, és a régi hivatkozás nem működik tovább. Elfogadni
+bejelentkezett böngészős munkamenettel (nem API-tokennel) lehet, amelynek
+e-mail-címe megegyezik a meghívóéval. Regisztráció nincs, ezért az e-mail azt
+kéri a címzettől, hogy ezzel a címmel jelentkezzen be, vagy kérjen fiókot egy
+adminisztrátortól (`intrawatch:user:create`, lásd [Gyors indítás](#gyors-indítás)).
+A meghívó akkor is érvényét veszti, ha a meghívót küldőt eltávolítják a
+munkaterületről, vagy már nem adhatja ki a szerepkört.
+
+Az adminok és a tulajdonosok meghívhatnak, listázhatják (`GET .../invitations`,
+a lejártakat megjelölve) és visszavonhatják (`DELETE .../invitations/{id}`) a
+függő meghívókat; tulajdonosként meghívni, illetve tulajdonosi meghívót
+lecserélni vagy visszavonni csak tulajdonos tud. A meghívók száma
+munkaterületenként óránként `INVITATIONS_PER_HOUR` (alapból 30, az újraküldéseket
+is beleértve), felhasználónként percenként 10. Az auditnapló a
+`member.invited`, a `member.invitation_revoked` és a `member.added` eseményt
+rögzíti; az `intrawatch:prune` a meghívókat a lejáratuk után egy hónappal
+törli.
+
+Az e-mail sorba kerül (a rendes queue worker dolgozza fel, lásd [Queue-k](#queue-k)),
+és az alkalmazás levelezője küldi el, ezért a meghívókhoz működő `MAIL_*`
+beállítások kellenek (lásd [Csatornák](#csatornák)); az alapértelmezett `log`
+levelező csak a konténer naplójába írja az e-mailt. Felhasználót közvetlenül
+munkaterülethez adni csak a parancssorból lehet
+(`intrawatch:user:create --owner-of=<slug>`).
+
+A `WORKSPACE_CREATORS` határozza meg, ki hozhat létre munkaterületet az API-n
+és a felületen át: `owners` (alapértelmezett: aki már tulajdonosa egy
+munkaterületnek), `anyone` (minden bejelentkezett felhasználó) vagy `none`
+(csak a parancssor, az `--owner-of` kapcsolóval). Az ismeretlen értékek
+`owners`-ként viselkednek. API-token soha nem hoz létre munkaterületet. A
+`/api/v1/me` `can_create_workspace` mezője mutatja, hogy a hívó létrehozhat-e.
 
 ### Helyreállítás
 
 ```bash
 # Lost authenticator and recovery codes: disable two-factor authentication.
 docker exec -it intrawatch php artisan intrawatch:user:reset-2fa ada@example.com
-# Forgotten password: set a new one (prompted for) and end the user's sessions.
+# Forgotten password: set a new one (prompted for), end the user's sessions and revoke their API tokens.
 docker exec -it intrawatch php artisan intrawatch:user:reset-password ada@example.com
 ```
 
-Mindkettő bekerül az auditnaplóba `system` szereplővel. Vedd figyelembe, hogy a
+Mindkettő bekerül az auditnaplóba `system` szereplővel. A jelszó-visszaállítás,
+akár ezzel a paranccsal, akár az e-mailes hivatkozással, a felhasználó összes API-tokenjét is
+visszavonja, és `auth.password_reset` eseményként rögzítődik. Vedd figyelembe, hogy a
 munkaterület auditlistája csak a munkaterület eseményeit mutatja; a példányszintű
 szintű események, mint az `auth.*` (bejelentkezések, sikertelen
 bejelentkezések, 2FA- és jelszó-visszaállítások), munkaterület nélkül tárolódnak,
@@ -163,6 +211,18 @@ esetén tedd írhatóvá ennek az uid-nak (`chown -R 1000:1000 <dir>`), különb
 konténer indításkor leáll, és üzenetben megmondja az okot. Csak a 3000-es port
 van kinyitva; a websocketeket a konténer belül proxyzza.
 
+A konténer `027`-es umaskkal fut: az általa létrehozott fájlok `0640`, a
+könyvtárak `0750` jogosultságot kapnak, az `app` csoport (gid 1000) olvashatja
+őket, más felhasználók nem; indításkor a meglévő `database.sqlite` is elveszti a
+más felhasználók hozzáférését (ha ez nem sikerül, például mert a fájl más uid
+tulajdona, figyelmeztetés kerül a naplóba). Az a mentési feladat, amely más
+uid-dal olvassa a kötetet, ezért legyen tagja az 1000-es csoportnak. A
+`docker exec` paranccsal indított parancsok a saját umaskjukat tartják meg. Az
+`/app` alatti alkalmazáskód a root tulajdona; a folyamat csak a
+`bootstrap/cache` és a `storage` könyvtárat írhatja (ez utóbbi a `/data` alatt
+van). A PHP nem küld `X-Powered-By` fejlécet, és minden válasz
+`X-Content-Type-Options: nosniff` fejlécet hordoz.
+
 ### Konfiguráció
 
 | Változó | Alapérték | Szerepe |
@@ -171,14 +231,27 @@ van kinyitva; a websocketeket a konténer belül proxyzza.
 | `APP_KEY` | generált | Felülírja a tartósan tárolt alkalmazáskulcsot |
 | `DB_CONNECTION` | `sqlite` | `sqlite`, `mysql` vagy `pgsql` |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | | Külső adatbázis beállításai |
-| `TRUSTED_PROXIES` | nincs | Vesszővel elválasztott proxy-IP-k/CIDR-ek, vagy `*`. Reverse proxy mögött állítsd be, hogy a kliens-IP-k helyesek legyenek a sebességkorlátokhoz és az auditnaplóhoz |
+| `TRUSTED_PROXIES` | nincs | A reverse proxyd vesszővel elválasztott IP-i/CIDR-jei (például `172.18.0.0/16`), hogy a kliens-IP-k helyesek legyenek a sebességkorlátokhoz és az auditnaplóhoz. A `*` értéket kerüld: minden kliens továbbító fejléceit elfogadja |
 | `SANCTUM_STATEFUL_DOMAINS` | `localhost:3000,127.0.0.1:3000` plusz az `APP_URL` hosztja | A sütialapú munkamenetet használó webes felület hosztjai (porttal); beállítása felváltja az alapértelmezett listát |
 | `SESSION_SECURE_COOKIE` | nincs beállítva | Állítsd `true`-ra, ha a példányt HTTPS-en szolgálod ki (TLS-t lezáró proxy mögött), így a munkamenet-sütik csak TLS-en mennek át |
-| `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` | generált | Websocket-hitelesítő adatok |
-| `IMPORT_MAX_UPLOAD_MB` | `256` | Az admin feltöltés által elfogadott legnagyobb Uptime Kuma-fájl (legfeljebb 512, a kép PHP-korlátja) |
+| `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` | generált | Websocket-hitelesítő adatok; több gépes telepítésnél (az `APP_KEY`-jel együtt) minden gépen állítsd be őket |
+| `REVERB_ALLOWED_ORIGINS` | üres | Az `APP_URL` hosztján kívüli hosztnevek, amelyek oldalai megnyithatják a websocketet: vesszővel elválasztott hosztok port nélkül, vagy minták, például `*.example.org`; a `*` bármely origint enged (nem ajánlott) |
+| `WORKSPACE_CREATORS` | `owners` | Ki hozhat létre munkaterületet: `owners`, `anyone` vagy `none` (lásd [Tagok és meghívók](#tagok-és-meghívók)) |
+| `INVITATIONS_PER_HOUR` | `30` | Egy munkaterület által óránként küldhető tagmeghívók |
+| `STATUS_CUSTOM_DOMAINS` | üres | Hosztnevek, amelyeket a státuszoldalak egyedi domainként használhatnak; üresen az egyedi domainek ki vannak kapcsolva (lásd [Státuszoldalak](#státuszoldalak)) |
+| `STATUS_RATE_LIMIT` | `300` | Nyilvános státuszoldal-kérések percenként, kliens-IP-nként |
+| `IMPORT_MAX_UPLOAD_MB` | `256` | Az admin feltöltés által elfogadott legnagyobb Uptime Kuma-fájl; a PHP `upload_max_filesize` és `post_max_size` értéke (a képben 512 MB) korlátozza |
+| `IMPORT_MAX_JSON_MB` | `20` | Az importáló által beolvasott legnagyobb Kuma JSON-mentés |
+| `IMPORT_MAX_JSON_ITEMS` | `50000` | Objektumok és listák legnagyobb száma egy Kuma JSON-mentésben |
+
+A konfigurációt a konténer induláskor gyorsítótárazza, ezért a változtatások
+újraindítás után lépnek életbe.
 
 A `docker/compose.example.yml` kész példát ad az alapértelmezett SQLite
-beállításra, valamint kikommentezett PostgreSQL- és MySQL-szolgáltatásokra.
+beállításra, valamint kikommentezett PostgreSQL- és MySQL-szolgáltatásokra. A
+portot csak a `127.0.0.1` címen teszi elérhetővé, az ugyanazon a gépen futó
+reverse proxy számára; minden interfészen csak akkor publikáld, ha ez a
+szándékod.
 
 ### Migrálás Uptime Kumából
 
@@ -210,8 +283,17 @@ sqlite3 /path/to/kuma/data/kuma.db ".backup kuma-export.db"
 fájlt, nézd át az elemzést (egy próbafutás, amely felsorolja, mi jönne létre, mi
 maradna ki, és mi érvénytelen, mindegyiknél indoklással), majd indítsd el az
 importot. A feltöltés mérete legfeljebb `IMPORT_MAX_UPLOAD_MB` lehet (alapból
-256 MB; a kép PHP-korlátai 512 MB-ig engedik). Az elemzés és a futtatás a háttérben, a
-`long` queue-n zajlik, egyenként legfeljebb 900 másodpercig. Munkaterületenként
+256 MB), illetve a PHP `upload_max_filesize` és `post_max_size` értéke, ha az
+kisebb (a kép 512 MB-ig engedi); a hibaüzenet a ténylegesen érvényes korlátot
+nevezi meg. A JSON-mentésekre ezen felül az `IMPORT_MAX_JSON_MB` (20 MB) és az
+`IMPORT_MAX_JSON_ITEMS` (50 000 objektum és lista, és ennek hússzorosa érték;
+a monitor- és értesítéslistát is korlátozza) vonatkozik; mindkettőt a fájl
+dekódolása előtt, a parancssorban is ellenőrzi a rendszer, és a hibaüzenet
+megnevezi az emelendő változót. A virtuális táblákat tartalmazó
+SQLite-fájlokat elutasítja. Az elemzés és a futtatás a háttérben, a `long`
+queue-n zajlik, egyenként legfeljebb 900 másodpercig; az ezt túllépő futás
+„did not finish in time”, az a futás pedig, amelynek worker-e összeomlott vagy
+kifogyott a memóriából, „interrupted” hibával áll le. Munkaterületenként
 egyszerre egy import lehet nyitva; a feltöltött fájl törlődik, amikor a futás
 befejeződik vagy hibával leáll, amikor az importot törlik, illetve 24 óra után.
 Az API-n ugyanez a folyamat: `POST /api/v1/workspaces/{workspace}/imports`
@@ -270,9 +352,18 @@ a Kuma `conditions` mezője), a monitort szüneteltetve, a csatornát inaktívan
 importálják, szintén megjegyzéssel. Semmi sem esik ki csendben: minden sor
 szerepel a jelentésben.
 
-**A push monitorok megtartják a tokenjüket.** Az IntraWatch a Kuma push-URL
+**A push monitorok megtartják a tokenjüket**, ha a token 1–48 betűből és
+számjegyből áll, és más monitor nem használja. Az IntraWatch a Kuma push-URL
 formáját is kiszolgálja, `GET|POST|HEAD /api/push/<token>?status=up|down&msg=...`,
-így a push kliensekben csak a hosztot kell cserélni.
+így a push kliensekben csak a hosztot kell cserélni. Minden más token helyett
+új, 48 karakteres token készül `push_token_regenerated` megjegyzéssel (amely
+nem mondja meg az okát), és az adott monitor klienseinek az új push-URL kell.
+
+**Az egyedi domainek** a Kuma státuszoldalain csak akkor maradnak meg, ha a
+`STATUS_CUSTOM_DOMAINS` engedi őket; különben az admin felületen vagy az API-n
+indított import domain nélkül hozza létre az oldalt, és
+`custom_domain_not_allowed` megjegyzést fűz hozzá. A parancssori import minden
+domaint megtart.
 
 **Előzmények:**
 
@@ -311,13 +402,35 @@ használ, amelyeket a Docker alapból engedélyez (`net.ipv4.ping_group_range`).
 Más konténer-futtatókörnyezetekben szükség lehet arra, hogy ez a sysctl az
 1000-es uid-t is tartalmazza, például `net.ipv4.ping_group_range=0 2147483647`.
 
-Az ellenőrzések nem csatlakozhatnak a `CHECK_BLOCKED_NETWORKS` hálózataihoz.
-Ez egy CIDR-lista, alapból a felhőplatformok metaadat-címeivel
-(`169.254.169.254/32` és `fd00:ec2::254/128`). Add hozzá a belső
-tartományaidat, ha a munkaterület tagjai nem tapogathatják le őket. Ha egy HTTP
-monitor proxyt használ, csak a proxy címét vetjük össze ezzel a listával. A
-célt a proxy maga oldja fel és éri el, ezért arra a proxy saját kimenő szabályai
-vonatkoznak.
+Az ellenőrzések soha nem csatlakoznak a felhőplatformok metaadat-végpontjaihoz:
+`169.254.169.254/32`, `169.254.170.2/32`, `169.254.170.23/32`,
+`fd00:ec2::254/128`, `fd20:ce::254/128` és `100.100.100.200/32`; a
+`169.254.0.0/16` többi része elérhető marad a link-local eszközök számára. A
+`CHECK_BLOCKED_NETWORKS` (CIDR-lista, alapból üres) kiegészíti ezt a beépített
+listát, sosem váltja fel; add hozzá a belső tartományaidat, ha a munkaterület
+tagjai nem tapogathatják le őket. A `CHECK_ALLOW_METADATA=1` engedi, hogy a
+monitorok elérjék a metaadat-végpontokat (ha szándékosan figyelnél egyet); az
+értesítési célpontok sosem érik el őket.
+
+Ha egy HTTP monitor proxyt használ, a proxyt és a valódi célt is, minden
+átirányításnál, összeveti a rendszer ezekkel a listákkal. A literális IP-címet
+pontosan, a numerikus hosztot (például `2852039166` vagy `0xa9fea9fe`) annak az
+IPv4-címnek megfelelően, ahogy a proxy olvasná, a hosztnevet pedig egy
+legfeljebb egy másodperces helyi névfeloldással ellenőrzi. Az a név, amely
+helyben nem oldható fel, engedélyezett, mert a proxy olyan neveket is
+feloldhat, amelyeket a worker nem; a proxy egy nevet másként is feloldhat
+(split-horizon DNS, rebinding), ezért hosztneveknél a valódi határt továbbra
+is a proxy saját kimenő szabályai jelentik.
+
+Ha egy tárolt titkokkal rendelkező monitor módosítása megváltoztatja, hová
+csatlakozik (`http`: `url` vagy `proxy.url`, a proxy eltávolítását is
+beleértve; `tcp`: `host` vagy `port`; `ping`: `host`; `dns`: `name` vagy
+`resolver`; `tls`: `host`, `port` vagy `servername`; `domain`: `domain`),
+minden tárolt titkot újra el kell küldeni, vagy `null`-lal törölni. Különben a
+módosítás 422-vel elutasításra kerül a `secrets` mezőn (a hiányzó kulcsok
+felsorolásával) és minden `secrets.<key>` mezőn. A többi változtatás megtartja
+a titkokat; az admin felület a cél változásakor kötelezőnek jelöli a
+titokmezőket.
 
 A push és cron jelentések tokenenként korlátozottak (percenként 120) az
 alkalmazás gyorsítótárában (`CACHE_STORE`, alapból az adatbázis). Ha több
@@ -339,8 +452,10 @@ URL-formája, ugyanazokkal a `status=up|down`, `msg` és `ping` lekérdezési
 paraméterekkel (GET, POST vagy HEAD) és ugyanazzal a sebességkorláttal, mint az
 `/api/v1/push/{token}`. Az Uptime Kumából importált push monitorok megtartják a
 tokenjüket, így a klienseikben csak a hosztot kell cserélni; az a token,
-amelyet már egy másik monitor birtokol, vagy amely a betűkön és számjegyeken
-kívül más karaktert is tartalmaz, kicserélődik, és az importjelentés ezt közli.
+amelyet már egy másik monitor birtokol, amely 48 karakternél hosszabb, vagy
+amely a betűkön és számjegyeken kívül más karaktert is tartalmaz, kicserélődik,
+és az importjelentés ezt közli (lásd [Migrálás Uptime
+Kumából](#migrálás-uptime-kumából)).
 
 Amíg az adatbázis hibázik, a push és cron monitorok jelentéseit elutasíthatja a
 rendszer, ezért a worker nem ítéli meg önállóan a határidejüket. A határidő-
@@ -370,7 +485,8 @@ shardot visz: egy konténer worker-ei a `CHECK_SHARD_OFFSET` és a
 | `CHECK_SHARD_OFFSET` | `0` | Az első shard, amelyet ez a konténer futtat |
 | `CHECK_SHARDS_TOTAL` | `CHECK_WORKERS` | A shardok száma az összes konténeren át |
 | `CHECK_CONCURRENCY` | `200` | Egy worker által egyszerre futtatott ellenőrzések |
-| `CHECK_BLOCKED_NETWORKS` | `169.254.169.254/32,fd00:ec2::254/128` | Hálózatok, amelyekhez az ellenőrzések nem csatlakozhatnak |
+| `CHECK_BLOCKED_NETWORKS` | üres | Hálózatok, amelyekhez az ellenőrzések nem csatlakozhatnak, a beépített metaadat-listán felül (lásd [Monitorok](#monitorok)) |
+| `CHECK_ALLOW_METADATA` | `0` | Az `1` engedi, hogy a monitorok elérjék a beépített felhős metaadat-végpontokat |
 
 Egy worker körülbelül 1 000 HTTP monitort kezel 60 másodperces intervallummal,
 két CPU-magon, az ütemezéshez képest két másodpercnél kisebb késéssel
@@ -389,6 +505,22 @@ lefedniük minden shardot. Például két gép két-két worker-rel:
 # host B runs shards 2 and 3
 -e CHECK_WORKERS=2 -e CHECK_SHARD_OFFSET=2 -e CHECK_SHARDS_TOTAL=4
 ```
+
+Minden gépnek ugyanazt az `APP_KEY`, `REVERB_APP_ID`, `REVERB_APP_KEY` és
+`REVERB_APP_SECRET` értéket is meg kell kapnia a környezetén át: az egyik
+konténer `/data` kötetében generált értékeket a többiek nem ismerik, így a
+munkamenetek, a titkosított titkok és az élő frissítések gépek között nem
+működnek. Külső adatbázis és generált értékek esetén a konténer a
+`WARNING: multi-host deployments must share APP_KEY and REVERB_* (generated here: ...)`
+üzenetet naplózza, és elindul.
+
+Induláskor egy közös adatbázist egyszerre csak egy gép migrál: a migráció
+zárat tart a gyorsítótár-tárolóban, amelynek ezért közösnek kell lennie (az
+adatbázis vagy Redis). A többi gép vár, legfeljebb nagyjából tíz percig; utána
+`FATAL` üzenettel kilép, és az újraindítási szabály újra próbálkozik. A
+migráció közben leállított gép legfeljebb egy órára hátrahagyja a zárat; ha
+egyik gép sem migrál, töröld a `php artisan cache:clear` paranccsal. Az
+SQLite, amelyet csak egy gép használhat, zár nélkül migrál.
 
 A konténer nem indul el, ha a `CHECK_SHARD_OFFSET + CHECK_WORKERS` meghaladja a
 `CHECK_SHARDS_TOTAL` értékét. A kapcsolók nélküli `php artisan
@@ -503,7 +635,7 @@ minden meglévő monitorához hozzákapcsolja.
 | `GET /api/v1/notification-channel-types` | bármely bejelentkezett felhasználó |
 | `GET /api/v1/workspaces/{workspace}/notification-channels`, `GET /api/v1/workspaces/{workspace}/notification-channels/{channel}` | `notifications:read` |
 | `POST /api/v1/workspaces/{workspace}/notification-channels`, `PATCH`/`DELETE /api/v1/workspaces/{workspace}/notification-channels/{channel}` | `notifications:write` |
-| `POST /api/v1/workspaces/{workspace}/notification-channels/test` (mentetlen), `POST /api/v1/workspaces/{workspace}/notification-channels/{channel}/test` | `notifications:write` (felhasználónként percenként 10) |
+| `POST /api/v1/workspaces/{workspace}/notification-channels/test` (mentetlen), `POST /api/v1/workspaces/{workspace}/notification-channels/{channel}/test` | `notifications:write` (felhasználónként percenként 10 és munkaterületenként percenként 30; ezen felül 429 `Retry-After` fejléccel) |
 | `GET /api/v1/workspaces/{workspace}/alerts` | `notifications:read` |
 | `GET /api/v1/workspaces/{workspace}/monitors/{monitor}/alerts` | `monitors:read` és `notifications:read` |
 
@@ -524,6 +656,20 @@ adja vissza a `secret_keys` mezőben, és az auditnapló is csak ezeket a neveke
 rögzíti. Módosításkor az elhagyott titkok megmaradnak, a `null`-ra állított titok
 pedig törlődik. A `GET /api/v1/notification-channel-types` minden típust
 felsorol a mezőivel és alapértékeivel.
+
+Ha egy tárolt titkokkal rendelkező csatorna módosítása megváltoztatja, hová
+küld (`webhook`: `url`; a `telegram`, `ntfy`, `gotify` és `apprise`
+`server_url` mezője; `matrix`: `homeserver_url`; `email`: `smtp.host`,
+`smtp.port` vagy `smtp.encryption`; `opsgenie`: `region`), minden tárolt titkot
+újra el kell küldeni, vagy `null`-lal törölni, különben a módosítás 422-vel
+elutasításra kerül a `secrets` mezőn (a hiányzó kulcsok felsorolásával) és
+minden `secrets.<key>` mezőn. A többi változtatás megtartja a titkokat; az
+admin felület a cél változásakor kötelezőnek jelöli a titokmezőket.
+
+Azok, akik nem kezelhetik a csatornákat (a Megtekintők és a
+`notifications:write` nélküli tokenek), a webhook `url` mezőjét
+`scheme://host[:port]/***` alakban, az ntfy `topic` és az Apprise `config_key`
+mezőjét `***`-ként látják.
 
 | Típus | `config` | `secrets` |
 | --- | --- | --- |
@@ -550,8 +696,15 @@ riasztás fajtája), `severity`, `title`, `body`, `monitor` (`id`, `name`, `type
 `X-IntraWatch-Event` és `X-IntraWatch-Delivery` fejlécekkel (az utóbbi
 kézbesítésenként állandó azonosító, a duplikáció-szűréshez).
 
-A saját `smtp` blokk nélküli e-mail csatornák az alkalmazás levelezőjén
-keresztül küldenek, amelyet a szokásos Laravel-változókkal kell beállítani:
+A saját `smtp` blokk nélküli (`null` vagy `{}`) e-mail csatornák az
+alkalmazás levelezőjén keresztül, a példány feladócímével küldenek. Ilyen
+csatornát csak munkaterület-tulajdonosok és -adminok (token esetén a token
+tulajdonosának szerepköre alapján) hozhatnak létre, próbaküldhetnek mentetlenül,
+állíthatnak át az alkalmazás levelezőjére, vagy módosíthatják a címzettjeit és
+sablonjait; a Szerkesztők a mentett csatornát továbbra is átnevezhetik,
+be- és kikapcsolhatják és próbaküldhetik. A levelezőt a szokásos
+Laravel-változókkal kell beállítani (az alapértelmezett `log` csak a konténer
+naplójába írja az e-maileket):
 
 ```bash
 -e MAIL_MAILER=smtp -e MAIL_HOST=smtp.example.com -e MAIL_PORT=587 \
@@ -646,14 +799,16 @@ egy monitorra.
 A `CHECK_BLOCKED_NETWORKS` az értesítési célpontokra is vonatkozik, nem csak az
 ellenőrzésekre: az a csatorna-URL, amely letiltott hálózatba oldódik fel,
 küldéskor elutasításra kerül (a címet egyszer oldja fel a rendszer, a kapcsolatot
-ahhoz rögzíti, az átirányításokat pedig sosem követi). Az alapérték csak a
-felhőplatformok metaadat-címeit tiltja, így a munkaterület tagjai belső
-szolgáltatásokra irányíthatják a webhookokat. Ennek megtiltásához add hozzá a
-belső tartományokat, például
-`CHECK_BLOCKED_NETWORKS=169.254.169.254/32,fd00:ec2::254/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128,fc00::/7,0.0.0.0/8,::/128`.
-Az értesítési célpontok a `0.0.0.0/8` és a `::/128` tartományban mindig
-elutasításra kerülnek, mert ezek a helyi gépre csatlakoznak; az utolsó két
-bejegyzés ezt az ellenőrzésekre is kiterjeszti.
+ahhoz rögzíti, az átirányításokat pedig sosem követi). E listán felül az
+értesítési célpontok mindig elutasításra kerülnek a felhős metaadat-végpontokon
+(a `CHECK_ALLOW_METADATA=1` mellett is), a teljes `169.254.0.0/16` és
+`fe80::/10` tartományban, a `64:ff9b::/96` és `2002::/16` fordítási
+előtagokban, valamint a `0.0.0.0/8` és a `::/128` tartományban, amelyek a helyi
+gépre csatlakoznak. A loopback és a privát hálózatok alapból engedélyezettek,
+így a munkaterület tagjai belső szolgáltatásokra irányíthatják a webhookokat.
+Ennek megtiltásához add hozzá a belső tartományokat, például
+`CHECK_BLOCKED_NETWORKS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128,fc00::/7,0.0.0.0/8,::/128`
+(az utolsó két bejegyzés a helyi gép tiltását az ellenőrzésekre is kiterjeszti).
 
 ### Karbantartási ablakok
 
@@ -746,20 +901,37 @@ monitorok, amelyek nincsenek az oldalon. Az oldal egyszerű HTML beágyazott CSS
 és SVG-vel, JavaScript, külső betűtípusok és stíluslapok nélkül, 60
 másodpercenként magától újratöltődik, az oldal nyelvén (`en` vagy `hu`)
 jelenik meg, az időpontok a munkaterület időzónájában. A nyilvános oldalak nem
-állítanak be sütit, és kliensenként percenként 300 kérésre vannak korlátozva.
+állítanak be sütit, és kliens-IP-nként percenként `STATUS_RATE_LIMIT` kérésre
+vannak korlátozva (alapból 300). Az egy NAT mögötti látogatók egy IP-n, így
+egy kereten osztoznak.
 
-**Egyedi domain.** Irányítsd a domain DNS-ét a reverse proxyra, ott végezd a TLS
+**Egyedi domain.** Az egyedi domainek ki vannak kapcsolva, amíg a
+`STATUS_CUSTOM_DOMAINS` fel nem sorolja, mely hosztneveket foglalhatják el az
+oldalak, vesszővel elválasztva: pontos hosztokat (`status.example.com`) vagy
+utótagokat (`*.example.com`, amely magát az `example.com`-ot nem fedi le).
+Amíg üres, az API-n át egyedi domaint beállítani 403-mal, a listán kívüli
+hosztot 422-vel utasítja el a rendszer. Az admin felületen vagy az API-n
+indított importok elhagyják a lista által nem engedett domaineket (lásd
+[Migrálás Uptime Kumából](#migrálás-uptime-kumából)); a parancssorra a lista
+nem vonatkozik. A korábban beállított domainek tovább működnek, és az API-n
+továbbra is eltávolíthatók (az admin felület jelenleg elrejti a mezőt, amíg a
+lista üres).
+
+Irányítsd a domain DNS-ét a reverse proxyra, ott végezd a TLS
 lezárását (az egyedi domainek automatikus tanúsítványai egy későbbi kiadásra
 vannak tervezve), és az eredeti `Host` fejléccel továbbítsd a kéréseket a
-konténernek. Az a hoszt, amely egy publikált oldal egyedi domainje, csak a
-státuszútvonalakat szolgálja ki (`/`, valamint a feed, summary és badge
-útvonalak); minden más rajta, az API-t és az admint is beleértve, 404. Bármely
+konténernek. Minden egyedi domain az oldaláé, akár publikált, akár nem: egy
+publikált oldal domainje csak a státuszútvonalakat (`/`, valamint a feed,
+summary és badge útvonalak) és az `/up` címet, egy nem publikált oldalé csak az
+`/up` címet szolgálja ki; minden más rajta, az `/admin/`, az `/api/`, a
+`/sanctum/` és a `/broadcasting/` is, 404, akkor is, ha az adatbázis nem
+elérhető (a domainek utolsó ismert listája alapján). Bármely
 más hosztnév vagy IP-cím a szokásos módon éri el az alkalmazást. A kanonikus és
 a feed-hivatkozások mindig az oldal saját címét használják
 (`https://{custom_domain}` vagy `APP_URL`), sosem a kérés `Host` fejlécét.
-Reverse proxy mögött állítsd be a `TRUSTED_PROXIES` értéket, hogy a kliens címét
-a rendszer a proxy továbbító fejléceiből vegye; különben minden látogató a
-proxy egyetlen, percenkénti 300-as keretébe számít. A korlát hozzávetőleges:
+Reverse proxy mögött állítsd a `TRUSTED_PROXIES` értéket a proxy címére, hogy a
+kliens címét a rendszer a proxy továbbító fejléceiből vegye; különben minden
+látogató a proxy egyetlen keretébe számít. A korlát hozzávetőleges:
 atomi növelés nélkül, a fájl-gyorsítótárban számolódik.
 
 **Gyorsítótár.** A renderelt oldalak fájl-gyorsítótárban vannak
@@ -793,8 +965,8 @@ egy olyan karbantartás, amely az oldalon lévő monitor egy ős-csoportját cé
 megváltoztatása.
 
 Egy oldal egyedi domainjét csak munkaterület-adminok állíthatják be vagy
-módosíthatják, és az nem lehet sem az `APP_URL` hosztja, sem az a hoszt, amelyre
-az API-kérés érkezett.
+módosíthatják, csak a `STATUS_CUSTOM_DOMAINS` által engedett hosztra, és az nem
+lehet sem az `APP_URL` hosztja, sem az a hoszt, amelyre az API-kérés érkezett.
 
 #### Badge-ek
 
@@ -881,7 +1053,9 @@ A `scripts/build-image.sh` több platformra építi a képet egy helyi OCI-arch�
 scripts/build-image.sh --version 1.0.0 --platforms linux/amd64,linux/arm64 --out build
 ```
 
-Az archívum a `build/intrawatch-<version>.oci.tar` fájlba kerül, a szkript pedig
+A `--out` csak a `build/` (vagy alatta lévő) könyvtár, illetve a repón kívüli
+könyvtár lehet, hogy az archívum sose kerüljön a Docker build-kontextusba;
+minden más útvonal 2-es kilépési kóddal leáll. Az archívum a `build/intrawatch-<version>.oci.tar` fájlba kerül, a szkript pedig
 kilistázza az `index.json`-ban szereplő platformokat és a méreteket. A
 `--load-platform linux/amd64` kapcsolóval egy platformot a helyi Docker-motorba
 is betölthetsz `intrawatch:<version>-amd64` néven. A gazdagéptől eltérő platform
@@ -993,8 +1167,8 @@ meleg körének 95. percentilise eléri a 100 ms-ot, vagy ha egy kérés hibázi
 Futtasd egy futó konténerben, `TRUSTED_PROXIES=127.0.0.1` mellett. A
 státuszoldal-kérések ugyanis sok kliens-címről érkeznek az `X-Forwarded-For`
 fejlécen át, így a nyilvános sebességkorlát kimarad a mérésből. Az ellenőrzések bármiféle
-hálózati szabálykapcsoló nélkül elérik a loopbacket, mert a
-`CHECK_BLOCKED_NETWORKS` alapból csak a felhőplatformok metaadat-címeit tiltja.
+hálózati szabálykapcsoló nélkül elérik a loopbacket, mert alapból csak a
+beépített felhős metaadat-címek tiltottak (a `CHECK_BLOCKED_NETWORKS` üres).
 A többi benchmarkhoz hasonlóan nem hajlandó futni olyan adatbázison, amely már
 tartalmaz munkaterületeket, hacsak nem adod meg a `--force` kapcsolót, és a
 végén törli az adatait, hacsak nem adod meg a `--keep` kapcsolót.

@@ -80,4 +80,50 @@ one Docker image with all state in a single volume.
   for 5 000 monitors and 300 status pages.
 - Documentation in the [README](README.md).
 
+### Security
+
+Changes from the pre-release security review. Items marked **action** change
+behaviour that an existing installation may rely on.
+
+- **Action:** members are invited instead of added. `POST .../members`
+  answers `202` and e-mails a single-use link valid for 7 days, which only a
+  signed-in user with that address can accept. Invitations need working
+  `MAIL_*` settings (the default mailer only logs); `INVITATIONS_PER_HOUR`
+  limits them. Adding a member directly is only possible on the command line.
+- **Action:** `WORKSPACE_CREATORS` (default `owners`) limits who may create
+  workspaces; API tokens never do.
+- **Action:** custom status domains are off until `STATUS_CUSTOM_DOMAINS`
+  lists the allowed hosts. Existing domains keep working. Every custom domain,
+  published or not, now serves only its status page and `/up`, also while the
+  database is down.
+- **Action:** websockets accept only the `APP_URL` host by default; add further
+  hosts the interface is reached under to `REVERB_ALLOWED_ORIGINS`, or live
+  updates stop there.
+- **Action:** `CHECK_BLOCKED_NETWORKS` now defaults to empty and extends a
+  built-in list of cloud metadata endpoints that also covers
+  `169.254.170.2`, `169.254.170.23`, `fd20:ce::254` and `100.100.100.200`.
+  Monitoring one of them needs `CHECK_ALLOW_METADATA=1`. Proxied HTTP monitors
+  now check the real target and every redirect against the policy as well.
+- **Action:** multi-host deployments must set `APP_KEY` and `REVERB_*` on
+  every host (the container warns otherwise). Shared databases migrate under a
+  cache lock, one host at a time.
+- **Action:** the container runs with umask 027 and root-owned application
+  code; backup tools that read `/data` under another uid must be in group
+  1000. The example compose file publishes the port on `127.0.0.1` only.
+- Changing a channel's or monitor's destination requires its stored secrets to
+  be sent again or removed. Webhook URLs, ntfy topics and Apprise config keys
+  are masked for users who cannot manage channels.
+- E-mail channels on the instance mailer can only be configured by owners and
+  admins; test sends are also limited per workspace (30 per minute).
+- Kuma import: JSON backups are bounded (`IMPORT_MAX_JSON_MB`,
+  `IMPORT_MAX_JSON_ITEMS`), the upload limit honours PHP's limits, SQLite files
+  with virtual tables are refused, crashed runs are reported as interrupted,
+  push token collisions are no longer disclosed (`push_token_regenerated`
+  replaces `push_token_collision`) and imports started by users drop custom
+  domains the allowlist does not cover.
+- A password reset revokes all API tokens and is audited;
+  `X-Content-Type-Options: nosniff` on every response; no `X-Powered-By`
+  header; `STATUS_RATE_LIMIT` makes the public status rate limit configurable.
+- `scripts/build-image.sh` refuses an `--out` inside the build context.
+
 Developed and maintained by [IntrAgile Kft.](https://intragile.eu)

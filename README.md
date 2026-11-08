@@ -63,7 +63,8 @@ A request without a session (no matching `Origin`, for example) is answered
 with `400` and `urn:problem:session-unavailable` rather than a login that does
 not stick. `GET /api/v1/setup` reports whether setup is still required.
 
-Further users are created from the command line; `--owner-of` makes the user an
+Further users are created from the command line (and then invited to
+workspaces, see [Members and invitations](#members-and-invitations)); `--owner-of` makes the user an
 owner of the workspace with that slug (created when it does not exist yet), and
 the password is prompted for when `--password` is left out:
 
@@ -100,8 +101,10 @@ there). After the setup wizard it opens the first workspace's monitor list.
   interval, weekly, monthly or cron) with a preview of the next window.
 - **Status pages**: settings, sections and their monitors, publishing and a
   custom domain.
-- **Workspace**: settings, members and roles, API tokens and the audit log;
-  further workspaces can be created from the workspace switcher.
+- **Workspace**: settings, members, invitations and roles, API tokens and the
+  audit log; further workspaces can be created from the workspace switcher by
+  those `WORKSPACE_CREATORS` allows (see [Members and
+  invitations](#members-and-invitations)).
 - **Account and security**: two-factor authentication with recovery codes.
   The interface is available in English and Hungarian (the browser language,
   or the account menu).
@@ -110,22 +113,63 @@ Updates are live: monitor status changes, check results and alerts arrive over
 the workspace's private websocket channel (Reverb at `/app`, authorised with
 the cookie session at `/broadcasting/auth`), so the monitor list and detail
 pages change without a reload. Monitors created or deleted elsewhere appear
-when the window regains focus or the connection comes back.
+when the window regains focus or the connection comes back. The websocket
+server only accepts browsers whose page was loaded from the `APP_URL` host; if
+the interface is also reached under another host name or IP address, add it
+to `REVERB_ALLOWED_ORIGINS`, or live updates stay off there.
 
 Controls follow the caller's role (`can` in `/api/v1/me`); the API enforces the
 same rules on its own. On a custom status domain only the status page is
-served: `/admin/`, `/api/` and `/sanctum/` answer 404 there.
+served: `/admin/`, `/api/`, `/sanctum/` and `/broadcasting/` answer 404 there.
+
+### Members and invitations
+
+Members are invited by e-mail. `POST /api/v1/workspaces/{workspace}/members`
+(`email`, `role`; `members:manage`) answers `202` for every address, whether
+or not an account exists for it, and mails a link to
+`{APP_URL}/admin/invitations/{token}`; only an address that is already a member
+is refused (422). The link is valid for 7 days and works once; inviting the
+same address again replaces the pending invitation and the old link stops
+working. It is accepted by a signed-in browser session (not an API token)
+whose e-mail matches the invitation. Sign-up is not open, so the e-mail tells
+the recipient to sign in with that address or ask an administrator for an
+account (`intrawatch:user:create`, see [Quick start](#quick-start)). An
+invitation also stops working when its inviter is removed from the workspace
+or can no longer grant the role.
+
+Admins and owners invite, list (`GET .../invitations`, expired ones flagged)
+and revoke (`DELETE .../invitations/{id}`) pending invitations; only owners
+invite as owner, or replace or revoke an owner invitation. Invitations are
+limited to `INVITATIONS_PER_HOUR` per workspace (30 by default, resends
+included) and 10 per minute per user. The audit log records
+`member.invited`, `member.invitation_revoked` and `member.added`;
+`intrawatch:prune` deletes invitations a month after they expired.
+
+The e-mail is queued (regular queue worker, see [Queues](#queues)) and sent by
+the application mailer, so invitations need working `MAIL_*` settings (see
+[Channels](#channels)); the default mailer, `log`, only writes the e-mail to
+the container log. Adding a user to a workspace directly is only possible on
+the command line (`intrawatch:user:create --owner-of=<slug>`).
+
+`WORKSPACE_CREATORS` decides who may create workspaces through the API and the
+interface: `owners` (the default: users who already own a workspace),
+`anyone` (every signed-in user) or `none` (only the command line, with
+`--owner-of`). Unknown values behave like `owners`. API tokens never create
+workspaces. `can_create_workspace` in `/api/v1/me` reports the caller's
+permission.
 
 ### Recovery
 
 ```bash
 # Lost authenticator and recovery codes: disable two-factor authentication.
 docker exec -it intrawatch php artisan intrawatch:user:reset-2fa ada@example.com
-# Forgotten password: set a new one (prompted for) and end the user's sessions.
+# Forgotten password: set a new one (prompted for), end the user's sessions and revoke their API tokens.
 docker exec -it intrawatch php artisan intrawatch:user:reset-password ada@example.com
 ```
 
-Both are recorded in the audit trail with the `system` actor. Note that the
+Both are recorded in the audit trail with the `system` actor. A password reset,
+by this command or through the e-mail link, also revokes all of the user's API
+tokens and is recorded as `auth.password_reset`. Note that the
 workspace audit list only shows workspace events; instance-level events such
 as `auth.*` (logins, failed logins, 2FA and password resets) are stored with no
 workspace and are not exposed over the API yet.
@@ -150,6 +194,17 @@ directory, make it writable for that uid (`chown -R 1000:1000 <dir>`), or the
 container stops at start with a message saying so. Only port 3000 is exposed;
 websockets are proxied internally.
 
+The container runs with umask `027`: files it creates are `0640` and
+directories `0750`, readable by the `app` group (gid 1000) but not by other
+users, and at start an existing `database.sqlite` loses access for other users
+(a warning is logged when that fails, for example because another uid owns
+the file). A backup job that reads the volume under a different uid must
+therefore be in group 1000. Commands started with `docker exec` keep their own
+umask. The application code under `/app` is owned by root; the process can
+only write `bootstrap/cache` and `storage` (which lives in `/data`). PHP sends
+no `X-Powered-By` header, and every response carries
+`X-Content-Type-Options: nosniff`.
+
 ### Configuration
 
 | Variable | Default | Purpose |
@@ -158,14 +213,26 @@ websockets are proxied internally.
 | `APP_KEY` | generated | Override the persisted application key |
 | `DB_CONNECTION` | `sqlite` | `sqlite`, `mysql` or `pgsql` |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | | External database settings |
-| `TRUSTED_PROXIES` | none | Comma-separated proxy IPs/CIDRs, or `*`. Set it behind a reverse proxy so client IPs are correct for rate limits and the audit log |
+| `TRUSTED_PROXIES` | none | Comma-separated IPs/CIDRs of your reverse proxy (for example `172.18.0.0/16`), so client IPs are correct for rate limits and the audit log. Avoid `*`: it trusts the forwarding headers of every client |
 | `SANCTUM_STATEFUL_DOMAINS` | `localhost:3000,127.0.0.1:3000` plus the `APP_URL` host | Hosts (with port) of the web frontend that use cookie sessions; setting it replaces the default list |
 | `SESSION_SECURE_COOKIE` | unset | Set to `true` when the instance is served over HTTPS (behind a TLS-terminating proxy), so session cookies are only sent over TLS |
-| `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` | generated | Websocket credentials |
-| `IMPORT_MAX_UPLOAD_MB` | `256` | Largest Uptime Kuma file accepted by the admin upload (at most 512, the image's PHP limit) |
+| `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` | generated | Websocket credentials; set them (and `APP_KEY`) on every host of a multi-host deployment |
+| `REVERB_ALLOWED_ORIGINS` | empty | Host names besides the `APP_URL` host whose pages may open the websocket: comma-separated hosts without port, or patterns such as `*.example.org`; `*` allows any origin (not recommended) |
+| `WORKSPACE_CREATORS` | `owners` | Who may create workspaces: `owners`, `anyone` or `none` (see [Members and invitations](#members-and-invitations)) |
+| `INVITATIONS_PER_HOUR` | `30` | Member invitations a workspace may send per hour |
+| `STATUS_CUSTOM_DOMAINS` | empty | Host names status pages may use as custom domain; empty disables custom domains (see [Status pages](#status-pages)) |
+| `STATUS_RATE_LIMIT` | `300` | Public status page requests per minute per client IP |
+| `IMPORT_MAX_UPLOAD_MB` | `256` | Largest Uptime Kuma file accepted by the admin upload; PHP's `upload_max_filesize` and `post_max_size` (512 MB in the image) cap it |
+| `IMPORT_MAX_JSON_MB` | `20` | Largest Kuma JSON backup the importer reads |
+| `IMPORT_MAX_JSON_ITEMS` | `50000` | Most objects and lists in a Kuma JSON backup |
+
+Configuration is cached when the container starts, so changes take effect on
+restart.
 
 A ready-made `docker/compose.example.yml` shows the SQLite default and
-commented-out PostgreSQL and MySQL services.
+commented-out PostgreSQL and MySQL services. It publishes the port on
+`127.0.0.1` only, for a reverse proxy on the same host; publish it on all
+interfaces only when that is intended.
 
 ### Migrating from Uptime Kuma
 
@@ -196,9 +263,17 @@ sqlite3 /path/to/kuma/data/kuma.db ".backup kuma-export.db"
 **In the admin interface** (workspace admins and owners): upload the file,
 check the analysis (a dry run that lists what would be created, skipped or is
 invalid, with a reason for each item), then run the import. Uploads are limited
-to `IMPORT_MAX_UPLOAD_MB` (256 MB by default; the image's PHP limits allow up
-to 512 MB). Analysis and run happen in the background on the `long` queue, up
-to 900 seconds each. One import per workspace can be open at a time; the
+to `IMPORT_MAX_UPLOAD_MB` (256 MB by default), or to PHP's
+`upload_max_filesize` and `post_max_size` when those are lower (the image
+allows up to 512 MB); the error message names the limit that applies. JSON
+backups are also limited to `IMPORT_MAX_JSON_MB` (20 MB) and
+`IMPORT_MAX_JSON_ITEMS` (50 000 objects and lists, and 20 times as many
+values; it also caps the monitor and notification lists); both are checked before the file is decoded,
+on the command line too, and the error names the variable to raise. SQLite
+files with virtual tables are refused. Analysis and run happen in the
+background on the `long` queue, up to 900 seconds each; a run that exceeds
+that fails as "did not finish in time", one whose worker crashed or ran out of
+memory as "interrupted". One import per workspace can be open at a time; the
 uploaded file is deleted when the run completes or fails, when the import is
 deleted, or after 24 hours. Over the API the same flow is
 `POST /api/v1/workspaces/{workspace}/imports` (multipart `file`, optional
@@ -252,9 +327,17 @@ cannot be translated, Kuma's `conditions`) import the monitor paused or the
 channel inactive, again with a note. Nothing is dropped silently: every row
 appears in the report.
 
-**Push monitors keep their tokens.** IntraWatch also answers Kuma's push URL
+**Push monitors keep their tokens** when the token is 1 to 48 letters and
+digits and no other monitor uses it. IntraWatch also answers Kuma's push URL
 shape, `GET|POST|HEAD /api/push/<token>?status=up|down&msg=...`, so push
-clients only need the new host.
+clients only need the new host. Any other token is replaced by a new
+48-character one with the note `push_token_regenerated` (which does not say
+why), and that monitor's clients need the new push URL.
+
+**Custom domains** of Kuma status pages are kept only when
+`STATUS_CUSTOM_DOMAINS` allows them; otherwise an import started in the admin
+interface or the API creates the page without one and adds the note
+`custom_domain_not_allowed`. Command-line imports keep every domain.
 
 **History:**
 
@@ -292,12 +375,32 @@ Docker allows by default (`net.ipv4.ping_group_range`). Other container
 runtimes may need that sysctl set to include uid 1000, for example
 `net.ipv4.ping_group_range=0 2147483647`.
 
-Checks may not connect to the networks in `CHECK_BLOCKED_NETWORKS` (CIDR list,
-by default the cloud metadata addresses `169.254.169.254/32` and
-`fd00:ec2::254/128`); add your internal ranges there if workspace members must
-not probe them. When an HTTP monitor uses a proxy, only the proxy's address is
-checked against this list: the proxy resolves and connects to the target
-itself, so its own egress rules apply to the target.
+Checks never connect to the cloud metadata endpoints `169.254.169.254/32`,
+`169.254.170.2/32`, `169.254.170.23/32`, `fd00:ec2::254/128`,
+`fd20:ce::254/128` and `100.100.100.200/32`; the rest of `169.254.0.0/16`
+stays reachable for link-local devices. `CHECK_BLOCKED_NETWORKS` (a CIDR list,
+empty by default) adds networks to this built-in list and never replaces it;
+add your internal ranges there if workspace members must not probe them.
+`CHECK_ALLOW_METADATA=1` lets monitors reach the metadata endpoints (for
+monitoring one on purpose); notification targets never reach them.
+
+When an HTTP monitor uses a proxy, both the proxy and the real target, on
+every redirect, are checked against these lists. A literal IP address is
+checked exactly, a numeric host such as `2852039166` or `0xa9fea9fe` as the
+IPv4 address the proxy would read it as, and a host name through a local
+lookup capped at one second. A name that does not resolve locally is allowed,
+because the proxy may resolve names the worker cannot; the proxy may also
+resolve a name differently (split-horizon DNS, rebinding), so for host names
+the proxy's own egress rules remain the real boundary.
+
+On an update of a monitor with stored secrets that changes where it connects
+(`http` `url` or `proxy.url`, removing the proxy included; `tcp` `host` or
+`port`; `ping` `host`; `dns` `name` or `resolver`; `tls` `host`, `port` or
+`servername`; `domain` `domain`), every stored secret must be sent again or
+removed with `null`. Otherwise the update is refused with a 422 on `secrets`
+(listing the missing keys) and on each `secrets.<key>`. Other changes keep the
+secrets; the admin interface marks the secret fields as required when the
+destination changes.
 
 Push and cron reports are rate limited per token (120 per minute) in the
 application cache (`CACHE_STORE`, the database by default). With several
@@ -316,8 +419,10 @@ Push monitors also answer at `/api/push/{token}`, the URL shape Uptime Kuma
 uses, with the same `status=up|down`, `msg` and `ping` query parameters (GET,
 POST or HEAD) and the same rate limit as `/api/v1/push/{token}`. Push monitors
 imported from Uptime Kuma keep their token, so their clients only need the new
-host; a token that another monitor already holds, or that contains characters
-other than letters and digits, is replaced and the import report says so.
+host; a token that another monitor already holds, is longer than 48 characters
+or contains characters other than letters and digits is replaced and the
+import report says so (see [Migrating from Uptime
+Kuma](#migrating-from-uptime-kuma)).
 
 While the database fails, the reports that push and cron monitors send may be
 refused, so the worker does not judge their deadlines on its own. A failure of
@@ -346,7 +451,8 @@ workers of a container run the shards `CHECK_SHARD_OFFSET` to
 | `CHECK_SHARD_OFFSET` | `0` | First shard this container runs |
 | `CHECK_SHARDS_TOTAL` | `CHECK_WORKERS` | Number of shards across all containers |
 | `CHECK_CONCURRENCY` | `200` | Checks one worker runs at the same time |
-| `CHECK_BLOCKED_NETWORKS` | `169.254.169.254/32,fd00:ec2::254/128` | Networks checks may not connect to |
+| `CHECK_BLOCKED_NETWORKS` | empty | Networks checks may not connect to, on top of the built-in cloud metadata list (see [Monitors](#monitors)) |
+| `CHECK_ALLOW_METADATA` | `0` | `1` lets monitors reach the built-in cloud metadata endpoints |
 
 One worker handles about 1 000 HTTP monitors at a 60-second interval on two
 CPU cores with less than two seconds of delay from the schedule
@@ -364,6 +470,22 @@ workers each:
 # host B runs shards 2 and 3
 -e CHECK_WORKERS=2 -e CHECK_SHARD_OFFSET=2 -e CHECK_SHARDS_TOTAL=4
 ```
+
+Every host must also get the same `APP_KEY`, `REVERB_APP_ID`,
+`REVERB_APP_KEY` and `REVERB_APP_SECRET` through its environment: values
+generated in one container's `/data` are unknown to the others, so sessions,
+encrypted secrets and live updates break across hosts. With an external
+database and generated values, the container logs `WARNING: multi-host
+deployments must share APP_KEY and REVERB_* (generated here: ...)` and still
+starts.
+
+On start only one host migrates a shared database at a time: the migration
+holds a lock in the cache store, which therefore must be shared (the database
+or Redis). The other hosts wait, for up to about ten minutes; then they exit
+with `FATAL` and the restart policy tries again. A host killed during a
+migration leaves the lock behind for up to an hour; if no host is migrating,
+clear it with `php artisan cache:clear`. SQLite, which only one host can use,
+migrates without the lock.
 
 The container refuses to start when `CHECK_SHARD_OFFSET + CHECK_WORKERS`
 exceeds `CHECK_SHARDS_TOTAL`. `php artisan intrawatch:worker:status` without
@@ -473,7 +595,7 @@ update binds it to every existing monitor of the workspace.
 | `GET /api/v1/notification-channel-types` | any signed-in user |
 | `GET /api/v1/workspaces/{workspace}/notification-channels`, `GET /api/v1/workspaces/{workspace}/notification-channels/{channel}` | `notifications:read` |
 | `POST /api/v1/workspaces/{workspace}/notification-channels`, `PATCH`/`DELETE /api/v1/workspaces/{workspace}/notification-channels/{channel}` | `notifications:write` |
-| `POST /api/v1/workspaces/{workspace}/notification-channels/test` (unsaved), `POST /api/v1/workspaces/{workspace}/notification-channels/{channel}/test` | `notifications:write` (10 per minute per user) |
+| `POST /api/v1/workspaces/{workspace}/notification-channels/test` (unsaved), `POST /api/v1/workspaces/{workspace}/notification-channels/{channel}/test` | `notifications:write` (10 per minute per user and 30 per minute per workspace; 429 with `Retry-After` beyond that) |
 | `GET /api/v1/workspaces/{workspace}/alerts` | `notifications:read` |
 | `GET /api/v1/workspaces/{workspace}/monitors/{monitor}/alerts` | `monitors:read` and `notifications:read` |
 
@@ -493,6 +615,18 @@ names in `secret_keys`, and the audit log records only those names. On an
 update, omitted secrets are kept and a secret set to `null` is removed.
 `GET /api/v1/notification-channel-types` lists every type with its fields and
 defaults.
+
+An update that changes where a channel with stored secrets sends (`webhook`
+`url`; `server_url` of `telegram`, `ntfy`, `gotify` and `apprise`; `matrix`
+`homeserver_url`; `email` `smtp.host`, `smtp.port` or `smtp.encryption`;
+`opsgenie` `region`) must send every stored secret again or remove it with
+`null`, or it is refused with a 422 on `secrets` (listing the missing keys)
+and on each `secrets.<key>`. Other changes keep the secrets; the admin
+interface marks the secret fields as required when the destination changes.
+
+Users who may not manage channels (Viewers, and tokens without
+`notifications:write`) see a webhook `url` as `scheme://host[:port]/***` and an
+ntfy `topic` and Apprise `config_key` as `***`.
 
 | Type | `config` | `secrets` |
 | --- | --- | --- |
@@ -519,8 +653,14 @@ alert kind), `severity`, `title`, `body`, `monitor` (`id`, `name`, `type`,
 `X-IntraWatch-Event` and `X-IntraWatch-Delivery` (a stable id per delivery, for
 deduplication).
 
-E-mail channels without their own `smtp` block send through the application
-mailer, configured with the usual Laravel variables:
+E-mail channels without their own `smtp` block (`null` or `{}`) send through
+the application mailer, with the instance's sender address. Only workspace
+owners and admins (for a token: its owner's role) may create such a channel,
+test-send an unsaved one, move a channel onto the application mailer, or
+change its recipients or templates; Editors can still rename, enable,
+disable and test-send saved ones. The mailer is configured with the usual
+Laravel variables (the default, `log`, only writes e-mails to the container
+log):
 
 ```bash
 -e MAIL_MAILER=smtp -e MAIL_HOST=smtp.example.com -e MAIL_PORT=587 \
@@ -610,12 +750,15 @@ list for one monitor.
 `CHECK_BLOCKED_NETWORKS` applies to notification targets as well as checks: a
 channel URL that resolves into a blocked network is refused when it is sent
 (the address is resolved once and the connection pinned to it, and redirects
-are never followed). The default blocks only the cloud metadata
-addresses, so workspace members can point webhooks at internal services. To
-forbid that, add the internal ranges, for example
-`CHECK_BLOCKED_NETWORKS=169.254.169.254/32,fd00:ec2::254/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128,fc00::/7,0.0.0.0/8,::/128`.
-Notification targets are always refused in `0.0.0.0/8` and `::/128`, which
-connect to the local host; the last two entries extend that to checks.
+are never followed). On top of that list, notification targets are always
+refused in the cloud metadata endpoints (even with `CHECK_ALLOW_METADATA=1`),
+all of `169.254.0.0/16` and `fe80::/10`, the translation prefixes
+`64:ff9b::/96` and `2002::/16`, and `0.0.0.0/8` and `::/128`, which connect to
+the local host. Loopback and private networks stay allowed by default, so
+workspace members can point webhooks at internal services. To forbid that, add
+the internal ranges, for example
+`CHECK_BLOCKED_NETWORKS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128,fc00::/7,0.0.0.0/8,::/128`
+(the last two entries extend the local-host block to checks).
 
 ### Maintenance windows
 
@@ -703,21 +846,36 @@ targets, URLs, error messages, check results or monitors that are not on the
 page. The page is plain HTML with inline CSS and SVG, no JavaScript and no
 external fonts or stylesheets, reloads itself every 60 seconds, and is
 rendered in the page's locale (`en` or `hu`) with times in the workspace
-timezone. Public pages set no cookies and are limited to 300 requests per
-minute per client address.
+timezone. Public pages set no cookies and are limited to `STATUS_RATE_LIMIT`
+requests per minute per client IP (300 by default). Visitors behind one NAT
+share an IP and so share the limit.
 
-**Custom domain.** Point the domain's DNS at your reverse proxy, terminate
+**Custom domain.** Custom domains are off until `STATUS_CUSTOM_DOMAINS` lists
+the host names pages may claim, comma-separated: exact hosts
+(`status.example.com`) or suffixes (`*.example.com`, which does not cover
+`example.com` itself). While it is empty, setting a custom domain through the
+API answers 403; a host outside the list answers 422. Imports started in the
+admin interface or the API drop domains the list does not allow (see
+[Migrating from Uptime Kuma](#migrating-from-uptime-kuma)); the command line
+is exempt from the list. Domains set before keep working and can
+still be removed over the API (the admin interface currently hides the field
+while the list is empty).
+
+Point the domain's DNS at your reverse proxy, terminate
 TLS there (automatic certificates for custom domains are planned for a later
 release) and forward the requests to the container with the original `Host`
-header. A host that is a published page's custom domain serves only the
-status paths (`/`, and the feed, summary and badge paths); everything else on
-it, including the API and the admin, is a 404. Any other host name or IP
-address reaches the application as usual. Canonical and feed links always use
+header. Every custom domain is reserved for its page, published or not: a
+published page's domain serves only the status paths (`/`, and the feed,
+summary and badge paths) and `/up`, an unpublished page's domain only `/up`;
+everything else on it, including `/admin/`, `/api/`, `/sanctum/` and
+`/broadcasting/`, is a 404, also while the database is down (from the last
+known list of domains). Any other host name or IP address reaches the
+application as usual. Canonical and feed links always use
 the page's own address (`https://{custom_domain}` or `APP_URL`), never the
 request's `Host`.
-Behind a reverse proxy, set `TRUSTED_PROXIES` so the client address is taken
-from the proxy's forwarding headers; otherwise every visitor counts against
-the proxy's single 300 per minute bucket. The limit is approximate: it is
+Behind a reverse proxy, set `TRUSTED_PROXIES` to the proxy's address so the
+client address is taken from its forwarding headers; otherwise every visitor
+counts against the proxy's single bucket. The limit is approximate: it is
 counted in the file cache without atomic increments.
 
 **Caching.** Rendered pages are kept in a file cache
@@ -748,8 +906,9 @@ Two changes reach a cached page only through the 60 second TTL: a maintenance
 that targets an ancestor group of a monitor on the page (rather than the
 monitor or its direct group), and a change of the workspace timezone.
 
-Only workspace admins can set or change a page's custom domain, and it can be
-neither the host of `APP_URL` nor the host the API request was sent to.
+Only workspace admins can set or change a page's custom domain, only to a host
+`STATUS_CUSTOM_DOMAINS` allows, and it can be neither the host of `APP_URL`
+nor the host the API request was sent to.
 
 #### Badges
 
@@ -831,7 +990,9 @@ named `intrawatch-builder`:
 scripts/build-image.sh --version 1.0.0 --platforms linux/amd64,linux/arm64 --out build
 ```
 
-The archive is written to `build/intrawatch-<version>.oci.tar`, and the script
+`--out` must be `build/` (or below it) or a directory outside the repository,
+so the archive never lands in the Docker build context; any other path exits
+with status 2. The archive is written to `build/intrawatch-<version>.oci.tar`, and the script
 lists the platforms in its `index.json` and the sizes. Add
 `--load-platform linux/amd64` to also load one platform into the local Docker
 engine as `intrawatch:<version>-amd64`. A platform that differs from the host
@@ -935,8 +1096,8 @@ the warm status page 95th percentile reaches 100 ms, or a request fails. Run it
 inside a running container with `TRUSTED_PROXIES=127.0.0.1`: status page
 requests come from many client addresses through `X-Forwarded-For`, so the
 public rate limit stays out of the measurement. The checks reach loopback
-without any network policy switch, because `CHECK_BLOCKED_NETWORKS` blocks only
-cloud metadata addresses by default. Like the other benchmarks it refuses a
+without any network policy switch, because by default only the built-in cloud
+metadata addresses are blocked (`CHECK_BLOCKED_NETWORKS` is empty). Like the other benchmarks it refuses a
 database that already holds workspaces unless `--force` is given, and deletes
 its data afterwards unless `--keep` is given.
 

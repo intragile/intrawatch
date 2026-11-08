@@ -3,21 +3,40 @@ services:
   intrawatch:
     image: ghcr.io/intragile/intrawatch:latest
     ports:
-      - "3000:3000"
+      # Reachable from this host only, for a reverse proxy running here. Publish on all
+      # interfaces ("3000:3000") only if that is intended, e.g. when the proxy runs elsewhere.
+      - "127.0.0.1:3000:3000"
     volumes:
       - intrawatch-data:/data
     environment:
-      # Public URL; its host is accepted for cookie sessions by default.
+      # Public URL; its host is accepted for cookie sessions and websocket origins by default.
       APP_URL: http://localhost:3000
-      # TRUSTED_PROXIES: "*"            # set when running behind a reverse proxy
+      # TRUSTED_PROXIES: "172.18.0.0/16"  # your reverse proxy's address or network; avoid "*"
       # SESSION_SECURE_COOKIE: "true"   # set when served over HTTPS
       # SANCTUM_STATEFUL_DOMAINS: status.example.com
+      # REVERB_ALLOWED_ORIGINS: "monitor.internal,*.example.org"  # further hosts the admin UI is opened under
+      # --- Workspaces, invitations and status pages ---
+      # WORKSPACE_CREATORS: owners      # owners | anyone | none
+      # INVITATIONS_PER_HOUR: "30"      # invitation e-mails per workspace and hour (needs MAIL_* below)
+      # STATUS_CUSTOM_DOMAINS: "status.example.com,*.status.example.org"  # empty = no custom domains
+      # STATUS_RATE_LIMIT: "300"        # public status requests per minute and client IP
+      # --- Uptime Kuma import limits ---
+      # IMPORT_MAX_UPLOAD_MB: "256"
+      # IMPORT_MAX_JSON_MB: "20"
+      # IMPORT_MAX_JSON_ITEMS: "50000"
+      # --- Several hosts: every host needs the same values, plus an external database ---
+      # APP_KEY: base64:...
+      # REVERB_APP_ID: "..."
+      # REVERB_APP_KEY: ...
+      # REVERB_APP_SECRET: ...
       # --- Check workers (see the README); several hosts need an external database ---
       # CHECK_WORKERS: "1"
       # CHECK_SHARD_OFFSET: "0"
       # CHECK_SHARDS_TOTAL: "1"
-      # CHECK_BLOCKED_NETWORKS: "169.254.169.254/32,fd00:ec2::254/128,10.0.0.0/8"
-      # --- Outgoing e-mail for e-mail notification channels that have no SMTP server of their own ---
+      # Extends the built-in cloud metadata block list, e.g. with internal ranges:
+      # CHECK_BLOCKED_NETWORKS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+      # CHECK_ALLOW_METADATA: "1"       # let monitors reach the cloud metadata endpoints
+      # --- Outgoing e-mail: invitations, and e-mail channels without an SMTP server of their own ---
       # MAIL_MAILER: smtp
       # MAIL_HOST: smtp.example.com
       # MAIL_PORT: 587
