@@ -75,7 +75,7 @@ class PublicStatusPageTest extends TestCase
             ->assertHeader('Cache-Control', 'max-age=30, public, stale-if-error=86400, stale-while-revalidate=60')
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-            ->assertHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors *")
+            ->assertHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors *")
             ->assertHeaderMissing('Set-Cookie')
             ->assertHeaderMissing('X-Status-Stale')
             ->assertSee('Acme status')

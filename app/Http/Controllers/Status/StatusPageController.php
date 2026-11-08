@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class StatusPageController
 {
-    private const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors *";
+    private const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors *";
 
     private const UNAVAILABLE = <<<'HTML'
         <!DOCTYPE html>
