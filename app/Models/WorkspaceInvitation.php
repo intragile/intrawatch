@@ -119,12 +119,26 @@ class WorkspaceInvitation extends Model
     }
 
     /**
-     * Whether the user may accept this invitation: it is pending and addressed to the user's e-mail.
+     * Whether the user may accept this invitation: it is pending, addressed to the user's e-mail, and its
+     * inviter may still grant the role (an admin or owner, an owner for the owner role), so removing or
+     * demoting a member also ends the invitations they sent.
      */
-    public function isUsableBy(User $user): bool
+    public function isUsableBy(User $user, Workspace $workspace): bool
     {
         return $this->accepted_at === null
             && ! $this->isExpired()
-            && hash_equals($this->email, mb_strtolower(trim($user->email)));
+            && hash_equals($this->email, mb_strtolower(trim($user->email)))
+            && $this->inviterMayStillGrant($workspace);
+    }
+
+    private function inviterMayStillGrant(Workspace $workspace): bool
+    {
+        $role = $this->inviter?->roleIn($workspace);
+
+        return match ($role) {
+            WorkspaceRole::Owner => true,
+            WorkspaceRole::Admin => $this->role !== WorkspaceRole::Owner,
+            default => false,
+        };
     }
 }

@@ -221,7 +221,8 @@ export interface paths {
         put?: never;
         /**
          * Accepts an invitation addressed to the signed-in user's e-mail. Unknown, expired, revoked, already
-         *     accepted and foreign invitations all fail with the same 422
+         *     accepted and foreign invitations, and those whose inviter can no longer grant the role, all fail with
+         *     the same 422
          */
         post: operations["invitation.accept"];
         delete?: never;

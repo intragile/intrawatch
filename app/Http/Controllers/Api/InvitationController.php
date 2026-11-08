@@ -81,7 +81,8 @@ class InvitationController extends Controller
 
     /**
      * Accepts an invitation addressed to the signed-in user's e-mail. Unknown, expired, revoked, already
-     * accepted and foreign invitations all fail with the same 422.
+     * accepted and foreign invitations, and those whose inviter can no longer grant the role, all fail with
+     * the same 422.
      *
      * @response array{data: array{id: string, name: string, slug: string, timezone: string, role: \App\Enums\WorkspaceRole, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}}
      */
@@ -102,11 +103,11 @@ class InvitationController extends Controller
                     ->where('token_hash', WorkspaceInvitation::hashToken($token))
                     ->lockForUpdate()
                     ->first();
-                if ($invitation === null || ! $invitation->isUsableBy($user)) {
+                if ($invitation === null) {
                     throw self::invalid();
                 }
                 $workspace = Workspace::query()->findOrFail($invitation->workspace_id);
-                if ($user->roleIn($workspace) !== null) {
+                if (! $invitation->isUsableBy($user, $workspace) || $user->roleIn($workspace) !== null) {
                     throw self::invalid();
                 }
 

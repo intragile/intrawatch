@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceInvitation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
@@ -227,7 +228,8 @@ class InvitationTest extends TestCase
         WorkspaceInvitation::factory()->for($this->workspace)->withToken($wrongEmail)->create(['email' => 'someone@example.com']);
         $accepted = Str::random(64);
         $second = Workspace::factory()->create();
-        WorkspaceInvitation::factory()->for($second)->withToken($accepted)->create(['email' => 'other@example.com']);
+        $secondOwner = User::factory()->memberOf($second, WorkspaceRole::Owner)->create();
+        WorkspaceInvitation::factory()->for($second)->withToken($accepted)->create(['email' => 'other@example.com', 'invited_by' => $secondOwner->id]);
         $this->accept($accepted, $other)->assertOk();
 
         $this->invite('dee@example.com')->assertStatus(202);
@@ -354,6 +356,56 @@ class InvitationTest extends TestCase
 
         $this->actingAs($this->admin, 'sanctum')->deleteJson($this->url("/invitations/{$id}"))->assertForbidden();
         $this->actingAs($owner, 'sanctum')->deleteJson($this->url("/invitations/{$id}"))->assertNoContent();
+    }
+
+    public function test_an_admin_cannot_replace_a_pending_owner_invitation(): void
+    {
+        // Re-inviting overwrites the pending row; that must not let an admin cancel or downgrade what an owner sent.
+        $owner = User::factory()->memberOf($this->workspace, WorkspaceRole::Owner)->create();
+        $this->invite('boss@example.com', 'owner', $owner)->assertStatus(202);
+        $hash = WorkspaceInvitation::query()->sole()->token_hash;
+
+        $this->invite('boss@example.com', 'viewer')->assertForbidden();
+
+        $invitation = WorkspaceInvitation::query()->sole();
+        $this->assertSame(WorkspaceRole::Owner, $invitation->role);
+        $this->assertSame($hash, $invitation->token_hash);
+        $this->invite('boss@example.com', 'viewer', $owner)->assertStatus(202);
+    }
+
+    public function test_an_invitation_dies_with_its_inviters_right_to_grant_it(): void
+    {
+        $owner = User::factory()->memberOf($this->workspace, WorkspaceRole::Owner)->create();
+        $other = User::factory()->memberOf($this->workspace, WorkspaceRole::Owner)->create();
+        $this->invite('cy@example.com')->assertStatus(202);
+        $this->invite('boss@example.com', 'owner', $other)->assertStatus(202);
+        $cyToken = $this->mailedToken('cy@example.com');
+        $bossToken = $this->mailedToken('boss@example.com');
+
+        // The admin who invited cy is removed; the owner who invited boss becomes an admin.
+        $this->actingAs($owner, 'sanctum')->deleteJson($this->url("/members/{$this->admin->id}"))->assertNoContent();
+        $this->actingAs($owner, 'sanctum')->patchJson($this->url("/members/{$other->id}"), ['role' => 'admin'])->assertOk();
+
+        $cy = User::factory()->create(['email' => 'cy@example.com']);
+        $boss = User::factory()->create(['email' => 'boss@example.com']);
+        $this->accept($cyToken, $cy)->assertUnprocessable()->assertJsonPath('errors.token.0', 'The invitation is invalid or has expired.');
+        $this->accept($bossToken, $boss)->assertUnprocessable()->assertJsonPath('errors.token.0', 'The invitation is invalid or has expired.');
+        $this->assertNull($cy->roleIn($this->workspace));
+        $this->assertNull($boss->roleIn($this->workspace));
+    }
+
+    public function test_prune_deletes_invitations_a_month_past_their_expiry(): void
+    {
+        $this->invite('old@example.com')->assertStatus(202);
+        $this->invite('recent@example.com')->assertStatus(202);
+        $this->invite('fresh@example.com')->assertStatus(202);
+        WorkspaceInvitation::where('email', 'old@example.com')->update(['expires_at' => now()->subDays(31)]);
+        WorkspaceInvitation::where('email', 'recent@example.com')->update(['expires_at' => now()->subDays(29)]);
+
+        $this->assertSame(0, Artisan::call('intrawatch:prune'));
+        $this->assertStringContainsString('workspace_invitations: 1 deleted', Artisan::output());
+
+        $this->assertEqualsCanonicalizing(['recent@example.com', 'fresh@example.com'], WorkspaceInvitation::pluck('email')->all());
     }
 
     public function test_sending_is_throttled_per_workspace(): void

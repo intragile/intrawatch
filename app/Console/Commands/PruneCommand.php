@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Import\ImportPruner;
+use App\Models\WorkspaceInvitation;
 use App\Monitoring\Engine\RetentionPruner;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Attributes\Description;
@@ -10,7 +11,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('intrawatch:prune')]
-#[Description('Delete check results, rollups, events and domain lookups past their retention, and stale import files')]
+#[Description('Delete check results, rollups, events and domain lookups past their retention, and stale import files and invitations')]
 class PruneCommand extends Command
 {
     public function handle(RetentionPruner $pruner, ImportPruner $imports): int
@@ -23,6 +24,10 @@ class PruneCommand extends Command
         $result = $imports->run($now);
         $this->line(sprintf('import_files: %d deleted', $result['import_files']));
         $this->line(sprintf('interrupted_imports: %d marked failed', $result['interrupted_imports']));
+
+        // Expired invitations stay listed (flagged) for a month so managers can see what lapsed.
+        $invitations = WorkspaceInvitation::query()->where('expires_at', '<', $now->subDays(30))->toBase()->delete();
+        $this->line(sprintf('workspace_invitations: %d deleted', $invitations));
 
         return self::SUCCESS;
     }

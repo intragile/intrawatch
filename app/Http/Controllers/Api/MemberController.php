@@ -67,6 +67,13 @@ class MemberController extends Controller
             ]);
         }
 
+        // Re-inviting replaces the pending invitation, so replacing an owner's invitation needs the owner role too.
+        $this->authorizeGrant(
+            $workspace->invitations()->pending()->where('email', $email)->value('role') === WorkspaceRole::Owner
+                ? WorkspaceRole::Owner
+                : $role,
+        );
+
         /** @var User $inviter */
         $inviter = $request->user();
         $invitation = WorkspaceInvitation::issue($workspace, $email, $role, $inviter);
