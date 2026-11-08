@@ -174,6 +174,7 @@ final class ImportStatusTest extends TestCase
 
     public function test_actor_without_domain_permission_gets_a_note_instead_of_the_domain(): void
     {
+        config(['status.custom_domains.allowed' => ['status.example.com']]);
         $ws = $this->workspace();
         $editor = User::factory()->memberOf($ws, WorkspaceRole::Editor)->create();
 
@@ -186,6 +187,7 @@ final class ImportStatusTest extends TestCase
 
     public function test_admin_actor_may_set_the_domain(): void
     {
+        config(['status.custom_domains.allowed' => ['status.example.com']]);
         $ws = $this->workspace();
         $admin = User::factory()->memberOf($ws, WorkspaceRole::Admin)->create();
 
@@ -193,6 +195,43 @@ final class ImportStatusTest extends TestCase
 
         $this->assertSame('status.example.com', StatusPage::query()->forWorkspace($ws)->sole()->custom_domain);
         $this->assertSame($admin->id, AuditEvent::where('action', 'status_page.created')->sole()->actor_user_id);
+    }
+
+    public function test_admin_actor_cannot_import_a_domain_outside_the_allowlist(): void
+    {
+        $ws = $this->workspace();
+        $admin = User::factory()->memberOf($ws, WorkspaceRole::Admin)->create();
+
+        foreach ([[], ['*.other.test'], ['example.com']] as $allowed) {
+            config(['status.custom_domains.allowed' => $allowed]);
+            StatusPage::query()->delete();
+            ImportMapping::query()->delete();
+
+            $report = $this->import(ImporterTest::fixture('kuma2.db'), $ws, actor: $admin);
+
+            $page = StatusPage::query()->forWorkspace($ws)->sole();
+            $this->assertNull($page->custom_domain);
+            $codes = self::codes($this->entries($report, 'status_page')[1]);
+            $this->assertContains('custom_domain_not_allowed', $codes);
+            $this->assertNotContains('custom_domain_not_permitted', $codes);
+        }
+
+        config(['status.custom_domains.allowed' => ['*.example.com']]);
+        StatusPage::query()->delete();
+        ImportMapping::query()->delete();
+        $this->import(ImporterTest::fixture('kuma2.db'), $ws, actor: $admin);
+        $this->assertSame('status.example.com', StatusPage::query()->forWorkspace($ws)->sole()->custom_domain);
+    }
+
+    public function test_command_line_import_keeps_the_domain_with_an_empty_allowlist(): void
+    {
+        config(['status.custom_domains.allowed' => []]);
+        $ws = $this->workspace();
+
+        $report = $this->import(ImporterTest::fixture('kuma2.db'), $ws);
+
+        $this->assertSame('status.example.com', StatusPage::query()->forWorkspace($ws)->sole()->custom_domain);
+        $this->assertNotContains('custom_domain_not_allowed', self::codes($this->entries($report, 'status_page')[1]));
     }
 
     public function test_rejected_domain_is_noted_and_the_page_is_still_imported(): void

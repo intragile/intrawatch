@@ -6,10 +6,13 @@ use App\Enums\WorkspaceRole;
 use App\Models\AuditEvent;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Models\WorkspaceInvitation;
 use App\Support\Audit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use LogicException;
 use Tests\TestCase;
@@ -96,19 +99,32 @@ class AuditLogTest extends TestCase
         $owner = $this->member(WorkspaceRole::Owner);
         $other = User::factory()->create();
 
+        Mail::fake();
+        // Adding a member is an invitation (202) that the invitee accepts; each step is audited.
         $this->actingAs($owner, 'sanctum')
-            ->postJson($this->url('/members'), ['email' => $other->email, 'role' => 'viewer'])->assertCreated();
+            ->postJson($this->url('/members'), ['email' => $other->email, 'role' => 'viewer'])->assertStatus(202);
+        $invited = AuditEvent::where('action', 'member.invited')->sole();
+        $this->assertSame($owner->id, $invited->actor_user_id);
+        $this->assertSame(['email' => [null, $other->email], 'role' => [null, 'viewer']], $invited->changes);
+
+        $token = Str::random(64);
+        WorkspaceInvitation::query()->sole()->update(['token_hash' => WorkspaceInvitation::hashToken($token)]);
+        $this->actingAs($other, 'sanctum')
+            ->postJson('/api/v1/invitations/accept', ['token' => $token])->assertOk();
         $this->actingAs($owner, 'sanctum')
             ->deleteJson($this->url("/members/{$other->id}"))->assertNoContent();
 
         $added = AuditEvent::where('action', 'member.added')->sole();
         $this->assertSame(['role' => [null, 'viewer']], $added->changes);
+        $this->assertSame($other->id, $added->actor_user_id);
+        $this->assertSame($this->workspace->id, $added->workspace_id);
         $removed = AuditEvent::where('action', 'member.removed')->sole();
         $this->assertSame(['role' => ['viewer', null]], $removed->changes);
     }
 
     public function test_workspace_lifecycle_is_audited(): void
     {
+        config(['intrawatch.workspaces.creators' => 'anyone']);
         $user = User::factory()->create();
 
         $slug = $this->actingAs($user, 'sanctum')

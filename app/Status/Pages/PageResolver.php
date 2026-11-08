@@ -13,7 +13,7 @@ use PDOException;
  * Finds the published page behind a slug or a custom domain, from the file cache first.
  *
  * A found slug is re-checked against the database every 300 s, a missing one every 30 s. Custom domains come
- * from one cached map of every published page's domain, refreshed every 60 s, so an unknown host costs one
+ * from one cached map of every page's domain (published or not, see `hostState`), refreshed every 60 s, so an unknown host costs one
  * file read and never a query or a cache entry of its own. Page writes drop both through `PageStamps`.
  *
  * Known entries and the domain map are kept for the last-good period: while the database is down they still
@@ -92,6 +92,20 @@ final class PageResolver
      */
     public function byDomain(string $host): ?array
     {
+        $state = $this->hostState($host);
+
+        return $state === null || ! $state['published'] ? null : ['id' => $state['id'], 'workspace_id' => $state['workspace_id']];
+    }
+
+    /**
+     * The page that claims the host as its custom domain, published or not.
+     *
+     * @return array{id: int, workspace_id: int, published: bool}|null
+     *
+     * @throws QueryException|PDOException when the database fails and no domain map is known
+     */
+    public function hostState(string $host): ?array
+    {
         $host = self::normalizeHost($host);
         if ($host === '' || strlen($host) > 253) {
             return null;
@@ -99,7 +113,55 @@ final class PageResolver
 
         $page = $this->domains()[$host] ?? null;
 
-        return $page === null ? null : ['id' => $page[0], 'workspace_id' => $page[1]];
+        return $page === null ? null : ['id' => $page[0], 'workspace_id' => $page[1], 'published' => $page[2]];
+    }
+
+    /**
+     * Whether the installation allows custom domains at all (`status.custom_domains.allowed` is not empty).
+     */
+    public static function customDomainsEnabled(): bool
+    {
+        return self::customDomainPatterns() !== [];
+    }
+
+    /**
+     * Whether the installation's allowlist covers the host. An entry is an exact host or `*.example.com`,
+     * which matches any host below example.com but not example.com itself. The system (command line) is not
+     * bound by the list; callers decide when it applies.
+     */
+    public static function allowsCustomDomain(string $host): bool
+    {
+        $host = self::normalizeHost($host);
+        if ($host === '') {
+            return false;
+        }
+        foreach (self::customDomainPatterns() as $pattern) {
+            if (str_starts_with($pattern, '*.')) {
+                $suffix = substr($pattern, 1);
+                if (strlen($host) > strlen($suffix) && str_ends_with($host, $suffix)) {
+                    return true;
+                }
+            } elseif ($pattern === $host) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function customDomainPatterns(): array
+    {
+        $patterns = [];
+        foreach ((array) config('status.custom_domains.allowed', []) as $pattern) {
+            if (is_string($pattern) && ($pattern = rtrim(strtolower(trim($pattern)), '.')) !== '') {
+                $patterns[] = $pattern;
+            }
+        }
+
+        return $patterns;
     }
 
     /**
@@ -123,14 +185,15 @@ final class PageResolver
     }
 
     /**
-     * Published pages by custom domain.
+     * Pages by custom domain, published or not.
      *
-     * @return array<string, array{int, int}>
+     * @return array<string, array{int, int, bool}>
      */
     private function domains(): array
     {
         $now = self::now();
-        $known = self::map($this->store()->get(PageStamps::domainsKey()));
+        $store = $this->store();
+        $known = self::map($store->get(PageStamps::domainsKey()));
         if ($known !== null && $now < $known['fresh_until']) {
             return $known['domains'];
         }
@@ -139,10 +202,11 @@ final class PageResolver
             $this->outage->guard();
             $rows = DB::table('status_pages')
                 ->whereNotNull('custom_domain')
-                ->where('published', true)
-                ->get(['id', 'workspace_id', 'custom_domain']);
+                ->get(['id', 'workspace_id', 'custom_domain', 'published']);
         } catch (QueryException|PDOException $e) {
             $this->failed($e);
+            // A page write drops the fresh map; the last good one still knows the hosts.
+            $known ??= self::map($store->get(PageStamps::domainsLastGoodKey()));
             if ($known === null) {
                 throw $e;
             }
@@ -154,10 +218,11 @@ final class PageResolver
         $domains = [];
         foreach ($rows as $row) {
             if (is_string($row->custom_domain) && $row->custom_domain !== '') {
-                $domains[strtolower($row->custom_domain)] = [self::int($row->id), self::int($row->workspace_id)];
+                $domains[strtolower($row->custom_domain)] = [self::int($row->id), self::int($row->workspace_id), (bool) $row->published];
             }
         }
         $this->putMap($domains, $now + self::DOMAINS_SECONDS);
+        $store->put(PageStamps::domainsLastGoodKey(), ['domains' => $domains, 'fresh_until' => $now], $this->keepSeconds());
 
         return $domains;
     }
@@ -174,7 +239,7 @@ final class PageResolver
     }
 
     /**
-     * @param  array<string, array{int, int}>  $domains
+     * @param  array<string, array{int, int, bool}>  $domains
      */
     private function putMap(array $domains, int $freshUntil): void
     {
@@ -200,7 +265,9 @@ final class PageResolver
     }
 
     /**
-     * @return array{domains: array<string, array{int, int}>, fresh_until: int}|null
+     * A map written before unpublished pages were included has two-element entries; they are published.
+     *
+     * @return array{domains: array<string, array{int, int, bool}>, fresh_until: int}|null
      */
     private static function map(mixed $cached): ?array
     {
@@ -210,7 +277,7 @@ final class PageResolver
         $domains = [];
         foreach ($cached['domains'] as $host => $page) {
             if (is_string($host) && is_array($page) && is_int($page[0] ?? null) && is_int($page[1] ?? null)) {
-                $domains[$host] = [$page[0], $page[1]];
+                $domains[$host] = [$page[0], $page[1], is_bool($page[2] ?? null) ? $page[2] : true];
             }
         }
 

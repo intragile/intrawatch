@@ -488,6 +488,180 @@
                 }
             }
         },
+        "/invitations/accept": {
+            "post": {
+                "operationId": "invitation.accept",
+                "summary": "Accepts an invitation addressed to the signed-in user's e-mail. Unknown, expired, revoked, already\naccepted and foreign invitations all fail with the same 422",
+                "tags": [
+                    "Invitation"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "token": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "token"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "slug": {
+                                                    "type": "string"
+                                                },
+                                                "timezone": {
+                                                    "type": "string"
+                                                },
+                                                "role": {
+                                                    "$ref": "#/components/schemas/WorkspaceRole"
+                                                },
+                                                "channel": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "can": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "view": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "update": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "delete": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewMembers": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageMembers": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewAudit": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewMonitors": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageMonitors": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewNotifications": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageNotifications": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewIncidents": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageIncidents": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "viewStatusPages": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageStatusPages": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "manageCustomDomains": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "view",
+                                                        "update",
+                                                        "delete",
+                                                        "viewMembers",
+                                                        "manageMembers",
+                                                        "viewAudit",
+                                                        "viewMonitors",
+                                                        "manageMonitors",
+                                                        "viewNotifications",
+                                                        "manageNotifications",
+                                                        "viewIncidents",
+                                                        "manageIncidents",
+                                                        "viewStatusPages",
+                                                        "manageStatusPages",
+                                                        "manageCustomDomains"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "slug",
+                                                "timezone",
+                                                "role",
+                                                "channel",
+                                                "can"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "An error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "examples": [
+                                                "API tokens cannot accept invitations."
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/me": {
             "get": {
                 "operationId": "me",
@@ -517,6 +691,9 @@
                                                             "type": "string"
                                                         },
                                                         "two_factor_enabled": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "can_create_workspace": {
                                                             "type": "boolean"
                                                         },
                                                         "workspaces": {
@@ -630,6 +807,7 @@
                                                         "name",
                                                         "email",
                                                         "two_factor_enabled",
+                                                        "can_create_workspace",
                                                         "workspaces"
                                                     ]
                                                 },
@@ -1238,6 +1416,10 @@
                                                 "two_factor_enabled": {
                                                     "type": "boolean"
                                                 },
+                                                "can_create_workspace": {
+                                                    "type": "boolean",
+                                                    "description": "Whether the API lets this user create a workspace (see `WorkspacePolicy::create`)."
+                                                },
                                                 "workspaces": {
                                                     "type": "array",
                                                     "items": {}
@@ -1248,6 +1430,7 @@
                                                 "name",
                                                 "email",
                                                 "two_factor_enabled",
+                                                "can_create_workspace",
                                                 "workspaces"
                                             ]
                                         }
@@ -1585,26 +1768,7 @@
                         }
                     },
                     "403": {
-                        "description": "An error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "message": {
-                                            "type": "string",
-                                            "description": "Error overview.",
-                                            "examples": [
-                                                "API tokens cannot create workspaces."
-                                            ]
-                                        }
-                                    },
-                                    "required": [
-                                        "message"
-                                    ]
-                                }
-                            }
-                        }
+                        "$ref": "#/components/responses/AuthorizationException"
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
@@ -4766,6 +4930,189 @@
                 }
             }
         },
+        "/workspaces/{workspace}/invitations": {
+            "get": {
+                "operationId": "invitation.index",
+                "summary": "Invitations not accepted yet, expired ones included (flagged), newest first",
+                "tags": [
+                    "Invitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "email": {
+                                                        "type": "string"
+                                                    },
+                                                    "role": {
+                                                        "$ref": "#/components/schemas/WorkspaceRole"
+                                                    },
+                                                    "invited_by": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name"
+                                                        ]
+                                                    },
+                                                    "expires_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "expired": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "email",
+                                                    "role",
+                                                    "invited_by",
+                                                    "expires_at",
+                                                    "expired",
+                                                    "created_at"
+                                                ]
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "next_cursor",
+                                                "limit"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/invitations/{invitation}": {
+            "delete": {
+                "operationId": "invitation.destroy",
+                "summary": "Revokes an invitation; its link stops working at once. Only an owner revokes an owner invitation",
+                "tags": [
+                    "Invitation"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "invitation",
+                        "in": "path",
+                        "required": true,
+                        "description": "The invitation ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/maintenances": {
             "get": {
                 "operationId": "maintenance.index",
@@ -6128,6 +6475,7 @@
             },
             "post": {
                 "operationId": "member.store",
+                "summary": "Invites an address into the workspace. Every address gets the same answer and the same e-mail, whether\nor not an account exists for it; only an address that is already a member is refused. Inviting the\nsame address again replaces the pending invitation and its link",
                 "tags": [
                     "Member"
                 ],
@@ -6151,7 +6499,8 @@
                                 "properties": {
                                     "email": {
                                         "type": "string",
-                                        "format": "email"
+                                        "format": "email",
+                                        "maxLength": 255
                                     },
                                     "role": {
                                         "$ref": "#/components/schemas/WorkspaceRole"
@@ -6166,7 +6515,7 @@
                     }
                 },
                 "responses": {
-                    "201": {
+                    "202": {
                         "description": "",
                         "content": {
                             "application/json": {
@@ -6176,12 +6525,6 @@
                                         "data": {
                                             "type": "object",
                                             "properties": {
-                                                "id": {
-                                                    "type": "integer"
-                                                },
-                                                "name": {
-                                                    "type": "string"
-                                                },
                                                 "email": {
                                                     "type": "string"
                                                 },
@@ -6193,13 +6536,15 @@
                                                         "editor",
                                                         "viewer"
                                                     ]
+                                                },
+                                                "expires_at": {
+                                                    "type": "string"
                                                 }
                                             },
                                             "required": [
-                                                "id",
-                                                "name",
                                                 "email",
-                                                "role"
+                                                "role",
+                                                "expires_at"
                                             ]
                                         }
                                     },
@@ -12446,7 +12791,7 @@
             },
             "NotificationChannelRequest": {
                 "type": "object",
-                "description": "Validation of notification channel writes (create, update and the unsaved test send). The channel type\nsupplies the rules for `config` and `secrets`; this layer completes the input first (defaults, stored\nvalues) so the definitions can stay pure.\n\nOn update, `config` is merged over the stored config and a secret is replaced only when sent; sending\nnull removes it. The merged secrets are validated, so an update that leaves a required secret alone\npasses, while removing one is refused.",
+                "description": "Validation of notification channel writes (create, update and the unsaved test send). The channel type\nsupplies the rules for `config` and `secrets`; this layer completes the input first (defaults, stored\nvalues) so the definitions can stay pure.\n\nOn update, `config` is merged over the stored config and a secret is replaced only when sent; sending\nnull removes it. The merged secrets are validated, so an update that leaves a required secret alone\npasses, while removing one is refused. An update that changes a destination key of the type (where the\nsecrets are sent) must send every stored secret again or remove it with null, so a stored secret never\nfollows a destination its author did not confirm.\n\nAn email channel on the instance mailer (`smtp` null or without a host of its own) sends with the organisation's sender, so only\nworkspace owners and admins may create one, test one unsaved, or change its recipients or templates.",
                 "properties": {
                     "type": {
                         "$ref": "#/components/schemas/ChannelType"
@@ -12600,7 +12945,7 @@
             },
             "StatusPageRequest": {
                 "type": "object",
-                "description": "Validation of status page writes. Creating needs the slug and title; updating accepts any subset. The\ncustom domain is normalised (lower-case, no trailing dot) before it is validated and stored, and only a\nworkspace admin may set or change it: a custom domain takes over that host for every workspace.",
+                "description": "Validation of status page writes. Creating needs the slug and title; updating accepts any subset. The\ncustom domain is normalised (lower-case, no trailing dot) before it is validated and stored, and only a\nworkspace admin may set or change it: a custom domain takes over that host for every workspace. A new\ndomain must also be on the installation's allowlist (`PageResolver::allowsCustomDomain`), unless the system sets it.",
                 "properties": {
                     "slug": {
                         "type": "string",
@@ -12706,7 +13051,7 @@
             },
             "StoreImportRequest": {
                 "type": "object",
-                "description": "An import upload: the source file plus the run options. Booleans arrive as multipart fields, so `1`/`0`\n(or `true`/`false` in JSON) are accepted.",
+                "description": "An import upload: the source file plus the run options. Booleans arrive as multipart fields, so `1`/`0`\n(or `true`/`false` in JSON) are accepted.\n\nThe upload limit is IMPORT_MAX_UPLOAD_MB, clamped to PHP's upload_max_filesize and post_max_size: PHP drops\na larger file before the application sees it, so the messages name the smaller of the two.",
                 "properties": {
                     "file": {
                         "type": "string",

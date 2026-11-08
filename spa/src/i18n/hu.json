@@ -155,7 +155,8 @@
       "title": "Még nincs munkaterület",
       "text": "Egyetlen munkaterületnek sem tagja. Hozzon létre egyet, vagy kérje meg egy tulajdonost, hogy hívja meg."
     },
-    "create": "Munkaterület létrehozása"
+    "create": "Munkaterület létrehozása",
+    "askForInvite": "Még egyetlen munkaterületnek sem tagja: kérje meg egy munkaterület tulajdonosát vagy adminisztrátorát, hogy hívja meg."
   },
   "live": {
     "live": "Élő",
@@ -195,12 +196,22 @@
   },
   "members": {
     "title": "Tagok",
-    "add": {
-      "title": "Tag hozzáadása",
-      "hint": "A személynek már rendelkeznie kell fiókkal ezen a példányon.",
+    "invite": {
+      "title": "Tag meghívása",
+      "hint": "A címre meghívó linket küldünk, amely 7 napig érvényes. A személy úgy csatlakozik, hogy ezzel a címmel bejelentkezik és elfogadja; ha még nincs fiókja, kérje meg az adminisztrátort, hogy hozzon létre egyet.",
       "email": "E-mail-cím",
       "role": "Szerepkör",
-      "submit": "Tag hozzáadása"
+      "submit": "Meghívó küldése",
+      "sent": "Meghívó elküldve: {email}."
+    },
+    "invitations": {
+      "title": "Függő meghívók",
+      "empty": "Nincs függő meghívó.",
+      "expires": "Lejárat",
+      "expired": "Lejárt",
+      "revoke": "Meghívó visszavonása",
+      "revokeConfirm": "A(z) {email} címre küldött meghívó link érvénytelenné válik.",
+      "revoked": "A(z) {email} meghívója visszavonva."
     },
     "name": "Név",
     "email": "E-mail-cím",
@@ -208,7 +219,6 @@
     "actions": "Műveletek",
     "roleOf": "{name} szerepköre",
     "you": "Ön",
-    "added": "{name} hozzáadva.",
     "roleChanged": "{name} új szerepköre: {role}.",
     "removed": "{name} eltávolítva.",
     "remove": "Tag eltávolítása",
@@ -1266,5 +1276,13 @@
       "deleteConfirm": "A(z) {name} importja és jelentése törlődik. A már létrehozott elemek megmaradnak.",
       "deleted": "Az import törölve."
     }
+  },
+  "invitation": {
+    "title": "Meghívó munkaterületre",
+    "intro": "Fogadja el a meghívót, hogy {email} címmel csatlakozzon a munkaterülethez. A meghívónak erre a címre kellett érkeznie.",
+    "accept": "Meghívó elfogadása",
+    "accepted": "Csatlakozott: {name}.",
+    "invalid": "Ez a meghívó érvénytelen, lejárt, vagy másik e-mail-címre szól.",
+    "home": "Ugrás a kezdőlapra"
   }
 }

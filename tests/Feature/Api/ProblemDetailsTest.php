@@ -40,6 +40,7 @@ class ProblemDetailsTest extends TestCase
 
     public function test_validation_error_is_problem_json(): void
     {
+        config(['intrawatch.workspaces.creators' => 'anyone']);
         $owner = User::factory()->create();
 
         $this->actingAs($owner)->postJson('/api/v1/workspaces', [])

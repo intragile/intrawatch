@@ -200,7 +200,7 @@ watch(() => session.me, (current) => {
       @update:model-value="switchWorkspace"
     />
     <v-btn
-      v-if="session.workspaces.length > 0"
+      v-if="session.workspaces.length > 0 && session.canCreateWorkspace"
       data-test="create-workspace"
       icon
       size="small"

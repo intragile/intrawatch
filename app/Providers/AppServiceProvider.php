@@ -9,6 +9,7 @@ use App\Enums\MonitorType;
 use App\Events\MonitorStatusChanged;
 use App\Http\Middleware\ThrottleStatusRequests;
 use App\Listeners\StampStatusPages;
+use App\Models\User;
 use App\Models\Workspace;
 use App\Monitoring\Checks\CheckerRegistry;
 use App\Monitoring\Checks\DnsChecker;
@@ -152,9 +153,31 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Public status pages, per client address; counted in the status page file cache.
-        RateLimiter::for(ThrottleStatusRequests::LIMITER, fn (Request $request): Limit => Limit::perMinute(300)->by('status:'.$request->ip()));
+        RateLimiter::for(ThrottleStatusRequests::LIMITER, fn (Request $request): Limit => Limit::perMinute(max(1, config()->integer('status.rate_limit.per_minute', 300)))->by('status:'.$request->ip()));
 
         RateLimiter::for('import-upload', fn (Request $request): Limit => Limit::perMinute(10)->by('user:'.($request->user()->id ?? $request->ip())));
+
+        // Invitations send e-mail to any address: a budget per workspace (resends included) and per user.
+        // Callers who may not invite are refused by the controller without spending the workspace's budget.
+        RateLimiter::for('member-invites', function (Request $request): Limit|array {
+            // Throttling runs before route model binding, so the parameter may still be the slug.
+            $workspace = $request->route('workspace');
+            if (is_string($workspace)) {
+                $workspace = Workspace::query()->where('slug', $workspace)->first();
+            }
+            $user = $request->user();
+            if (! $workspace instanceof Workspace || ! $user instanceof User || Gate::forUser($user)->denies('manageMembers', $workspace)) {
+                return Limit::none();
+            }
+            $key = (string) $workspace->id;
+
+            return [
+                Limit::perHour(max(1, config()->integer('intrawatch.workspaces.invitations.per_hour', 30)))->by('invites:ws:'.$key),
+                Limit::perMinute(10)->by('invites:user:'.$user->id),
+            ];
+        });
+
+        RateLimiter::for('invitation-accept', fn (Request $request): Limit => Limit::perMinute(10)->by('accept:user:'.($request->user()->id ?? $request->ip())));
 
         RateLimiter::for('notification-test', fn (Request $request): Limit => Limit::perMinute(10)->by('user:'.($request->user()->id ?? $request->ip())));
 

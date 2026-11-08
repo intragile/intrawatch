@@ -202,13 +202,69 @@ class PublicStatusPageTest extends TestCase
         $this->get('http://192.168.1.10/status/acme')->assertOk();
     }
 
-    public function test_unpublished_custom_domain_is_a_normal_host(): void
+    public function test_unpublished_custom_domain_is_reserved(): void
     {
         $this->page->update(['custom_domain' => 'status.example.test', 'published' => false]);
         app(PageStamps::class)->forgetPage($this->page);
 
-        $this->get('http://status.example.test/')->assertRedirect('/admin/');
-        $this->getJson('http://status.example.test/api/v1/setup')->assertOk();
+        // The host belongs to the page even while it is unpublished: neither the admin, the API nor the
+        // session endpoints are reachable through it, and the page itself is not served.
+        $this->get('http://status.example.test/admin/')->assertNotFound();
+        $this->getJson('http://status.example.test/api/v1/ping')->assertNotFound();
+        $this->getJson('http://status.example.test/api/v1/setup')->assertNotFound();
+        $this->get('http://status.example.test/sanctum/csrf-cookie')->assertNotFound();
+        $this->postJson('http://status.example.test/broadcasting/auth')->assertNotFound();
+        $this->get('http://status.example.test/')->assertNotFound();
+        $this->get('http://status.example.test/up')->assertOk();
+
+        // Any other host is unaffected.
+        $this->getJson('http://other.test/api/v1/ping')->assertOk();
+    }
+
+    public function test_api_and_admin_are_closed_on_foreign_hosts_while_nothing_is_known_and_the_database_is_down(): void
+    {
+        $this->withDeadDatabase(function (): void {
+            $this->getJson('http://maybe.example.org/api/v1/ping')->assertNotFound();
+            $this->get('http://maybe.example.org/admin/')->assertNotFound();
+            $this->get('http://maybe.example.org/sanctum/csrf-cookie')->assertNotFound();
+            $this->postJson('http://maybe.example.org/broadcasting/auth')->assertNotFound();
+            $this->get('http://maybe.example.org/up')->assertOk();
+            // The installation's own host and IP addresses never depend on the domain map.
+            $this->getJson('https://watch.example.com/api/v1/ping')->assertOk();
+            $this->getJson('http://192.168.1.10/api/v1/ping')->assertOk();
+        });
+    }
+
+    public function test_domain_map_falls_back_to_the_last_good_copy_during_an_outage(): void
+    {
+        $unpublished = StatusPage::factory()->create([
+            'workspace_id' => $this->workspace->id,
+            'slug' => 'hidden',
+            'custom_domain' => 'hidden.example.test',
+            'published' => false,
+        ]);
+        $this->page->update(['custom_domain' => 'status.example.test']);
+        app(PageStamps::class)->forgetPage($this->page);
+        $this->get('http://status.example.test/')->assertOk();
+
+        // A page write drops the fresh map right before the database goes away.
+        app(PageStamps::class)->forgetPage($unpublished);
+
+        $this->withDeadDatabase(function (): void {
+            $this->getJson('http://hidden.example.test/api/v1/ping')->assertNotFound();
+            $this->get('http://hidden.example.test/admin/')->assertNotFound();
+            $this->getJson('http://status.example.test/api/v1/ping')->assertNotFound();
+            $this->get('http://status.example.test/')->assertOk()->assertSee('Acme status');
+        });
+    }
+
+    public function test_status_rate_limit_comes_from_configuration(): void
+    {
+        config(['status.rate_limit.per_minute' => 2]);
+
+        $this->get('/status/acme')->assertOk()->assertHeader('X-RateLimit-Limit', '2');
+        $this->get('/status/acme')->assertOk();
+        $this->get('/status/acme')->assertStatus(429);
     }
 
     public function test_public_url_comes_from_configuration(): void

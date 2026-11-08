@@ -52,6 +52,7 @@ export function me(overrides: Partial<SessionUser> = {}): SessionUser {
     name: 'Ada Lovelace',
     email: 'ada@example.com',
     two_factor_enabled: false,
+    can_create_workspace: true,
     workspaces: [
       workspace(),
     ],

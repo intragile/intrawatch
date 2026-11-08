@@ -8,13 +8,13 @@ use App\Http\Pagination\CursorPage;
 use App\Models\Membership;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Models\WorkspaceInvitation;
 use App\Support\Audit;
 use App\Support\CurrentWorkspace;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -36,6 +36,13 @@ class MemberController extends Controller
         });
     }
 
+    /**
+     * Invites an address into the workspace. Every address gets the same answer and the same e-mail, whether
+     * or not an account exists for it; only an address that is already a member is refused. Inviting the
+     * same address again replaces the pending invitation and its link.
+     *
+     * @status 202
+     */
     public function store(Request $request, Workspace $workspace): JsonResponse
     {
         Gate::authorize('manageMembers', $workspace);
@@ -46,28 +53,29 @@ class MemberController extends Controller
         }
 
         $request->validate([
-            'email' => ['required', 'email', 'exists:users,email'],
+            'email' => ['required', 'string', 'email', 'max:255'],
             'role' => ['required', Rule::enum(WorkspaceRole::class)],
         ]);
         $role = $request->enum('role', WorkspaceRole::class) ?? throw new LogicException('Validated role is missing.');
         $this->authorizeGrant($role);
+        $email = $request->string('email')->toString();
 
-        $user = User::where('email', $request->string('email')->toString())->firstOrFail();
-
-        if ($user->roleIn($workspace) !== null) {
+        // One query of the same shape for every address: it never tells an unknown address from a known one.
+        if ($workspace->members()->where('users.email', $email)->exists()) {
             throw ValidationException::withMessages([
                 'email' => ['The user is already a member of this workspace.'],
             ]);
         }
 
-        $membership = DB::transaction(function () use ($workspace, $user, $role): Membership {
-            $membership = $workspace->memberships()->create(['user_id' => $user->id, 'role' => $role]);
-            Audit::record('member.added', $user, ['role' => [null, $role->value]]);
+        /** @var User $inviter */
+        $inviter = $request->user();
+        $invitation = WorkspaceInvitation::issue($workspace, $email, $role, $inviter);
 
-            return $membership;
-        });
-
-        return response()->json(['data' => $this->payload($membership->setRelation('user', $user))], 201);
+        return response()->json(['data' => [
+            'email' => $invitation->email,
+            'role' => $invitation->role->value,
+            'expires_at' => $invitation->expires_at->toIso8601String(),
+        ]], 202);
     }
 
     public function update(Request $request, Workspace $workspace, User $user): JsonResponse
@@ -115,7 +123,7 @@ class MemberController extends Controller
     }
 
     /**
-     * Only an owner may hand out the owner role.
+     * Only an owner may hand out the owner role, by a role change or an invitation.
      */
     private function authorizeGrant(WorkspaceRole $role): void
     {

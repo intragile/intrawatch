@@ -43,6 +43,8 @@ final class CreateStatusPageParityTest extends TestCase
     #[DataProvider('invalidPayloads')]
     public function test_create_action_matches_api_validation(array $payload): void
     {
+        // Custom domains on, so the domain is validated rather than refused by the policy.
+        config(['status.custom_domains.allowed' => ['*.example.com']]);
         $ws = Workspace::factory()->create();
         $this->actingAs(User::factory()->memberOf($ws, WorkspaceRole::Admin)->create());
 
@@ -98,6 +100,7 @@ final class CreateStatusPageParityTest extends TestCase
 
     public function test_custom_domain_needs_the_permission_for_a_user_actor_but_not_the_system(): void
     {
+        config(['status.custom_domains.allowed' => ['*.example.com']]);
         $ws = Workspace::factory()->create();
         $editor = User::factory()->memberOf($ws, WorkspaceRole::Editor)->create();
         $admin = User::factory()->memberOf($ws, WorkspaceRole::Admin)->create();

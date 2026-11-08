@@ -38,6 +38,15 @@ final class PageStamps
         return 'status:domains';
     }
 
+    /**
+     * The last domain map read from the database. Page writes leave it in place, so a database outage right
+     * after a write still knows which hosts belong to status pages.
+     */
+    public static function domainsLastGoodKey(): string
+    {
+        return 'status:domains:last';
+    }
+
     public static function htmlKey(int $pageId): string
     {
         return 'status:html:'.$pageId;

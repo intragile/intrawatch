@@ -13,8 +13,9 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Serves a published page's custom domain. A request whose host is the custom domain of a published page is
  * tagged with that page and may only reach the public status paths; anything else on that host is a plain
- * 404, so the admin, the API and session endpoints are never reachable through a status domain. Every other
- * host passes through untouched.
+ * 404, so the admin, the API and session endpoints are never reachable through a status domain. The custom
+ * domain of an unpublished page answers only `/up`. While the database is down and no domain map is known,
+ * the admin, API and session paths are closed on every candidate host. Every other host passes through.
  */
 final class ResolveStatusHost
 {
@@ -26,7 +27,18 @@ final class ResolveStatusHost
 
     private const BADGE_PATH = '#^/badge/[0-9]+/(status|uptime|latency)\.svg$#';
 
+    private const APPLICATION_PATHS = '#^/(admin|api|sanctum|broadcasting)(/|$)#';
+
     public function __construct(private readonly PageResolver $resolver) {}
+
+    private static function notFound(): Response
+    {
+        return new Response('Not Found', Response::HTTP_NOT_FOUND, [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'no-store',
+        ]);
+    }
 
     /**
      * @param  Closure(Request): Response  $next
@@ -39,22 +51,27 @@ final class ResolveStatusHost
         }
 
         try {
-            $page = $this->resolver->byDomain($host);
+            $page = $this->resolver->hostState($host);
         } catch (QueryException|PDOException) {
-            // Nothing is known about the host and the database is down: treat it as an ordinary host.
-            $page = null;
+            // Nothing is known about the host and the database is down: it may be a status domain, so the
+            // admin, the API and the session endpoints stay closed on it; the rest is an ordinary host.
+            if (preg_match(self::APPLICATION_PATHS, $request->getPathInfo()) === 1) {
+                return self::notFound();
+            }
+
+            return $next($request);
         }
         if ($page === null) {
             return $next($request);
         }
 
         $path = $request->getPathInfo();
+        if (! $page['published']) {
+            // An unpublished page keeps its host: nothing but the health check answers there.
+            return $path === '/up' ? $next($request) : self::notFound();
+        }
         if (! in_array($path, self::PATHS, true) && preg_match(self::BADGE_PATH, $path) !== 1) {
-            return new Response('Not Found', Response::HTTP_NOT_FOUND, [
-                'Content-Type' => 'text/plain; charset=UTF-8',
-                'X-Content-Type-Options' => 'nosniff',
-                'Cache-Control' => 'no-store',
-            ]);
+            return self::notFound();
         }
 
         $request->attributes->set(self::PAGE_ATTRIBUTE, $page['id']);

@@ -40,6 +40,8 @@ class WorkspaceAbilitiesTest extends TestCase
 
     public function test_me_lists_channel_and_abilities_per_workspace(): void
     {
+        // manageCustomDomains also needs the installation to allow custom domains.
+        config(['status.custom_domains.allowed' => ['*.example.com']]);
         $owned = Workspace::factory()->create(['name' => 'A owned']);
         $viewed = Workspace::factory()->create(['name' => 'B viewed']);
         $user = User::factory()->memberOf($owned, WorkspaceRole::Owner)->create();
@@ -109,6 +111,7 @@ class WorkspaceAbilitiesTest extends TestCase
             ->assertJsonPath('data.can.update', true)
             ->assertJsonPath('data.can.delete', false);
 
+        config(['intrawatch.workspaces.creators' => 'anyone']);
         $this->actingAs($editor, 'sanctum')->postJson('/api/v1/workspaces', ['name' => 'Fresh'])
             ->assertCreated()
             ->assertJsonPath('data.can.delete', true);

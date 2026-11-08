@@ -31,6 +31,8 @@ export const useSession = defineStore('session', () => {
     ? me.value
     : null))
   const workspaces = computed<WorkspaceSummary[]>(() => me.value?.workspaces ?? [])
+  /** Whether the API lets this user create a workspace (the installation's WORKSPACE_CREATORS setting). */
+  const canCreateWorkspace = computed(() => user.value?.can_create_workspace === true)
 
   function workspace(slug: string): WorkspaceSummary | undefined {
     return workspaces.value.find(w => w.slug === slug)
@@ -152,6 +154,7 @@ export const useSession = defineStore('session', () => {
     currentSlug,
     user,
     workspaces,
+    canCreateWorkspace,
     current,
     workspace,
     load,

@@ -14,6 +14,7 @@ use App\Import\Kuma\Mapping\StatusPageMapper;
 use App\Import\Kuma\Source\Cast;
 use App\Import\Kuma\Steps\Concerns\ResolvesImportedTargets;
 use App\Models\StatusPage;
+use App\Status\Pages\PageResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -86,6 +87,11 @@ final class ImportStatusPages implements ImportStep
         $domain = $mapped->domains[0] ?? null;
         if (count($mapped->domains) > 1) {
             $notes[] = Note::of('extra_domains_ignored', 'IntraWatch serves a page on one custom domain; the other '.(count($mapped->domains) - 1).' domain(s) were ignored.');
+        }
+        if ($domain !== null && $ctx->actor !== null && ! PageResolver::allowsCustomDomain($domain)) {
+            // The installation's allowlist binds an import started by a user exactly like the API.
+            $notes[] = Note::of('custom_domain_not_allowed', 'The custom domain is not allowed on this installation; the page was imported without one.');
+            $domain = null;
         }
         if ($domain !== null && ! $this->mayManageDomains($ctx)) {
             $notes[] = Note::of('custom_domain_not_permitted', 'Setting a custom domain needs the custom domain permission; the page was imported without one.');

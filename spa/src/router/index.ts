@@ -145,6 +145,13 @@ export const routes: RouteRecordRaw[] = [
     meta: auth,
   },
   {
+    // Not a guest route: a signed-out visitor signs in first and comes back here.
+    path: '/invitations/:token([A-Za-z0-9]{64})',
+    name: 'invitation',
+    component: () => import('../views/InvitationAcceptView.vue'),
+    meta: { layout: 'auth' },
+  },
+  {
     path: '/',
     name: 'home',
     component: () => import('../views/HomeView.vue'),

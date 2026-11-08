@@ -53,6 +53,7 @@ class WorkspaceController extends Controller
         /** @var User $user */
         $user = $request->user();
         abort_if($user->authenticatedByToken(), 403, 'API tokens cannot create workspaces.');
+        Gate::authorize('create', Workspace::class);
         $request->validate(['name' => ['required', 'string', 'max:120']]);
         $name = $request->string('name')->toString();
 

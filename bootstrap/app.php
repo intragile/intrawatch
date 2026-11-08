@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureTokenAbility;
+use App\Http\Middleware\NoSniff;
 use App\Http\Middleware\RequireSession;
 use App\Http\Middleware\ResolveStatusHost;
 use App\Http\Middleware\ResolveWorkspace;
@@ -27,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Custom status domains are recognised before anything else and confined to the public status paths.
         $middleware->prepend(ResolveStatusHost::class);
+        $middleware->append(NoSniff::class);
         $middleware->statefulApi();
 
         $trusted = Env::get('TRUSTED_PROXIES');

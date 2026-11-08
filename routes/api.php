@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\IncidentController;
 use App\Http\Controllers\Api\IncidentUpdateController;
+use App\Http\Controllers\Api\InvitationController;
 use App\Http\Controllers\Api\MaintenanceController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\MemberController;
@@ -51,6 +52,10 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/workspaces', [WorkspaceController::class, 'index']);
         Route::post('/workspaces', [WorkspaceController::class, 'store']);
 
+        // The token from the invitation e-mail travels in the body, never in a logged URL; the signed-in
+        // user's address must match the invitation.
+        Route::post('/invitations/accept', [InvitationController::class, 'accept'])->middleware('throttle:invitation-accept');
+
         // Child models are resolved through the workspace (scoped bindings), so an id that belongs to
         // another workspace is a 404. Every other route parameter is a numeric id, except import ULIDs.
         Route::prefix('/workspaces/{workspace}')->middleware('workspace')->scopeBindings()->group(function (): void {
@@ -59,7 +64,9 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('/members', [MemberController::class, 'index'])->middleware('ability:workspace:read');
             Route::middleware('ability:members:manage')->group(function (): void {
-                Route::post('/members', [MemberController::class, 'store']);
+                Route::post('/members', [MemberController::class, 'store'])->middleware('throttle:member-invites');
+                Route::get('/invitations', [InvitationController::class, 'index']);
+                Route::delete('/invitations/{invitation}', [InvitationController::class, 'destroy'])->whereNumber('invitation');
                 Route::patch('/members/{user}', [MemberController::class, 'update'])->whereNumber('user');
                 Route::delete('/members/{user}', [MemberController::class, 'destroy'])->whereNumber('user');
             });

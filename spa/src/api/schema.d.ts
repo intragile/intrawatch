@@ -210,6 +210,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accepts an invitation addressed to the signed-in user's e-mail. Unknown, expired, revoked, already
+         *     accepted and foreign invitations all fail with the same 422
+         */
+        post: operations["invitation.accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -608,6 +628,40 @@ export interface paths {
         patch: operations["incidentUpdate.update"];
         trace?: never;
     };
+    "/workspaces/{workspace}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Invitations not accepted yet, expired ones included (flagged), newest first */
+        get: operations["invitation.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace}/invitations/{invitation}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revokes an invitation; its link stops working at once. Only an owner revokes an owner invitation */
+        delete: operations["invitation.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspace}/maintenances": {
         parameters: {
             query?: never;
@@ -672,6 +726,11 @@ export interface paths {
         };
         get: operations["member.index"];
         put?: never;
+        /**
+         * Invites an address into the workspace. Every address gets the same answer and the same e-mail, whether
+         *     or not an account exists for it; only an address that is already a member is refused. Inviting the
+         *     same address again replaces the pending invitation and its link
+         */
         post: operations["member.store"];
         delete?: never;
         options?: never;
@@ -1174,7 +1233,12 @@ export interface components {
          *
          *     On update, `config` is merged over the stored config and a secret is replaced only when sent; sending
          *     null removes it. The merged secrets are validated, so an update that leaves a required secret alone
-         *     passes, while removing one is refused.
+         *     passes, while removing one is refused. An update that changes a destination key of the type (where the
+         *     secrets are sent) must send every stored secret again or remove it with null, so a stored secret never
+         *     follows a destination its author did not confirm.
+         *
+         *     An email channel on the instance mailer (`smtp` null or without a host of its own) sends with the organisation's sender, so only
+         *     workspace owners and admins may create one, test one unsaved, or change its recipients or templates.
          */
         NotificationChannelRequest: {
             type: components["schemas"]["ChannelType"];
@@ -1222,7 +1286,8 @@ export interface components {
          * StatusPageRequest
          * @description Validation of status page writes. Creating needs the slug and title; updating accepts any subset. The
          *     custom domain is normalised (lower-case, no trailing dot) before it is validated and stored, and only a
-         *     workspace admin may set or change it: a custom domain takes over that host for every workspace.
+         *     workspace admin may set or change it: a custom domain takes over that host for every workspace. A new
+         *     domain must also be on the installation's allowlist (`PageResolver::allowsCustomDomain`), unless the system sets it.
          */
         StatusPageRequest: {
             slug: string;
@@ -1248,6 +1313,9 @@ export interface components {
          * StoreImportRequest
          * @description An import upload: the source file plus the run options. Booleans arrive as multipart fields, so `1`/`0`
          *     (or `true`/`false` in JSON) are accepted.
+         *
+         *     The upload limit is IMPORT_MAX_UPLOAD_MB, clamped to PHP's upload_max_filesize and post_max_size: PHP drops
+         *     a larger file before the application sees it, so the messages name the smaller of the two.
          */
         StoreImportRequest: {
             /**
@@ -1822,6 +1890,74 @@ export interface operations {
             404: components["responses"]["ModelNotFoundException"];
         };
     };
+    "invitation.accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            name: string;
+                            slug: string;
+                            timezone: string;
+                            role: components["schemas"]["WorkspaceRole"];
+                            channel: string | null;
+                            can: {
+                                view: boolean;
+                                update: boolean;
+                                delete: boolean;
+                                viewMembers: boolean;
+                                manageMembers: boolean;
+                                viewAudit: boolean;
+                                viewMonitors: boolean;
+                                manageMonitors: boolean;
+                                viewNotifications: boolean;
+                                manageNotifications: boolean;
+                                viewIncidents: boolean;
+                                manageIncidents: boolean;
+                                viewStatusPages: boolean;
+                                manageStatusPages: boolean;
+                                manageCustomDomains: boolean;
+                            };
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            /** @description An error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Error overview.
+                         * @example API tokens cannot accept invitations.
+                         */
+                        message: string;
+                    };
+                };
+            };
+            422: components["responses"]["ValidationException"];
+        };
+    };
     me: {
         parameters: {
             query?: never;
@@ -1842,6 +1978,7 @@ export interface operations {
                             name: string;
                             email: string;
                             two_factor_enabled: boolean;
+                            can_create_workspace: boolean;
                             workspaces: {
                                 id: string;
                                 name: string;
@@ -2153,6 +2290,8 @@ export interface operations {
                             name: string;
                             email: string;
                             two_factor_enabled: boolean;
+                            /** @description Whether the API lets this user create a workspace (see `WorkspacePolicy::create`). */
+                            can_create_workspace: boolean;
                             workspaces: unknown[];
                         };
                     };
@@ -2266,21 +2405,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            /** @description An error */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /**
-                         * @description Error overview.
-                         * @example API tokens cannot create workspaces.
-                         */
-                        message: string;
-                    };
-                };
-            };
+            403: components["responses"]["AuthorizationException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -3253,6 +3378,79 @@ export interface operations {
             422: components["responses"]["ValidationException"];
         };
     };
+    "invitation.index": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The workspace slug */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: number;
+                            email: string;
+                            role: components["schemas"]["WorkspaceRole"];
+                            invited_by: {
+                                id: number;
+                                name: string;
+                            } | null;
+                            expires_at: string;
+                            expired: boolean;
+                            created_at: string | null;
+                        }[];
+                        meta: {
+                            next_cursor: string | null;
+                            limit: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "invitation.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The workspace slug */
+                workspace: string;
+                /** @description The invitation ID */
+                invitation: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
     "maintenance.index": {
         parameters: {
             query?: {
@@ -3639,18 +3837,17 @@ export interface operations {
             };
         };
         responses: {
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
                         data: {
-                            id: number;
-                            name: string;
                             email: string;
                             /** @enum {string} */
                             role: "owner" | "admin" | "editor" | "viewer";
+                            expires_at: string;
                         };
                     };
                 };

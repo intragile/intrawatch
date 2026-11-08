@@ -6,6 +6,7 @@ use App\Enums\WorkspaceRole;
 use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class WorkspaceAccessTest extends TestCase
@@ -47,6 +48,7 @@ class WorkspaceAccessTest extends TestCase
 
     public function test_creator_becomes_owner(): void
     {
+        config(['intrawatch.workspaces.creators' => 'anyone']);
         $user = User::factory()->create();
 
         $this->actingAs($user, 'sanctum')->postJson('/api/v1/workspaces', ['name' => 'Acme'])
@@ -61,6 +63,7 @@ class WorkspaceAccessTest extends TestCase
 
     public function test_slug_gets_numeric_suffix_when_taken(): void
     {
+        config(['intrawatch.workspaces.creators' => 'anyone']);
         $user = User::factory()->create();
 
         $this->actingAs($user, 'sanctum')->postJson('/api/v1/workspaces', ['name' => 'Acme'])->assertCreated();
@@ -73,9 +76,65 @@ class WorkspaceAccessTest extends TestCase
 
     public function test_create_requires_name(): void
     {
+        config(['intrawatch.workspaces.creators' => 'anyone']);
         $user = User::factory()->create();
 
         $this->actingAs($user, 'sanctum')->postJson('/api/v1/workspaces', [])->assertUnprocessable();
+    }
+
+    /**
+     * @return array<string, array{string, WorkspaceRole|null, int}>
+     */
+    public static function creatorModes(): array
+    {
+        return [
+            'owners: viewer elsewhere' => ['owners', WorkspaceRole::Viewer, 403],
+            'owners: admin elsewhere' => ['owners', WorkspaceRole::Admin, 403],
+            'owners: no workspace' => ['owners', null, 403],
+            'owners: owner elsewhere' => ['owners', WorkspaceRole::Owner, 201],
+            'anyone: viewer' => ['anyone', WorkspaceRole::Viewer, 201],
+            'anyone: no workspace' => ['anyone', null, 201],
+            'none: owner' => ['none', WorkspaceRole::Owner, 403],
+            'none: viewer' => ['none', WorkspaceRole::Viewer, 403],
+            'unknown value behaves like owners' => ['everybody', WorkspaceRole::Viewer, 403],
+        ];
+    }
+
+    #[DataProvider('creatorModes')]
+    public function test_workspace_creation_follows_the_creators_setting(string $mode, ?WorkspaceRole $role, int $status): void
+    {
+        config(['intrawatch.workspaces.creators' => $mode]);
+        $factory = User::factory();
+        if ($role !== null) {
+            $factory = $factory->memberOf(Workspace::factory()->create(), $role);
+        }
+        $user = $factory->create();
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.can_create_workspace', $status === 201);
+        $this->actingAs($user, 'sanctum')->postJson('/api/v1/workspaces', ['name' => 'Fresh'])->assertStatus($status);
+        $this->assertSame($status === 201, Workspace::where('name', 'Fresh')->exists());
+    }
+
+    public function test_default_setting_is_owners(): void
+    {
+        $this->assertSame('owners', config('intrawatch.workspaces.creators'));
+        $viewer = User::factory()->memberOf(Workspace::factory()->create(), WorkspaceRole::Viewer)->create();
+
+        $this->actingAs($viewer, 'sanctum')->postJson('/api/v1/workspaces', ['name' => 'Fresh'])->assertForbidden();
+    }
+
+    public function test_tokens_never_create_workspaces(): void
+    {
+        config(['intrawatch.workspaces.creators' => 'anyone']);
+        $workspace = Workspace::factory()->create();
+        $owner = User::factory()->memberOf($workspace, WorkspaceRole::Owner)->create();
+        $plain = $owner->createToken('ci', ['workspace:manage'])->plainTextToken;
+
+        $this->withToken($plain)->postJson('/api/v1/workspaces', ['name' => 'Fresh'])->assertForbidden();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($plain)->getJson('/api/v1/me')->assertOk()->assertJsonMissingPath('data.can_create_workspace');
     }
 
     public function test_viewer_cannot_rename_workspace(): void

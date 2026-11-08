@@ -21,6 +21,7 @@ export type IncidentImpact = Schemas['IncidentImpact']
 export type IncidentStatus = Schemas['IncidentStatus']
 export type MaintenanceStrategy = Schemas['MaintenanceStrategy']
 export type TokenItem = Item<GetOk<'/workspaces/{workspace}/tokens'>>
+export type Invitation = Item<GetOk<'/workspaces/{workspace}/invitations'>>
 export type AuditEntry = Item<GetOk<'/workspaces/{workspace}/audit'>>
 export type AlertEvent = Item<GetOk<'/workspaces/{workspace}/alerts'>>
 export type MonitorRollup = Item<GetOk<'/workspaces/{workspace}/monitors/{monitor}/rollups'>>

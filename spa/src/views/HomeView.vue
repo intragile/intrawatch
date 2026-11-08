@@ -3,9 +3,11 @@ import { mdiDomainPlus } from '@mdi/js'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EmptyState from '../components/common/EmptyState.vue'
+import { useSession } from '../stores/session'
 import CreateWorkspaceDialog from './workspace/CreateWorkspaceDialog.vue'
 
 const { t } = useI18n()
+const session = useSession()
 
 const dialog = ref(false)
 </script>
@@ -14,14 +16,14 @@ const dialog = ref(false)
   <EmptyState
     :icon="mdiDomainPlus"
     :title="t('home.empty.title')"
-    :text="t('home.empty.text')"
+    :text="session.canCreateWorkspace ? t('home.empty.text') : t('home.askForInvite')"
   >
-    <template #actions>
+    <template v-if="session.canCreateWorkspace" #actions>
       <v-btn color="primary" variant="flat" @click="dialog = true">
         {{ t('home.create') }}
       </v-btn>
     </template>
   </EmptyState>
 
-  <CreateWorkspaceDialog v-model="dialog" />
+  <CreateWorkspaceDialog v-if="session.canCreateWorkspace" v-model="dialog" />
 </template>

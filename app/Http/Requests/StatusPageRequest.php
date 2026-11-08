@@ -14,7 +14,8 @@ use Illuminate\Validation\Rule;
 /**
  * Validation of status page writes. Creating needs the slug and title; updating accepts any subset. The
  * custom domain is normalised (lower-case, no trailing dot) before it is validated and stored, and only a
- * workspace admin may set or change it: a custom domain takes over that host for every workspace.
+ * workspace admin may set or change it: a custom domain takes over that host for every workspace. A new
+ * domain must also be on the installation's allowlist (`PageResolver::allowsCustomDomain`), unless the system sets it.
  */
 class StatusPageRequest extends FormRequest
 {
@@ -50,8 +51,13 @@ class StatusPageRequest extends FormRequest
         if ($this->system || ! $this->exists('custom_domain') || $this->input('custom_domain') === $this->stored()?->custom_domain) {
             return true;
         }
+        $workspace = app(CurrentWorkspace::class)->get();
+        if ($this->input('custom_domain') === null) {
+            // Removing a domain claims no host, so a workspace admin may do it even while custom domains are off.
+            return $this->user()?->can('update', $workspace) ?? false;
+        }
 
-        return $this->user()?->can('manageCustomDomains', app(CurrentWorkspace::class)->get()) ?? false;
+        return $this->user()?->can('manageCustomDomains', $workspace) ?? false;
     }
 
     protected function failedAuthorization(): never
@@ -137,8 +143,12 @@ class StatusPageRequest extends FormRequest
     private function domainRule(): Closure
     {
         $requestHost = PageResolver::normalizeHost($this->getHost());
+        // The installation's allowlist binds users; the system has decided already, and an unchanged value
+        // is no new claim.
+        $checkAllowlist = ! $this->system;
+        $stored = $this->stored()?->custom_domain;
 
-        return static function (string $attribute, mixed $value, Closure $fail) use ($requestHost): void {
+        return static function (string $attribute, mixed $value, Closure $fail) use ($requestHost, $checkAllowlist, $stored): void {
             if (! is_string($value)) {
                 return;
             }
@@ -156,6 +166,11 @@ class StatusPageRequest extends FormRequest
             if ((is_string($own) && strtolower(rtrim($own, '.')) === $value) || $requestHost === $value) {
                 // The host would then serve only the status page, locking everyone out of the API on it.
                 $fail('The custom domain must not be the host of this installation.');
+
+                return;
+            }
+            if ($checkAllowlist && $value !== $stored && ! PageResolver::allowsCustomDomain($value)) {
+                $fail('The custom domain is not allowed on this installation.');
             }
         };
     }

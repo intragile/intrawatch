@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { ApiError } from '../../api'
+import type { Invitation } from '../../api/types'
 import type { WorkspaceRole } from '../../utils/roles'
-import { mdiAccountMinus } from '@mdi/js'
+import { mdiAccountMinus, mdiEmailRemove } from '@mdi/js'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -33,6 +34,24 @@ const list = useCursorList(cursor => bodyOf(api.GET('/workspaces/{workspace}/mem
 })))
 type Member = (typeof list.items.value)[number]
 
+// Pending invitations; only managers see them.
+const invitations = useCursorList(cursor => bodyOf(api.GET('/workspaces/{workspace}/invitations', {
+  params: {
+    path: { workspace: slug.value },
+    query: { cursor: cursor ?? undefined },
+  },
+})))
+const revoking = ref<Invitation | null>(null)
+const revokeBusy = ref(false)
+const revokeError = ref<ApiError | null>(null)
+const confirmRevoke = computed({
+  get: () => revoking.value !== null,
+  set: (open) => {
+    if (!open)
+      revoking.value = null
+  },
+})
+
 const roleItems = computed(() => ROLES.map(role => ({
   value: role,
   title: t(`roles.${role}`),
@@ -59,12 +78,45 @@ const confirmRemove = computed({
 function reset(): void {
   for (const key of Object.keys(rowErrors))
     delete rowErrors[Number(key)]
+  revokeError.value = null
   void list.reload()
+  if (can('manageMembers'))
+    void invitations.reload()
 }
 
 watch(slug, reset)
 if (can('viewMembers'))
   void list.loadMore()
+if (can('manageMembers'))
+  void invitations.loadMore()
+
+function formatDate(value: string): string {
+  return new Date(value).toLocaleString()
+}
+
+async function revoke(): Promise<void> {
+  const invitation = revoking.value
+  if (!invitation || revokeBusy.value)
+    return
+  revokeBusy.value = true
+  revokeError.value = null
+  try {
+    await unwrap<void>(api.DELETE('/workspaces/{workspace}/invitations/{invitation}', {
+      params: {
+        path: { workspace: slug.value, invitation: invitation.id },
+      },
+    }))
+    invitations.items.value = invitations.items.value.filter(i => i.id !== invitation.id)
+    notify(t('members.invitations.revoked', { email: invitation.email }))
+  }
+  catch (e) {
+    revokeError.value = failure(e)
+  }
+  finally {
+    revoking.value = null
+    revokeBusy.value = false
+  }
+}
 
 async function changeRole(member: Member, next: WorkspaceRole | null): Promise<void> {
   if (next === null || next === member.role || rowBusy[member.id])
@@ -123,13 +175,13 @@ async function remove(): Promise<void> {
   }
 }
 
-async function add(): Promise<void> {
+async function invite(): Promise<void> {
   if (adding.value || email.value.trim() === '')
     return
   adding.value = true
   addError.value = null
   try {
-    const created = await unwrap(api.POST('/workspaces/{workspace}/members', {
+    const sent = await unwrap(api.POST('/workspaces/{workspace}/members', {
       params: {
         path: { workspace: slug.value },
       },
@@ -139,8 +191,8 @@ async function add(): Promise<void> {
       },
     }))
     email.value = ''
-    notify(t('members.added', { name: created.name }))
-    await list.reloadLoaded()
+    notify(t('members.invite.sent', { email: sent.email }))
+    await invitations.reload()
   }
   catch (e) {
     addError.value = failure(e)
@@ -161,12 +213,12 @@ async function add(): Promise<void> {
   <template v-else>
     <v-card v-if="can('manageMembers')" class="mb-4" max-width="960">
       <v-card-title tag="h2" class="text-h6">
-        {{ t('members.add.title') }}
+        {{ t('members.invite.title') }}
       </v-card-title>
-      <v-form @submit.prevent="add">
+      <v-form @submit.prevent="invite">
         <v-card-text>
           <p class="mb-4">
-            {{ t('members.add.hint') }}
+            {{ t('members.invite.hint') }}
           </p>
           <ProblemAlert :error="addError" :known-fields="['email', 'role']" />
           <div class="d-flex flex-wrap ga-4">
@@ -174,7 +226,7 @@ async function add(): Promise<void> {
               v-model="email"
               name="member_email"
               type="email"
-              :label="t('members.add.email')"
+              :label="t('members.invite.email')"
               :error-messages="addFields.email"
               class="flex-grow-1"
             />
@@ -182,7 +234,7 @@ async function add(): Promise<void> {
               v-model="role"
               data-test="add-role"
               :items="roleItems"
-              :label="t('members.add.role')"
+              :label="t('members.invite.role')"
               :error-messages="addFields.role"
               min-width="200"
             />
@@ -191,10 +243,72 @@ async function add(): Promise<void> {
         <v-card-actions>
           <v-spacer />
           <v-btn type="submit" color="primary" variant="flat" :loading="adding">
-            {{ t('members.add.submit') }}
+            {{ t('members.invite.submit') }}
           </v-btn>
         </v-card-actions>
       </v-form>
+    </v-card>
+
+    <v-card v-if="can('manageMembers')" class="mb-4" max-width="960" data-test="invitations">
+      <v-card-title tag="h2" class="text-h6">
+        {{ t('members.invitations.title') }}
+      </v-card-title>
+      <v-card-text>
+        <ProblemAlert :error="invitations.error.value ?? revokeError" />
+        <v-table v-if="invitations.items.value.length > 0" density="compact">
+          <caption class="d-sr-only">
+            {{ t('members.invitations.title') }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">
+                {{ t('members.email') }}
+              </th>
+              <th scope="col">
+                {{ t('members.role') }}
+              </th>
+              <th scope="col">
+                {{ t('members.invitations.expires') }}
+              </th>
+              <th scope="col">
+                {{ t('members.actions') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="invitation in invitations.items.value" :key="invitation.id" :data-test="`invitation-${invitation.id}`">
+              <td>{{ invitation.email }}</td>
+              <td>{{ t(`roles.${invitation.role}`) }}</td>
+              <td>
+                {{ formatDate(invitation.expires_at) }}
+                <v-chip v-if="invitation.expired" size="x-small" label color="warning" class="ml-1">
+                  {{ t('members.invitations.expired') }}
+                </v-chip>
+              </td>
+              <td>
+                <v-btn
+                  :data-test="`revoke-${invitation.id}`"
+                  :icon="mdiEmailRemove"
+                  :aria-label="`${t('members.invitations.revoke')}: ${invitation.email}`"
+                  :disabled="revokeBusy"
+                  variant="text"
+                  color="error"
+                  size="small"
+                  @click="revoking = invitation"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </v-table>
+        <p v-else-if="!invitations.loading.value && !invitations.error.value" class="text-medium-emphasis">
+          {{ t('members.invitations.empty') }}
+        </p>
+        <div v-if="invitations.hasMore.value && invitations.items.value.length > 0" class="mt-2">
+          <v-btn variant="tonal" :loading="invitations.loading.value" @click="invitations.loadMore()">
+            {{ t('common.loadMore') }}
+          </v-btn>
+        </div>
+      </v-card-text>
     </v-card>
 
     <ProblemAlert :error="list.error.value" />
@@ -282,5 +396,14 @@ async function add(): Promise<void> {
     :confirm-label="t('common.remove')"
     destructive
     @confirm="remove"
+  />
+
+  <ConfirmDialog
+    v-model="confirmRevoke"
+    :title="t('members.invitations.revoke')"
+    :text="t('members.invitations.revokeConfirm', { email: revoking?.email ?? '' })"
+    :confirm-label="t('members.invitations.revoke')"
+    destructive
+    @confirm="revoke"
   />
 </template>

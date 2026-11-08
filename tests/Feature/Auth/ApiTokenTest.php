@@ -249,7 +249,9 @@ class ApiTokenTest extends TestCase
             ->assertForbidden();
         $this->asToken($manager)
             ->postJson($this->url($workspace, '/members'), ['email' => $other->email, 'role' => 'viewer'])
-            ->assertCreated();
+            ->assertAccepted();
+        $this->asToken($readOnly)->getJson($this->url($workspace, '/invitations'))->assertForbidden();
+        $this->asToken($manager)->getJson($this->url($workspace, '/invitations'))->assertOk()->assertJsonCount(1, 'data');
     }
 
     public function test_token_cannot_create_workspaces(): void

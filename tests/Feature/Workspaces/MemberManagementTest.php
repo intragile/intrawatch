@@ -8,6 +8,7 @@ use App\Models\Workspace;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class MemberManagementTest extends TestCase
@@ -19,6 +20,7 @@ class MemberManagementTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Mail::fake();
 
         $this->workspace = Workspace::factory()->create();
     }
@@ -72,41 +74,52 @@ class MemberManagementTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_adds_existing_user(): void
+    public function test_admin_invites_existing_user(): void
     {
         $admin = $this->member(WorkspaceRole::Admin);
         $other = User::factory()->create();
 
         $this->actingAs($admin, 'sanctum')
             ->postJson($this->url(), ['email' => $other->email, 'role' => 'editor'])
-            ->assertCreated()
-            ->assertJsonPath('data.role', 'editor');
+            ->assertAccepted()
+            ->assertJsonPath('data.role', 'editor')
+            ->assertJsonPath('data.email', $other->email)
+            ->assertJsonMissingPath('data.id');
 
-        $this->assertSame(WorkspaceRole::Editor, $other->roleIn($this->workspace));
+        // Joining takes the invitation's acceptance.
+        $this->assertNull($other->roleIn($this->workspace));
+        $this->assertDatabaseHas('workspace_invitations', ['workspace_id' => $this->workspace->id, 'email' => $other->email, 'role' => 'editor']);
     }
 
-    public function test_adding_unknown_email_or_existing_member_is_rejected(): void
+    public function test_unknown_email_is_invited_and_existing_member_is_rejected(): void
     {
         $admin = $this->member(WorkspaceRole::Admin);
 
         $this->actingAs($admin, 'sanctum')
             ->postJson($this->url(), ['email' => 'ghost@example.test', 'role' => 'viewer'])
-            ->assertUnprocessable();
+            ->assertAccepted();
 
         $this->actingAs($admin, 'sanctum')
             ->postJson($this->url(), ['email' => $admin->email, 'role' => 'viewer'])
-            ->assertUnprocessable();
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
     }
 
     public function test_member_email_lookup_is_case_insensitive(): void
     {
         $admin = $this->member(WorkspaceRole::Admin);
-        $other = User::factory()->create(['email' => 'mixed.case@example.com']);
+        User::factory()->memberOf($this->workspace, WorkspaceRole::Viewer)->create(['email' => 'mixed.case@example.com']);
 
         $this->actingAs($admin, 'sanctum')
             ->postJson($this->url(), ['email' => '  Mixed.Case@EXAMPLE.com ', 'role' => 'viewer'])
-            ->assertCreated()
-            ->assertJsonPath('data.id', $other->id);
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson($this->url(), ['email' => '  New.Person@EXAMPLE.com ', 'role' => 'viewer'])
+            ->assertAccepted()
+            ->assertJsonPath('data.email', 'new.person@example.com');
+        $this->assertDatabaseHas('workspace_invitations', ['email' => 'new.person@example.com']);
     }
 
     public function test_last_owner_guard_locks_owner_rows_in_id_order(): void
@@ -152,7 +165,7 @@ class MemberManagementTest extends TestCase
 
         $this->actingAs($owner, 'sanctum')
             ->postJson($this->url(), ['email' => $other->email, 'role' => 'owner'])
-            ->assertCreated();
+            ->assertAccepted();
     }
 
     public function test_only_owner_can_grant_owner(): void

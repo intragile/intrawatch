@@ -9,12 +9,13 @@ use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Laravel\Sanctum\PersonalAccessToken;
 
 class MeController extends Controller
 {
     /**
-     * @response array{data: array{id: int, name: string, email: string, two_factor_enabled: bool, workspaces: list<array{id: string, name: string, slug: string, timezone: string, role: \App\Enums\WorkspaceRole, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}>}|array{id: int, name: string, workspaces: list<array{id: string, name: string, slug: string, timezone: string, role: \App\Enums\WorkspaceRole, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}>, token: array{name: string, abilities: list<string>|null, expires_at: string|null}}}
+     * @response array{data: array{id: int, name: string, email: string, two_factor_enabled: bool, can_create_workspace: bool, workspaces: list<array{id: string, name: string, slug: string, timezone: string, role: \App\Enums\WorkspaceRole, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}>}|array{id: int, name: string, workspaces: list<array{id: string, name: string, slug: string, timezone: string, role: \App\Enums\WorkspaceRole, channel: string|null, can: array{view: bool, update: bool, delete: bool, viewMembers: bool, manageMembers: bool, viewAudit: bool, viewMonitors: bool, manageMonitors: bool, viewNotifications: bool, manageNotifications: bool, viewIncidents: bool, manageIncidents: bool, viewStatusPages: bool, manageStatusPages: bool, manageCustomDomains: bool}}>, token: array{name: string, abilities: list<string>|null, expires_at: string|null}}}
      */
     public function __invoke(Request $request): JsonResponse
     {
@@ -57,6 +58,8 @@ class MeController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'two_factor_enabled' => $user->two_factor_confirmed_at !== null,
+            // Whether the API lets this user create a workspace (see `WorkspacePolicy::create`).
+            'can_create_workspace' => Gate::forUser($user)->allows('create', Workspace::class),
             'workspaces' => self::workspaces($user),
         ];
     }

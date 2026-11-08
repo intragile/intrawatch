@@ -19,6 +19,16 @@ const members = [
   },
 ]
 
+const invitation = {
+  id: 7,
+  email: 'cy@example.com',
+  role: 'viewer',
+  invited_by: { id: 1, name: 'Ada Lovelace' },
+  expires_at: '2026-11-15T12:00:00+00:00',
+  expired: false,
+  created_at: '2026-11-08T12:00:00+00:00',
+}
+
 describe('members', () => {
   it('403 on member change shows problem and refreshes me', async () => {
     const server = fakeApi({
@@ -32,6 +42,7 @@ describe('members', () => {
         }),
       ],
       'GET /workspaces/acme/members': json(page(members)),
+      'GET /workspaces/acme/invitations': json(page([])),
       'PATCH /workspaces/acme/members/2': problem(403, { title: 'This action is unauthorized.' }),
     })
     const { wrapper } = await mountApp('/w/acme/members')
@@ -54,6 +65,7 @@ describe('members', () => {
         data: meWith({}),
       }),
       'GET /workspaces/acme/members': json(page(members)),
+      'GET /workspaces/acme/invitations': json(page([])),
       'PATCH /workspaces/acme/members/1': problem(422, {
         title: 'The given data was invalid.',
         errors: {
@@ -70,40 +82,95 @@ describe('members', () => {
     expect(document.querySelector('[data-test="row-error-2"]')).toBeNull()
   })
 
-  it('adds a member by e-mail and shows field errors', async () => {
+  it('invites by e-mail, shows field errors and refreshes the pending list', async () => {
     const server = fakeApi({
       'GET /setup': json({ required: false }),
       'GET /me': json({
         data: meWith({}),
       }),
       'GET /workspaces/acme/members': json(page(members)),
+      'GET /workspaces/acme/invitations': [
+        json(page([])),
+        json(page([invitation])),
+      ],
       'POST /workspaces/acme/members': [
         problem(422, {
           errors: {
-            email: ['The selected email is invalid.'],
+            email: ['The user is already a member of this workspace.'],
           },
         }),
         json({
           data: {
-            id: 3,
-            name: 'Cy',
             email: 'cy@example.com',
             role: 'viewer',
+            expires_at: '2026-11-15T12:00:00+00:00',
           },
-        }, 201),
+        }, 202),
       ],
     })
     await mountApp('/w/acme/members')
     await expect.poll(() => document.querySelector('input[name="member_email"]')).not.toBeNull()
 
-    fill('input[name="member_email"]', 'nobody@example.com')
+    fill('input[name="member_email"]', 'bob@example.com')
     await submit('input[name="member_email"]')
-    await expect.poll(() => document.body.textContent).toContain('The selected email is invalid.')
+    await expect.poll(() => document.body.textContent).toContain('The user is already a member of this workspace.')
 
     fill('input[name="member_email"]', 'cy@example.com')
     await submit('input[name="member_email"]')
     await expect.poll(() => server.of('POST /workspaces/acme/members')).toHaveLength(2)
     expect(server.of('POST /workspaces/acme/members')[1]?.body).toEqual({ email: 'cy@example.com', role: 'viewer' })
+    await expect.poll(() => document.body.textContent).toContain('Invitation sent to cy@example.com.')
+    await expect.poll(() => document.querySelector('[data-test="invitation-7"]')?.textContent).toContain('cy@example.com')
+    expect(server.of('GET /workspaces/acme/invitations')).toHaveLength(2)
+    // The member list is untouched: nobody joins before accepting.
+    expect(server.of('GET /workspaces/acme/members')).toHaveLength(1)
+  })
+
+  it('lists pending invitations and revokes one after confirmation', async () => {
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+      'GET /workspaces/acme/members': json(page(members)),
+      'GET /workspaces/acme/invitations': json(page([
+        invitation,
+        {
+          ...invitation,
+          id: 8,
+          email: 'old@example.com',
+          expired: true,
+        },
+      ])),
+      'DELETE /workspaces/acme/invitations/7': json(null, 204),
+    })
+    await mountApp('/w/acme/members')
+    await expect.poll(() => document.querySelector('[data-test="invitation-7"]')?.textContent).toContain('cy@example.com')
+    expect(document.querySelector('[data-test="invitation-8"]')?.textContent).toContain('Expired')
+    expect(document.querySelector('[data-test="invitation-7"]')?.textContent).not.toContain('Expired')
+
+    await click('[data-test="revoke-7"]')
+    await click('[data-test="confirm"]')
+
+    await expect.poll(() => server.of('DELETE /workspaces/acme/invitations/7')).toHaveLength(1)
+    await expect.poll(() => document.querySelector('[data-test="invitation-7"]')).toBeNull()
+    expect(document.querySelector('[data-test="invitation-8"]')).not.toBeNull()
+  })
+
+  it('does not load invitations without the manage ability', async () => {
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({ role: 'viewer', can: viewerCan }),
+      }),
+      'GET /workspaces/acme/members': json(page(members)),
+    })
+    await mountApp('/w/acme/members')
+    await expect.poll(() => document.body.textContent).toContain('Bob Builder')
+
+    expect(server.of('GET /workspaces/acme/invitations')).toHaveLength(0)
+    expect(document.querySelector('input[name="member_email"]')).toBeNull()
+    expect(server.unexpected).toEqual([])
   })
 
   it('removes a member after confirmation', async () => {
@@ -113,6 +180,7 @@ describe('members', () => {
         data: meWith(workspace()),
       }),
       'GET /workspaces/acme/members': json(page(members)),
+      'GET /workspaces/acme/invitations': json(page([])),
       'DELETE /workspaces/acme/members/2': json(null, 204),
     })
     await mountApp('/w/acme/members')

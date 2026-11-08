@@ -155,7 +155,8 @@
       "title": "No workspace yet",
       "text": "You are not a member of any workspace. Create one, or ask an owner to invite you."
     },
-    "create": "Create workspace"
+    "create": "Create workspace",
+    "askForInvite": "You are not a member of any workspace yet: ask a workspace owner or admin to invite you."
   },
   "live": {
     "live": "Live",
@@ -195,12 +196,22 @@
   },
   "members": {
     "title": "Members",
-    "add": {
-      "title": "Add a member",
-      "hint": "The person must already have an account on this instance.",
+    "invite": {
+      "title": "Invite a member",
+      "hint": "We e-mail an invitation link to the address, valid for 7 days. The person joins by signing in with that address and accepting it; ask your administrator to create an account if they have none.",
       "email": "E-mail",
       "role": "Role",
-      "submit": "Add member"
+      "submit": "Send invitation",
+      "sent": "Invitation sent to {email}."
+    },
+    "invitations": {
+      "title": "Pending invitations",
+      "empty": "There are no pending invitations.",
+      "expires": "Expires",
+      "expired": "Expired",
+      "revoke": "Revoke invitation",
+      "revokeConfirm": "The invitation link sent to {email} stops working.",
+      "revoked": "The invitation of {email} was revoked."
     },
     "name": "Name",
     "email": "E-mail",
@@ -208,7 +219,6 @@
     "actions": "Actions",
     "roleOf": "Role of {name}",
     "you": "you",
-    "added": "{name} was added.",
     "roleChanged": "The role of {name} is now {role}.",
     "removed": "{name} was removed.",
     "remove": "Remove member",
@@ -1266,5 +1276,13 @@
       "deleteConfirm": "The import of {name} and its report are deleted. Items it already created stay.",
       "deleted": "Import deleted."
     }
+  },
+  "invitation": {
+    "title": "Workspace invitation",
+    "intro": "Accept the invitation to join the workspace as {email}. The invitation must have been sent to this address.",
+    "accept": "Accept invitation",
+    "accepted": "You joined {name}.",
+    "invalid": "This invitation is invalid, expired or meant for another e-mail address.",
+    "home": "Go to the start page"
   }
 }

@@ -2,12 +2,14 @@
 
 namespace Tests\Feature\Api;
 
+use App\Actions\StatusPages\CreateStatusPage;
 use App\Enums\WorkspaceRole;
 use App\Models\AuditEvent;
 use App\Models\Monitor;
 use App\Models\StatusPage;
 use App\Models\User;
 use App\Models\Workspace;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -128,6 +130,7 @@ class StatusPageApiTest extends TestCase
 
     public function test_slug_and_custom_domain_rules(): void
     {
+        config(['status.custom_domains.allowed' => ['*.example.org', '*.example.net']]);
         $id = $this->createPage();
 
         foreach (['api', 'admin', 'assets', 'badge', 'feed', 'status', 'setup', 'login'] as $reserved) {
@@ -196,6 +199,7 @@ class StatusPageApiTest extends TestCase
 
     public function test_only_admins_set_or_change_the_custom_domain(): void
     {
+        config(['status.custom_domains.allowed' => ['*.example.org', '*.example.net']]);
         $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
         $id = $this->createPage();
 
@@ -215,6 +219,7 @@ class StatusPageApiTest extends TestCase
 
     public function test_the_custom_domain_cannot_be_the_host_the_api_is_reached_on(): void
     {
+        config(['status.custom_domains.allowed' => ['*.example.org', '*.example.net']]);
         $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
         $id = $this->createPage();
         config(['app.url' => 'https://monitor.example.net']);
@@ -224,5 +229,60 @@ class StatusPageApiTest extends TestCase
         $this->actingAs($admin)->patchJson("http://ADMIN.example.net:8443{$this->url("/{$id}")}", ['custom_domain' => 'Admin.Example.Net.'])
             ->assertUnprocessable()->assertJsonValidationErrors('custom_domain');
         $this->actingAs($admin)->patchJson("http://admin.example.net{$this->url("/{$id}")}", ['custom_domain' => 'status.example.org'])->assertOk();
+    }
+
+    public function test_custom_domains_are_off_while_the_allowlist_is_empty(): void
+    {
+        config(['status.custom_domains.allowed' => []]);
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $id = $this->createPage();
+
+        $this->actingAs($admin)->postJson($this->url(), $this->body(['slug' => 'second', 'custom_domain' => 'status.example.org']))->assertForbidden();
+        $this->actingAs($admin)->patchJson($this->url("/{$id}"), ['custom_domain' => 'status.example.org'])->assertForbidden();
+        $this->assertNull(StatusPage::query()->findOrFail($id)->custom_domain);
+        $this->actingAs($admin)->getJson("/api/v1/workspaces/{$this->ws->slug}/status-pages")->assertOk();
+        $this->actingAs($admin)->getJson('/api/v1/me')->assertJsonPath('data.workspaces.0.can.manageCustomDomains', false);
+
+        // A domain set earlier keeps working: resending it is no change, and an admin may still remove it.
+        StatusPage::query()->whereKey($id)->update(['custom_domain' => 'old.example.org']);
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['title' => 'T', 'custom_domain' => 'old.example.org'])->assertOk();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['custom_domain' => null])->assertForbidden();
+        $this->actingAs($admin)->patchJson($this->url("/{$id}"), ['custom_domain' => null])->assertOk()->assertJsonPath('data.custom_domain', null);
+    }
+
+    public function test_custom_domain_must_be_on_the_allowlist(): void
+    {
+        config(['status.custom_domains.allowed' => ['status.acme.test', '*.example.com']]);
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $id = $this->createPage();
+
+        foreach (['status.other.test', 'example.com', 'evil-example.com', 'acme.test', 'x.status.acme.test'] as $refused) {
+            $this->actingAs($admin)->patchJson($this->url("/{$id}"), ['custom_domain' => $refused])
+                ->assertUnprocessable()->assertJsonValidationErrors(['custom_domain' => 'not allowed']);
+            $this->actingAs($admin)->postJson($this->url(), $this->body(['slug' => 'second', 'custom_domain' => $refused]))
+                ->assertUnprocessable()->assertJsonValidationErrors('custom_domain');
+        }
+        $this->assertNull(StatusPage::query()->findOrFail($id)->custom_domain);
+
+        $this->actingAs($admin)->patchJson($this->url("/{$id}"), ['custom_domain' => 'Status.Acme.TEST.'])->assertOk()->assertJsonPath('data.custom_domain', 'status.acme.test');
+        $this->actingAs($admin)->postJson($this->url(), $this->body(['slug' => 'second', 'custom_domain' => 'status.example.com']))->assertCreated();
+        $this->actingAs($admin)->postJson($this->url(), $this->body(['slug' => 'third', 'custom_domain' => 'a.b.example.com']))->assertCreated();
+
+        // Narrowing the list later does not break pages whose domain is resent unchanged.
+        config(['status.custom_domains.allowed' => ['*.example.com']]);
+        $this->actingAs($admin)->patchJson($this->url("/{$id}"), ['title' => 'Renamed', 'custom_domain' => 'status.acme.test'])->assertOk();
+    }
+
+    public function test_the_system_sets_custom_domains_without_the_allowlist(): void
+    {
+        config(['status.custom_domains.allowed' => []]);
+        $action = app(CreateStatusPage::class);
+
+        $validated = $action->validate($this->ws, ['slug' => 'cli', 'title' => 'T', 'custom_domain' => 'status.anything.test']);
+        $this->assertSame('status.anything.test', $validated['custom_domain']);
+
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $this->expectException(AuthorizationException::class);
+        $action->validate($this->ws, ['slug' => 'cli', 'title' => 'T', 'custom_domain' => 'status.anything.test'], $admin);
     }
 }

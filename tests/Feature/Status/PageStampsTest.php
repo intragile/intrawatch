@@ -99,6 +99,7 @@ class PageStampsTest extends TestCase
 
     public function test_page_edit_and_delete_invalidate_the_page(): void
     {
+        config(['status.custom_domains.allowed' => ['*.example.org']]);
         $ws = Workspace::factory()->create();
         $owner = User::factory()->memberOf($ws, WorkspaceRole::Owner)->create();
         $page = StatusPage::factory()->for($ws)->create(['slug' => 'old-slug', 'custom_domain' => 'old.example.org']);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { meWith } from '../../../test/fixtures'
+import { me, meWith } from '../../../test/fixtures'
 import { click, fill, mountApp, submit } from '../../../test/mount'
 import { fakeApi, json } from '../../../test/server'
 
@@ -29,5 +29,45 @@ describe('create workspace', () => {
 
     await expect.poll(() => router.currentRoute.value.params.workspace).toBe('second')
     expect(server.of('POST /workspaces')[0]?.body).toEqual({ name: 'Second' })
+  })
+
+  it('hides the create button when the user may not create workspaces', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: {
+          ...meWith({}),
+          can_create_workspace: false,
+        },
+      }),
+    })
+    await mountApp('/w/acme/settings')
+    await expect.poll(() => document.querySelector('.workspace-switcher')).not.toBeNull()
+
+    expect(document.querySelector('[data-test="create-workspace"]')).toBeNull()
+  })
+
+  it('without a workspace, asks for an invitation instead of offering to create one', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: me({ workspaces: [], can_create_workspace: false }),
+      }),
+    })
+    await mountApp('/')
+    await expect.poll(() => document.body.textContent).toContain('ask a workspace owner or admin to invite you')
+
+    expect(document.body.textContent).not.toContain('Create workspace')
+  })
+
+  it('without a workspace, offers to create one when allowed', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: me({ workspaces: [] }),
+      }),
+    })
+    await mountApp('/')
+    await expect.poll(() => document.body.textContent).toContain('Create workspace')
   })
 })
