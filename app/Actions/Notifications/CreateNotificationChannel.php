@@ -9,6 +9,7 @@ use App\Models\NotificationChannel;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Support\Audit;
+use App\Support\ConfigMask;
 use App\Support\RequestInput;
 use Illuminate\Routing\Redirector;
 use Illuminate\Support\Facades\DB;
@@ -57,7 +58,8 @@ class CreateNotificationChannel
             $changes = [
                 'name' => [null, $channel->name],
                 'type' => [null, $channel->type->value],
-                'config' => [null, $channel->config],
+                // Masked like the API response: the audit log is append-only and readable with an audit:read token.
+                'config' => [null, ConfigMask::apply($channel->config, $channel->type->definition()->sensitiveConfigKeys())],
                 'secret_keys' => [[], $this->secretKeys($channel->secrets)],
                 'templates' => [null, $channel->templates],
                 'is_default' => [null, $channel->is_default],

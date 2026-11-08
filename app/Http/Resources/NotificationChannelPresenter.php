@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\NotificationChannel;
+use App\Support\ConfigMask;
 use App\Support\JsonObject;
 use App\Support\SecretKeys;
 
@@ -12,7 +13,8 @@ use App\Support\SecretKeys;
  */
 final class NotificationChannelPresenter
 {
-    public const MASK = '***';
+    /** Kept for existing callers; the mask itself lives in ConfigMask. */
+    public const MASK = ConfigMask::MASK;
 
     /**
      * @param  bool  $revealSensitive  Whether the caller sees sensitive config values in full. Masked unless stated.
@@ -22,7 +24,7 @@ final class NotificationChannelPresenter
     {
         $config = $revealSensitive
             ? $channel->config
-            : self::masked($channel->config, $channel->type->definition()->sensitiveConfigKeys());
+            : ConfigMask::apply($channel->config, $channel->type->definition()->sensitiveConfigKeys());
         $secretKeys = SecretKeys::of($channel->secrets);
         $count = $channel->getAttribute('monitors_count');
 
@@ -42,56 +44,5 @@ final class NotificationChannelPresenter
             'created_at' => $channel->created_at?->toIso8601String(),
             'updated_at' => $channel->updated_at?->toIso8601String(),
         ];
-    }
-
-    /**
-     * Replaces sensitive values: an http(s) URL keeps its scheme, host and port, anything else becomes the mask.
-     * Keys may be dotted paths; a null value stays null.
-     *
-     * @param  array<array-key, mixed>  $config
-     * @param  list<string>  $keys
-     * @return array<array-key, mixed>
-     */
-    private static function masked(array $config, array $keys): array
-    {
-        foreach ($keys as $key) {
-            $config = self::maskPath($config, explode('.', $key));
-        }
-
-        return $config;
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $values
-     * @param  list<string>  $path
-     * @return array<array-key, mixed>
-     */
-    private static function maskPath(array $values, array $path): array
-    {
-        $head = array_shift($path);
-        if ($head === null || ! isset($values[$head])) {
-            return $values;
-        }
-        if ($path === []) {
-            $values[$head] = self::mask($values[$head]);
-        } elseif (is_array($values[$head])) {
-            $values[$head] = self::maskPath($values[$head], $path);
-        }
-
-        return $values;
-    }
-
-    private static function mask(mixed $value): string
-    {
-        if (is_string($value)) {
-            $parts = parse_url($value);
-            if (is_array($parts) && isset($parts['scheme'], $parts['host']) && in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
-                $port = isset($parts['port']) ? ':'.$parts['port'] : '';
-
-                return strtolower($parts['scheme']).'://'.$parts['host'].$port.'/'.self::MASK;
-            }
-        }
-
-        return self::MASK;
     }
 }

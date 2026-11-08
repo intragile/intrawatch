@@ -416,6 +416,26 @@ class AuditLogTest extends TestCase
         $this->asToken($without)->getJson($this->url('/audit'))->assertForbidden();
     }
 
+    public function test_audit_read_token_never_sees_sensitive_channel_config(): void
+    {
+        $admin = $this->member(WorkspaceRole::Admin);
+        $id = $this->actingAs($admin, 'sanctum')->postJson($this->url('/notification-channels'), [
+            'name' => 'Hook', 'type' => 'webhook', 'config' => ['url' => 'https://hooks.example.com/T0/OLDSECRETPATH?token=OLDQS'],
+        ])->assertCreated()->json('data.id');
+        $this->assertIsInt($id);
+        $this->actingAs($admin, 'sanctum')->patchJson($this->url("/notification-channels/{$id}"), [
+            'config' => ['url' => 'https://hooks.example.com/T0/NEWSECRETPATH?token=NEWQS'],
+        ])->assertOk();
+        $token = $this->mint($admin, ['audit:read']);
+
+        $body = (string) $this->asToken($token)->getJson($this->url('/audit'))->assertOk()->getContent();
+
+        foreach (['OLDSECRETPATH', 'OLDQS', 'NEWSECRETPATH', 'NEWQS'] as $secret) {
+            $this->assertStringNotContainsString($secret, $body);
+        }
+        $this->assertStringContainsString('https:\/\/hooks.example.com\/***', $body);
+    }
+
     public function test_editor_cannot_mint_audit_read_token(): void
     {
         $editor = $this->member(WorkspaceRole::Editor);

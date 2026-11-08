@@ -14,6 +14,7 @@ use App\Models\NotificationChannel;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Support\Audit;
+use App\Support\ConfigMask;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -73,9 +74,17 @@ class NotificationChannelController extends Controller
                     continue;
                 }
                 $new = $channel->getAttribute($field);
-                if (self::canonical($old) !== self::canonical($new)) {
-                    $diff[$field] = [$old, $new];
+                if (self::canonical($old) === self::canonical($new)) {
+                    continue;
                 }
+                // The change is decided on the raw values, then both sides are masked like the API response, so
+                // a rotated webhook path is still recorded without ever landing in the append-only log.
+                if ($field === 'config') {
+                    $sensitive = $channel->type->definition()->sensitiveConfigKeys();
+                    $old = is_array($old) ? ConfigMask::apply($old, $sensitive) : $old;
+                    $new = is_array($new) ? ConfigMask::apply($new, $sensitive) : $new;
+                }
+                $diff[$field] = [$old, $new];
             }
             // A rotated secret keeps its key name, so the entry is recorded whenever secrets were sent.
             $newSecretKeys = $this->secretKeys($channel->secrets);
