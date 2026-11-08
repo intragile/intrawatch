@@ -44,6 +44,8 @@ const pageId = computed(() => route.params.statusPage === 'new'
 const isEdit = computed(() => pageId.value !== null)
 const canManage = computed(() => can('manageStatusPages'))
 const canDomain = computed(() => can('manageCustomDomains'))
+// Removing a domain claims no host, so the API lets a workspace admin do it even while custom domains are off.
+const canRemoveDomain = computed(() => canManage.value && can('update'))
 
 const loaded = ref<StatusPage | null>(null)
 const form = ref<PageForm | null>(null)
@@ -146,10 +148,15 @@ async function refresh(): Promise<void> {
 }
 useRefetchOnReturn(() => void refresh())
 
+/** The stored domain while it cannot be edited: shown read-only (and removable) instead of being hidden. */
+const lockedDomain = computed(() => canDomain.value
+  ? ''
+  : initial.value?.custom_domain ?? '')
+
 const fields = computed(() => fieldErrors(error.value))
 const knownFields = computed(() => Object.keys(error.value?.errors ?? {}).filter(key =>
   PAGE_FIELDS.some(root => key === root || key.startsWith(`${root}.`))
-  && (key !== 'custom_domain' || canDomain.value)))
+  && (key !== 'custom_domain' || canDomain.value || lockedDomain.value !== '')))
 
 const LAYOUT_FIELD = /^sections\.\d+\.(?:name|description|items\.\d+\.(?:display_name|description|monitor_id))$/
 const layoutFields = computed(() => fieldErrors(layoutError.value))
@@ -164,7 +171,8 @@ async function save(): Promise<void> {
   const id = pageId.value
   const update = id === null
     ? null
-    : patchBody(baseline, current, canDomain.value)
+    // Without the permission the only domain change the form allows is removing the stored one.
+    : patchBody(baseline, current, canDomain.value || (canRemoveDomain.value && current.custom_domain.trim() === ''))
   if (update !== null && Object.keys(update).length === 0) {
     notify(t('statusPages.noChanges'), 'info')
     return
@@ -322,6 +330,8 @@ async function remove(): Promise<void> {
             v-model="form"
             :disabled="!canManage"
             :can-custom-domain="canDomain"
+            :locked-domain="lockedDomain"
+            :can-remove-domain="canRemoveDomain"
             :errors="fields"
           />
           <p class="text-caption text-medium-emphasis mt-4">

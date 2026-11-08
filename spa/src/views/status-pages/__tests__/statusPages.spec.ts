@@ -189,6 +189,88 @@ describe('status page editor', () => {
     await expect.poll(() => document.querySelector('input[name="status_title"]')).not.toBeNull()
 
     expect(document.querySelector('input[name="status_custom_domain"]')).toBeNull()
+    expect(document.querySelector('input[name="status_custom_domain_locked"]')).toBeNull()
+    expect(document.querySelector('[data-test="custom-domain-remove"]')).toBeNull()
+  })
+
+  it('an existing custom domain stays visible read-only with a remove action without manageCustomDomains', async () => {
+    fakeApi({
+      ...base({ manageCustomDomains: false }),
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage({ custom_domain: 'status.acme.test' }),
+      }),
+    })
+    await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector('input[name="status_custom_domain_locked"]')).not.toBeNull()
+
+    const locked = document.querySelector<HTMLInputElement>('input[name="status_custom_domain_locked"]')
+    expect(locked?.value).toBe('status.acme.test')
+    expect(locked?.readOnly).toBe(true)
+    expect(document.querySelector('input[name="status_custom_domain"]')).toBeNull()
+    expect(document.querySelector('[data-test="custom-domain-remove"]')).not.toBeNull()
+  })
+
+  it('removing the existing custom domain sends null on save without manageCustomDomains', async () => {
+    const server = fakeApi({
+      ...base({ manageCustomDomains: false }),
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage({ custom_domain: 'status.acme.test' }),
+      }),
+      'PATCH /workspaces/acme/status-pages/5': json({
+        data: statusPage(),
+      }),
+    })
+    await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector('[data-test="custom-domain-remove"]')).not.toBeNull()
+
+    await click('[data-test="custom-domain-remove"]')
+    expect(document.querySelector<HTMLInputElement>('input[name="status_custom_domain_locked"]')?.value).toBe('')
+    await submit('input[name="status_title"]')
+
+    await expect.poll(() => server.of('PATCH /workspaces/acme/status-pages/5')).toHaveLength(1)
+    expect(server.of('PATCH /workspaces/acme/status-pages/5')[0]?.body).toEqual({
+      custom_domain: null,
+    })
+    // The saved page has no domain any more, so the field disappears.
+    await expect.poll(() => document.querySelector('input[name="status_custom_domain_locked"]')).toBeNull()
+  })
+
+  it('no remove action for a workspace editor, whom the API would refuse', async () => {
+    fakeApi({
+      ...base({ manageCustomDomains: false, update: false }),
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage({ custom_domain: 'status.acme.test' }),
+      }),
+    })
+    await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector('input[name="status_custom_domain_locked"]')).not.toBeNull()
+
+    expect(document.querySelector('[data-test="custom-domain-remove"]')).toBeNull()
+  })
+
+  it('custom domain stays editable with manageCustomDomains', async () => {
+    const server = fakeApi({
+      ...base(),
+      'GET /workspaces/acme/status-pages/5': json({
+        data: statusPage({ custom_domain: 'status.acme.test' }),
+      }),
+      'PATCH /workspaces/acme/status-pages/5': json({
+        data: statusPage({ custom_domain: 'www.acme.test' }),
+      }),
+    })
+    await mountApp('/w/acme/status-pages/5')
+    await expect.poll(() => document.querySelector('input[name="status_custom_domain"]')).not.toBeNull()
+
+    expect(document.querySelector<HTMLInputElement>('input[name="status_custom_domain"]')?.readOnly).toBe(false)
+    expect(document.querySelector('input[name="status_custom_domain_locked"]')).toBeNull()
+    expect(document.querySelector('[data-test="custom-domain-remove"]')).toBeNull()
+    fill('input[name="status_custom_domain"]', 'www.acme.test')
+    await submit('input[name="status_title"]')
+
+    await expect.poll(() => server.of('PATCH /workspaces/acme/status-pages/5')).toHaveLength(1)
+    expect(server.of('PATCH /workspaces/acme/status-pages/5')[0]?.body).toEqual({
+      custom_domain: 'www.acme.test',
+    })
   })
 
   it('422 for app host lands on the custom domain field', async () => {

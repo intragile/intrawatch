@@ -2,12 +2,20 @@
 import type { PageForm } from './model'
 import { useI18n } from 'vue-i18n'
 import CustomDomainField from './CustomDomainField.vue'
+import LockedDomainField from './LockedDomainField.vue'
 import { LOCALES, UPTIME_WINDOWS } from './model'
 
 defineProps<{
   disabled: boolean
   /** Whether the caller may set the custom domain; the field is hidden otherwise. */
   canCustomDomain: boolean
+  /**
+   * The stored domain while custom domains cannot be set (empty when there is none): it is shown read-only
+   * so it is not forgotten, and can at most be removed.
+   */
+  lockedDomain?: string
+  /** Whether the locked domain may be removed; the API lets a workspace admin do that. */
+  canRemoveDomain?: boolean
   errors: Record<string, string>
 }>()
 
@@ -72,6 +80,14 @@ const { t } = useI18n()
       v-model="form.custom_domain"
       class="mt-4"
       :disabled="disabled"
+      :error="errors.custom_domain"
+    />
+    <LockedDomainField
+      v-else-if="lockedDomain"
+      v-model="form.custom_domain"
+      class="mt-4"
+      :stored="lockedDomain"
+      :disabled="disabled || !canRemoveDomain"
       :error="errors.custom_domain"
     />
 
