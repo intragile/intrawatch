@@ -146,3 +146,9 @@ Route::prefix('v1')->group(function (): void {
         });
     });
 });
+
+// Uptime Kuma's push URL shape, so push clients moved from Kuma only change the host. Same handler, token
+// rule and limit as the versioned route above.
+Route::match(['GET', 'POST', 'HEAD'], '/push/{token}', [PushController::class, 'ping'])
+    ->where('token', '[A-Za-z0-9]+')
+    ->middleware('throttle:push');

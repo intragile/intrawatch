@@ -16,7 +16,7 @@ class HttpDefinition extends AbstractDefinition
     public const KEYWORD_CASE_SENSITIVE = true;
 
     /** Header names, lower-cased, that carry credentials and belong in secret_headers. */
-    private const CREDENTIAL_HEADERS = ['authorization', 'proxy-authorization', 'cookie', 'x-api-key', 'x-auth-token'];
+    public const CREDENTIAL_HEADERS = ['authorization', 'proxy-authorization', 'cookie', 'x-api-key', 'x-auth-token'];
 
     private const HEADER_NAME = '/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/';
 

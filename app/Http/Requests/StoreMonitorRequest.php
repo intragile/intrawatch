@@ -6,6 +6,9 @@ use App\Enums\MonitorType;
 use App\Models\Monitor;
 use Illuminate\Validation\Rule;
 
+/**
+ * @phpstan-type ValidatedMonitor array{attributes: array<string, mixed>, tags: array<int, array{value: string|null}>|null, notification_channel_ids: list<int>|null, parent_id: int|null, push_token?: string}
+ */
 class StoreMonitorRequest extends MonitorRequest
 {
     protected function stored(): ?Monitor
@@ -50,5 +53,21 @@ class StoreMonitorRequest extends MonitorRequest
             'retries' => config()->integer('monitoring.limits.retries.default'),
             'retry_interval_seconds' => $interval,
         ] + ['type' => $type];
+    }
+
+    /**
+     * Everything `CreateMonitor::handle` takes: the column values, the tag assignments and channel ids (null
+     * when the request leaves them out, which binds the workspace's default channels) and the parent id.
+     *
+     * @return ValidatedMonitor
+     */
+    public function validatedMonitor(): array
+    {
+        return [
+            'attributes' => $this->monitorAttributes(),
+            'tags' => $this->tagAssignments(),
+            'notification_channel_ids' => $this->notificationChannelIds(),
+            'parent_id' => $this->parentId(),
+        ];
     }
 }

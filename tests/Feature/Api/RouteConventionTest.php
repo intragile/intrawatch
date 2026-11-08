@@ -9,7 +9,8 @@ class RouteConventionTest extends TestCase
 {
     public function test_all_api_routes_are_versioned(): void
     {
-        $allowed = ['up', 'sanctum/csrf-cookie'];
+        // `api/push/{token}` is the Uptime Kuma compatible push URL; its shape is fixed by Kuma's clients.
+        $allowed = ['up', 'sanctum/csrf-cookie', 'api/push/{token}'];
         $unversioned = [];
 
         foreach (Route::getRoutes()->getRoutes() as $route) {

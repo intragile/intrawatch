@@ -9,6 +9,7 @@ use App\Models\NotificationChannel;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Support\Audit;
+use App\Support\RequestInput;
 use Illuminate\Routing\Redirector;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -32,7 +33,7 @@ class CreateNotificationChannel
      */
     public function validate(Workspace $workspace, array $input): array
     {
-        $request = NotificationChannelRequest::create('/', 'POST', self::normalize($input));
+        $request = NotificationChannelRequest::create('/', 'POST', RequestInput::normalize($input));
         $request->setContainer(app())->setRedirector(app(Redirector::class));
         $request->validateResolved();
 
@@ -88,29 +89,6 @@ class CreateNotificationChannel
         }, 'monitors.id', 'id');
 
         return $attached;
-    }
-
-    /**
-     * Applies what the HTTP middleware does to a request body: strings are trimmed and empty ones become null.
-     *
-     * @param  array<array-key, mixed>  $input
-     * @return array<array-key, mixed>
-     */
-    private static function normalize(array $input): array
-    {
-        $out = [];
-        foreach ($input as $key => $value) {
-            if (is_array($value)) {
-                $out[$key] = self::normalize($value);
-            } elseif (is_string($value)) {
-                $value = trim($value);
-                $out[$key] = $value === '' ? null : $value;
-            } else {
-                $out[$key] = $value;
-            }
-        }
-
-        return $out;
     }
 
     /**

@@ -6,6 +6,7 @@ namespace App\Import\Kuma\Mapping;
 
 /**
  * A source row translated into attributes of the target entity, with the remarks the translation produced.
+ * `pause` marks a translation that changes behaviour: the entity is created, but not active.
  */
 final readonly class Mapped
 {
@@ -16,5 +17,6 @@ final readonly class Mapped
     public function __construct(
         public array $attributes,
         public array $notes = [],
+        public bool $pause = false,
     ) {}
 }

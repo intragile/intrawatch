@@ -6,6 +6,7 @@ namespace App\Import\Kuma;
 
 use App\Import\Kuma\Mapping\Note;
 use App\Import\Kuma\Source\KumaSource;
+use App\Import\Kuma\Steps\ImportMonitors;
 use App\Import\Kuma\Steps\ImportNotifications;
 use App\Import\Kuma\Steps\ImportStep;
 use App\Import\Kuma\Steps\ImportTags;
@@ -28,6 +29,7 @@ final class KumaImporter
     public const STEPS = [
         ImportTags::class,
         ImportNotifications::class,
+        ImportMonitors::class,
     ];
 
     /**

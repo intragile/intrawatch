@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Monitors\CreateMonitor;
 use App\Alerting\Engine\AlertSignals;
 use App\Enums\MonitorStatus;
 use App\Enums\MonitorType;
@@ -78,39 +79,9 @@ class MonitorController extends Controller
         return CursorPage::from($query, $request, fn (Model $m): array => MonitorPresenter::toArray($this->monitor($m), $reveal));
     }
 
-    public function store(StoreMonitorRequest $request, Workspace $workspace): JsonResponse
+    public function store(StoreMonitorRequest $request, Workspace $workspace, CreateMonitor $create): JsonResponse
     {
-        $attributes = $request->monitorAttributes();
-        $parent = $this->parent($workspace, $request->parentId());
-
-        $monitor = new Monitor($attributes + ['workspace_id' => $workspace->id]);
-        GroupHierarchy::assertValidParent($monitor, $parent);
-
-        if (in_array($monitor->type, [MonitorType::Push, MonitorType::Cron], true)) {
-            $monitor->push_token = Str::random(48);
-        }
-
-        $events = [];
-        $jobs = [];
-        DB::transaction(function () use ($monitor, $request, $workspace, &$events, &$jobs): void {
-            $events = [];
-            $jobs = [];
-            $monitor->save();
-            $tags = $request->tagAssignments();
-            if ($tags !== null) {
-                $monitor->tags()->sync($tags);
-            }
-            $channelIds = $request->notificationChannelIds() ?? $this->defaultChannelIds($workspace);
-            $monitor->notificationChannels()->sync($channelIds);
-            Audit::record('monitor.created', $monitor, $this->createdChanges($monitor, $tags ?? []) + [
-                'notification_channel_ids' => [[], $channelIds],
-            ]);
-            if ($monitor->parent_id !== null) {
-                [$events, $jobs] = $this->groupChanges([$monitor->parent_id]);
-            }
-        });
-        PostCommit::dispatch($events);
-        PostCommit::queue($jobs);
+        $monitor = $create->handle($workspace, $request->validatedMonitor(), null);
 
         return response()->json(['data' => MonitorPresenter::toArray($this->fresh($monitor), true)], 201);
     }
@@ -269,21 +240,6 @@ class MonitorController extends Controller
         ];
     }
 
-    /**
-     * Ids of the workspace's active default channels, ascending.
-     *
-     * @return list<int>
-     */
-    private function defaultChannelIds(Workspace $workspace): array
-    {
-        $ids = [];
-        foreach ($workspace->notificationChannels()->where('is_default', true)->where('active', true)->orderBy('id')->pluck('id') as $id) {
-            $ids[] = is_numeric($id) ? (int) $id : 0;
-        }
-
-        return $ids;
-    }
-
     private function monitor(Model $model): Monitor
     {
         return $model instanceof Monitor ? $model : throw new \LogicException('Expected a monitor.');
@@ -316,20 +272,5 @@ class MonitorController extends Controller
         sort($keys);
 
         return $keys;
-    }
-
-    /**
-     * @param  array<int, mixed>  $tags
-     * @return array<string, array{0: mixed, 1: mixed}>
-     */
-    private function createdChanges(Monitor $monitor, array $tags): array
-    {
-        return [
-            'name' => [null, $monitor->name],
-            'type' => [null, $monitor->type->value],
-            'config' => [null, $monitor->config],
-            'secret_keys' => [[], $this->secretKeys($monitor->secrets)],
-            'tags' => [[], array_keys($tags)],
-        ];
     }
 }

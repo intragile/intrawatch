@@ -207,6 +207,13 @@ to API tokens that hold `monitors:write`; Viewers and read-only tokens get
 HTTP monitor's plain `headers`, which the API returns; put them in
 `secret_headers`.
 
+Push monitors also answer at `/api/push/{token}`, the URL shape Uptime Kuma
+uses, with the same `status=up|down`, `msg` and `ping` query parameters (GET,
+POST or HEAD) and the same rate limit as `/api/v1/push/{token}`. Push monitors
+imported from Uptime Kuma keep their token, so their clients only need the new
+host; a token that another monitor already holds, or that contains characters
+other than letters and digits, is replaced and the import report says so.
+
 While the database fails, the reports that push and cron monitors send may be
 refused, so the worker does not judge their deadlines on its own. A failure of
 deadline reads or result writes that lasts at least 30 seconds counts as an
