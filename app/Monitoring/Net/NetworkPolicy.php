@@ -110,8 +110,8 @@ final class NetworkPolicy
     }
 
     /**
-     * Packs an address to 4 or 16 bytes; IPv4-mapped IPv6 addresses collapse to their IPv4 form so they cannot
-     * bypass an IPv4 rule.
+     * Packs an address to 4 or 16 bytes; IPv4-mapped and IPv4-compatible IPv6 addresses collapse to their IPv4
+     * form so they cannot bypass an IPv4 rule. `::` and `::1` keep their IPv6 meaning.
      */
     private static function pack(string $ip): ?string
     {
@@ -121,6 +121,10 @@ final class NetworkPolicy
         }
 
         if (strlen($packed) === 16 && str_starts_with($packed, str_repeat("\0", 10)."\xff\xff")) {
+            return substr($packed, 12);
+        }
+
+        if (strlen($packed) === 16 && str_starts_with($packed, str_repeat("\0", 12)) && strcmp(substr($packed, 12), "\0\0\0\1") > 0) {
             return substr($packed, 12);
         }
 

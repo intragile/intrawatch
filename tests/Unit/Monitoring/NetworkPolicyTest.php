@@ -33,6 +33,17 @@ class NetworkPolicyTest extends TestCase
         $this->assertFalse($policy->allows('::ffff:a9fe:a9fe'));
     }
 
+    public function test_ipv4_compatible_ipv6_is_classified_as_ipv4(): void
+    {
+        $policy = new NetworkPolicy(['127.0.0.0/8', '10.0.0.0/8', '::1/128', '::/128']);
+
+        foreach (['::127.0.0.1', '::7f00:1', '::a00:1', '0:0:0:0:0:0:7f00:1', '::', '::1'] as $ip) {
+            $this->assertFalse($policy->allows($ip), "{$ip} must be classified like its IPv4 or loopback equivalent");
+        }
+        $this->assertTrue($policy->allows('::808:808'), 'a public IPv4-compatible address stays allowed');
+        $this->assertTrue((new NetworkPolicy(['0.0.0.0/8']))->allows('::1'), 'the IPv6 loopback is not read as 0.0.0.1');
+    }
+
     public function test_non_ip_input_is_denied(): void
     {
         $this->assertFalse((new NetworkPolicy([]))->allows('example.test'));
