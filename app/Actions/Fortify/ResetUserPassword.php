@@ -4,10 +4,10 @@ namespace App\Actions\Fortify;
 
 use App\Models\User;
 use App\Support\Audit;
+use App\Support\SignOutEverywhere;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\ResetsUserPasswords;
 
@@ -15,9 +15,11 @@ class ResetUserPassword implements ResetsUserPasswords
 {
     use PasswordValidationRules;
 
+    public function __construct(private readonly SignOutEverywhere $signOutEverywhere) {}
+
     /**
-     * Validate and reset the user's forgotten password. Whoever knew the old password may have minted API
-     * tokens with it, so every token is revoked together with the change.
+     * Validate and reset the user's forgotten password. Whoever knew the old password may hold a session,
+     * a remember cookie or an API token obtained with it, so every one of them ends together with the change.
      *
      * @param  array<string, string>  $input
      *
@@ -30,11 +32,8 @@ class ResetUserPassword implements ResetsUserPasswords
         ])->validate();
 
         DB::transaction(function () use ($user, $input): void {
-            $user->forceFill([
-                'password' => Hash::make($input['password']),
-                'remember_token' => Str::random(60),
-            ])->save();
-            $user->tokens()->delete();
+            $user->forceFill(['password' => Hash::make($input['password'])])->save();
+            ($this->signOutEverywhere)($user);
 
             // The password itself is never part of the trail.
             Audit::recordGlobal('auth.password_reset', $user);

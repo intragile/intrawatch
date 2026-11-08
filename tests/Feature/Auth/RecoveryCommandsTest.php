@@ -42,9 +42,13 @@ class RecoveryCommandsTest extends TestCase
     {
         config(['session.driver' => 'database']);
         $user = User::factory()->create(['email' => 'ada@example.com']);
+        $other = User::factory()->create();
         $remember = $user->remember_token;
         DB::table('sessions')->insert([
             'id' => 'abc', 'user_id' => $user->id, 'ip_address' => null, 'user_agent' => null, 'payload' => '', 'last_activity' => time(),
+        ]);
+        DB::table('sessions')->insert([
+            'id' => 'other', 'user_id' => $other->id, 'ip_address' => null, 'user_agent' => null, 'payload' => '', 'last_activity' => time(),
         ]);
 
         $this->assertSame(0, Artisan::call('intrawatch:user:reset-password', ['email' => 'ada@example.com', '--password' => 'brand-new-password']));
@@ -53,6 +57,7 @@ class RecoveryCommandsTest extends TestCase
         $this->assertTrue(Hash::check('brand-new-password', $user->password));
         $this->assertNotSame($remember, $user->remember_token);
         $this->assertSame(0, DB::table('sessions')->where('user_id', $user->id)->count());
+        $this->assertSame(1, DB::table('sessions')->where('user_id', $other->id)->count());
 
         $event = AuditEvent::where('action', 'auth.password_reset')->sole();
         $this->assertSame('system', $event->actor_type);
@@ -72,6 +77,21 @@ class RecoveryCommandsTest extends TestCase
 
         $this->assertSame(0, Artisan::call('intrawatch:user:reset-password', ['email' => 'ada@example.com', '--password' => 'brand-new-password']));
 
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
+    public function test_reset_password_leaves_the_session_table_alone_without_the_database_driver(): void
+    {
+        config(['session.driver' => 'array']);
+        $user = User::factory()->create(['email' => 'ada@example.com']);
+        $user->createToken('ci');
+        DB::table('sessions')->insert([
+            'id' => 'abc', 'user_id' => $user->id, 'ip_address' => null, 'user_agent' => null, 'payload' => '', 'last_activity' => time(),
+        ]);
+
+        $this->assertSame(0, Artisan::call('intrawatch:user:reset-password', ['email' => 'ada@example.com', '--password' => 'brand-new-password']));
+
+        $this->assertSame(1, DB::table('sessions')->where('user_id', $user->id)->count());
         $this->assertSame(0, $user->tokens()->count());
     }
 

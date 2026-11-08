@@ -4,12 +4,12 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Support\Audit;
+use App\Support\SignOutEverywhere;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
 use function Laravel\Prompts\password;
@@ -18,7 +18,7 @@ use function Laravel\Prompts\password;
 #[Description('Set a new password for a user, sign out their existing sessions and revoke their API tokens')]
 class ResetUserPasswordCommand extends Command
 {
-    public function handle(): int
+    public function handle(SignOutEverywhere $signOutEverywhere): int
     {
         $email = mb_strtolower(trim((string) $this->argument('email')));
         $user = User::where('email', $email)->first();
@@ -43,19 +43,10 @@ class ResetUserPasswordCommand extends Command
             return self::FAILURE;
         }
 
-        DB::transaction(function () use ($user, $plain): void {
-            $user->forceFill(['password' => $plain, 'remember_token' => Str::random(60)])->save();
-
-            if (config('session.driver') === 'database') {
-                $connection = config('session.connection');
-                DB::connection(is_string($connection) && $connection !== '' ? $connection : null)
-                    ->table(config()->string('session.table'))
-                    ->where('user_id', $user->id)
-                    ->delete();
-            }
-
-            // Tokens minted with the old password must not outlive it, as with the e-mail reset.
-            $user->tokens()->delete();
+        DB::transaction(function () use ($user, $plain, $signOutEverywhere): void {
+            $user->forceFill(['password' => $plain])->save();
+            // Sessions, the remember cookie and tokens obtained with the old password end with it, as with the e-mail reset.
+            $signOutEverywhere($user);
 
             // The password itself is never part of the trail.
             Audit::record('auth.password_reset', $user);
