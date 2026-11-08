@@ -6806,6 +6806,15 @@
                         }
                     },
                     {
+                        "name": "beats",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50
+                        }
+                    },
+                    {
                         "name": "cursor",
                         "in": "query",
                         "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
@@ -7038,6 +7047,43 @@
                                                             "string",
                                                             "null"
                                                         ]
+                                                    },
+                                                    "recent_beats": {
+                                                        "type": [
+                                                            "array",
+                                                            "null"
+                                                        ],
+                                                        "description": "The newest check results, oldest first, when the `beats` parameter asks for them; null otherwise.",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "status": {
+                                                                    "type": "string",
+                                                                    "enum": [
+                                                                        "up",
+                                                                        "down",
+                                                                        "degraded",
+                                                                        "maintenance",
+                                                                        "pending",
+                                                                        "paused"
+                                                                    ]
+                                                                },
+                                                                "latency_ms": {
+                                                                    "type": [
+                                                                        "integer",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "checked_at": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "status",
+                                                                "latency_ms",
+                                                                "checked_at"
+                                                            ]
+                                                        }
                                                     }
                                                 },
                                                 "required": [
@@ -7062,7 +7108,8 @@
                                                     "has_push_token",
                                                     "state",
                                                     "created_at",
-                                                    "updated_at"
+                                                    "updated_at",
+                                                    "recent_beats"
                                                 ]
                                             }
                                         },

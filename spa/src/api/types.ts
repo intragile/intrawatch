@@ -12,7 +12,9 @@ export type Schemas = components['schemas']
 export type Me = Item<GetOk<'/me'>>
 export type WorkspaceSummary = Me['workspaces'][number]
 export type Ability = keyof WorkspaceSummary['can']
-export type Monitor = Item<GetOk<'/workspaces/{workspace}/monitors'>>
+/** A monitor list item, with the heartbeats the list asks for. */
+export type ListedMonitor = Item<GetOk<'/workspaces/{workspace}/monitors'>>
+export type Monitor = Omit<ListedMonitor, 'recent_beats'>
 export type MonitorType = Schemas['MonitorType']
 export type MonitorStatus = Schemas['MonitorStatus']
 export type ChannelType = Schemas['ChannelType']

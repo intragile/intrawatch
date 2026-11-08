@@ -3945,6 +3945,7 @@ export interface operations {
                 q?: string;
                 parent_id?: string;
                 active?: "true" | "false" | "1" | "0";
+                beats?: number;
                 /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
                 cursor?: string;
                 /** @description Page size. */
@@ -4013,6 +4014,13 @@ export interface operations {
                             };
                             created_at: string | null;
                             updated_at: string | null;
+                            /** @description The newest check results, oldest first, when the `beats` parameter asks for them; null otherwise. */
+                            recent_beats: {
+                                /** @enum {string} */
+                                status: "up" | "down" | "degraded" | "maintenance" | "pending" | "paused";
+                                latency_ms: number | null;
+                                checked_at: string;
+                            }[] | null;
                         }[];
                         meta: {
                             next_cursor: string | null;

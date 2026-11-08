@@ -20,6 +20,7 @@ use App\Models\Workspace;
 use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Engine\PostCommit;
 use App\Monitoring\MonitorActivation;
+use App\Monitoring\RecentBeats;
 use App\Monitoring\Types\GroupHierarchy;
 use App\Status\Pages\AffectedPages;
 use App\Status\Pages\PageStamps;
@@ -51,6 +52,7 @@ class MonitorController extends Controller
             'q' => ['sometimes', 'string', 'max:120'],
             'parent_id' => ['sometimes', 'string', 'regex:/^(null|\d+)$/'],
             'active' => ['sometimes', 'in:true,false,1,0'],
+            'beats' => ['sometimes', 'integer', 'min:1', 'max:'.RecentBeats::MAX],
         ]);
 
         $query = $workspace->monitors()->with(['state', 'tags', 'notificationChannels:id'])->orderBy('monitors.id');
@@ -76,7 +78,32 @@ class MonitorController extends Controller
 
         $reveal = MonitorPresenter::revealsPushUrl($request->user(), $workspace);
 
-        return CursorPage::from($query, $request, fn (Model $m): array => MonitorPresenter::toArray($this->monitor($m), $reveal));
+        $beatCount = $request->has('beats') ? $request->integer('beats') : null;
+        /** @var array<int, list<array{status: string, latency_ms: int|null, checked_at: string}>> $beats */
+        $beats = [];
+        $prepare = $beatCount === null ? null : function (array $models) use (&$beats, $beatCount): void {
+            $ids = [];
+            foreach ($models as $model) {
+                if ($model instanceof Monitor) {
+                    $ids[] = $model->id;
+                }
+            }
+            $beats = RecentBeats::for($ids, $beatCount);
+        };
+
+        return CursorPage::from($query, $request, function (Model $m) use ($reveal, &$beats, $beatCount): array {
+            $monitor = $this->monitor($m);
+
+            return [
+                ...MonitorPresenter::toArray($monitor, $reveal),
+                /**
+                 * The newest check results, oldest first, when the `beats` parameter asks for them; null otherwise.
+                 *
+                 * @var list<array{status: 'up'|'down'|'degraded'|'maintenance'|'pending'|'paused', latency_ms: int|null, checked_at: string}>|null
+                 */
+                'recent_beats' => $beatCount === null ? null : ($beats[$monitor->id] ?? []),
+            ];
+        }, $prepare);
     }
 
     public function store(StoreMonitorRequest $request, Workspace $workspace, CreateMonitor $create): JsonResponse

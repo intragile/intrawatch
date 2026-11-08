@@ -29,8 +29,9 @@ final class CursorPage
     /**
      * @param  Builder<*>|Relation<*, *, *>  $query  Ordered by primary key unless it already has an order.
      * @param  (Closure(Model): mixed)|null  $map  Item serialiser; defaults to the model's array form.
+     * @param  (Closure(list<Model>): void)|null  $prepare  Called once with the page's items before they are mapped.
      */
-    public static function from(Builder|Relation $query, Request $request, ?Closure $map = null): JsonResponse
+    public static function from(Builder|Relation $query, Request $request, ?Closure $map = null, ?Closure $prepare = null): JsonResponse
     {
         $request->validate([
             'limit' => ['sometimes', 'integer', 'min:1'],
@@ -56,6 +57,10 @@ final class CursorPage
         $page = $query->cursorPaginate($limit, ['*'], 'cursor', $cursor);
 
         $map ??= static fn (Model $model): mixed => $model->toArray();
+        // Lets a caller load data for the whole page in one query before the items are mapped.
+        if ($prepare !== null) {
+            $prepare(array_values(array_filter($page->items(), static fn (mixed $item): bool => $item instanceof Model)));
+        }
         $data = [];
         foreach ($page->items() as $item) {
             if ($item instanceof Model) {
