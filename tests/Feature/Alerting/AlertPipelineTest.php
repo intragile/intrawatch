@@ -378,6 +378,29 @@ class AlertPipelineTest extends TestCase
         $this->assertSame(2, AlertDelivery::count(), 'caught up once');
     }
 
+    public function test_all_mode_resume_child_of_down_group_sends_no_degraded(): void
+    {
+        $editor = $this->editor();
+        $group = Monitor::factory()->for($this->ws)->group('all')->create();
+        $this->channel($group);
+        $failing = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+        $resumed = $this->monitor(['retries' => 0, 'parent_id' => $group->id]);
+        $this->record($failing, CheckOutcome::up(10), 0);
+        $this->record($resumed, CheckOutcome::up(10), 0);
+        $this->record($failing, CheckOutcome::down('refused'), 60);
+        $this->assertSame(['down'], $this->kinds($group));
+
+        CarbonImmutable::setTestNow($this->t0->addSeconds(90));
+        $this->actingAs($editor)->postJson($this->api("/monitors/{$resumed->id}/pause"))->assertOk();
+        CarbonImmutable::setTestNow($this->t0->addSeconds(120));
+        $this->actingAs($editor)->postJson($this->api("/monitors/{$resumed->id}/resume"))->assertOk();
+        $this->tick(400);
+
+        $this->assertSame(MonitorStatus::Down, $group->state()->firstOrFail()->status);
+        $this->assertSame(['down'], $this->kinds($group), 'a pending child is neutral: no degraded and no second down');
+        $this->assertSame(1, AlertDelivery::count());
+    }
+
     public function test_group_without_channels_does_not_suppress(): void
     {
         $group = Monitor::factory()->for($this->ws)->group('all')->create();

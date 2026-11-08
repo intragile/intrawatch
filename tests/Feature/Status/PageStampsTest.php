@@ -239,4 +239,24 @@ class PageStampsTest extends TestCase
         $this->assertSame(1, Incident::query()->count());
         Exceptions::assertReported(\ErrorException::class);
     }
+
+    public function test_stamp_failure_after_commit_does_not_500(): void
+    {
+        $ws = Workspace::factory()->create();
+        $editor = User::factory()->memberOf($ws, WorkspaceRole::Editor)->create();
+        $page = StatusPage::factory()->create(['workspace_id' => $ws->id]);
+        $monitor = Monitor::factory()->create(['workspace_id' => $ws->id]);
+        $this->breakStore();
+        Exceptions::fake();
+        $base = "/api/v1/workspaces/{$ws->slug}";
+
+        $created = $this->actingAs($editor)->postJson("{$base}/status-pages", ['title' => 'Public', 'slug' => 'public-one'])->assertCreated();
+        $this->assertSame(1, StatusPage::query()->where('slug', 'public-one')->count());
+        $this->actingAs($editor)->patchJson("{$base}/status-pages/{$created->json('data.id')}", ['slug' => 'public-two'])->assertOk();
+        $this->assertSame(1, StatusPage::query()->where('slug', 'public-two')->count());
+        $this->actingAs($editor)->deleteJson("{$base}/status-pages/{$page->id}")->assertNoContent();
+        $this->assertNull(StatusPage::query()->find($page->id));
+        $this->actingAs($editor)->deleteJson("{$base}/monitors/{$monitor->id}")->assertNoContent();
+        $this->assertNull(Monitor::query()->find($monitor->id));
+    }
 }
