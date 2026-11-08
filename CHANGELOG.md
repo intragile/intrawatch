@@ -119,8 +119,10 @@ behaviour that an existing installation may rely on.
   `IMPORT_MAX_JSON_ITEMS`), the upload limit honours PHP's limits, SQLite files
   with virtual tables are refused, crashed runs are reported as interrupted,
   push token collisions are no longer disclosed (`push_token_regenerated`
-  replaces `push_token_collision`) and imports started by users drop custom
-  domains the allowlist does not cover.
+  replaces `push_token_collision`), push tokens shorter than 32 characters
+  are replaced (Uptime Kuma's own tokens are 32 long and keep working through
+  the `/api/push` alias) and imports started by users drop custom domains the
+  allowlist does not cover.
 - Invitation links carry the token in the URL fragment
   (`/admin/invitations#token=…`), so it no longer reaches access logs; links
   sent in the old path form still work. Workspace and inviter names can no

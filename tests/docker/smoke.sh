@@ -432,7 +432,7 @@ ok "PHP limits for imports are set (uploads 512M/520M, CLI memory 512M)"
 # Release archives in build/ must stay out of the image (see .dockerignore).
 if timeout 30 docker exec "$NAME" test -e /app/build; then fail "/app/build exists in the image"; fi
 # The push token of the fixture's push monitor (tests/Fixtures/kuma/kuma2.db, monitor "Push").
-KUMA_PUSH_TOKEN="researchPushToken01"
+KUMA_PUSH_TOKEN="researchPushToken0123456789ABCDE"
 UPLOAD_AUTH=(-H "Authorization: Bearer $API_TOKEN" -H 'Accept: application/json')
 import_json="$(curl -sS --max-time 60 "${UPLOAD_AUTH[@]}" -F "file=@tests/Fixtures/kuma/kuma2.db" "$WS_URL/imports")" \
   || fail "import upload failed"

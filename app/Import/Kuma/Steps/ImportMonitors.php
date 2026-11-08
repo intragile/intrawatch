@@ -28,10 +28,11 @@ final class ImportMonitors implements ImportStep
     public const ENTITY = 'monitor';
 
     /**
-     * Push tokens IntraWatch accepts in its push URLs and stores (48 characters at most). Short Kuma tokens are
-     * kept on purpose: the /api/push alias exists so that existing Kuma push clients keep working unchanged.
+     * Push tokens kept on import: 32 to 48 letters and digits. Uptime Kuma generates 32-character tokens, so
+     * those keep working through the /api/push alias. A shorter (hand-set) token could be guessed, which would
+     * let anyone send fake heartbeats, so it is replaced and the import report says the push URL changes.
      */
-    private const PUSH_TOKEN = '/^[A-Za-z0-9]{1,48}$/';
+    private const PUSH_TOKEN = '/^[A-Za-z0-9]{32,48}$/';
 
     private const DEFAULT_EXPIRY_DAYS = [7, 14, 21];
 

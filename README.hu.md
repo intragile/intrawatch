@@ -453,9 +453,10 @@ URL-formája, ugyanazokkal a `status=up|down`, `msg` és `ping` lekérdezési
 paraméterekkel (GET, POST vagy HEAD) és ugyanazzal a sebességkorláttal, mint az
 `/api/v1/push/{token}`. Az Uptime Kumából importált push monitorok megtartják a
 tokenjüket, így a klienseikben csak a hosztot kell cserélni; az a token,
-amelyet már egy másik monitor birtokol, amely 48 karakternél hosszabb, vagy
-amely a betűkön és számjegyeken kívül más karaktert is tartalmaz, kicserélődik,
-és az importjelentés ezt közli (lásd [Migrálás Uptime
+amelyet már egy másik monitor birtokol, amely 32 karakternél rövidebb vagy 48
+karakternél hosszabb, vagy amely a betűkön és számjegyeken kívül más karaktert
+is tartalmaz, kicserélődik, és az importjelentés ezt közli (az Uptime Kuma 32
+karakteres tokent generál; egy rövidebb, kézzel megadott token kitalálható) (lásd [Migrálás Uptime
 Kumából](#migrálás-uptime-kumából)).
 
 Amíg az adatbázis hibázik, a push és cron monitorok jelentéseit elutasíthatja a

@@ -30,10 +30,10 @@ final class KumaPushAliasTest extends TestCase
         } finally {
             $source->close();
         }
-        $monitor = Monitor::where('workspace_id', $ws->id)->where('push_token', 'researchPushToken01')->sole();
+        $monitor = Monitor::where('workspace_id', $ws->id)->where('push_token', 'researchPushToken0123456789ABCDE')->sole();
 
         // The URL Kuma shows for a push monitor, with an empty ping as its clients send it.
-        $this->getJson('/api/push/researchPushToken01?status=down&msg=x&ping=')->assertOk()->assertExactJson(['ok' => true]);
+        $this->getJson('/api/push/researchPushToken0123456789ABCDE?status=down&msg=x&ping=')->assertOk()->assertExactJson(['ok' => true]);
 
         $result = CheckResult::where('monitor_id', $monitor->id)->sole();
         $this->assertSame(MonitorStatus::Down->value, $result->getRawOriginal('status'));

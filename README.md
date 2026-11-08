@@ -420,9 +420,10 @@ Push monitors also answer at `/api/push/{token}`, the URL shape Uptime Kuma
 uses, with the same `status=up|down`, `msg` and `ping` query parameters (GET,
 POST or HEAD) and the same rate limit as `/api/v1/push/{token}`. Push monitors
 imported from Uptime Kuma keep their token, so their clients only need the new
-host; a token that another monitor already holds, is longer than 48 characters
-or contains characters other than letters and digits is replaced and the
-import report says so (see [Migrating from Uptime
+host; a token that another monitor already holds, is shorter than 32 or longer
+than 48 characters, or contains characters other than letters and digits is
+replaced and the import report says so (Uptime Kuma generates 32-character
+tokens; a shorter, hand-set token could be guessed) (see [Migrating from Uptime
 Kuma](#migrating-from-uptime-kuma)).
 
 While the database fails, the reports that push and cron monitors send may be

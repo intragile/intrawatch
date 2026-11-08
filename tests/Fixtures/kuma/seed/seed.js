@@ -106,7 +106,7 @@ async function main() {
     await add("ping", { type: "ping", name: "Ping localhost", hostname: "127.0.0.1" });
     await add("dns", { type: "dns", name: "DNS", hostname: "example.com", dns_resolve_type: "A",
         dns_resolve_server: "1.1.1.1", port: 53 });
-    await add("push", { type: "push", name: "Push", pushToken: "researchPushToken01", interval: 60 });
+    await add("push", { type: "push", name: "Push", pushToken: "researchPushToken0123456789ABCDE", interval: 60 });
     await add("redis", { type: "redis", name: "Redis", databaseConnectionString: "redis://user:secret@redis.local:6379",
         active: false });
 

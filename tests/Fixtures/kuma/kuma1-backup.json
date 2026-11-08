@@ -638,7 +638,7 @@
             "oauth_token_url": null,
             "oauth_scopes": null,
             "oauth_auth_method": null,
-            "pushToken": "researchPushToken01",
+            "pushToken": "researchPushToken0123456789ABCDE",
             "databaseConnectionString": null,
             "radiusUsername": null,
             "radiusPassword": null,

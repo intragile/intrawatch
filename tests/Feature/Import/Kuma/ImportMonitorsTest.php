@@ -306,24 +306,25 @@ final class ImportMonitorsTest extends TestCase
         $this->assertSame(1, Monitor::query()->where('push_token', $token)->count());
     }
 
-    public function test_short_push_token_is_kept_for_the_kuma_push_alias(): void
+    public function test_push_token_shorter_than_32_characters_is_regenerated(): void
     {
         $ws = Workspace::factory()->create();
         $short = str_repeat('aB3', 10).'x'; // 31 characters
         $path = $this->backup([
             ['id' => 1, 'type' => 'push', 'pushToken' => $short],
             ['id' => 2, 'type' => 'push', 'pushToken' => 'a'],
-            ['id' => 3, 'type' => 'push', 'pushToken' => 'researchPushToken01'],
+            ['id' => 3, 'type' => 'push', 'pushToken' => 'shortPushToken01'],
         ]);
 
         $dry = $this->entries($this->import($path, $ws, dryRun: true));
         $report = $this->import($path, $ws);
         $entries = $this->entries($report);
 
-        foreach ([1 => $short, 2 => 'a', 3 => 'researchPushToken01'] as $id => $token) {
-            $this->assertSame([], $dry[$id]['notes']);
-            $this->assertSame([], $entries[$id]['notes']);
-            $this->assertSame($token, $this->monitor($report, $id)->push_token);
+        foreach ([1 => $short, 2 => 'a', 3 => 'shortPushToken01'] as $id => $token) {
+            $this->assertSame([self::REGENERATED], $dry[$id]['notes']);
+            $this->assertSame([self::REGENERATED], $entries[$id]['notes']);
+            $this->assertNotSame($token, $this->monitor($report, $id)->push_token);
+            $this->assertMatchesRegularExpression('/^[A-Za-z0-9]{48}$/', (string) $this->monitor($report, $id)->push_token);
         }
     }
 
