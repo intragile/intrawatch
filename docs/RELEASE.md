@@ -114,7 +114,7 @@ Run every command from the repository root. Replace `1.0.0` for later releases.
 
     ```bash
     git log --format=%B main..HEAD | grep -inE 'co-authored-by|generated with|claude|anthropic' || echo clean   # expect: clean
-    git grep -inE 'co-authored-by|generated with|anthropic' -- . ':!CHANGELOG.md' ':!docs/RELEASE.md' || echo clean   # expect: clean
+    git grep -inE 'co-authored-by|generated with|anthropic' -- . ':!CHANGELOG.md' ':!docs/RELEASE.md' ':!resources/psl/' || echo clean   # expect: clean (the bundled Public Suffix List names Anthropic as a registrant)
     ```
 
 12. **Every Markdown file carries the header and footer line** (under the H1 and

@@ -5,7 +5,7 @@ namespace Tests\Support;
 use RuntimeException;
 
 /**
- * Certificates for TLS check tests, generated with openssl_* into a private temporary directory.
+ * Certificates for TLS check tests, created with openssl_* into a private temporary directory.
  *
  * A root CA and an intermediate CA issue the leaves; every leaf is written as one PEM file with its key, ready
  * to be served. The set is generated once per test run through shared() and removed by release().
