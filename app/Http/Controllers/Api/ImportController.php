@@ -118,7 +118,8 @@ class ImportController extends Controller
      */
     public function show(Workspace $workspace, Import $import): JsonResponse
     {
-        return response()->json(['data' => ImportPresenter::toArray($import)]);
+        // refresh() gives Scramble the same model type as store/run, so the documented shape is identical.
+        return response()->json(['data' => ImportPresenter::toArray($import->refresh())]);
     }
 
     /**

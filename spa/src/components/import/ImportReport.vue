@@ -87,7 +87,7 @@ function label(group: 'entity' | 'outcome' | 'notMigrated', value: string): stri
         {{ t('import.report.notes') }}
       </h3>
       <ul class="pl-4">
-        <li v-for="note in notes" :key="note.code + note.message">
+        <li v-for="(note, index) in notes" :key="`${index}-${note.code}`">
           {{ note.message }}
         </li>
       </ul>

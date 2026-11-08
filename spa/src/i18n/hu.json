@@ -1178,6 +1178,7 @@
       "tooLarge": "A fájl nagyobb, mint a {max} MB-os feltöltési korlát."
     },
     "blocked": "Ebben a munkaterületben már van nyitott import. Fejezd be vagy töröld, mielőtt újabb fájlt töltesz fel.",
+    "gone": "Ez az import már nem létezik. Törölték, vagy 24 óra után eltávolították.",
     "status": {
       "pending": "Sorban áll",
       "analyzing": "Elemzés alatt",

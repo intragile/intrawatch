@@ -121,7 +121,7 @@ function errorLines(entry: ImportEntryData): string[] {
           <td>{{ entry.name }}</td>
           <td>{{ label('outcome', entry.outcome) }}</td>
           <td>
-            <div v-for="note in entry.notes" :key="note.code">
+            <div v-for="(note, index) in entry.notes" :key="`${index}-${note.code}`">
               {{ note.message }}
             </div>
             <div v-for="line in errorLines(entry)" :key="line" class="text-error">

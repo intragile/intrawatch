@@ -1178,6 +1178,7 @@
       "tooLarge": "The file is larger than the {max} MB upload limit."
     },
     "blocked": "An import is already open in this workspace. Finish it or delete it before uploading another file.",
+    "gone": "This import no longer exists. It was deleted or removed after 24 hours.",
     "status": {
       "pending": "Queued",
       "analyzing": "Analysing",

@@ -3065,10 +3065,16 @@
                                                     "type": "string"
                                                 },
                                                 "file_name": {
-                                                    "type": "string"
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 },
                                                 "file_size": {
-                                                    "type": "string"
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
                                                 },
                                                 "options": {
                                                     "type": "object",
@@ -3282,7 +3288,10 @@
                                                     ]
                                                 },
                                                 "error": {
-                                                    "type": "string"
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 },
                                                 "created_at": {
                                                     "type": [

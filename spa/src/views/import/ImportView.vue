@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import type { ApiError } from '../../api'
 import type { ImportRun } from '../../api/types'
 import { mdiDeleteOutline, mdiFileDocumentOutline } from '@mdi/js'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { api, unwrap, useCursorList } from '../../api'
+import { api, ApiError, unwrap, useCursorList } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
@@ -31,10 +30,11 @@ const failure = useApiFailure()
 const { notify } = useNotify()
 
 const slug = computed(() => String(route.params.workspace))
-const allowed = can('update')
+const allowed = computed(() => can('update'))
 
 const current = ref<ImportRun | null>(null)
 const error = ref<ApiError | null>(null)
+const gone = ref(false)
 
 const list = useCursorList(async (cursor) => {
   const result = await bodyOf(api.GET('/workspaces/{workspace}/imports', {
@@ -88,13 +88,11 @@ async function refresh(): Promise<void> {
   refreshing = true
   try {
     const before = current.value?.status
-    // The generated types of the show operation declare file_name/file_size as string, unlike every other
-    // import response (string|null, number|null); the payload is the same resource.
-    const fresh = await unwrap<unknown>(api.GET('/workspaces/{workspace}/imports/{import}', {
+    const fresh = await unwrap<ImportRun>(api.GET('/workspaces/{workspace}/imports/{import}', {
       params: {
         path: { workspace: slug.value, import: id },
       },
-    })) as ImportRun
+    }))
     if (current.value?.id !== id)
       return
     current.value = fresh
@@ -103,7 +101,17 @@ async function refresh(): Promise<void> {
       void list.reloadLoaded()
   }
   catch (e) {
-    error.value = failure(e)
+    const failed = failure(e)
+    if (failed instanceof ApiError && failed.status === 404 && current.value?.id === id) {
+      // The import was deleted or pruned elsewhere: nothing left to poll.
+      stopPolling()
+      current.value = null
+      gone.value = true
+      void list.reloadLoaded()
+    }
+    else {
+      error.value = failed
+    }
   }
   finally {
     refreshing = false
@@ -138,18 +146,19 @@ useRefetchOnReturn(() => {
 }, () => document.hidden)
 
 async function load(): Promise<void> {
+  const loading = slug.value
   await list.reload()
+  if (loading !== slug.value)
+    return
   const latest = list.items.value[0]
   if (latest && OPEN.includes(latest.status)) {
     current.value = latest
     await refresh()
   }
 }
-if (allowed)
-  void load()
-
 function onUploaded(created: ImportRun): void {
   current.value = created
+  gone.value = false
   error.value = null
   void list.reload()
 }
@@ -232,11 +241,19 @@ async function remove(): Promise<void> {
   }
 }
 
-watch(slug, () => {
+// A workspace switch (or a permission change) drops everything of the previous one before loading anew.
+watch([slug, allowed], () => {
   stopPolling()
   current.value = null
-  void load()
-})
+  error.value = null
+  gone.value = false
+  refreshing = false
+  confirmingRun.value = false
+  runError.value = null
+  deleting.value = null
+  if (allowed.value)
+    void load()
+}, { immediate: true })
 </script>
 
 <template>
@@ -256,6 +273,9 @@ watch(slug, () => {
     </v-alert>
 
     <ProblemAlert :error="error" />
+    <v-alert v-if="gone" type="warning" variant="tonal" class="mb-4" max-width="960">
+      {{ t('import.gone') }}
+    </v-alert>
 
     <v-card v-if="current" class="mb-4" max-width="960">
       <v-card-title tag="h2" class="text-h6 d-flex align-center ga-2">
@@ -360,6 +380,7 @@ watch(slug, () => {
       :title="t('import.run.title')"
       :confirm-label="t('import.run.start')"
       :loading="runBusy"
+      :confirm-disabled="toCreate.length === 0"
       @confirm="startRun"
     >
       <ProblemAlert :error="runError" />

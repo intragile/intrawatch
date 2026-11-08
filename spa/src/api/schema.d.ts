@@ -2713,8 +2713,8 @@ export interface operations {
                             /** @enum {string} */
                             status: "pending" | "analyzing" | "analyzed" | "running" | "completed" | "failed";
                             source: string;
-                            file_name: string;
-                            file_size: string;
+                            file_name: string | null;
+                            file_size: number | null;
                             options: {
                                 history: boolean;
                                 paused: boolean;
@@ -2767,7 +2767,7 @@ export interface operations {
                                     message: string;
                                 }[];
                             } | null;
-                            error: string;
+                            error: string | null;
                             created_at: string | null;
                             started_at: string | null;
                             finished_at: string | null;

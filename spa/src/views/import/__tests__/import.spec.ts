@@ -2,7 +2,7 @@ import type { ImportReportData, ImportRun } from '../../../api/types'
 import { File as NodeFile } from 'node:buffer'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { abilities, me, viewerCan, workspace } from '../../../test/fixtures'
+import { abilities, me, meWith, viewerCan, workspace } from '../../../test/fixtures'
 import { click, mountApp } from '../../../test/mount'
 import { fakeApi, json, problem } from '../../../test/server'
 import { choose, page } from '../../workspace/__tests__/helpers'
@@ -390,5 +390,72 @@ describe('import screen', () => {
     })
     await mountApp('/w/acme/import')
     await expect.poll(() => document.querySelector('a[href$="/w/acme/import"]')).not.toBeNull()
+  })
+
+  it('drops the state of the previous workspace on a switch and loads the new one', async () => {
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({ slug: 'acme' }, { slug: 'beta', name: 'Beta', id: '01JAAAAAAAAAAAAAAAAAAAAAAB' }),
+      }),
+      'GET /workspaces/acme/imports': json(page([
+        run({
+          status: 'completed',
+          file_name: 'acme-kuma.db',
+          report: report({ dry_run: false }),
+        }),
+      ])),
+      'GET /workspaces/beta/imports': json(page([])),
+    })
+    const { router } = await mountApp('/w/acme/import')
+    await expect.poll(() => document.body.textContent).toContain('acme-kuma.db')
+
+    await router.push('/w/beta/import')
+    await expect.poll(() => server.of('GET /workspaces/beta/imports')).toHaveLength(1)
+    await expect.poll(() => document.body.textContent).not.toContain('acme-kuma.db')
+    expect(document.querySelector('[data-test="import-status"]')).toBeNull()
+  })
+
+  it('stops polling and shows a notice when the import is gone', async () => {
+    vi.useFakeTimers({
+      toFake: ['setInterval', 'clearInterval'],
+    })
+    const server = fakeApi({
+      ...SESSION,
+      'GET /workspaces/acme/imports': json(page([
+        run(),
+      ])),
+      'GET /workspaces/acme/imports/01JBBBBBBBBBBBBBBBBBBBBBBB': problem(404),
+    })
+    await mountApp('/w/acme/import')
+    const polls = (): number => server.of('GET /workspaces/acme/imports/01JBBBBBBBBBBBBBBBBBBBBBBB').length
+    await expect.poll(() => document.body.textContent).toContain('no longer exists')
+    const seen = polls()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(polls()).toBe(seen)
+    expect(document.querySelector('[data-test="import-status"]')).toBeNull()
+  })
+
+  it('does not offer to run an analysis with nothing to create', async () => {
+    const empty = run({
+      status: 'analyzed',
+      report: report({
+        counts: {
+          tag: { existing: 1 },
+        },
+      }),
+    })
+    const server = fakeApi({
+      ...SESSION,
+      'GET /workspaces/acme/imports': json(page([empty])),
+      'GET /workspaces/acme/imports/01JBBBBBBBBBBBBBBBBBBBBBBB': json({ data: empty }),
+    })
+    await mountApp('/w/acme/import')
+    await expect.poll(() => document.querySelector('[data-test="import-run"]')).not.toBeNull()
+    await click('[data-test="import-run"]')
+    await expect.poll(() => document.querySelector('[data-test="confirm"]')).not.toBeNull()
+
+    expect(document.querySelector('[data-test="confirm"]')?.hasAttribute('disabled')).toBe(true)
+    expect(server.of('POST /workspaces/acme/imports/01JBBBBBBBBBBBBBBBBBBBBBBB/run')).toHaveLength(0)
   })
 })
