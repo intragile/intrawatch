@@ -93,6 +93,17 @@ Run every command from the repository root. Replace `1.0.0` for later releases.
    the run, monitors and checker, public status page, admin application and
    import sections, with every timeout tripled for emulation.
 
+   Check that the release archive did not end up inside the image (the
+   `build/` directory is excluded in `.dockerignore`) and that the
+   application stays small:
+
+   ```bash
+   docker run --rm --entrypoint sh intrawatch:1.0.0-amd64 -c 'test -e /app/build && echo present || echo absent'
+   # expect: absent
+   docker run --rm --entrypoint du intrawatch:1.0.0-amd64 -sh /app
+   # expect: well under 150M
+   ```
+
 10. **Benchmarks re-run if the engine or status-page code changed** since the
     figures in [BENCHMARKS.md](BENCHMARKS.md) were taken (check with
     `git diff <benchmark-commit>..HEAD --stat -- app/Monitoring app/Status`). Follow

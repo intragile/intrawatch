@@ -387,6 +387,12 @@ fi
 echo "== import from Uptime Kuma"
 [[ "$(timeout 30 docker exec "$NAME" php -r 'echo ini_get("upload_max_filesize"), " ", ini_get("post_max_size");')" == "512M 520M" ]] \
   || fail "PHP upload limits are not raised for imports"
+# Queue workers and the command-line importer run on the CLI SAPI, which reads php-cli.ini.
+[[ "$(timeout 30 docker exec "$NAME" php -r 'echo ini_get("memory_limit");')" == "512M" ]] \
+  || fail "the CLI memory limit for queue workers and the importer is not 512M"
+ok "PHP limits for imports are set (uploads 512M/520M, CLI memory 512M)"
+# Release archives in build/ must stay out of the image (see .dockerignore).
+if timeout 30 docker exec "$NAME" test -e /app/build; then fail "/app/build exists in the image"; fi
 # The push token of the fixture's push monitor (tests/Fixtures/kuma/kuma2.db, monitor "Push").
 KUMA_PUSH_TOKEN="researchPushToken01"
 UPLOAD_AUTH=(-H "Authorization: Bearer $API_TOKEN" -H 'Accept: application/json')

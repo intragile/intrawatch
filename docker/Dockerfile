@@ -29,6 +29,8 @@ LABEL org.opencontainers.image.title="IntraWatch" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${APP_VERSION}"
 
+# The command-line SAPI reads php-cli.ini instead of php.ini: queue workers (the import job on the long queue) and
+# the command-line importer get a 512M memory limit, while web requests keep the production default.
 # ping runs without a file capability: it uses unprivileged ICMP sockets (net.ipv4.ping_group_range, which
 # Docker opens by default), so it also works in containers that drop NET_RAW.
 RUN install-php-extensions pdo_sqlite pdo_mysql pdo_pgsql intl pcntl bcmath opcache \
@@ -36,6 +38,8 @@ RUN install-php-extensions pdo_sqlite pdo_mysql pdo_pgsql intl pcntl bcmath opca
     && apt-get install -y --no-install-recommends supervisor curl iputils-ping tini \
     && rm -rf /var/lib/apt/lists/* \
     && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    && sed 's/^memory_limit = .*/memory_limit = 512M/' "$PHP_INI_DIR/php.ini-production" > "$PHP_INI_DIR/php-cli.ini" \
+    && grep -qx 'memory_limit = 512M' "$PHP_INI_DIR/php-cli.ini" \
     && useradd --uid 1000 --create-home --shell /usr/sbin/nologin app \
     && mkdir -p /data /app \
     && chown app:app /data /app \
