@@ -34,6 +34,9 @@ export type Maintenance = Item<GetOk<'/workspaces/{workspace}/maintenances'>>
 export type StatusPageSummary = Item<GetOk<'/workspaces/{workspace}/status-pages'>>
 export type StatusPage = Item<GetOk<'/workspaces/{workspace}/status-pages/{statusPage}'>>
 export type Tag = Item<GetOk<'/workspaces/{workspace}/tags'>>
+export type ImportRun = Item<GetOk<'/workspaces/{workspace}/imports'>>
+export type ImportReportData = NonNullable<ImportRun['report']>
+export type ImportEntryData = ImportReportData['entries'][number]
 
 export type MonitorTypeInfo = GetOk<'/monitor-types'>[number]
 export type ChannelTypeInfo = GetOk<'/notification-channel-types'>[number]

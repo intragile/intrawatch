@@ -106,6 +106,11 @@ const workspaceRoutes: RouteRecordRaw[] = [
     name: 'ws.audit',
     component: () => import('../views/workspace/AuditView.vue'),
   },
+  {
+    path: 'import',
+    name: 'ws.import',
+    component: () => import('../views/import/ImportView.vue'),
+  },
 ]
 
 export const routes: RouteRecordRaw[] = [
@@ -180,6 +185,7 @@ export const WORKSPACE_LIST_ROUTES = new Set([
   'ws.members',
   'ws.tokens',
   'ws.audit',
+  'ws.import',
 ])
 
 export function createAppRouter(history: RouterHistory = createWebHistory(import.meta.env.BASE_URL)) {

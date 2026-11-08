@@ -210,7 +210,30 @@ test('5. a published status page with one section shows the monitor', async () =
   }
 })
 
-test('6. two-factor sign-in: enable with a TOTP code, sign out, sign back in with a fresh code', async () => {
+test('6. an Uptime Kuma database is analysed, imported, and its monitors show up', async () => {
+  await nav('Import from Uptime Kuma')
+  await expect(page).toHaveURL(/\/admin\/w\/e2e-ops\/import$/)
+
+  await page.locator('input[name="import_file"]').setInputFiles('../tests/Fixtures/kuma/kuma2.db')
+  await page.locator('[data-test="import-upload"]').click()
+
+  // Analysis runs on the queue worker; the report appears once it is done.
+  const run = page.locator('[data-test="import-run"]')
+  await expect(run).toBeVisible({ timeout: 60_000 })
+  await expect(page.locator('[data-test="import-counts"]')).toBeVisible()
+
+  await run.click()
+  await page.locator('[data-test="confirm"]').click()
+  await expect(page.locator('[data-test="import-done"]')).toBeVisible({ timeout: 120_000 })
+
+  await page.getByRole('link', { name: 'Open the monitors list' }).click()
+  await expect(page).toHaveURL(new RegExp(`/admin/w/${WORKSPACE.slug}/monitors$`))
+  // The imported monitor is a member of the imported group, which the list shows collapsed.
+  await page.getByRole('button', { name: 'Show members of Websites' }).click()
+  await expect(page.getByRole('link', { name: 'Example HTTP', exact: true })).toBeVisible()
+})
+
+test('7. two-factor sign-in: enable with a TOTP code, sign out, sign back in with a fresh code', async () => {
   await openAccountMenu()
   await page.getByRole('menuitem', { name: 'Account and security' }).or(page.getByRole('link', { name: 'Account and security' })).first().click()
   await expect(page).toHaveURL(/\/admin\/account$/)
@@ -255,7 +278,7 @@ test('6. two-factor sign-in: enable with a TOTP code, sign out, sign back in wit
   await expect(page.getByRole('link', { name: MONITOR, exact: true })).toBeVisible()
 })
 
-test('7. on the custom domain only the status page is served; /admin/ is a 404', async () => {
+test('8. on the custom domain only the status page is served; /admin/ is a 404', async () => {
   const domainBase = new URL(BASE_URL)
   domainBase.hostname = CUSTOM_DOMAIN
   const other = await browser.newPage()

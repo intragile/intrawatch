@@ -7,6 +7,7 @@ import {
   mdiBellOutline,
   mdiCheck,
   mdiCogOutline,
+  mdiDatabaseImportOutline,
   mdiFileDocumentOutline,
   mdiKeyVariant,
   mdiLogout,
@@ -112,6 +113,12 @@ const adminItems = computed<NavItem[]>(() => [
     label: t('nav.audit'),
     icon: mdiFileDocumentOutline,
     ability: 'viewAudit',
+  },
+  {
+    route: 'ws.import',
+    label: t('nav.import'),
+    icon: mdiDatabaseImportOutline,
+    ability: 'update',
   },
 ])
 

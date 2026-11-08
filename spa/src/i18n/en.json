@@ -60,7 +60,8 @@
     "toggleMenu": "Show or hide the menu",
     "signOut": "Sign out",
     "signOutFailed": "Signing out failed. Try again.",
-    "createWorkspace": "Create workspace"
+    "createWorkspace": "Create workspace",
+    "import": "Import from Uptime Kuma"
   },
   "auth": {
     "fields": {
@@ -1160,6 +1161,109 @@
       "title": "Discard changes?",
       "text": "You have unsaved changes. If you leave this page they are lost.",
       "confirm": "Discard changes"
+    }
+  },
+  "import": {
+    "title": "Import from Uptime Kuma",
+    "intro": "Upload a copy of your Uptime Kuma database to bring its monitors, notification channels, tags, status pages, incidents and maintenance windows into this workspace. The upload is analysed first; nothing is created until you run the import.",
+    "upload": {
+      "title": "Upload a file",
+      "file": "Kuma database or backup",
+      "fileHint": "SQLite database (.db, .sqlite, .sqlite3) or an Uptime Kuma 1.23 JSON backup. Maximum {max} MB.",
+      "history": "Include uptime history",
+      "paused": "Import monitors paused",
+      "help": "Take a consistent copy first: stop Uptime Kuma, or run sqlite3 kuma.db \".backup kuma-export.db\" while it runs. See the \"Migrating from Uptime Kuma\" section of the README for the supported sources.",
+      "submit": "Upload and analyse",
+      "noFile": "Choose a file first.",
+      "tooLarge": "The file is larger than the {max} MB upload limit."
+    },
+    "blocked": "An import is already open in this workspace. Finish it or delete it before uploading another file.",
+    "status": {
+      "pending": "Queued",
+      "analyzing": "Analysing",
+      "analyzed": "Analysed",
+      "running": "Importing",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "working": "The import is {status}. This page updates by itself.",
+    "failedTitle": "The import failed",
+    "report": {
+      "title": "Analysis report",
+      "titleDone": "Import report",
+      "counts": "Counts by item and outcome",
+      "entity": "Item",
+      "notMigrated": "Not migrated",
+      "notMigratedHint": "These are not imported and must be set up again.",
+      "history": "History",
+      "historySummary": "{monitors} monitors, {hours} hourly and {days} daily rows",
+      "notes": "Notes"
+    },
+    "entity": {
+      "tag": "Tags",
+      "notification": "Notification channels",
+      "monitor": "Monitors",
+      "status_page": "Status pages",
+      "incident": "Incidents",
+      "maintenance": "Maintenance windows"
+    },
+    "entityCount": {
+      "tag": "{n} tag | {n} tags",
+      "notification": "{n} notification channel | {n} notification channels",
+      "monitor": "{n} monitor | {n} monitors",
+      "status_page": "{n} status page | {n} status pages",
+      "incident": "{n} incident | {n} incidents",
+      "maintenance": "{n} maintenance window | {n} maintenance windows"
+    },
+    "outcome": {
+      "created": "Created",
+      "would_create": "Would create",
+      "existing": "Already present",
+      "skipped": "Skipped",
+      "invalid": "Invalid",
+      "failed": "Failed"
+    },
+    "notMigrated": {
+      "users": "Users",
+      "api_keys": "API keys",
+      "docker_hosts": "Docker hosts",
+      "remote_browsers": "Remote browsers"
+    },
+    "entries": {
+      "title": "Items",
+      "entity": "Item type",
+      "outcome": "Outcome",
+      "allEntities": "All",
+      "attention": "Needs attention",
+      "all": "All outcomes",
+      "empty": "Nothing to show for this filter.",
+      "name": "Name",
+      "details": "Details",
+      "showMore": "Show more ({n} left)"
+    },
+    "run": {
+      "action": "Run import",
+      "title": "Run this import?",
+      "confirm": "This creates {summary}. Existing items are left untouched.",
+      "nothing": "The analysis found nothing new to create.",
+      "start": "Run import"
+    },
+    "done": {
+      "title": "The import is complete.",
+      "link": "Open the monitors list"
+    },
+    "previous": {
+      "title": "Previous imports",
+      "empty": "No imports yet.",
+      "status": "Status",
+      "date": "Date",
+      "file": "File",
+      "actions": "Actions",
+      "view": "View report",
+      "delete": "Delete import",
+      "deleteTitle": "Delete this import?",
+      "deleteConfirm": "The import of {name} and its report are deleted. Items it already created stay.",
+      "deleted": "Import deleted."
     }
   }
 }

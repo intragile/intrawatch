@@ -14,12 +14,14 @@ describe('readRuntimeConfig', () => {
       version: '1.2.3',
       reverb: { key: 'abc' },
       locale: 'hu',
+      import: { max_upload_mb: 64 },
     }))
 
     expect(readRuntimeConfig()).toEqual({
       version: '1.2.3',
       reverb: { key: 'abc' },
       locale: 'hu',
+      import: { maxUploadMb: 64 },
     })
   })
 
@@ -28,7 +30,19 @@ describe('readRuntimeConfig', () => {
       version: 'dev',
       reverb: { key: import.meta.env.VITE_REVERB_KEY ?? '' },
       locale: 'en',
+      import: { maxUploadMb: 256 },
     })
+  })
+
+  it('defaults the upload limit when the server omits or garbles it', () => {
+    setMeta(JSON.stringify({
+      version: '1',
+      reverb: { key: '' },
+      locale: 'en',
+      import: { max_upload_mb: 'big' },
+    }))
+
+    expect(readRuntimeConfig().import.maxUploadMb).toBe(256)
   })
 
   it('falls back on invalid JSON', () => {

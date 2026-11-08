@@ -60,7 +60,8 @@
     "toggleMenu": "Menü megjelenítése vagy elrejtése",
     "signOut": "Kijelentkezés",
     "signOutFailed": "A kijelentkezés nem sikerült. Próbálja újra.",
-    "createWorkspace": "Munkaterület létrehozása"
+    "createWorkspace": "Munkaterület létrehozása",
+    "import": "Importálás Uptime Kumából"
   },
   "auth": {
     "fields": {
@@ -1160,6 +1161,109 @@
       "title": "Elveted a módosításokat?",
       "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
       "confirm": "Módosítások elvetése"
+    }
+  },
+  "import": {
+    "title": "Importálás Uptime Kumából",
+    "intro": "Töltsd fel az Uptime Kuma adatbázisának egy másolatát, hogy a monitorok, értesítési csatornák, címkék, állapotoldalak, incidensek és karbantartási ablakok átkerüljenek ebbe a munkaterületbe. A feltöltést először elemezzük; addig semmi sem jön létre, amíg el nem indítod az importot.",
+    "upload": {
+      "title": "Fájl feltöltése",
+      "file": "Kuma-adatbázis vagy mentés",
+      "fileHint": "SQLite-adatbázis (.db, .sqlite, .sqlite3) vagy Uptime Kuma 1.23 JSON-mentés. Legfeljebb {max} MB.",
+      "history": "Üzemidő-előzmények átvétele",
+      "paused": "Monitorok importálása szüneteltetve",
+      "help": "Előbb készíts konzisztens másolatot: állítsd le az Uptime Kumát, vagy futás közben add ki a sqlite3 kuma.db \".backup kuma-export.db\" parancsot. A támogatott forrásokat a README „Migrating from Uptime Kuma” szakasza írja le.",
+      "submit": "Feltöltés és elemzés",
+      "noFile": "Előbb válassz ki egy fájlt.",
+      "tooLarge": "A fájl nagyobb, mint a {max} MB-os feltöltési korlát."
+    },
+    "blocked": "Ebben a munkaterületben már van nyitott import. Fejezd be vagy töröld, mielőtt újabb fájlt töltesz fel.",
+    "status": {
+      "pending": "Sorban áll",
+      "analyzing": "Elemzés alatt",
+      "analyzed": "Elemezve",
+      "running": "Importálás alatt",
+      "completed": "Kész",
+      "failed": "Sikertelen"
+    },
+    "working": "Az import állapota: {status}. Az oldal magától frissül.",
+    "failedTitle": "Az import sikertelen volt",
+    "report": {
+      "title": "Elemzési jelentés",
+      "titleDone": "Importjelentés",
+      "counts": "Darabszámok elemtípus és eredmény szerint",
+      "entity": "Elem",
+      "notMigrated": "Nem átvett adatok",
+      "notMigratedHint": "Ezeket nem importáljuk, újra be kell állítani őket.",
+      "history": "Előzmények",
+      "historySummary": "{monitors} monitor, {hours} órás és {days} napi sor",
+      "notes": "Megjegyzések"
+    },
+    "entity": {
+      "tag": "Címkék",
+      "notification": "Értesítési csatornák",
+      "monitor": "Monitorok",
+      "status_page": "Állapotoldalak",
+      "incident": "Incidensek",
+      "maintenance": "Karbantartási ablakok"
+    },
+    "entityCount": {
+      "tag": "{n} címke",
+      "notification": "{n} értesítési csatorna",
+      "monitor": "{n} monitor",
+      "status_page": "{n} állapotoldal",
+      "incident": "{n} incidens",
+      "maintenance": "{n} karbantartási ablak"
+    },
+    "outcome": {
+      "created": "Létrejött",
+      "would_create": "Létrejönne",
+      "existing": "Már megvan",
+      "skipped": "Kihagyva",
+      "invalid": "Érvénytelen",
+      "failed": "Sikertelen"
+    },
+    "notMigrated": {
+      "users": "Felhasználók",
+      "api_keys": "API-kulcsok",
+      "docker_hosts": "Docker-gazdák",
+      "remote_browsers": "Távoli böngészők"
+    },
+    "entries": {
+      "title": "Elemek",
+      "entity": "Elemtípus",
+      "outcome": "Eredmény",
+      "allEntities": "Mind",
+      "attention": "Figyelmet igényel",
+      "all": "Minden eredmény",
+      "empty": "Ehhez a szűrőhöz nincs megjeleníthető elem.",
+      "name": "Név",
+      "details": "Részletek",
+      "showMore": "Továbbiak ({n} maradt)"
+    },
+    "run": {
+      "action": "Import futtatása",
+      "title": "Elindítod az importot?",
+      "confirm": "Ez létrehoz: {summary}. A már meglévő elemekhez nem nyúlunk.",
+      "nothing": "Az elemzés nem talált új, létrehozandó elemet.",
+      "start": "Import futtatása"
+    },
+    "done": {
+      "title": "Az import befejeződött.",
+      "link": "A monitorok listájának megnyitása"
+    },
+    "previous": {
+      "title": "Korábbi importok",
+      "empty": "Még nem volt import.",
+      "status": "Állapot",
+      "date": "Dátum",
+      "file": "Fájl",
+      "actions": "Műveletek",
+      "view": "Jelentés megnyitása",
+      "delete": "Import törlése",
+      "deleteTitle": "Törlöd ezt az importot?",
+      "deleteConfirm": "A(z) {name} importja és jelentése törlődik. A már létrehozott elemek megmaradnak.",
+      "deleted": "Az import törölve."
     }
   }
 }

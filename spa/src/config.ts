@@ -8,15 +8,20 @@ export interface RuntimeConfig {
     key: string
   }
   locale: string
+  import: {
+    maxUploadMb: number
+  }
 }
 
 const META_NAME = 'intrawatch-config'
+const DEFAULT_MAX_UPLOAD_MB = 256
 
 function fallback(): RuntimeConfig {
   return {
     version: 'dev',
     reverb: { key: import.meta.env.VITE_REVERB_KEY ?? '' },
     locale: 'en',
+    import: { maxUploadMb: DEFAULT_MAX_UPLOAD_MB },
   }
 }
 
@@ -40,10 +45,19 @@ function parse(raw: string): RuntimeConfig | null {
   if (typeof version !== 'string' || typeof locale !== 'string' || typeof key !== 'string')
     return null
 
+  const maxUploadMb = isRecord(value.import)
+    ? value.import.max_upload_mb
+    : undefined
+
   return {
     version,
     reverb: { key },
     locale,
+    import: {
+      maxUploadMb: typeof maxUploadMb === 'number' && Number.isFinite(maxUploadMb) && maxUploadMb > 0
+        ? maxUploadMb
+        : DEFAULT_MAX_UPLOAD_MB,
+    },
   }
 }
 
