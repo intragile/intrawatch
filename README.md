@@ -896,9 +896,18 @@ summary. It exits with 1 when any admin list's 95th percentile reaches 500 ms,
 the warm status page 95th percentile reaches 100 ms, or a request fails. Run it
 inside a running container with `TRUSTED_PROXIES=127.0.0.1`: status page
 requests come from many client addresses through `X-Forwarded-For`, so the
-public rate limit stays out of the measurement. Like the other benchmarks it
-refuses a database that already holds workspaces unless `--force` is given,
-and deletes its data afterwards unless `--keep` is given.
+public rate limit stays out of the measurement. The checks reach loopback
+without any network policy switch, because `CHECK_BLOCKED_NETWORKS` blocks only
+cloud metadata addresses by default. Like the other benchmarks it refuses a
+database that already holds workspaces unless `--force` is given, and deletes
+its data afterwards unless `--keep` is given.
+
+> **Warning:** `TRUSTED_PROXIES=127.0.0.1` is a setting for the benchmark
+> container only. It makes the application trust the `X-Forwarded-For` header
+> that clients send, which defeats the per-IP rate limit of the public status
+> pages. Never set it in production unless a real reverse proxy at that address
+> sets the header. When status requests answer 429, the benchmark asks whether
+> the setting is missing.
 
 ```bash
 docker exec intrawatch php artisan intrawatch:bench:scale \

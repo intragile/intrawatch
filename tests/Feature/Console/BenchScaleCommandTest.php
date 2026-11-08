@@ -5,11 +5,14 @@ namespace Tests\Feature\Console;
 use App\Console\Commands\BenchScaleCommand;
 use App\Models\User;
 use App\Models\Workspace;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 use Tests\TestCase;
 
 class BenchScaleCommandTest extends TestCase
@@ -108,6 +111,31 @@ class BenchScaleCommandTest extends TestCase
         $this->assertSame(1, Artisan::call('intrawatch:bench:scale', self::SMALL));
         $this->assertFalse($this->summary(Artisan::output())['passed'] ?? null);
         $this->assertSame(0, Workspace::query()->count());
+    }
+
+    public function test_status_429_hints_at_trusted_proxies(): void
+    {
+        Http::fake(['bench.test:3000/status/*' => Http::response('', 429), 'bench.test:3000/*' => Http::response(['data' => []])]);
+
+        $this->assertSame(1, Artisan::call('intrawatch:bench:scale', self::SMALL));
+        $output = Artisan::output();
+        $this->assertStringContainsString('Is TRUSTED_PROXIES=127.0.0.1 set on the app?', $output);
+        $this->assertStringContainsString('never in production', $output);
+    }
+
+    public function test_a_failed_clean_up_fails_the_run(): void
+    {
+        $this->fakeApplication();
+        Event::listen(QueryExecuted::class, static function (QueryExecuted $query): void {
+            if (str_starts_with(strtolower($query->sql), 'delete') && str_contains($query->sql, 'alert_events')) {
+                throw new RuntimeException('simulated clean-up failure');
+            }
+        });
+
+        $this->assertSame(1, Artisan::call('intrawatch:bench:scale', self::SMALL));
+        $output = Artisan::output();
+        $this->assertStringContainsString('Could not delete workspace bench-scale: simulated clean-up failure', $output);
+        $this->assertTrue($this->summary($output)['passed'] ?? null);
     }
 
     public function test_rejects_invalid_options(): void

@@ -30,7 +30,9 @@ docker exec <container> php artisan intrawatch:bench:scale \
 ```
 
 The container runs the image's normal services (web server, one check worker,
-queue workers, Reverb) with `TRUSTED_PROXIES=127.0.0.1`. The benchmark seeds
+queue workers, Reverb) with `TRUSTED_PROXIES=127.0.0.1`. The checks reach
+loopback without any network policy switch, because `CHECK_BLOCKED_NETWORKS`
+blocks only cloud metadata addresses by default. The benchmark seeds
 5 000 active monitors (3 000 HTTP, 500 each of TCP, ping, DNS and push) in 250
 groups (50 top-level, 200 nested), 50 tags, 15 inactive channels, 90 days of day
 and 48 hours of hour rollups per monitor, 300 published pages of 20 items, 2 000
@@ -39,9 +41,16 @@ the container itself (`/robots.txt`, port 3000, `127.0.0.1`, `localhost`) at a
 60-second interval, push monitors expect a ping every hour. After 60 seconds of
 settling it sends the requests one at a time over HTTP: 2 000 admin list
 requests (200 per list, `limit=100`, bearer token), one request per status page
-(cold), then 2 000 round-robin status page requests (warm). The check worker
-kept running throughout; all 5 000 monitors were up at the end, and no request
-failed.
+(cold), then 2 000 round-robin status page requests (warm), each status request
+with an `X-Forwarded-For` address of its own. No request failed. The check
+worker kept running throughout the measurement: it recorded 4 317 checks in
+54.9 s on SQLite and 6 647 in 84.6 s on PostgreSQL.
+
+> **Warning:** `TRUSTED_PROXIES=127.0.0.1` is a setting for the benchmark
+> container only. It makes the application trust the `X-Forwarded-For` header
+> that clients send, which defeats the per-IP rate limit of the public status
+> pages. Never set it in production unless a real reverse proxy at that address
+> sets the header.
 
 Thresholds: admin p95 below 500 ms per list, warm status page p95 below 100 ms.
 Both runs passed.
@@ -168,6 +177,8 @@ quoted here as recorded then:
 
 - Concurrent clients: every benchmark sends one request at a time, so the
   numbers are latencies of a single client, not throughput limits.
+- Network latency: the scale latencies include the overhead of the serial PHP
+  HTTP client running inside the same VM as the application.
 - MySQL inside the image: the scale benchmark ran on SQLite and PostgreSQL only;
   MySQL was measured for the import only, on the host.
 - Several check workers or several hosts: all runs used one check worker.

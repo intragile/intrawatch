@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Attributes\Description;
+use Illuminate\Console\Attributes\Help;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
@@ -26,6 +27,17 @@ use Throwable;
 
 #[Signature('intrawatch:bench:scale {--monitors=5000} {--pages=300} {--items=20} {--requests=2000} {--base-url=http://127.0.0.1:3000 : The running application to measure} {--settle=60 : Seconds to let the check worker pick up the monitors before measuring} {--keep : Keep the seeded workspace} {--force : Run even though the database holds other workspaces}')]
 #[Description('Seed thousands of active monitors and hundreds of status pages, then measure admin lists and status pages over HTTP')]
+#[Help(<<<'TXT'
+Run it inside a dedicated benchmark container started with TRUSTED_PROXIES=127.0.0.1. Status page requests carry a
+different X-Forwarded-For each, so the per-IP public status rate limit stays out of the measurement.
+
+Warning: TRUSTED_PROXIES=127.0.0.1 is a setting for the benchmark container only. It makes the application trust the
+X-Forwarded-For header that clients send, which defeats the per-IP public status rate limit. Never set it in
+production unless a real reverse proxy at that address sets the header.
+
+The checks reach loopback without any network policy switch: CHECK_BLOCKED_NETWORKS blocks only cloud metadata
+addresses by default.
+TXT)]
 class BenchScaleCommand extends Command
 {
     /** The 95th percentile of any admin list at which a run fails, in milliseconds. */
@@ -101,54 +113,64 @@ class BenchScaleCommand extends Command
         $this->trapSignals();
         $workspace = Workspace::query()->create(['name' => 'Bench scale', 'slug' => Workspace::uniqueSlug('bench-scale'), 'timezone' => 'UTC']);
         $user = null;
-        $failed = false;
+        $exit = self::FAILURE;
 
         try {
             $user = $this->benchUser($workspace);
-            $seeded = $this->seed($workspace, $monitors, $pages, $items, $base, $target);
-            if ($this->interrupted) {
-                $this->warn('Interrupted; no results are reported.');
-
-                return self::FAILURE;
-            }
-            $this->line("Seeded {$monitors} monitors, {$seeded['groups']} groups, {$pages} pages of {$items} items in workspace {$workspace->slug}.");
-
-            // Activated only now, so an interrupted seeding never leaves monitors a worker would check.
-            DB::table('monitors')->where('workspace_id', $workspace->id)->where('type', '!=', MonitorType::Group->value)->update(['active' => true]);
-            if ($settle > 0) {
-                $this->line("Waiting {$settle} s for the check worker to pick up the monitors.");
-                $this->sleep($settle);
-            }
-            $checksBefore = $this->checkCount($workspace);
-            $measureStarted = microtime(true);
-
-            $token = $this->token($user, $workspace);
-            $api = Http::baseUrl($base.'/api/v1/workspaces/'.$workspace->slug)->withToken($token)->acceptJson()->timeout(60);
-            /** @var array<string, int> $errors failed requests by endpoint and status code */
-            $errors = [];
-            $admin = $this->adminPass($api, $this->endpoints($seeded), $requests, $errors);
-            $web = Http::baseUrl($base)->timeout(60);
-            $cold = $this->statusPass($web, $seeded['slugs'], count($seeded['slugs']), 0, 'status cold', $errors);
-            $warm = $this->statusPass($web, $seeded['slugs'], $requests, count($seeded['slugs']), 'status warm', $errors);
-            if ($this->interrupted) {
-                $this->warn('Interrupted; no results are reported.');
-
-                return self::FAILURE;
-            }
-
-            $elapsed = microtime(true) - $measureStarted;
-            $exit = $this->report($workspace, $admin, $cold, $warm, $errors, $seeded, $monitors, $pages, $items, $this->checkCount($workspace) - $checksBefore, $elapsed);
-            $failed = $exit !== self::SUCCESS;
-
-            return $exit;
+            $exit = $this->measure($workspace, $user, $monitors, $pages, $items, $requests, $settle, $base, $target);
         } finally {
             DB::table('personal_access_tokens')->where('workspace_id', $workspace->id)->delete();
             if ($this->option('keep')) {
-                $this->line("Kept workspace {$workspace->slug}".($failed ? ' after a failed run.' : '.'));
-            } else {
-                $this->cleanUp($workspace, $user);
+                $this->line("Kept workspace {$workspace->slug}".($exit !== self::SUCCESS ? ' after a failed run.' : '.'));
+            } elseif (! $this->cleanUp($workspace, $user)) {
+                $exit = self::FAILURE;
             }
         }
+
+        return $exit;
+    }
+
+    /**
+     * Seeds the workspace, lets the worker settle and measures; returns the exit code.
+     *
+     * @param  array<string, mixed>  $target
+     */
+    private function measure(Workspace $workspace, User $user, int $monitors, int $pages, int $items, int $requests, int $settle, string $base, array $target): int
+    {
+        $seeded = $this->seed($workspace, $monitors, $pages, $items, $base, $target);
+        if ($this->interrupted) {
+            $this->warn('Interrupted; no results are reported.');
+
+            return self::FAILURE;
+        }
+        $this->line("Seeded {$monitors} monitors, {$seeded['groups']} groups, {$pages} pages of {$items} items in workspace {$workspace->slug}.");
+
+        // Activated only now, so an interrupted seeding never leaves monitors a worker would check.
+        DB::table('monitors')->where('workspace_id', $workspace->id)->where('type', '!=', MonitorType::Group->value)->update(['active' => true]);
+        if ($settle > 0) {
+            $this->line("Waiting {$settle} s for the check worker to pick up the monitors.");
+            $this->sleep($settle);
+        }
+        $checksBefore = $this->checkCount($workspace);
+        $measureStarted = microtime(true);
+
+        $token = $this->token($user, $workspace);
+        $api = Http::baseUrl($base.'/api/v1/workspaces/'.$workspace->slug)->withToken($token)->acceptJson()->timeout(60);
+        /** @var array<string, int> $errors failed requests by endpoint and status code */
+        $errors = [];
+        $admin = $this->adminPass($api, $this->endpoints($seeded), $requests, $errors);
+        $web = Http::baseUrl($base)->timeout(60);
+        $cold = $this->statusPass($web, $seeded['slugs'], count($seeded['slugs']), 0, 'status cold', $errors);
+        $warm = $this->statusPass($web, $seeded['slugs'], $requests, count($seeded['slugs']), 'status warm', $errors);
+        if ($this->interrupted) {
+            $this->warn('Interrupted; no results are reported.');
+
+            return self::FAILURE;
+        }
+
+        $elapsed = microtime(true) - $measureStarted;
+
+        return $this->report($workspace, $admin, $cold, $warm, $errors, $seeded, $monitors, $pages, $items, $this->checkCount($workspace) - $checksBefore, $elapsed);
     }
 
     private function benchUser(Workspace $workspace): User
@@ -555,6 +577,10 @@ class BenchScaleCommand extends Command
         foreach ($failures as $failure) {
             $this->error($failure);
         }
+        if (($errors['status cold 429'] ?? 0) + ($errors['status warm 429'] ?? 0) > 0) {
+            $this->error('Status pages answered 429: the public rate limit counted every request against one address. '
+                .'Is TRUSTED_PROXIES=127.0.0.1 set on the app? Set it on the benchmark container only, never in production.');
+        }
 
         $this->line(json_encode([
             'seeded' => ['monitors' => $monitors, 'groups' => $seeded['groups'], 'pages' => $pages, 'items' => $items],
@@ -701,7 +727,10 @@ class BenchScaleCommand extends Command
         }
     }
 
-    private function cleanUp(Workspace $workspace, ?User $user): void
+    /**
+     * Deletes everything the run seeded; returns whether that succeeded.
+     */
+    private function cleanUp(Workspace $workspace, ?User $user): bool
     {
         try {
             $ids = DB::table('monitors')->where('workspace_id', $workspace->id)->pluck('id')->all();
@@ -718,7 +747,9 @@ class BenchScaleCommand extends Command
                 DB::table('alert_events')->where('workspace_id', $workspace->id)->delete();
                 DB::table('audit_events')->where('workspace_id', $workspace->id)->delete();
                 DB::table('status_pages')->where('workspace_id', $workspace->id)->delete();
-                DB::table('monitors')->whereIn('id', $ids)->update(['parent_id' => null]);
+                foreach (array_chunk($ids, self::CHUNK) as $chunk) {
+                    DB::table('monitors')->whereIn('id', $chunk)->update(['parent_id' => null]);
+                }
                 foreach (array_chunk($ids, self::CHUNK) as $chunk) {
                     DB::table('monitors')->whereIn('id', $chunk)->delete();
                 }
@@ -727,8 +758,12 @@ class BenchScaleCommand extends Command
                 $user?->delete();
             });
             $this->line("Deleted workspace {$workspace->slug}.");
+
+            return true;
         } catch (Throwable $e) {
             $this->error("Could not delete workspace {$workspace->slug}: ".$e->getMessage());
+
+            return false;
         }
     }
 
