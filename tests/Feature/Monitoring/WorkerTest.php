@@ -148,8 +148,9 @@ class WorkerTest extends TestCase
         $oracle = new CalendarMaintenanceOracle(MaintenanceCalendarLoader::fromConfig(), $this->clock, 600, 1200);
         $recorder = new ResultRecorder(new StatusMachine, $oracle, new DatabaseGroupEvaluator($oracle));
         $buffer = new OutcomeBuffer(recorder: $recorder, clock: $this->clock, capacity: 10_000, flushSeconds: 1.0, reconnect: function (): void {});
-        $group = Monitor::factory()->for($this->ws)->group('all')->create();
-        $leaf = Monitor::factory()->for($this->ws)->tcp('example.test', 443)->create(['parent_id' => $group->id, 'interval_seconds' => 60, 'retry_interval_seconds' => 60]);
+        // Pinned ids: the leaf (id 2) first falls due 37 s in, so exactly one check runs in the first 65 s.
+        $group = Monitor::factory()->for($this->ws)->group('all')->create(['id' => 1]);
+        $leaf = Monitor::factory()->for($this->ws)->tcp('example.test', 443)->create(['id' => 2, 'parent_id' => $group->id, 'interval_seconds' => 60, 'retry_interval_seconds' => 60]);
         $editor = User::factory()->memberOf($this->ws, WorkspaceRole::Editor)->create();
 
         [$stop, $run] = $this->start($this->scheduler(buffer: $buffer, maintenance: $oracle));
@@ -176,7 +177,8 @@ class WorkerTest extends TestCase
     public function test_monitor_changes_apply_without_restart(): void
     {
         $editor = User::factory()->memberOf($this->ws, WorkspaceRole::Editor)->create();
-        [$faster, $paused, $deleted, $requested, $inFlight] = $this->tcpMonitors(5, ['interval_seconds' => 60, 'retry_interval_seconds' => 60]);
+        // Pinned ids, so no monitor falls due at the very instant of the edits (see tcpMonitors).
+        [$faster, $paused, $deleted, $requested, $inFlight] = $this->tcpMonitors(5, ['interval_seconds' => 60, 'retry_interval_seconds' => 60], firstId: 1);
         $this->checker->hold($inFlight->id);
 
         [$stop, $run] = $this->start($this->scheduler());
@@ -484,14 +486,19 @@ class WorkerTest extends TestCase
     }
 
     /**
+     * A test that depends on when each monitor first falls due passes `$firstId`: the scheduler spreads first
+     * checks by `crc32(id) % interval`, and only SQLite restarts ids at 1 for every test (MySQL and PostgreSQL
+     * keep counting), so pinned ids keep the schedule the same on every database.
+     *
      * @param  array<string, mixed>  $attributes
      * @return list<Monitor>
      */
-    private function tcpMonitors(int $count, array $attributes = []): array
+    private function tcpMonitors(int $count, array $attributes = [], ?int $firstId = null): array
     {
         $monitors = [];
         for ($i = 0; $i < $count; $i++) {
-            $monitors[] = Monitor::factory()->for($this->ws)->tcp('example.test', 443)->create($attributes);
+            $monitors[] = Monitor::factory()->for($this->ws)->tcp('example.test', 443)
+                ->create($firstId === null ? $attributes : [...$attributes, 'id' => $firstId + $i]);
         }
 
         return $monitors;
