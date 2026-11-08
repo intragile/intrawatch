@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Import\Kuma;
 
+use App\Actions\Notifications\CreateNotificationChannel;
 use App\Enums\ImportOutcome;
 use App\Import\Kuma\ImportOptions;
 use App\Import\Kuma\ImportReport;
@@ -14,6 +15,7 @@ use App\Models\AuditEvent;
 use App\Models\ImportMapping;
 use App\Models\Monitor;
 use App\Models\NotificationChannel;
+use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
@@ -222,5 +224,26 @@ final class ImportNotificationsTest extends TestCase
         $this->assertStringNotContainsString('"abc"', $json);
         $this->assertStringNotContainsString('smtp_password', $json);
         $this->assertSame(ImportOutcome::Created->value, $this->entries($report)[0]['outcome']);
+    }
+
+    public function test_unexpected_failure_logs_only_class_and_source_id(): void
+    {
+        $this->app->bind(CreateNotificationChannel::class, fn () => new class extends CreateNotificationChannel
+        {
+            public function handle(Workspace $workspace, array $validated, ?User $actor): NotificationChannel
+            {
+                throw new \RuntimeException('SQLSTATE bindings S3cr3t-binding');
+            }
+        });
+        $logged = [];
+        Log::listen(function (MessageLogged $m) use (&$logged): void {
+            $logged[] = $m->message.json_encode($m->context);
+        });
+
+        $report = $this->import('kuma2.db', Workspace::factory()->create());
+
+        $this->assertSame(['failed' => 2], $report['counts']['notification']);
+        $this->assertStringNotContainsString('S3cr3t-binding', json_encode([$report, $logged]) ?: '');
+        $this->assertNotEmpty($logged);
     }
 }

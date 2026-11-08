@@ -37,6 +37,18 @@ final class NotificationMapper
         'apprise' => ['secrets.urls'],
     ];
 
+    /** Target type => [note code, message, Kuma keys that trigger it]. */
+    private const IGNORED = [
+        'email' => [['smtp_template_ignored', 'DKIM signing, custom subject, HTML body and additional headers are not supported and were ignored.', ['htmlBody', 'smtpAdditionalHeaders']]],
+        'slack' => [['slack_template_ignored', 'The custom message template is not supported and was ignored.', ['slackUseTemplate', 'slackTemplate']]],
+        'discord' => [['discord_template_ignored', 'The message prefix and custom message template are not supported and were ignored.', ['discordPrefixMessage', 'discordUseMessageTemplate', 'discordMessageTemplate']]],
+        'telegram' => [['telegram_option_ignored', 'The protect-content option is not supported and was ignored.', ['telegramProtectContent']]],
+        'ntfy' => [['ntfy_template_ignored', 'The custom title and message template are not supported and were ignored.', ['ntfyUseTemplate', 'ntfyCustomTitle', 'ntfyCustomMessage']]],
+        'matrix' => [['matrix_template_ignored', 'The custom message template is not supported and was ignored.', ['matrixUseTemplate']]],
+        'google_chat' => [['google_chat_template_ignored', 'The custom message template is not supported and was ignored.', ['googleChatUseTemplate']]],
+        'pushover' => [['pushover_options_ignored', 'The custom title, time to live and priority sound are not supported and were ignored.', ['pushovertitle', 'pushoverttl', 'pushoversounds_up']]],
+    ];
+
     /** Kuma provider type => IntraWatch channel type. */
     private const TYPES = [
         'smtp' => 'email', 'webhook' => 'webhook', 'slack' => 'slack', 'discord' => 'discord', 'teams' => 'teams',
@@ -95,6 +107,8 @@ final class NotificationMapper
         [$channelConfig, $secrets] = $built;
         $channelConfig = self::compact($channelConfig);
         $secrets = self::compact($secrets);
+
+        $this->ignoredSettings($type, $config, $notes);
 
         $missing = $this->missing($type, $channelConfig, $secrets, $name);
         if ($missing !== []) {
@@ -161,7 +175,8 @@ final class NotificationMapper
         $method = strtoupper(self::str($config, 'httpMethod') ?? 'POST');
         if (! in_array($method, ['POST', 'PUT'], true)) {
             $method = 'POST';
-            $notes[] = Note::of('webhook_method_changed', 'The HTTP method is not supported and POST is used.');
+            $active = false;
+            $notes[] = Note::of('webhook_method_changed', 'The HTTP method is not supported; POST is used and the channel was imported inactive.');
         }
 
         $format = 'json';
@@ -169,7 +184,8 @@ final class NotificationMapper
         if ($contentType === 'form-data') {
             $format = 'form';
         } elseif ($contentType === 'custom') {
-            $notes[] = Note::of('webhook_custom_body_ignored', 'The custom request body is not supported; the standard JSON body is sent.');
+            $active = false;
+            $notes[] = Note::of('webhook_custom_body_ignored', 'The custom request body is not supported; the standard JSON body would be sent, so the channel was imported inactive.');
         }
 
         $headers = [];
@@ -352,6 +368,41 @@ final class NotificationMapper
         $notes[] = Note::of('apprise_server_required', 'Kuma runs the Apprise command line locally; IntraWatch needs an Apprise API server. Set its URL on the channel, then activate it.');
 
         return [['server_url' => self::APPRISE_PLACEHOLDER_URL], ['urls' => self::str($config, 'appriseURL')]];
+    }
+
+    /**
+     * Notes for template and message settings that are set in the source but have no equivalent; the channel
+     * itself stays as mapped.
+     *
+     * @param  array<string, mixed>  $config
+     * @param  list<Note>  $notes
+     */
+    private function ignoredSettings(string $type, array $config, array &$notes): void
+    {
+        foreach (self::IGNORED[$type] ?? [] as [$code, $message, $keys]) {
+            foreach ($notes as $existing) {
+                if ($existing->code === $code) {
+                    continue 2;
+                }
+            }
+            foreach ($keys as $key) {
+                if (self::isSet($config[$key] ?? null)) {
+                    $notes[] = Note::of($code, $message);
+                    break;
+                }
+            }
+        }
+    }
+
+    private static function isSet(mixed $value): bool
+    {
+        if (is_string($value)) {
+            $value = trim($value);
+
+            return $value !== '' && $value !== '0' && strtolower($value) !== 'false';
+        }
+
+        return is_array($value) ? $value !== [] : (bool) $value;
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Import\Kuma\Mapping\Mapped;
 use App\Import\Kuma\Mapping\NotificationMapper;
 use App\Import\Kuma\Mapping\Unmappable;
 use App\Import\Kuma\Source\SourceFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class NotificationMapperTest extends TestCase
@@ -128,6 +129,18 @@ final class NotificationMapperTest extends TestCase
         $this->assertSame('json', $config['format']);
         $this->assertSame('POST', $config['method']);
         $this->assertEqualsCanonicalizing(['webhook_custom_body_ignored', 'webhook_method_changed'], self::codes($custom));
+        $this->assertFalse($custom->attributes['active']);
+
+        $onlyCustom = $this->mapped(['type' => 'webhook', 'webhookURL' => 'https://x.example.com', 'webhookContentType' => 'custom']);
+        $this->assertFalse($onlyCustom->attributes['active']);
+        $this->assertSame(['webhook_custom_body_ignored'], self::codes($onlyCustom));
+
+        $get = $this->mapped(['type' => 'webhook', 'webhookURL' => 'https://x.example.com', 'httpMethod' => 'GET']);
+        $this->assertFalse($get->attributes['active']);
+        $this->assertSame(['webhook_method_changed'], self::codes($get));
+
+        $put = $this->mapped(['type' => 'webhook', 'webhookURL' => 'https://x.example.com', 'httpMethod' => 'PUT']);
+        $this->assertTrue($put->attributes['active']);
     }
 
     public function test_webhook_invalid_header_json_is_inactive(): void
@@ -300,5 +313,48 @@ final class NotificationMapperTest extends TestCase
         $this->assertIsString($name);
         $this->assertSame(120, mb_strlen($name));
         $this->assertSame(['channel_name_truncated'], self::codes($m));
+    }
+
+    /**
+     * @return array<string, array{0: array<string, mixed>, 1: string}>
+     */
+    public static function ignoredSettings(): array
+    {
+        $url = 'https://x.example.com/h';
+
+        return [
+            'slack template' => [['type' => 'slack', 'slackwebhookURL' => $url, 'slackUseTemplate' => true], 'slack_template_ignored'],
+            'slack template text' => [['type' => 'slack', 'slackwebhookURL' => $url, 'slackTemplate' => '{{ x }}'], 'slack_template_ignored'],
+            'discord template' => [['type' => 'discord', 'discordWebhookUrl' => $url, 'discordUseMessageTemplate' => true], 'discord_template_ignored'],
+            'discord template text' => [['type' => 'discord', 'discordWebhookUrl' => $url, 'discordMessageTemplate' => 'x'], 'discord_template_ignored'],
+            'ntfy template' => [['type' => 'ntfy', 'ntfytopic' => 'a', 'ntfyUseTemplate' => true], 'ntfy_template_ignored'],
+            'ntfy custom title' => [['type' => 'ntfy', 'ntfytopic' => 'a', 'ntfyCustomTitle' => 't'], 'ntfy_template_ignored'],
+            'ntfy custom message' => [['type' => 'ntfy', 'ntfytopic' => 'a', 'ntfyCustomMessage' => 'm'], 'ntfy_template_ignored'],
+            'matrix template' => [['type' => 'matrix', 'homeserverUrl' => $url, 'internalRoomId' => '!r:x.org', 'accessToken' => 't', 'matrixUseTemplate' => true], 'matrix_template_ignored'],
+            'google chat template' => [['type' => 'GoogleChat', 'googleChatWebhookURL' => $url, 'googleChatUseTemplate' => true], 'google_chat_template_ignored'],
+            'telegram protect content' => [['type' => 'telegram', 'telegramChatID' => '1', 'telegramBotToken' => '1:'.str_repeat('a', 30), 'telegramProtectContent' => true], 'telegram_option_ignored'],
+            'smtp html body' => [['type' => 'smtp', 'smtpHost' => 'h', 'smtpFrom' => 'k@example.com', 'smtpTo' => 'a@example.com', 'htmlBody' => true], 'smtp_template_ignored'],
+            'smtp additional headers' => [['type' => 'smtp', 'smtpHost' => 'h', 'smtpFrom' => 'k@example.com', 'smtpTo' => 'a@example.com', 'smtpAdditionalHeaders' => 'X-A: b'], 'smtp_template_ignored'],
+            'pushover up sound' => [['type' => 'pushover', 'pushoveruserkey' => 'u', 'pushoverapptoken' => 'a', 'pushoversounds_up' => 'siren'], 'pushover_options_ignored'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    #[DataProvider('ignoredSettings')]
+    public function test_template_settings_produce_a_note_and_keep_the_channel_active(array $config, string $code): void
+    {
+        $m = $this->mapped($config);
+
+        $this->assertSame([$code], self::codes($m));
+        $this->assertTrue($m->attributes['active']);
+    }
+
+    public function test_disabled_template_settings_produce_no_note(): void
+    {
+        $m = $this->mapped(['type' => 'slack', 'slackwebhookURL' => 'https://x.example.com/h', 'slackUseTemplate' => false, 'slackTemplate' => '', 'slackchannel' => '']);
+
+        $this->assertSame([], $m->notes);
     }
 }

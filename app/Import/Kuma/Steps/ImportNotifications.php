@@ -34,7 +34,6 @@ final class ImportNotifications implements ImportStep
             try {
                 $this->import($ctx, $sourceId, $row);
             } catch (Throwable $e) {
-                report($e);
                 Log::warning('Kuma notification import failed', ['source_id' => $sourceId, 'exception' => $e::class]);
                 $ctx->report->add(self::ENTITY, $sourceId, $label, ImportOutcome::Failed, null, [
                     Note::of('unexpected_error', 'The notification channel could not be imported; see the application log.'),
