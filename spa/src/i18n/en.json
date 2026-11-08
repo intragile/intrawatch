@@ -1283,6 +1283,7 @@
     "accept": "Accept invitation",
     "accepted": "You joined {name}.",
     "invalid": "This invitation is invalid, expired or meant for another e-mail address.",
-    "home": "Go to the start page"
+    "home": "Go to the start page",
+    "missing": "This link does not contain an invitation. Open the link from the invitation e-mail again."
   }
 }

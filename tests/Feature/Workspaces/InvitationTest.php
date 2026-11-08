@@ -58,7 +58,7 @@ class InvitationTest extends TestCase
             if (! $mail->hasTo($email)) {
                 return false;
             }
-            $this->assertMatchesRegularExpression('#/admin/invitations/[A-Za-z0-9]{64}$#', $mail->url);
+            $this->assertMatchesRegularExpression('~/admin/invitations#token=[A-Za-z0-9]{64}$~', $mail->url);
             $token = substr($mail->url, -64);
 
             return true;
@@ -74,6 +74,24 @@ class InvitationTest extends TestCase
     private function accept(string $token, User $as): TestResponse
     {
         return $this->actingAs($as, 'sanctum')->postJson('/api/v1/invitations/accept', ['token' => $token]);
+    }
+
+    public function test_the_invitation_link_carries_the_token_only_in_the_fragment(): void
+    {
+        config(['app.url' => 'https://watch.example.com/']);
+        $this->invite('fragment@example.com')->assertStatus(202);
+        $token = $this->mailedToken('fragment@example.com');
+
+        Mail::assertQueued(WorkspaceInvitationMail::class, function (WorkspaceInvitationMail $mail) use ($token): bool {
+            $parts = parse_url($mail->url);
+            $this->assertIsArray($parts);
+            $this->assertSame('/admin/invitations', $parts['path'] ?? null);
+            $this->assertNull($parts['query'] ?? null);
+            $this->assertSame('token='.$token, $parts['fragment'] ?? null);
+            $this->assertStringNotContainsString($token, $parts['path'].'?'.($parts['query'] ?? ''));
+
+            return true;
+        });
     }
 
     public function test_every_address_gets_the_same_answer_and_an_email(): void

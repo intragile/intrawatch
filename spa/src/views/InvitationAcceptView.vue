@@ -1,29 +1,39 @@
 <script setup lang="ts">
 import type { ApiError } from '../api'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { api, unwrap } from '../api'
 import ProblemAlert from '../components/common/ProblemAlert.vue'
 import { useApiFailure } from '../composables/useApiFailure'
 import { useNotify } from '../composables/useNotify'
+import { clearInvitationToken, peekInvitationToken } from '../router/invitationToken'
 import { useSession } from '../stores/session'
 
 const { t } = useI18n()
-const route = useRoute()
 const router = useRouter()
 const session = useSession()
 const { notify } = useNotify()
 const failure = useApiFailure()
 
-const token = computed(() => String(route.params.token ?? ''))
+/** Stored by the router guard from the link's fragment; never read from the address bar. Reactive, so a
+ * second link opened in the same tab replaces the first. */
+const token = computed(() => peekInvitationToken())
 const busy = ref(false)
 /** Any 422: unknown, expired, revoked, used or addressed to someone else all look the same. */
 const invalid = ref(false)
 const error = ref<ApiError | null>(null)
 
+// A new link starts over; clearing the old token after a failure leaves its message in place.
+watch(token, (next) => {
+  if (next !== null) {
+    invalid.value = false
+    error.value = null
+  }
+})
+
 async function accept(): Promise<void> {
-  if (busy.value)
+  if (busy.value || token.value === null)
     return
   busy.value = true
   invalid.value = false
@@ -32,6 +42,7 @@ async function accept(): Promise<void> {
     const joined = await unwrap(api.POST('/invitations/accept', {
       body: { token: token.value },
     }))
+    clearInvitationToken()
     await session.load()
     notify(t('invitation.accepted', { name: joined.name }))
     await router.replace({
@@ -41,10 +52,14 @@ async function accept(): Promise<void> {
   }
   catch (e) {
     const problem = failure(e)
-    if (problem.status === 422)
+    if (problem.status === 422) {
+      // The token can never succeed now; do not keep it around.
+      clearInvitationToken()
       invalid.value = true
-    else
+    }
+    else {
       error.value = problem
+    }
   }
   finally {
     busy.value = false
@@ -57,6 +72,15 @@ async function accept(): Promise<void> {
     {{ t('invitation.title') }}
   </v-card-title>
   <v-card-text>
+    <v-alert
+      v-if="token === null && !invalid"
+      data-test="invitation-missing"
+      type="warning"
+      variant="tonal"
+      class="mb-4"
+    >
+      {{ t('invitation.missing') }}
+    </v-alert>
     <v-alert
       v-if="invalid"
       data-test="invitation-error"
@@ -79,7 +103,7 @@ async function accept(): Promise<void> {
       color="primary"
       variant="flat"
       :loading="busy"
-      :disabled="invalid"
+      :disabled="invalid || token === null"
       @click="accept"
     >
       {{ t('invitation.accept') }}

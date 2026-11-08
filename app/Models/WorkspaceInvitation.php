@@ -57,6 +57,9 @@ class WorkspaceInvitation extends Model
     /**
      * Creates or refreshes the invitation of the address and queues its e-mail. A refresh issues a new
      * token, role, inviter and expiry, so the earlier link stops working.
+     *
+     * The link carries the token in the URL fragment: browsers never send the fragment, so the token
+     * stays out of proxy and server access logs and the Referer header. The SPA reads it from the hash.
      */
     public static function issue(Workspace $workspace, string $email, WorkspaceRole $role, User $inviter): self
     {
@@ -80,7 +83,7 @@ class WorkspaceInvitation extends Model
                 $workspace->name,
                 $inviter->name,
                 $role->value,
-                rtrim(config()->string('app.url'), '/').'/admin/invitations/'.$token,
+                rtrim(config()->string('app.url'), '/').'/admin/invitations#token='.$token,
                 $days,
             ));
 

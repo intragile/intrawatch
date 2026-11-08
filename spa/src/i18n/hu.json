@@ -1283,6 +1283,7 @@
     "accept": "Meghívó elfogadása",
     "accepted": "Csatlakozott: {name}.",
     "invalid": "Ez a meghívó érvénytelen, lejárt, vagy másik e-mail-címre szól.",
-    "home": "Ugrás a kezdőlapra"
+    "home": "Ugrás a kezdőlapra",
+    "missing": "Ez a link nem tartalmaz meghívót. Nyissa meg újra az e-mailben kapott linket."
   }
 }

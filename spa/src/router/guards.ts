@@ -1,5 +1,6 @@
 import type { RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-router'
 import { useSession } from '../stores/session'
+import { captureInvitationToken } from './invitationToken'
 
 /** A same-application path from a `redirect` query, or the home route. */
 export function safeRedirect(value: unknown): RouteLocationRaw {
@@ -10,6 +11,11 @@ export function safeRedirect(value: unknown): RouteLocationRaw {
 }
 
 export async function authGuard(to: RouteLocationNormalized): Promise<true | RouteLocationRaw> {
+  // First, so no later redirect (setup, login) carries the invitation token in `fullPath`.
+  const captured = captureInvitationToken(to)
+  if (captured)
+    return captured
+
   const session = useSession()
 
   let setupRequired = false

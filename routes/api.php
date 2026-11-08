@@ -52,8 +52,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/workspaces', [WorkspaceController::class, 'index']);
         Route::post('/workspaces', [WorkspaceController::class, 'store']);
 
-        // The token from the invitation e-mail travels in the body, never in a logged URL; the signed-in
-        // user's address must match the invitation.
+        // The e-mailed link carries the token in the URL fragment, which the browser never sends; the SPA
+        // posts it in the body, and the signed-in user's address must match the invitation.
         Route::post('/invitations/accept', [InvitationController::class, 'accept'])->middleware('throttle:invitation-accept');
 
         // Child models are resolved through the workspace (scoped bindings), so an id that belongs to

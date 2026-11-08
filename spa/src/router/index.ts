@@ -145,9 +145,18 @@ export const routes: RouteRecordRaw[] = [
     meta: auth,
   },
   {
-    // Not a guest route: a signed-out visitor signs in first and comes back here.
-    path: '/invitations/:token([A-Za-z0-9]{64})',
+    // Not a guest route: a signed-out visitor signs in first and comes back here. The token arrives
+    // in the fragment; the guard stores it and drops the hash (see invitationToken.ts).
+    path: '/invitations',
     name: 'invitation',
+    component: () => import('../views/InvitationAcceptView.vue'),
+    meta: { layout: 'auth' },
+  },
+  {
+    // Links mailed before the token moved to the fragment. The guard takes the token out of the
+    // path and replaces the address with `/invitations`; this route never renders.
+    path: '/invitations/:token([A-Za-z0-9]{64})',
+    name: 'invitation-legacy',
     component: () => import('../views/InvitationAcceptView.vue'),
     meta: { layout: 'auth' },
   },

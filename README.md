@@ -127,8 +127,9 @@ served: `/admin/`, `/api/`, `/sanctum/` and `/broadcasting/` answer 404 there.
 Members are invited by e-mail. `POST /api/v1/workspaces/{workspace}/members`
 (`email`, `role`; `members:manage`) answers `202` for every address, whether
 or not an account exists for it, and mails a link to
-`{APP_URL}/admin/invitations/{token}`; only an address that is already a member
-is refused (422). The link is valid for 7 days and works once; inviting the
+`{APP_URL}/admin/invitations#token={token}`; the token sits in the fragment, so
+browsers never send it and it stays out of access logs. Only an address that is
+already a member is refused (422). The link is valid for 7 days and works once; inviting the
 same address again replaces the pending invitation and the old link stops
 working. It is accepted by a signed-in browser session (not an API token)
 whose e-mail matches the invitation. Sign-up is not open, so the e-mail tells
