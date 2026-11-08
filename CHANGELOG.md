@@ -107,9 +107,10 @@ behaviour that an existing installation may rely on.
 - **Action:** multi-host deployments must set `APP_KEY` and `REVERB_*` on
   every host (the container warns otherwise). Shared databases migrate under a
   cache lock, one host at a time.
-- **Action:** the container runs with umask 027 and root-owned application
-  code; backup tools that read `/data` under another uid must be in group
-  1000. The example compose file publishes the port on `127.0.0.1` only.
+- **Action:** the container, including PHP commands started with
+  `docker exec`, runs with umask 027 and root-owned application code; backup
+  tools that read `/data` under another uid must be in group 1000. The example
+  compose file publishes the port on `127.0.0.1` only.
 - Changing a channel's or monitor's destination requires its stored secrets to
   be sent again or removed. Webhook URLs, ntfy topics and Apprise config keys
   are masked for users who cannot manage channels.

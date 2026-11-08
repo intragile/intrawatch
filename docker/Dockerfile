@@ -53,6 +53,7 @@ COPY --from=composer /app /app
 COPY --from=spa /spa/dist /app/spa/dist
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY docker/php/intrawatch.ini /usr/local/etc/php/conf.d/zz-intrawatch.ini
+COPY docker/php/cli-umask.php /usr/local/etc/php/cli-umask.php
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chmod=0755 docker/supervisor-fatal-exit /usr/local/bin/supervisor-fatal-exit

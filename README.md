@@ -201,8 +201,8 @@ directories `0750`, readable by the `app` group (gid 1000) but not by other
 users, and at start an existing `database.sqlite` loses access for other users
 (a warning is logged when that fails, for example because another uid owns
 the file). A backup job that reads the volume under a different uid must
-therefore be in group 1000. Commands started with `docker exec` keep their own
-umask. The application code under `/app` is owned by root; the process can
+therefore be in group 1000. PHP commands started with `docker exec` (such as
+`php artisan`) use the same umask. The application code under `/app` is owned by root; the process can
 only write `bootstrap/cache` and `storage` (which lives in `/data`). PHP sends
 no `X-Powered-By` header, and every response carries
 `X-Content-Type-Options: nosniff`.
