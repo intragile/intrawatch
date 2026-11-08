@@ -2,6 +2,8 @@
 
 Developed and maintained by [IntrAgile Kft.](https://intragile.eu)
 
+English | [Magyar](README.hu.md)
+
 A free, self-hosted uptime monitor and status page. One container, no external
 services required, all state in a single volume.
 
@@ -838,7 +840,8 @@ SMOKE_PLATFORM=linux/amd64 SMOKE_SKIP_BUILD=1 SMOKE_IMAGE=intrawatch:1.0.0-amd64
   bash tests/docker/smoke.sh --quick
 ```
 
-The release steps are listed in [docs/RELEASE.md](docs/RELEASE.md).
+The release steps are listed in [docs/RELEASE.md](docs/RELEASE.md); changes
+between versions are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ### Admin interface
 
