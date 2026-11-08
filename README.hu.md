@@ -14,7 +14,11 @@ docker run -d --name intrawatch --restart unless-stopped -p 3000:3000 \
   -v intrawatch-data:/data ghcr.io/intragile/intrawatch:latest
 ```
 
-A registry-kép még nincs publikálva. Addig építsd meg helyben:
+A kép `linux/amd64` és `linux/arm64` platformra elérhető a GitHub Container
+Registryben (`ghcr.io/intragile/intrawatch`) és a Docker Hubon
+(`intragile/intrawatch`), `1.0.0`, `1.0`, `1` és `latest` taggel. Rögzíts egy
+verziótaget (például `:1.0`), ha te akarod eldönteni, mikor frissítesz. A képet
+forrásból is megépítheted:
 
 ```bash
 docker build -f docker/Dockerfile -t intrawatch .
