@@ -14,7 +14,11 @@ docker run -d --name intrawatch --restart unless-stopped -p 3000:3000 \
   -v intrawatch-data:/data ghcr.io/intragile/intrawatch:latest
 ```
 
-The registry image is not published yet. Until then, build it locally:
+The image is published for `linux/amd64` and `linux/arm64` on the GitHub
+Container Registry (`ghcr.io/intragile/intrawatch`) and on Docker Hub
+(`intragile/intrawatch`), with the tags `1.0.0`, `1.0`, `1` and `latest`. Pin
+a version tag (for example `:1.0`) to control when you upgrade. To build the
+image from source instead:
 
 ```bash
 docker build -f docker/Dockerfile -t intrawatch .
