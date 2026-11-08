@@ -9,7 +9,14 @@ cd "$(dirname "$0")/../.."
 REPO="$(pwd -P)"
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"; rmdir "$REPO/build/build-image-test" 2>/dev/null || true' EXIT
+# The `build/../docs` case needs build/ to exist, as it does after any local build; a fresh checkout (CI) has
+# none, so create it and remove it again afterwards.
+CREATED_BUILD=0
+if [[ ! -d "$REPO/build" ]]; then
+  mkdir "$REPO/build"
+  CREATED_BUILD=1
+fi
+trap 'rm -rf "$TMP"; rmdir "$REPO/build/build-image-test" 2>/dev/null || true; [[ $CREATED_BUILD -eq 0 ]] || rmdir "$REPO/build" 2>/dev/null || true' EXIT
 mkdir -p "$TMP/bin" "$TMP/outside"
 printf '#!/bin/sh\nexit 99\n' >"$TMP/bin/docker"
 chmod 0755 "$TMP/bin/docker"
