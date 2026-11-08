@@ -22,6 +22,11 @@ Runs "on the host" execute PHP on macOS against the database containers; the
 host has more CPU than the VM, so those numbers are not comparable to the
 image runs.
 
+The image runs were repeated after the security fixes. Other containers shared
+the Docker VM during them, among them an IntraWatch instance checking 1 000
+monitors, so single values carry some noise; a run with one more such instance
+on the VM tripled the warm status page p95 on SQLite (16.7 ms) and was repeated.
+
 ## Scale: 5 000 monitors and 300 status pages
 
 ```bash
@@ -43,8 +48,8 @@ settling it sends the requests one at a time over HTTP: 2 000 admin list
 requests (200 per list, `limit=100`, bearer token), one request per status page
 (cold), then 2 000 round-robin status page requests (warm), each status request
 with an `X-Forwarded-For` address of its own. No request failed. The check
-worker kept running throughout the measurement: it recorded 4 317 checks in
-54.9 s on SQLite and 6 647 in 84.6 s on PostgreSQL.
+worker kept running throughout the measurement: it recorded 4 675 checks in
+56.8 s on SQLite and 9 350 in 83.1 s on PostgreSQL.
 
 > **Warning:** `TRUSTED_PROXIES=127.0.0.1` is a setting for the benchmark
 > container only. It makes the application trust the `X-Forwarded-For` header
@@ -57,42 +62,42 @@ Both runs passed.
 
 ### SQLite, inside the image
 
-Checks recorded while measuring: 4 317 in 54.9 s.
+Checks recorded while measuring: 4 675 in 56.8 s.
 
 | Kind | Endpoint | Requests | p50 (ms) | p95 (ms) | Max (ms) |
 |---|---|---:|---:|---:|---:|
-| admin | monitors, top level (`parent_id=null`) | 200 | 19.83 | 25.00 | 111.62 |
-| admin | monitors, search (`q=api`) | 200 | 26.08 | 33.15 | 88.59 |
-| admin | monitors, status filter (`status=up`) | 200 | 18.19 | 22.98 | 36.98 |
-| admin | monitors, tag filter | 200 | 25.73 | 33.31 | 84.91 |
-| admin | group children | 200 | 7.70 | 10.97 | 48.56 |
-| admin | alerts | 200 | 12.82 | 17.15 | 109.08 |
-| admin | status pages | 200 | 9.10 | 12.00 | 50.20 |
-| admin | incidents | 200 | 10.61 | 13.52 | 147.72 |
-| admin | maintenances | 200 | 11.64 | 15.25 | 128.72 |
-| admin | audit | 200 | 8.80 | 11.28 | 36.00 |
-| status | cold | 300 | 42.43 | 71.45 | 270.73 |
-| status | warm | 2 000 | 3.61 | 5.54 | 52.22 |
+| admin | monitors, top level (`parent_id=null`) | 200 | 20.05 | 33.33 | 124.74 |
+| admin | monitors, search (`q=api`) | 200 | 26.39 | 48.60 | 74.97 |
+| admin | monitors, status filter (`status=up`) | 200 | 18.48 | 32.07 | 88.60 |
+| admin | monitors, tag filter | 200 | 25.92 | 39.52 | 95.26 |
+| admin | group children | 200 | 7.70 | 13.95 | 76.34 |
+| admin | alerts | 200 | 12.90 | 23.67 | 137.46 |
+| admin | status pages | 200 | 9.18 | 15.49 | 27.49 |
+| admin | incidents | 200 | 10.70 | 17.57 | 35.34 |
+| admin | maintenances | 200 | 11.78 | 19.93 | 94.77 |
+| admin | audit | 200 | 8.75 | 14.33 | 47.20 |
+| status | cold | 300 | 42.00 | 60.88 | 151.72 |
+| status | warm | 2 000 | 3.74 | 6.37 | 72.79 |
 
 ### PostgreSQL 16, inside the image
 
 PostgreSQL ran in its own container on the same Docker VM, so both shared the
-two vCPUs. Checks recorded while measuring: 6 647 in 84.6 s.
+two vCPUs. Checks recorded while measuring: 9 350 in 83.1 s.
 
 | Kind | Endpoint | Requests | p50 (ms) | p95 (ms) | Max (ms) |
 |---|---|---:|---:|---:|---:|
-| admin | monitors, top level (`parent_id=null`) | 200 | 31.61 | 57.24 | 183.04 |
-| admin | monitors, search (`q=api`) | 200 | 35.68 | 58.18 | 112.00 |
-| admin | monitors, status filter (`status=up`) | 200 | 28.07 | 43.66 | 138.97 |
-| admin | monitors, tag filter | 200 | 36.79 | 62.00 | 124.24 |
-| admin | group children | 200 | 17.55 | 32.54 | 66.89 |
-| admin | alerts | 200 | 22.07 | 49.12 | 96.36 |
-| admin | status pages | 200 | 17.53 | 39.68 | 116.60 |
-| admin | incidents | 200 | 20.46 | 39.36 | 126.60 |
-| admin | maintenances | 200 | 21.31 | 42.38 | 193.39 |
-| admin | audit | 200 | 17.29 | 34.15 | 104.18 |
-| status | cold | 300 | 55.17 | 80.42 | 142.35 |
-| status | warm | 2 000 | 4.07 | 7.25 | 114.76 |
+| admin | monitors, top level (`parent_id=null`) | 200 | 32.19 | 46.73 | 148.77 |
+| admin | monitors, search (`q=api`) | 200 | 36.52 | 53.86 | 110.40 |
+| admin | monitors, status filter (`status=up`) | 200 | 28.17 | 41.79 | 65.97 |
+| admin | monitors, tag filter | 200 | 37.59 | 54.35 | 92.74 |
+| admin | group children | 200 | 17.75 | 27.66 | 146.70 |
+| admin | alerts | 200 | 22.63 | 36.25 | 72.73 |
+| admin | status pages | 200 | 17.98 | 28.99 | 54.27 |
+| admin | incidents | 200 | 21.08 | 30.82 | 47.67 |
+| admin | maintenances | 200 | 21.95 | 39.74 | 74.33 |
+| admin | audit | 200 | 17.57 | 27.56 | 62.71 |
+| status | cold | 300 | 55.37 | 82.15 | 228.04 |
+| status | warm | 2 000 | 3.96 | 7.84 | 126.35 |
 
 ## Uptime Kuma import
 
@@ -139,11 +144,11 @@ answers in 50 to 300 ms. Passed.
 |---|---:|
 | Checks | 3 000 (expected at least 3 000) |
 | Checks not up | 0 |
-| Checks per minute | 999.9 |
-| Drift p50 | 5 ms |
-| Drift p95 | 13 ms |
-| Drift max | 26 ms |
-| Longest result flush | 69 ms |
+| Checks per minute | 1 000.0 |
+| Drift p50 | 3 ms |
+| Drift p95 | 11 ms |
+| Drift max | 27 ms |
+| Longest result flush | 222 ms |
 
 ## Status pages: 300 pages, in-process
 
@@ -158,8 +163,8 @@ Passed.
 
 | Pass | Requests | p50 (ms) | p95 (ms) | Max (ms) |
 |---|---:|---:|---:|---:|
-| cold | 300 | 39.26 | 56.12 | 203.57 |
-| warm | 3 000 | 0.88 | 1.29 | 155.71 |
+| cold | 300 | 40.01 | 61.10 | 132.17 |
+| warm | 3 000 | 0.87 | 1.92 | 67.87 |
 
 Database queries during the warm pass: 0.
 
