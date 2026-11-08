@@ -16,8 +16,11 @@ use App\Models\User;
 use App\Models\Workspace;
 use App\Monitoring\Engine\PostCommit;
 use App\Status\Pages\AffectedPages;
+use App\Status\Pages\PageResolver;
 use App\Status\Pages\PageStamps;
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\Events\CacheHit;
+use Illuminate\Cache\Events\CacheMissed;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -260,5 +263,155 @@ class PageStampsTest extends TestCase
         $this->assertNull(StatusPage::query()->find($page->id));
         $this->actingAs($editor)->deleteJson("{$base}/monitors/{$monitor->id}")->assertNoContent();
         $this->assertNull(Monitor::query()->find($monitor->id));
+    }
+
+    /**
+     * Runs the callback with the default connection pointing at a server that refuses connections.
+     * A copy of the `PublicStatusPageTest` helper, kept here so the two files stay independent.
+     */
+    private function withDeadDatabase(callable $callback): void
+    {
+        $original = DB::getDefaultConnection();
+        config(['database.connections.dead' => [
+            'driver' => 'mysql',
+            'host' => '127.0.0.1',
+            'port' => 1,
+            'database' => 'none',
+            'username' => 'none',
+            'password' => 'none',
+        ]]);
+        DB::setDefaultConnection('dead');
+        try {
+            $callback();
+        } finally {
+            DB::setDefaultConnection($original);
+            DB::purge('dead');
+        }
+    }
+
+    /**
+     * A published page on status.example.org whose domain map is cached, fresh and last good.
+     *
+     * @return array{Workspace, User, StatusPage}
+     */
+    private function cachedDomainPage(): array
+    {
+        config(['status.custom_domains.allowed' => ['*.example.org']]);
+        $ws = Workspace::factory()->create();
+        $owner = User::factory()->memberOf($ws, WorkspaceRole::Owner)->create();
+        $page = StatusPage::factory()->for($ws)->create(['slug' => 'public', 'custom_domain' => 'status.example.org', 'published' => true]);
+
+        $this->assertSame(['id' => $page->id, 'workspace_id' => $ws->id], app(PageResolver::class)->byDomain('status.example.org'));
+        $store = Cache::store('status_pages');
+        $this->assertTrue($store->has(PageStamps::domainsKey()));
+        $this->assertTrue($store->has(PageStamps::domainsLastGoodKey()));
+
+        return [$ws, $owner, $page];
+    }
+
+    /**
+     * Whether a cached domain map (fresh or last good) still says the host serves a published page.
+     */
+    private function cachedAsPublished(string $key, string $host): bool
+    {
+        $map = Cache::store('status_pages')->get($key);
+        if (! is_array($map) || ! is_array($map['domains'] ?? null) || ! is_array($map['domains'][$host] ?? null)) {
+            return false;
+        }
+
+        return ($map['domains'][$host][2] ?? true) === true;
+    }
+
+    public function test_unpublishing_withdraws_the_page_from_the_last_good_domain_map(): void
+    {
+        [$ws, $owner, $page] = $this->cachedDomainPage();
+
+        $this->actingAs($owner)->patchJson("/api/v1/workspaces/{$ws->slug}/status-pages/{$page->id}", ['published' => false])->assertOk();
+
+        $this->withDeadDatabase(function () use ($page, $ws): void {
+            $resolver = app(PageResolver::class);
+            $this->assertNull($resolver->byDomain('status.example.org'));
+            // The host stays reserved for the page, only it is not served.
+            $this->assertSame(['id' => $page->id, 'workspace_id' => $ws->id, 'published' => false], $resolver->hostState('status.example.org'));
+        });
+
+        $this->assertFalse($this->cachedAsPublished(PageStamps::domainsKey(), 'status.example.org'));
+        $this->assertFalse($this->cachedAsPublished(PageStamps::domainsLastGoodKey(), 'status.example.org'));
+    }
+
+    public function test_a_changed_custom_domain_is_not_served_from_the_last_good_map(): void
+    {
+        [$ws, $owner, $page] = $this->cachedDomainPage();
+
+        $this->actingAs($owner)->patchJson("/api/v1/workspaces/{$ws->slug}/status-pages/{$page->id}", ['custom_domain' => 'new.example.org'])->assertOk();
+
+        $this->withDeadDatabase(function (): void {
+            $resolver = app(PageResolver::class);
+            $this->assertNull($resolver->byDomain('status.example.org'));
+            $this->assertNull($resolver->byDomain('new.example.org'));
+        });
+
+        $this->assertFalse($this->cachedAsPublished(PageStamps::domainsKey(), 'status.example.org'));
+        $this->assertFalse($this->cachedAsPublished(PageStamps::domainsLastGoodKey(), 'status.example.org'));
+    }
+
+    public function test_without_a_write_the_last_good_domain_map_still_serves_during_an_outage(): void
+    {
+        [$ws, , $page] = $this->cachedDomainPage();
+        $this->travel(2)->minutes();
+
+        $this->withDeadDatabase(function () use ($page, $ws): void {
+            $this->assertSame(['id' => $page->id, 'workspace_id' => $ws->id], app(PageResolver::class)->byDomain('status.example.org'));
+        });
+
+        $map = Cache::store('status_pages')->get(PageStamps::domainsKey());
+        $this->assertIsArray($map);
+        $this->assertSame(CarbonImmutable::now()->getTimestamp() + 30, $map['fresh_until']);
+        $this->assertTrue($this->cachedAsPublished(PageStamps::domainsKey(), 'status.example.org'));
+    }
+
+    public function test_a_domain_map_read_racing_a_write_is_not_cached(): void
+    {
+        [, , $page] = $this->cachedDomainPage();
+        $this->travel(2)->minutes();
+        $fired = false;
+        DB::connection()->beforeExecuting(function (string $query) use (&$fired, $page): void {
+            if (! $fired && str_contains($query, 'status_pages')) {
+                $fired = true;
+                $this->stamps->forgetPage($page);
+            }
+        });
+
+        // The read itself still sees the row as it was; only caching it would outlive the write.
+        $this->assertNotNull(app(PageResolver::class)->byDomain('status.example.org'));
+
+        $this->assertTrue($fired);
+        $store = Cache::store('status_pages');
+        $this->assertFalse($store->has(PageStamps::domainsKey()));
+        $this->assertFalse($this->cachedAsPublished(PageStamps::domainsLastGoodKey(), 'status.example.org'));
+    }
+
+    public function test_an_outage_read_racing_a_write_does_not_recache_the_old_map(): void
+    {
+        [, , $page] = $this->cachedDomainPage();
+        $this->travel(2)->minutes();
+        $fired = false;
+        // The write lands right after the resolver has taken the write token, before the database fails.
+        $race = function (CacheHit|CacheMissed $event) use (&$fired, $page): void {
+            if (! $fired && $event->key === PageStamps::domainsWrittenKey()) {
+                $fired = true;
+                $this->stamps->forgetPage($page);
+            }
+        };
+        Event::listen(CacheHit::class, $race);
+        Event::listen(CacheMissed::class, $race);
+
+        $this->withDeadDatabase(function (): void {
+            $this->assertNull(app(PageResolver::class)->byDomain('status.example.org'));
+        });
+
+        $this->assertTrue($fired);
+        $this->assertFalse($this->cachedAsPublished(PageStamps::domainsKey(), 'status.example.org'));
+        $this->assertFalse($this->cachedAsPublished(PageStamps::domainsLastGoodKey(), 'status.example.org'));
     }
 }

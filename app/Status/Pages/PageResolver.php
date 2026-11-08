@@ -20,6 +20,11 @@ use PDOException;
  * resolve, so the last good copy of a page can be served, and the database is retried at most once every
  * 30 s per entry instead of on every request. A failure to reach the database also sets the shared
  * `DatabaseOutage` marker, which keeps every other uncached lookup off the database for 30 s. Unpublished pages resolve exactly like missing ones.
+ *
+ * A page write marks the page unpublished in the last-good domain map: its hosts stay reserved, but an outage
+ * before the next successful read does not serve a state the write may have changed. A read that overlaps a
+ * write (seen through `PageStamps::domainsWrittenKey`) is returned but not cached. A cache store that rejects
+ * every write keeps the earlier map until its TTL runs out, as it does for every other entry here.
  */
 final class PageResolver
 {
@@ -198,6 +203,7 @@ final class PageResolver
             return $known['domains'];
         }
 
+        $written = $store->get(PageStamps::domainsWrittenKey());
         try {
             $this->outage->guard();
             $rows = DB::table('status_pages')
@@ -205,12 +211,26 @@ final class PageResolver
                 ->get(['id', 'workspace_id', 'custom_domain', 'published']);
         } catch (QueryException|PDOException $e) {
             $this->failed($e);
+            if ($store->get(PageStamps::domainsWrittenKey()) !== $written) {
+                // A page write landed after the maps were read; only the last-good map, which the write has
+                // already withdrawn the page from, is current. It is served but not copied into the fresh map.
+                $known = self::map($store->get(PageStamps::domainsLastGoodKey()));
+                if ($known === null) {
+                    throw $e;
+                }
+
+                return $known['domains'];
+            }
             // A page write drops the fresh map; the last good one still knows the hosts.
             $known ??= self::map($store->get(PageStamps::domainsLastGoodKey()));
             if ($known === null) {
                 throw $e;
             }
             $this->putMap($known['domains'], $now + self::RETRY_SECONDS);
+            if ($store->get(PageStamps::domainsWrittenKey()) !== $written) {
+                // The write landed between the check and the put; the copy must not outlive it.
+                $store->forget(PageStamps::domainsKey());
+            }
 
             return $known['domains'];
         }
@@ -221,10 +241,42 @@ final class PageResolver
                 $domains[strtolower($row->custom_domain)] = [self::int($row->id), self::int($row->workspace_id), (bool) $row->published];
             }
         }
+        if ($store->get(PageStamps::domainsWrittenKey()) !== $written) {
+            // A page write landed during the query; the rows may predate it, so they are not kept.
+            return $domains;
+        }
         $this->putMap($domains, $now + self::DOMAINS_SECONDS);
-        $store->put(PageStamps::domainsLastGoodKey(), ['domains' => $domains, 'fresh_until' => $now], $this->keepSeconds());
+        $store->put(PageStamps::domainsLastGoodKey(), ['domains' => $domains, 'fresh_until' => $now], self::keepSeconds());
+        if ($store->get(PageStamps::domainsWrittenKey()) !== $written) {
+            // The write landed between the check and the puts; which page it touched is unknown, so drop both.
+            $store->forget(PageStamps::domainsKey());
+            $store->forget(PageStamps::domainsLastGoodKey());
+        }
 
         return $domains;
+    }
+
+    /**
+     * Marks the page unpublished in the last-good domain map, keeping its hosts reserved. Called on every page
+     * write, so an outage right after it cannot serve the page from a copy taken before the write.
+     */
+    public static function withdrawFromLastGood(Repository $store, int $pageId): void
+    {
+        $known = self::map($store->get(PageStamps::domainsLastGoodKey()));
+        if ($known === null) {
+            return;
+        }
+        $changed = false;
+        $domains = $known['domains'];
+        foreach ($domains as $host => [$id, $workspaceId, $published]) {
+            if ($id === $pageId && $published) {
+                $domains[$host] = [$id, $workspaceId, false];
+                $changed = true;
+            }
+        }
+        if ($changed) {
+            $store->put(PageStamps::domainsLastGoodKey(), ['domains' => $domains, 'fresh_until' => $known['fresh_until']], self::keepSeconds());
+        }
     }
 
     /**
@@ -243,12 +295,12 @@ final class PageResolver
      */
     private function putMap(array $domains, int $freshUntil): void
     {
-        $this->store()->put(PageStamps::domainsKey(), ['domains' => $domains, 'fresh_until' => $freshUntil], $this->keepSeconds());
+        $this->store()->put(PageStamps::domainsKey(), ['domains' => $domains, 'fresh_until' => $freshUntil], self::keepSeconds());
     }
 
     private function putFound(string $key, int $id, int $workspaceId, int $freshUntil): void
     {
-        $this->store()->put($key, ['id' => $id, 'workspace_id' => $workspaceId, 'found' => true, 'fresh_until' => $freshUntil], $this->keepSeconds());
+        $this->store()->put($key, ['id' => $id, 'workspace_id' => $workspaceId, 'found' => true, 'fresh_until' => $freshUntil], self::keepSeconds());
     }
 
     /**
@@ -284,7 +336,7 @@ final class PageResolver
         return ['domains' => $domains, 'fresh_until' => $cached['fresh_until']];
     }
 
-    private function keepSeconds(): int
+    private static function keepSeconds(): int
     {
         return max(self::FOUND_SECONDS, config()->integer('status.cache.stale_seconds'));
     }

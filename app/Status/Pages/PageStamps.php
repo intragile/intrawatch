@@ -39,12 +39,22 @@ final class PageStamps
     }
 
     /**
-     * The last domain map read from the database. Page writes leave it in place, so a database outage right
-     * after a write still knows which hosts belong to status pages.
+     * The last domain map read from the database. A page write keeps the page's hosts in it but marks them
+     * unpublished, so a database outage right after a write still knows which hosts belong to status pages
+     * without serving a page whose state the write may have changed.
      */
     public static function domainsLastGoodKey(): string
     {
         return 'status:domains:last';
+    }
+
+    /**
+     * A token every page write moves before it drops the domain maps. The resolver reads it before and after
+     * its query, so it can tell that a write happened while it was reading and leave the result uncached.
+     */
+    public static function domainsWrittenKey(): string
+    {
+        return 'status:domains:written';
     }
 
     public static function htmlKey(int $pageId): string
@@ -109,6 +119,8 @@ final class PageStamps
     {
         $this->attempt(function () use ($pageId, $slug, $domain): void {
             $store = $this->store();
+            // Before the forgets, so a resolver reading the database right now sees the write.
+            $store->forever(self::domainsWrittenKey(), self::token());
             $this->dropRenderings($store, $pageId);
             if ($slug !== null && $slug !== '') {
                 $store->forget(self::slugKey($slug));
@@ -118,6 +130,15 @@ final class PageStamps
             }
             $store->forget(self::domainsKey());
         });
+        $withdrawn = false;
+        $this->attempt(function () use ($pageId, &$withdrawn): void {
+            PageResolver::withdrawFromLastGood($this->store(), $pageId);
+            $withdrawn = true;
+        });
+        if (! $withdrawn) {
+            // Never leave a stale published entry behind: without the map every host fails closed.
+            $this->attempt(fn () => $this->store()->forget(self::domainsLastGoodKey()));
+        }
         $this->bumpPage($pageId);
     }
 
