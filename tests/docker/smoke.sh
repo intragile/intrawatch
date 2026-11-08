@@ -5,7 +5,12 @@
 # /data, plus monitors checked by the in-image worker, a public status page
 # by slug and by custom domain, the admin shell under /admin/, down and up alerts
 # delivered to a webhook receiver inside the container, an Uptime Kuma import
-# through the API, and a timed docker stop. Usage: bash tests/docker/smoke.sh [--pgsql]
+# through the API, and a timed docker stop.
+# Usage: bash tests/docker/smoke.sh [--pgsql] [--quick]
+#   --quick            only the run, monitors and checker, public status page, admin
+#                      application and import sections, with every timeout tripled
+#   SMOKE_PLATFORM     e.g. linux/amd64: passed as --platform to docker build and run
+#   SMOKE_SKIP_BUILD=1 use the existing SMOKE_IMAGE instead of building it (and keep it)
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -21,7 +26,41 @@ BASE="http://127.0.0.1:${PORT}"
 JAR="$(mktemp)"
 JAR2="$(mktemp)"
 USE_PGSQL=0
-[[ "${1:-}" == "--pgsql" ]] && USE_PGSQL=1
+QUICK=0
+for arg in "$@"; do
+  case "$arg" in
+    --pgsql) USE_PGSQL=1 ;;
+    --quick) QUICK=1 ;;
+    *) echo "unknown option: $arg" >&2; exit 2 ;;
+  esac
+done
+
+PLATFORM_ARGS=()
+[[ -n "${SMOKE_PLATFORM:-}" ]] && PLATFORM_ARGS=(--platform "$SMOKE_PLATFORM")
+SKIP_BUILD="${SMOKE_SKIP_BUILD:-0}"
+
+# Time factor for every timeout and deadline: emulated platforms and --quick runs are slower.
+TM=1
+[[ $QUICK -eq 1 ]] && TM=3
+
+# timeout and curl --max-time scale with TM; with TM=1 they behave exactly as the real commands.
+timeout() {
+  local seconds="$1"
+  shift
+  command timeout "$((seconds * TM))" "$@"
+}
+curl() {
+  local args=() previous="" a
+  for a in "$@"; do
+    if [[ "$previous" == "--max-time" ]]; then
+      args+=("$((a * TM))")
+    else
+      args+=("$a")
+    fi
+    previous="$a"
+  done
+  command curl "${args[@]}"
+}
 
 cleanup() {
   local code=$?
@@ -33,7 +72,7 @@ cleanup() {
   timeout 60 docker rm -f "$PG_NAME" "${NAME}-ping" >/dev/null 2>&1 || true
   timeout 60 docker volume rm -f "$VOLUME" >/dev/null 2>&1 || true
   timeout 60 docker network rm "$NETWORK" >/dev/null 2>&1 || true
-  [[ "${SMOKE_KEEP_IMAGE:-0}" == "1" ]] || timeout 60 docker rmi "$IMAGE" >/dev/null 2>&1 || true
+  [[ "${SMOKE_KEEP_IMAGE:-0}" == "1" || "$SKIP_BUILD" == "1" ]] || timeout 60 docker rmi "$IMAGE" >/dev/null 2>&1 || true
   rm -f "$JAR" "$JAR2"
   [[ $code -eq 0 ]] || echo "SMOKE FAILED" >&2
 }
@@ -48,12 +87,12 @@ http_code() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@" || true;
 
 # Polls run against a wall-clock deadline, so slow requests cannot stretch the advertised wait.
 wait_for_up() {
-  local deadline=$((SECONDS + 60))
+  local deadline=$((SECONDS + 60 * TM))
   while ((SECONDS < deadline)); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/up" || true)" == "200" ]] && return 0
     sleep 1
   done
-  fail "/up did not return 200 within 60s"
+  fail "/up did not return 200 within $((60 * TM))s"
 }
 
 # Sets XSRF to the URL-decoded XSRF-TOKEN cookie of the given jar. Not run in
@@ -67,7 +106,7 @@ load_xsrf() {
 
 # Waits until the container has exited and prints its exit code: wait_for_exit <name> <seconds>
 wait_for_exit() {
-  local name="$1" seconds="$2" i state
+  local name="$1" seconds=$(($2 * TM)) i state
   for i in $(seq 1 "$seconds"); do
     state="$(timeout 30 docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' "$name" 2>/dev/null || true)"
     if [[ "$state" == exited* ]]; then
@@ -83,11 +122,16 @@ wait_for_exit() {
 run_docker() {
   local seconds="$1" what="$2"
   shift 2
-  timeout "$seconds" docker "$@" || fail "$what failed or exceeded ${seconds}s"
+  timeout "$seconds" docker "$@" || fail "$what failed or exceeded $((seconds * TM))s"
 }
 
-echo "== build $IMAGE"
-timeout 1500 docker build -f docker/Dockerfile -t "$IMAGE" .
+if [[ "$SKIP_BUILD" == "1" ]]; then
+  echo "== using existing image $IMAGE"
+  timeout 30 docker image inspect "$IMAGE" >/dev/null || fail "image $IMAGE does not exist"
+else
+  echo "== build $IMAGE"
+  timeout 1500 docker build ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} -f docker/Dockerfile -t "$IMAGE" .
+fi
 
 ENV_ARGS=()
 NET_ARGS=()
@@ -108,7 +152,7 @@ fi
 
 # start_container [extra docker run args...]
 start_container() {
-  run_docker 300 "app container start" run -d --name "$NAME" ${NET_ARGS[@]+"${NET_ARGS[@]}"} ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} \
+  run_docker 300 "app container start" run -d --name "$NAME" ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} ${NET_ARGS[@]+"${NET_ARGS[@]}"} ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} \
     "$@" -p "127.0.0.1:${PORT}:3000" -v "${VOLUME}:/data" "$IMAGE" >/dev/null
 }
 
@@ -175,12 +219,12 @@ monitor_status() {
   curl -fsS --max-time 5 "${AUTH[@]}" "$WS_URL/monitors/$1" 2>/dev/null | jq -r '.data.state.status // empty' || true
 }
 http_status="" push_status=""
-deadline=$((SECONDS + 60))
+deadline=$((SECONDS + 60 * TM))
 while true; do
   http_status="$(monitor_status "$HTTP_ID")"
   push_status="$(monitor_status "$PUSH_ID")"
   [[ "$http_status" == "up" && "$push_status" == "up" ]] && break
-  ((SECONDS < deadline)) || fail "monitors not up within 60s (http: ${http_status:-none}, push: ${push_status:-none})"
+  ((SECONDS < deadline)) || fail "monitors not up within $((60 * TM))s (http: ${http_status:-none}, push: ${push_status:-none})"
   sleep 1
 done
 ok "http and push monitors are up"
@@ -272,6 +316,7 @@ for path in /admin/ "$ASSET" /api/v1/ping; do
 done
 ok "admin shell, assets and deep links served; none on the custom domain"
 
+if [[ $QUICK -eq 0 ]]; then
 echo "== alerts to a webhook"
 # A tiny receiver inside the container appends every request body to a file. CHECK_BLOCKED_NETWORKS keeps
 # its default, which allows loopback targets.
@@ -280,7 +325,7 @@ timeout 30 docker exec "$NAME" sh -c 'mkdir -p /tmp/smoke-alerts /tmp/smoke-targ
   > /tmp/smoke-alerts/router.php' || fail "could not write the webhook receiver"
 timeout 30 docker exec -d "$NAME" sh -c 'echo $$ > /tmp/smoke-alerts/receiver.pid; exec php -S 127.0.0.1:39999 /tmp/smoke-alerts/router.php >/dev/null 2>&1' \
   || fail "could not start the webhook receiver"
-deadline=$((SECONDS + 15))
+deadline=$((SECONDS + 15 * TM))
 until timeout 10 docker exec "$NAME" php -r 'exit(@fsockopen("127.0.0.1", 39999, $e, $s, 2) ? 0 : 1);'; do
   ((SECONDS < deadline)) || fail "webhook receiver not listening within 15s"
   sleep 1
@@ -301,7 +346,7 @@ ok "webhook channel and tcp monitor created"
 
 # wait_for_alert <event> <seconds>: waits until the receiver holds a JSON payload with that event.
 wait_for_alert() {
-  local event="$1" seconds="$2" deadline=$((SECONDS + $2)) received
+  local event="$1" seconds="$(($2 * TM))" deadline=$((SECONDS + $2 * TM)) received
   while true; do
     received="$(timeout 10 docker exec "$NAME" cat /tmp/smoke-alerts/received.log 2>/dev/null || true)"
     if jq -e --arg event "$event" --argjson monitor "$TCP_ID" 'select(.event == $event and .monitor.id == $monitor)' \
@@ -324,7 +369,7 @@ curl -fsS --max-time 10 "${AUTH[@]}" -X POST "$WS_URL/monitors/$TCP_ID/check" -o
 wait_for_alert up 90
 ok "up alert delivered to the webhook"
 
-deadline=$((SECONDS + 30))
+deadline=$((SECONDS + 30 * TM))
 while true; do
   alerts_json="$(curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/monitors/$TCP_ID/alerts" 2>/dev/null || true)"
   jq -e '[.data[] | select((.kind == "down" or .kind == "up") and any(.deliveries[]; .status == "sent"))] | length >= 2' \
@@ -337,6 +382,7 @@ ok "alert history lists both alerts with sent deliveries"
 # Pause the monitor first, so it cannot raise more alerts once the helpers stop or while the container stops.
 [[ "$(http_code "${AUTH[@]}" -X POST "$WS_URL/monitors/$TCP_ID/pause")" == "200" ]] || fail "could not pause the tcp monitor"
 timeout 30 docker exec "$NAME" sh -c 'kill $(cat /tmp/smoke-alerts/receiver.pid /tmp/smoke-alerts/target.pid) 2>/dev/null; rm -rf /tmp/smoke-alerts /tmp/smoke-target' || true
+fi
 
 echo "== import from Uptime Kuma"
 [[ "$(timeout 30 docker exec "$NAME" php -r 'echo ini_get("upload_max_filesize"), " ", ini_get("post_max_size");')" == "512M 520M" ]] \
@@ -352,13 +398,13 @@ ok "kuma2.db uploaded"
 
 # wait_for_import <status> <seconds>: polls the import until it reaches the status; a failed import aborts.
 wait_for_import() {
-  local want="$1" deadline=$((SECONDS + $2)) status=""
+  local want="$1" seconds="$(($2 * TM))" deadline=$((SECONDS + $2 * TM)) status=""
   while true; do
     IMPORT_JSON="$(curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/imports/$IMPORT_ID" 2>/dev/null || true)"
     status="$(jq -r '.data.status // empty' <<<"$IMPORT_JSON" 2>/dev/null || true)"
     [[ "$status" == "$want" ]] && return 0
     [[ "$status" == "failed" ]] && fail "import failed: $(jq -r '.data.error' <<<"$IMPORT_JSON")"
-    ((SECONDS < deadline)) || fail "import not $want within $2s (status: ${status:-none})"
+    ((SECONDS < deadline)) || fail "import not $want within ${seconds}s (status: ${status:-none})"
     sleep 1
   done
 }
@@ -380,15 +426,20 @@ curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/monitors?limit=200" | jq -e '[.dat
 ok "import ran: monitors, status page and Kuma push alias work"
 # The imported monitors check outside hosts and alert to the fixture's channels; pause them so they cannot
 # interfere with the remaining steps.
-imported_ids="$(curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/monitors?limit=200" | jq -c --argjson keep "[$HTTP_ID,$PUSH_ID,$TCP_ID]" \
+imported_ids="$(curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/monitors?limit=200" | jq -c --argjson keep "[$HTTP_ID,$PUSH_ID,${TCP_ID:-0}]" \
   '[.data[] | .id | select(. as $id | $keep | index($id) | not)]')" || fail "could not list the imported monitors"
 [[ "$(http_code "${AUTH[@]}" -X POST "$WS_URL/monitors/bulk" -d "{\"action\":\"pause\",\"ids\":${imported_ids}}")" == "200" ]] \
   || fail "could not pause the imported monitors"
 
+if [[ $QUICK -eq 1 ]]; then
+  echo "SMOKE OK (quick)"
+  exit 0
+fi
+
 [[ "$(timeout 30 docker exec "$NAME" id -u)" == "1000" ]] || fail "docker exec does not run as uid 1000"
 timeout 30 docker exec "$NAME" ping -c1 -W5 127.0.0.1 >/dev/null || fail "ping as uid 1000 failed"
 ok "ping works as uid 1000"
-run_docker 60 "ping without NET_RAW" run --rm --name "${NAME}-ping" --cap-drop NET_RAW --entrypoint ping "$IMAGE" -c1 -W5 127.0.0.1 >/dev/null
+run_docker 60 "ping without NET_RAW" run --rm --name "${NAME}-ping" ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} --cap-drop NET_RAW --entrypoint ping "$IMAGE" -c1 -W5 127.0.0.1 >/dev/null
 ok "ping works without NET_RAW"
 
 echo "== stop within the docker stop grace period"
@@ -480,7 +531,7 @@ ok "a FATAL worker stops the container (exit $exit_code)"
 
 echo "== unwritable /data"
 remove_container "$NAME"
-run_docker 300 "read-only container start" run -d --name "$NAME" ${NET_ARGS[@]+"${NET_ARGS[@]}"} ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} \
+run_docker 300 "read-only container start" run -d --name "$NAME" ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} ${NET_ARGS[@]+"${NET_ARGS[@]}"} ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} \
   -v "${VOLUME}:/data:ro" "$IMAGE" >/dev/null
 exit_code="$(wait_for_exit "$NAME" 60)"
 [[ "$exit_code" == "1" ]] || fail "unwritable /data exited $exit_code, expected 1"

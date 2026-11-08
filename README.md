@@ -812,6 +812,34 @@ vendor/bin/pint --test
 bash tests/docker/smoke.sh          # image smoke test (add --pgsql for PostgreSQL)
 ```
 
+### Building the image
+
+`scripts/build-image.sh` builds the image for several platforms into a local
+OCI archive and never pushes anything. It creates (or reuses) a buildx builder
+named `intrawatch-builder`:
+
+```bash
+scripts/build-image.sh --version 1.0.0 --platforms linux/amd64,linux/arm64 --out build
+```
+
+The archive is written to `build/intrawatch-<version>.oci.tar`, and the script
+lists the platforms in its `index.json` and the sizes. Add
+`--load-platform linux/amd64` to also load one platform into the local Docker
+engine as `intrawatch:<version>-amd64`. A platform that differs from the host
+runs under QEMU emulation, which can take up to an hour for the PHP extensions.
+
+The smoke test can run against such an image. `SMOKE_PLATFORM` passes
+`--platform` to the build and the runs, `SMOKE_SKIP_BUILD=1` uses an existing
+`SMOKE_IMAGE` and `--quick` runs only the monitor, status page, admin and
+import sections with tripled timeouts:
+
+```bash
+SMOKE_PLATFORM=linux/amd64 SMOKE_SKIP_BUILD=1 SMOKE_IMAGE=intrawatch:1.0.0-amd64 \
+  bash tests/docker/smoke.sh --quick
+```
+
+The release steps are listed in [docs/RELEASE.md](docs/RELEASE.md).
+
 ### Admin interface
 
 The admin interface is a Vue single-page application in `spa/` (Node.js 22 or

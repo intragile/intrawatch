@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Builds the IntraWatch image for several platforms into a local OCI archive.
+# Nothing is pushed. Usage:
+#   scripts/build-image.sh [--version X.Y.Z] [--platforms linux/amd64,linux/arm64] [--out build]
+#                          [--load-platform linux/amd64]
+# --load-platform additionally loads one platform into the local Docker engine
+# as intrawatch:<version>-<arch>, for the smoke test.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+VERSION="1.0.0"
+PLATFORMS="linux/amd64,linux/arm64"
+OUT="build"
+LOAD_PLATFORM=""
+BUILDER="intrawatch-builder"
+BUILD_TIMEOUT="${BUILD_TIMEOUT:-3600}"
+
+usage() {
+  sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version) VERSION="${2:?--version needs a value}"; shift 2 ;;
+    --platforms) PLATFORMS="${2:?--platforms needs a value}"; shift 2 ;;
+    --out) OUT="${2:?--out needs a value}"; shift 2 ;;
+    --load-platform) LOAD_PLATFORM="${2:?--load-platform needs a value}"; shift 2 ;;
+    -h | --help) usage; exit 0 ;;
+    *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || { echo "invalid version: $VERSION" >&2; exit 2; }
+if [[ -n "$LOAD_PLATFORM" && ",${PLATFORMS}," != *",${LOAD_PLATFORM},"* ]]; then
+  echo "--load-platform ${LOAD_PLATFORM} is not part of --platforms ${PLATFORMS}" >&2
+  exit 2
+fi
+
+mkdir -p "$OUT"
+ARCHIVE="${OUT}/intrawatch-${VERSION}.oci.tar"
+
+if ! timeout 60 docker buildx inspect "$BUILDER" >/dev/null 2>&1; then
+  echo "== creating buildx builder ${BUILDER}"
+  timeout 120 docker buildx create --name "$BUILDER" --driver docker-container >/dev/null
+fi
+timeout 300 docker buildx inspect "$BUILDER" --bootstrap >/dev/null
+
+echo "== building ${PLATFORMS} (version ${VERSION}) -> ${ARCHIVE}"
+started="$(date +%s)"
+timeout "$BUILD_TIMEOUT" docker buildx build \
+  --builder "$BUILDER" \
+  --platform "$PLATFORMS" \
+  --file docker/Dockerfile \
+  --build-arg "APP_VERSION=${VERSION}" \
+  --tag "intrawatch:${VERSION}" \
+  --output "type=oci,dest=${ARCHIVE}" \
+  .
+echo "== multi-platform build finished in $(($(date +%s) - started))s"
+
+echo "== platforms in ${ARCHIVE}"
+index="$(tar -xOf "$ARCHIVE" index.json)"
+if command -v jq >/dev/null 2>&1; then
+  manifests=""
+  for digest in $(jq -r '.manifests[].digest' <<<"$index"); do
+    blob="$(tar -xOf "$ARCHIVE" "blobs/${digest/:/\/}")"
+    if jq -e '.manifests' <<<"$blob" >/dev/null 2>&1; then
+      manifests+="$(jq -r '.manifests[] | select(.platform.os != "unknown") | "\(.platform.os)/\(.platform.architecture)\(if .platform.variant then "/" + .platform.variant else "" end)"' <<<"$blob")"$'\n'
+    else
+      manifests+="$(jq -r '.platform // empty | "\(.os)/\(.architecture)"' <<<"$(jq -c --arg d "$digest" '.manifests[] | select(.digest == $d)' <<<"$index")")"$'\n'
+    fi
+  done
+  printf '%s' "$manifests" | sed '/^$/d' | sort -u
+else
+  echo "$index"
+fi
+wc -c <"$ARCHIVE" | awk '{ printf "archive size: %.1f MiB\n", $1 / 1048576 }'
+
+if [[ -n "$LOAD_PLATFORM" ]]; then
+  arch="${LOAD_PLATFORM#*/}"
+  tag="intrawatch:${VERSION}-${arch//\//-}"
+  echo "== loading ${LOAD_PLATFORM} as ${tag}"
+  started="$(date +%s)"
+  timeout "$BUILD_TIMEOUT" docker buildx build \
+    --builder "$BUILDER" \
+    --platform "$LOAD_PLATFORM" \
+    --file docker/Dockerfile \
+    --build-arg "APP_VERSION=${VERSION}" \
+    --tag "$tag" \
+    --load \
+    .
+  echo "== load finished in $(($(date +%s) - started))s"
+  docker image inspect "$tag" --format 'image size: {{.Size}} bytes ({{.Os}}/{{.Architecture}})'
+fi
