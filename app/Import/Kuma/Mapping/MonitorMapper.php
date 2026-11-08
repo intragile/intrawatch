@@ -507,6 +507,7 @@ final class MonitorMapper
 
             return null;
         }
+        $this->note('jsonata_translated', 'The JSONata path was translated to JSONPath. JSONata steps into arrays implicitly and JSONPath does not; verify the expression against the response.');
 
         $operator = trim(self::str($row['json_path_operator'] ?? null));
         $operator = $operator === '' ? '==' : $operator;

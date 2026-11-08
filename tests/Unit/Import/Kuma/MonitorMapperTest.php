@@ -147,6 +147,7 @@ final class MonitorMapperTest extends TestCase
         $this->assertInstanceOf(Mapped::class, $json);
         $this->assertSame(['path' => '$.slideshow.author', 'operator' => '==', 'expected' => 'Yours Truly'], self::config($json)['json_query']);
         $this->assertFalse($json->pause);
+        $this->assertSame(['jsonata_translated'], self::codes($json));
 
         $proxied = $results[5];
         $this->assertInstanceOf(Mapped::class, $proxied);
@@ -250,6 +251,16 @@ final class MonitorMapperTest extends TestCase
 
         $legacy = $this->mapped(['type' => 'json-query', 'json_path' => 'ok', 'json_path_operator' => null, 'expected_value' => 'true']);
         $this->assertSame(['path' => '$.ok', 'operator' => '==', 'expected' => 'true'], self::config($legacy)['json_query']);
+    }
+
+    public function test_translated_jsonata_is_noted_and_stays_active(): void
+    {
+        $mapped = $this->mapped(['type' => 'json-query', 'json_path' => 'data.items[0].name', 'expected_value' => 'x']);
+
+        $this->assertSame(['jsonata_translated'], self::codes($mapped));
+        $this->assertFalse($mapped->pause);
+        $this->assertTrue($mapped->attributes['active']);
+        $this->assertSame(['path' => '$.data.items[0].name', 'operator' => '==', 'expected' => 'x'], self::config($mapped)['json_query']);
     }
 
     public function test_untranslatable_jsonata_pauses(): void

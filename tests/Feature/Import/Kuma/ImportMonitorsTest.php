@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Import\Kuma;
 
+use App\Actions\Monitors\CreateMonitor;
 use App\Enums\MonitorType;
 use App\Import\Kuma\ImportOptions;
 use App\Import\Kuma\ImportReport;
@@ -14,7 +15,9 @@ use App\Models\AuditEvent;
 use App\Models\ImportMapping;
 use App\Models\Monitor;
 use App\Models\NotificationChannel;
+use App\Models\User;
 use App\Models\Workspace;
+use App\Monitoring\Engine\GroupEvaluator;
 use App\Monitoring\Types\GroupHierarchy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
@@ -388,5 +391,28 @@ final class ImportMonitorsTest extends TestCase
         }
         $this->assertSame($secrets[3], $this->monitor($real, 3)->secrets['basic_password'] ?? null);
         $this->assertSame(['Authorization' => $secrets[2]], $this->monitor($real, 2)->secrets['secret_headers'] ?? null);
+    }
+
+    public function test_unexpected_failure_logs_only_class_and_source_id(): void
+    {
+        $this->app->bind(CreateMonitor::class, fn () => new class(app(GroupEvaluator::class)) extends CreateMonitor
+        {
+            public function handle(Workspace $workspace, array $validated, ?User $actor, ?\Closure $within = null): Monitor
+            {
+                throw new \RuntimeException('SQLSTATE bindings S3cr3t-binding');
+            }
+        });
+        $logged = [];
+        Log::listen(function (MessageLogged $m) use (&$logged): void {
+            $logged[] = $m->message.json_encode($m->context);
+        });
+
+        $report = $this->import(ImporterTest::fixture('kuma2.db'), Workspace::factory()->create());
+
+        $this->assertSame(['failed' => 9, 'skipped' => 1], $report['counts']['monitor']);
+        $this->assertSame(['unexpected_error'], self::codes($this->entries($report)[2]));
+        $this->assertStringNotContainsString('S3cr3t-binding', json_encode([$report, $logged]) ?: '');
+        $this->assertStringContainsString('RuntimeException', implode("\n", $logged));
+        $this->assertSame(0, Monitor::count());
     }
 }

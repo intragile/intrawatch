@@ -66,7 +66,7 @@ final class ImportMonitors implements ImportStep
             try {
                 $this->import($ctx, $mapContext, $sourceId, $row, $hasDefaults);
             } catch (Throwable $e) {
-                report($e);
+                // Only the class: exception messages (a QueryException's bindings, say) may carry credentials.
                 Log::warning('Kuma monitor import failed', ['source_id' => $sourceId, 'exception' => $e::class]);
                 $ctx->report->add(self::ENTITY, $sourceId, $label, ImportOutcome::Failed, null, [
                     Note::of('unexpected_error', 'The monitor could not be imported; see the application log.'),
