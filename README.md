@@ -883,6 +883,42 @@ its data afterwards unless `--keep` is given.
 php artisan intrawatch:bench:status --pages=300 --items=20 --requests=3000
 ```
 
+The scale benchmark seeds a throwaway workspace (`bench-scale`) with 5 000
+active monitors (60% HTTP, the rest TCP, ping, DNS and push, in 250 nested
+groups, with 50 tags, 15 inactive channels, 90 days of day and 48 hours of hour
+rollups), 300 status pages of 20 items and some alerts, incidents,
+maintenances and audit events. The monitors check the measured application
+itself (`/robots.txt`, its port, `127.0.0.1` and `localhost`), so the running
+worker carries the real check load. After `--settle` seconds it measures, over
+real HTTP against `--base-url` with an API token it creates, ten admin lists
+and every status page cold and then warm, and prints a table and a JSON
+summary. It exits with 1 when any admin list's 95th percentile reaches 500 ms,
+the warm status page 95th percentile reaches 100 ms, or a request fails. Run it
+inside a running container with `TRUSTED_PROXIES=127.0.0.1`: status page
+requests come from many client addresses through `X-Forwarded-For`, so the
+public rate limit stays out of the measurement. Like the other benchmarks it
+refuses a database that already holds workspaces unless `--force` is given,
+and deletes its data afterwards unless `--keep` is given.
+
+```bash
+docker exec intrawatch php artisan intrawatch:bench:scale \
+  --monitors=5000 --pages=300 --items=20 --requests=2000 --base-url=http://127.0.0.1:3000
+```
+
+The Uptime Kuma import benchmark generates a 2.x SQLite database from
+`tests/Fixtures/kuma/kuma2-schema.sql` (5 000 monitors and 250 groups, 300
+status pages of 20 items, 30 days of hourly and 365 days of daily statistics
+for 500 monitors), imports it on the configured database connection, prints
+the time of each step and the peak memory, and fails at 300 seconds. It is in
+the `bench` group, which the default test run excludes:
+
+```bash
+vendor/bin/phpunit --testsuite Bench --group bench
+```
+
+Measured results and the hardware they ran on are in
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+
 A command passed to `docker run` runs after the usual setup instead of the
 services. That setup migrates the configured database with the image's own
 version; set `INTRAWATCH_SKIP_MIGRATE=1` to run a one-off command against a

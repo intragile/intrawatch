@@ -11,7 +11,16 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <!-- Long-running benchmarks, excluded by group below; run them explicitly (see tests/Bench). -->
+        <testsuite name="Bench">
+            <directory suffix="Bench.php">tests/Bench</directory>
+        </testsuite>
     </testsuites>
+    <groups>
+        <exclude>
+            <group>bench</group>
+        </exclude>
+    </groups>
     <source>
         <include>
             <directory>app</directory>
