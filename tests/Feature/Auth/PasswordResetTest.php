@@ -24,7 +24,7 @@ class PasswordResetTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->withHeaders(['Authorization' => '']);
 
-        $reset = Password::broker()->createToken($user);
+        $reset = Password::createToken($user);
         $this->postJson('/api/v1/auth/reset-password', [
             'token' => $reset,
             'email' => 'ada@example.com',
@@ -51,7 +51,7 @@ class PasswordResetTest extends TestCase
             ]);
         }
 
-        $reset = Password::broker()->createToken($user);
+        $reset = Password::createToken($user);
         $this->postJson('/api/v1/auth/reset-password', [
             'token' => $reset,
             'email' => 'ada@example.com',
