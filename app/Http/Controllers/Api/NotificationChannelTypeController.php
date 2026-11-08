@@ -13,7 +13,7 @@ use Illuminate\Http\JsonResponse;
 class NotificationChannelTypeController extends Controller
 {
     /**
-     * @response list<array{type: \App\Enums\ChannelType, supports_digest: bool, defaults: array<string, mixed>, config_keys: list<string>, secret_keys: list<string>}>
+     * @response list<array{type: \App\Enums\ChannelType, supports_digest: bool, defaults: array<string, mixed>, config_keys: list<string>, secret_keys: list<string>, destination_keys: list<string>}>
      */
     public function __invoke(): JsonResponse
     {
@@ -23,6 +23,8 @@ class NotificationChannelTypeController extends Controller
             'defaults' => (object) $definition->defaults(),
             'config_keys' => NotificationChannelRequest::keysOf($definition->configRules()),
             'secret_keys' => NotificationChannelRequest::keysOf($definition->secretRules()),
+            // The config paths that decide where the secrets are sent; served so the SPA keeps no copy of its own.
+            'destination_keys' => $definition->destinationKeys(),
         ], ChannelRegistry::all()));
     }
 }

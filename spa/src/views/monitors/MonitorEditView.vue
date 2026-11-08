@@ -14,7 +14,6 @@ import {
   clone,
   createBody,
   deepEqual,
-  destinationChanged,
   formFromMonitor,
   invalidHeaderLines,
   newForm,
@@ -32,6 +31,7 @@ import { useMonitors } from '../../stores/monitors'
 import { useSession } from '../../stores/session'
 import { bodyOf } from '../../utils/cursorPage'
 import { asApiError } from '../../utils/errors'
+import { requiredSecrets, withReenteredSecrets } from '../../utils/secrets'
 
 const TYPES: MonitorType[] = [
   'http',
@@ -130,9 +130,8 @@ const knownFields = computed(() => {
  * Stored secrets to enter again: the server refuses a destination change that would carry them along
  * unconfirmed, so each one must be retyped or cleared.
  */
-const reenter = computed(() => isEdit.value && form.value !== null && initial.value !== null
-  && destinationChanged(type.value, initial.value.config, form.value.config)
-  ? secretKeys.value
+const reenter = computed(() => isEdit.value
+  ? requiredSecrets(info.value?.destination_keys ?? [], initial.value?.config ?? null, form.value?.config ?? null, secretKeys.value)
   : [])
 
 const dirty = computed(() => form.value !== null
@@ -274,9 +273,15 @@ async function save(): Promise<void> {
 
   error.value = null
   clientSecretErrors.value = {}
-  const draft = pruneSecrets(type.value, current.config, secrets.value)
-  if (!withReenteredSecrets(current, draft))
+  const pruned = pruneSecrets(type.value, current.config, secrets.value)
+  const { draft, missing } = withReenteredSecrets(pruned, reenter.value, renderedSecrets(type.value, current.config))
+  if (missing.length > 0) {
+    clientSecretErrors.value = Object.fromEntries(missing.map(key => [
+      key,
+      t('validation.required'),
+    ]))
     return
+  }
   const headerDraft = draft.secret_headers
   if (typeof headerDraft === 'string') {
     const bad = invalidHeaderLines(headerDraft)
@@ -332,30 +337,6 @@ async function save(): Promise<void> {
   finally {
     saving.value = false
   }
-}
-
-/**
- * After a destination change every stored secret must be sent again: one on screen has to be retyped or
- * cleared by the user, one without a control (its feature is off) is removed. Fills `draft` in place and
- * returns false when a secret on screen is missing.
- */
-function withReenteredSecrets(current: MonitorForm, draft: SecretDraft): boolean {
-  const onScreen = new Set(renderedSecrets(type.value, current.config))
-  const missing: Record<string, string> = {}
-  for (const key of reenter.value) {
-    const value = draft[key]
-    if (value !== undefined && value !== '')
-      continue
-    if (onScreen.has(key))
-      missing[key] = t('validation.required')
-    else
-      draft[key] = null
-  }
-  if (Object.keys(missing).length > 0) {
-    clientSecretErrors.value = missing
-    return false
-  }
-  return true
 }
 
 function cancel(): void {

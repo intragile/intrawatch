@@ -28,4 +28,18 @@ describe('channel field specs', () => {
         expect(keys.has(key), `${info.type}.${key}`).toBe(true)
     }
   })
+
+  it('every destination key of the catalogue points at a config field', () => {
+    for (const info of catalogue) {
+      const specs = CHANNEL_FIELDS[info.type]
+      for (const path of info.destination_keys) {
+        const [head = '', sub] = path.split('.')
+        expect(info.config_keys, `${info.type}.${path}`).toContain(head)
+        const spec = specs.find(f => f.key === head && f.kind !== 'secret')
+        expect(spec, `${info.type}.${path}`).toBeDefined()
+        if (sub !== undefined)
+          expect(spec?.fields?.some(f => f.key === sub), `${info.type}.${path}`).toBe(true)
+      }
+    }
+  })
 })

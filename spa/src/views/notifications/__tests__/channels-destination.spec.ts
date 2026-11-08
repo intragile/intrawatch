@@ -1,17 +1,18 @@
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import fixture from '../../../components/notifications/__tests__/channel-types.fixture.json'
-import { destinationChanged } from '../../../components/notifications/fields'
 import { useNotify } from '../../../composables/useNotify'
 import en from '../../../i18n/en.json'
 import hu from '../../../i18n/hu.json'
 import { meWith } from '../../../test/fixtures'
 import { click, fill, mountApp, submit } from '../../../test/mount'
 import { fakeApi, json } from '../../../test/server'
+import { destinationChanged } from '../../../utils/secrets'
 
 const REQUIRED = en.validation.required
 const text = () => document.body.textContent ?? ''
 const exists = (selector: string) => () => document.querySelector(selector)
+const keysOf = (type: string): string[] => fixture.find(t => t.type === type)?.destination_keys ?? []
 
 function channel(over: Record<string, unknown> = {}) {
   return {
@@ -147,26 +148,26 @@ describe('channel editor: secrets follow the destination', () => {
       from_address: 'a@example.test',
       from_name: null,
     }
-    expect(destinationChanged('email', {
+    expect(destinationChanged(keysOf('email'), {
       to: ['a@example.test'],
       smtp,
     }, {
       to: ['b@example.test'],
       smtp,
     })).toBe(false)
-    expect(destinationChanged('email', { smtp }, {
+    expect(destinationChanged(keysOf('email'), { smtp }, {
       smtp: { ...smtp, username: 'b' },
     })).toBe(false)
-    expect(destinationChanged('email', { smtp }, {
+    expect(destinationChanged(keysOf('email'), { smtp }, {
       smtp: { ...smtp, host: 'evil.example.test' },
     })).toBe(true)
-    expect(destinationChanged('email', { smtp }, {
+    expect(destinationChanged(keysOf('email'), { smtp }, {
       smtp: { ...smtp, port: 2525 },
     })).toBe(true)
-    expect(destinationChanged('email', { smtp }, { smtp: null })).toBe(true)
-    expect(destinationChanged('opsgenie', { region: 'us' }, { region: 'eu' })).toBe(true)
-    expect(destinationChanged('ntfy', { server_url: 'https://ntfy.sh', topic: 'a' }, { server_url: 'https://ntfy.sh', topic: 'b' })).toBe(false)
-    expect(destinationChanged('slack', {}, {})).toBe(false)
+    expect(destinationChanged(keysOf('email'), { smtp }, { smtp: null })).toBe(true)
+    expect(destinationChanged(keysOf('opsgenie'), { region: 'us' }, { region: 'eu' })).toBe(true)
+    expect(destinationChanged(keysOf('ntfy'), { server_url: 'https://ntfy.sh', topic: 'a' }, { server_url: 'https://ntfy.sh', topic: 'b' })).toBe(false)
+    expect(destinationChanged(keysOf('slack'), {}, {})).toBe(false)
   })
 
   it('reuses the existing required message and adds no locale keys of its own', () => {

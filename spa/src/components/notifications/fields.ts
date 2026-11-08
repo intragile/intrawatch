@@ -20,11 +20,6 @@ export interface FieldSpec {
   hint?: string
   /** A secret that only has a control while the named config key holds a value. */
   requires?: string
-  /**
-   * A config value that decides where the secrets are sent. Changing it on a saved channel requires every
-   * stored secret again (or its removal); mirrors the server's `destinationKeys()`.
-   */
-  destination?: true
 }
 
 const webhookUrl: FieldSpec = { key: 'webhook_url', kind: 'secret', required: true }
@@ -35,20 +30,17 @@ export const SMTP_FIELDS: FieldSpec[] = [
     key: 'host',
     kind: 'text',
     required: true,
-    destination: true,
   },
   {
     key: 'port',
     kind: 'number',
     min: 1,
     max: 65535,
-    destination: true,
   },
   {
     key: 'encryption',
     kind: 'select',
     options: ['starttls', 'tls', 'none'],
-    destination: true,
   },
   { key: 'username', kind: 'text' },
   { key: 'from_address', kind: 'text', required: true },
@@ -67,7 +59,6 @@ export const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
       key: 'url',
       kind: 'url',
       required: true,
-      destination: true,
     },
     {
       key: 'method',
@@ -105,7 +96,6 @@ export const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
       key: 'server_url',
       kind: 'url',
       required: true,
-      destination: true,
     },
     { key: 'silent', kind: 'switch' },
     { key: 'bot_token', kind: 'secret', required: true },
@@ -115,7 +105,6 @@ export const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
       key: 'server_url',
       kind: 'url',
       required: true,
-      destination: true,
     },
     { key: 'topic', kind: 'text', required: true },
     {
@@ -131,7 +120,6 @@ export const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
       key: 'server_url',
       kind: 'url',
       required: true,
-      destination: true,
     },
     {
       key: 'priority',
@@ -158,7 +146,6 @@ export const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
       key: 'homeserver_url',
       kind: 'url',
       required: true,
-      destination: true,
     },
     { key: 'room_id', kind: 'text', required: true },
     { key: 'access_token', kind: 'secret', required: true },
@@ -172,7 +159,6 @@ export const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
       kind: 'select',
       options: ['us', 'eu'],
       required: true,
-      destination: true,
     },
     {
       key: 'priority',
@@ -186,7 +172,6 @@ export const CHANNEL_FIELDS: Record<ChannelType, FieldSpec[]> = {
       key: 'server_url',
       kind: 'url',
       required: true,
-      destination: true,
     },
     { key: 'config_key', kind: 'text', hint: 'appriseKey' },
     {
@@ -215,47 +200,4 @@ export function renderedSecrets(type: ChannelType, config: Record<string, unknow
 /** The config specs of a type. */
 export function configFields(type: ChannelType): FieldSpec[] {
   return CHANNEL_FIELDS[type].filter(f => f.kind !== 'secret')
-}
-
-/** A config value in the form the server compares: absent and null match, scalars compare as text. */
-function comparable(value: unknown): unknown {
-  if (value === null || value === undefined)
-    return null
-  return typeof value === 'object'
-    ? JSON.stringify(value)
-    : String(value)
-}
-
-function member(value: unknown, key: string): unknown {
-  return typeof value === 'object' && value !== null
-    ? (value as Record<string, unknown>)[key]
-    : undefined
-}
-
-/** Dotted paths of the config values that decide where the secrets of a type are sent. */
-export function destinationKeys(type: ChannelType): string[] {
-  const keys: string[] = []
-  for (const spec of CHANNEL_FIELDS[type]) {
-    if (spec.destination)
-      keys.push(spec.key)
-    for (const sub of spec.fields ?? []) {
-      if (sub.destination)
-        keys.push(`${spec.key}.${sub.key}`)
-    }
-  }
-  return keys
-}
-
-/** Whether a destination value differs between the two configs. */
-export function destinationChanged(type: ChannelType, before: Record<string, unknown>, after: Record<string, unknown>): boolean {
-  return destinationKeys(type).some((path) => {
-    const [head = '', sub] = path.split('.')
-    const a = sub === undefined
-      ? before[head]
-      : member(before[head], sub)
-    const b = sub === undefined
-      ? after[head]
-      : member(after[head], sub)
-    return comparable(a) !== comparable(b)
-  })
 }

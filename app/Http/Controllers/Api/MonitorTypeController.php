@@ -12,7 +12,7 @@ use Illuminate\Http\JsonResponse;
 class MonitorTypeController extends Controller
 {
     /**
-     * @response list<array{type: \App\Enums\MonitorType, default_interval_seconds: int, min_interval_seconds: int, supports_inverted: bool, scheduled: bool, defaults: array<string, mixed>}>
+     * @response list<array{type: \App\Enums\MonitorType, default_interval_seconds: int, min_interval_seconds: int, supports_inverted: bool, scheduled: bool, defaults: array<string, mixed>, destination_keys: list<string>}>
      */
     public function __invoke(): JsonResponse
     {
@@ -23,6 +23,8 @@ class MonitorTypeController extends Controller
             'supports_inverted' => $definition->supportsInverted(),
             'scheduled' => $definition->isScheduled(),
             'defaults' => (object) $definition->defaults(),
+            // The config paths that decide where a check connects; served so the SPA keeps no copy of its own.
+            'destination_keys' => $definition->destinationKeys(),
         ], TypeRegistry::all()));
     }
 }

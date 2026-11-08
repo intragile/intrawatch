@@ -1,10 +1,10 @@
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import { destinationChanged } from '../../../components/monitors/forms/model'
 import en from '../../../i18n/en.json'
 import { meWith } from '../../../test/fixtures'
 import { click, fill, mountApp, submit } from '../../../test/mount'
 import { fakeApi, json } from '../../../test/server'
+import { destinationChanged } from '../../../utils/secrets'
 import { choose, page } from '../../workspace/__tests__/helpers'
 
 const REQUIRED = en.validation.required
@@ -25,6 +25,7 @@ const TYPE_INFO = [
       max_redirects: 10,
       auth: { type: 'none', username: null },
     },
+    destination_keys: ['url', 'proxy.url'],
   },
 ]
 
@@ -149,15 +150,14 @@ describe('monitor editor: secrets follow the destination', () => {
     })
   })
 
-  it('destination keys mirror the server', () => {
+  it('destination keys come from the type catalogue', () => {
+    const keys = TYPE_INFO[0]!.destination_keys
     const base = { url: 'https://a.test', method: 'GET', proxy: null }
-    expect(destinationChanged('http', base, { ...base, method: 'HEAD' })).toBe(false)
-    expect(destinationChanged('http', base, { ...base, url: 'https://b.test' })).toBe(true)
-    expect(destinationChanged('http', base, {
+    expect(destinationChanged(keys, base, { ...base, method: 'HEAD' })).toBe(false)
+    expect(destinationChanged(keys, base, { ...base, url: 'https://b.test' })).toBe(true)
+    expect(destinationChanged(keys, base, {
       ...base,
       proxy: { url: 'http://p.test:3128', username: null },
     })).toBe(true)
-    expect(destinationChanged('tcp', { host: 'a', port: 1 }, { host: 'a', port: 2 })).toBe(true)
-    expect(destinationChanged('push', { grace_seconds: 1 }, { grace_seconds: 2 })).toBe(false)
   })
 })

@@ -21,6 +21,7 @@ const TYPE_INFO = [
       max_redirects: 10,
       auth: { type: 'none', username: null },
     },
+    destination_keys: ['url', 'proxy.url'],
   },
   {
     type: 'tcp',

@@ -2068,6 +2068,7 @@ export interface operations {
                         defaults: {
                             [key: string]: unknown;
                         };
+                        destination_keys: string[];
                     }[];
                 };
             };
@@ -2096,6 +2097,7 @@ export interface operations {
                         };
                         config_keys: string[];
                         secret_keys: string[];
+                        destination_keys: string[];
                     }[];
                 };
             };

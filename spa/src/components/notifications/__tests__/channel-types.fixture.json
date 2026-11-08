@@ -11,6 +11,11 @@
     ],
     "secret_keys": [
       "smtp_password"
+    ],
+    "destination_keys": [
+      "smtp.host",
+      "smtp.port",
+      "smtp.encryption"
     ]
   },
   {
@@ -30,6 +35,9 @@
     "secret_keys": [
       "secret_headers",
       "signing_secret"
+    ],
+    "destination_keys": [
+      "url"
     ]
   },
   {
@@ -39,7 +47,8 @@
     "config_keys": [],
     "secret_keys": [
       "webhook_url"
-    ]
+    ],
+    "destination_keys": []
   },
   {
     "type": "discord",
@@ -54,7 +63,8 @@
     ],
     "secret_keys": [
       "webhook_url"
-    ]
+    ],
+    "destination_keys": []
   },
   {
     "type": "teams",
@@ -63,7 +73,8 @@
     "config_keys": [],
     "secret_keys": [
       "webhook_url"
-    ]
+    ],
+    "destination_keys": []
   },
   {
     "type": "mattermost",
@@ -78,7 +89,8 @@
     ],
     "secret_keys": [
       "webhook_url"
-    ]
+    ],
+    "destination_keys": []
   },
   {
     "type": "google_chat",
@@ -87,7 +99,8 @@
     "config_keys": [],
     "secret_keys": [
       "webhook_url"
-    ]
+    ],
+    "destination_keys": []
   },
   {
     "type": "telegram",
@@ -105,6 +118,9 @@
     ],
     "secret_keys": [
       "bot_token"
+    ],
+    "destination_keys": [
+      "server_url"
     ]
   },
   {
@@ -121,6 +137,9 @@
     ],
     "secret_keys": [
       "access_token"
+    ],
+    "destination_keys": [
+      "server_url"
     ]
   },
   {
@@ -135,6 +154,9 @@
     ],
     "secret_keys": [
       "app_token"
+    ],
+    "destination_keys": [
+      "server_url"
     ]
   },
   {
@@ -153,7 +175,8 @@
     "secret_keys": [
       "user_key",
       "app_token"
-    ]
+    ],
+    "destination_keys": []
   },
   {
     "type": "matrix",
@@ -165,6 +188,9 @@
     ],
     "secret_keys": [
       "access_token"
+    ],
+    "destination_keys": [
+      "homeserver_url"
     ]
   },
   {
@@ -174,7 +200,8 @@
     "config_keys": [],
     "secret_keys": [
       "routing_key"
-    ]
+    ],
+    "destination_keys": []
   },
   {
     "type": "opsgenie",
@@ -189,6 +216,9 @@
     ],
     "secret_keys": [
       "api_key"
+    ],
+    "destination_keys": [
+      "region"
     ]
   },
   {
@@ -203,6 +233,9 @@
     ],
     "secret_keys": [
       "urls"
+    ],
+    "destination_keys": [
+      "server_url"
     ]
   }
 ]

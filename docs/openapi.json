@@ -1011,6 +1011,12 @@
                                             "defaults": {
                                                 "type": "object",
                                                 "additionalProperties": {}
+                                            },
+                                            "destination_keys": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
                                             }
                                         },
                                         "required": [
@@ -1019,7 +1025,8 @@
                                             "min_interval_seconds",
                                             "supports_inverted",
                                             "scheduled",
-                                            "defaults"
+                                            "defaults",
+                                            "destination_keys"
                                         ]
                                     }
                                 }
@@ -1069,6 +1076,12 @@
                                                 "items": {
                                                     "type": "string"
                                                 }
+                                            },
+                                            "destination_keys": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
                                             }
                                         },
                                         "required": [
@@ -1076,7 +1089,8 @@
                                             "supports_digest",
                                             "defaults",
                                             "config_keys",
-                                            "secret_keys"
+                                            "secret_keys",
+                                            "destination_keys"
                                         ]
                                     }
                                 }

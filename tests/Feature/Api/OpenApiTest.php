@@ -112,10 +112,10 @@ class OpenApiTest extends TestCase
     public function test_type_catalogues_and_monitor_tags_are_typed(): void
     {
         $monitorType = $this->schemaAt(['paths', '/monitor-types', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'items']);
-        $this->assertSame(['type', 'default_interval_seconds', 'min_interval_seconds', 'supports_inverted', 'scheduled', 'defaults'], array_keys((array) $monitorType['properties']));
+        $this->assertSame(['type', 'default_interval_seconds', 'min_interval_seconds', 'supports_inverted', 'scheduled', 'defaults', 'destination_keys'], array_keys((array) $monitorType['properties']));
 
         $channelType = $this->schemaAt(['paths', '/notification-channel-types', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'items']);
-        $this->assertSame(['type', 'supports_digest', 'defaults', 'config_keys', 'secret_keys'], array_keys((array) $channelType['properties']));
+        $this->assertSame(['type', 'supports_digest', 'defaults', 'config_keys', 'secret_keys', 'destination_keys'], array_keys((array) $channelType['properties']));
 
         $tag = $this->schemaAt(['paths', '/workspaces/{workspace}/monitors/{monitor}', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'properties', 'data', 'properties', 'tags', 'items']);
         $this->assertSame(['id', 'name', 'color', 'value'], array_keys((array) $tag['properties']));

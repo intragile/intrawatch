@@ -1,10 +1,10 @@
 import type { Monitor, MonitorCreateBody, MonitorType, MonitorTypeInfo, MonitorUpdateBody } from '../../../api/types'
+import type { SecretDraft } from '../../../utils/secrets'
 
 export type Config = NonNullable<MonitorCreateBody['config']>
 type Secrets = NonNullable<MonitorCreateBody['secrets']>
 
-/** Secrets the user touched: a string replaces the stored value, `null` clears it. Untouched keys are absent. */
-export type SecretDraft = Record<string, string | null | undefined>
+export type { SecretDraft } from '../../../utils/secrets'
 
 /** A tag assignment as the editor holds it: the value is always present, null when empty. */
 export type TagAssignment = Required<NonNullable<MonitorCreateBody['tags']>[number]>
@@ -155,46 +155,6 @@ export function renderedSecrets(type: MonitorType, config: Config): string[] {
   if (config.proxy !== null && config.proxy !== undefined)
     keys.push('proxy_password')
   return keys
-}
-
-/**
- * Config paths that decide where a check connects, and so where the stored secrets go; they mirror the
- * server's `destinationKeys()`. Changing one on a saved monitor requires every stored secret again.
- */
-export const DESTINATION_KEYS: Record<MonitorType, string[]> = {
-  http: ['url', 'proxy.url'],
-  tcp: ['host', 'port'],
-  ping: ['host'],
-  dns: ['name', 'resolver'],
-  tls: ['host', 'port', 'servername'],
-  domain: ['domain'],
-  push: [],
-  cron: [],
-  group: [],
-}
-
-function atPath(config: Record<string, unknown>, path: string): unknown {
-  let value: unknown = config
-  for (const part of path.split('.')) {
-    value = typeof value === 'object' && value !== null
-      ? (value as Record<string, unknown>)[part]
-      : undefined
-  }
-  return value
-}
-
-/** A config value in the form the server compares: absent and null match, scalars compare as text. */
-function comparable(value: unknown): unknown {
-  if (value === null || value === undefined)
-    return null
-  return typeof value === 'object'
-    ? JSON.stringify(value)
-    : String(value)
-}
-
-/** Whether a destination value differs between the two configs. */
-export function destinationChanged(type: MonitorType, before: Config, after: Config): boolean {
-  return DESTINATION_KEYS[type].some(path => comparable(atPath(before, path)) !== comparable(atPath(after, path)))
 }
 
 /** Drops drafts of secrets whose feature the user has switched off. */
