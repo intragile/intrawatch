@@ -11,6 +11,12 @@ class DiscordDefinition extends AbstractChannelDefinition
         return ChannelType::Discord;
     }
 
+    public function destinationKeys(): array
+    {
+        // The secret is the destination itself.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [

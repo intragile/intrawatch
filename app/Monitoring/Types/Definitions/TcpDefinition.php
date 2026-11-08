@@ -12,6 +12,11 @@ class TcpDefinition extends AbstractDefinition
         return MonitorType::Tcp;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['host', 'port'];
+    }
+
     public function configRules(): array
     {
         return [

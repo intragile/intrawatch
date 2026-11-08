@@ -11,6 +11,16 @@ class NtfyDefinition extends AbstractChannelDefinition
         return ChannelType::Ntfy;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['server_url'];
+    }
+
+    public function sensitiveConfigKeys(): array
+    {
+        return ['topic'];
+    }
+
     public function configRules(): array
     {
         return [

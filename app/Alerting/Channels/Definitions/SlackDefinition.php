@@ -11,6 +11,12 @@ class SlackDefinition extends AbstractChannelDefinition
         return ChannelType::Slack;
     }
 
+    public function destinationKeys(): array
+    {
+        // The secret is the destination itself.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [];

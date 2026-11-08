@@ -66,6 +66,12 @@ const headeroperatorsItems = computed(() => HEADER_OPERATORS.map(v => ({
 })))
 
 const isSet = (key: string): boolean => props.secretKeys.includes(key)
+/** A secret's label, marked when a destination change requires it again. */
+function secretLabel(key: string, label: string): string {
+  return (props.requiredSecrets ?? []).includes(key)
+    ? `${label} *`
+    : label
+}
 const secretError = (key: string): string | undefined => errorFor(props.secretErrors, key)
 
 function setSecret(key: string, value: string | null | undefined): void {
@@ -290,7 +296,7 @@ function statuses(): string[] {
     name="secret_headers"
     class="mt-2"
     multiline
-    :label="t('monitorEditor.http.secretHeaders')"
+    :label="secretLabel('secret_headers', t('monitorEditor.http.secretHeaders'))"
     :hint="t('monitorEditor.http.secretHeadersHint')"
     :is-set="isSet('secret_headers')"
     :error="secretError('secret_headers')"
@@ -321,7 +327,7 @@ function statuses(): string[] {
     <SecretField
       :model-value="secrets.basic_password"
       name="basic_password"
-      :label="t('monitorEditor.http.password')"
+      :label="secretLabel('basic_password', t('monitorEditor.http.password'))"
       :is-set="isSet('basic_password')"
       :error="secretError('basic_password')"
       @update:model-value="setSecret('basic_password', $event)"
@@ -331,7 +337,7 @@ function statuses(): string[] {
     v-if="cf.obj('auth').type === 'bearer'"
     :model-value="secrets.bearer_token"
     name="bearer_token"
-    :label="t('monitorEditor.http.bearerToken')"
+    :label="secretLabel('bearer_token', t('monitorEditor.http.bearerToken'))"
     :is-set="isSet('bearer_token')"
     :error="secretError('bearer_token')"
     @update:model-value="setSecret('bearer_token', $event)"
@@ -500,7 +506,7 @@ function statuses(): string[] {
       name="mtls_cert"
       multiline
       :clearable="false"
-      :label="t('monitorEditor.http.mtlsCert')"
+      :label="secretLabel('mtls_cert', t('monitorEditor.http.mtlsCert'))"
       :hint="t('monitorEditor.http.pemHint')"
       :is-set="isSet('mtls_cert')"
       :error="secretError('mtls_cert')"
@@ -511,7 +517,7 @@ function statuses(): string[] {
       name="mtls_key"
       multiline
       :clearable="false"
-      :label="t('monitorEditor.http.mtlsKey')"
+      :label="secretLabel('mtls_key', t('monitorEditor.http.mtlsKey'))"
       :hint="t('monitorEditor.http.pemHint')"
       :is-set="isSet('mtls_key')"
       :error="secretError('mtls_key')"
@@ -551,7 +557,7 @@ function statuses(): string[] {
     <SecretField
       :model-value="secrets.proxy_password"
       name="proxy_password"
-      :label="t('monitorEditor.http.proxyPassword')"
+      :label="secretLabel('proxy_password', t('monitorEditor.http.proxyPassword'))"
       :is-set="isSet('proxy_password')"
       :error="secretError('proxy_password')"
       @update:model-value="setSecret('proxy_password', $event)"

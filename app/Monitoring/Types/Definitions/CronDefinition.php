@@ -12,6 +12,12 @@ class CronDefinition extends AbstractDefinition
         return MonitorType::Cron;
     }
 
+    public function destinationKeys(): array
+    {
+        // Nothing is contacted: the monitor is fed from outside.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [

@@ -11,6 +11,11 @@ class MatrixDefinition extends AbstractChannelDefinition
         return ChannelType::Matrix;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['homeserver_url'];
+    }
+
     public function configRules(): array
     {
         return [

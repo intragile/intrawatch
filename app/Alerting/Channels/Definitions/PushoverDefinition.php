@@ -11,6 +11,12 @@ class PushoverDefinition extends AbstractChannelDefinition
         return ChannelType::Pushover;
     }
 
+    public function destinationKeys(): array
+    {
+        // Fixed API host.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [

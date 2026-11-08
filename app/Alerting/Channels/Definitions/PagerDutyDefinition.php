@@ -11,6 +11,12 @@ class PagerDutyDefinition extends AbstractChannelDefinition
         return ChannelType::PagerDuty;
     }
 
+    public function destinationKeys(): array
+    {
+        // Fixed API host.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [];

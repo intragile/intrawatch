@@ -308,9 +308,11 @@ final class AlertEvaluator
     private function queueDeliveries(array $events, CarbonImmutable $now, array &$sends): void
     {
         $byMonitor = [];
+        $monitorWorkspace = [];
         foreach ($events as $event) {
             if (! $event['suppressed']) {
                 $byMonitor[$event['monitor_id']][] = $event['id'];
+                $monitorWorkspace[$event['monitor_id']] = $event['workspace_id'];
             }
         }
         if ($byMonitor === []) {
@@ -327,12 +329,25 @@ final class AlertEvaluator
                 ->get(['monitor_notification.monitor_id', 'notification_channels.id', 'notification_channels.workspace_id', 'notification_channels.type']);
             foreach ($rows as $row) {
                 $channelId = self::int($row->id);
+                $monitorId = self::int($row->monitor_id);
+                // Defence in depth: the API never binds a channel of another workspace, but a corrupted row
+                // must not carry alerts across the workspace boundary.
+                if (self::int($row->workspace_id) !== ($monitorWorkspace[$monitorId] ?? null)) {
+                    Log::warning('Skipped a notification channel bound to a monitor of another workspace.', [
+                        'monitor_id' => $monitorId,
+                        'channel_id' => $channelId,
+                        'monitor_workspace_id' => $monitorWorkspace[$monitorId] ?? null,
+                        'channel_workspace_id' => self::int($row->workspace_id),
+                    ]);
+
+                    continue;
+                }
                 $channels[$channelId] ??= [
                     'workspace_id' => self::int($row->workspace_id),
                     'type' => ChannelType::tryFrom(is_string($row->type) ? $row->type : ''),
                     'events' => [],
                 ];
-                foreach ($byMonitor[self::int($row->monitor_id)] ?? [] as $eventId) {
+                foreach ($byMonitor[$monitorId] ?? [] as $eventId) {
                     $channels[$channelId]['events'][$eventId] = true;
                 }
             }

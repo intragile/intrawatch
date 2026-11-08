@@ -3,11 +3,17 @@
 namespace App\Http\Requests;
 
 use App\Alerting\Channels\ChannelDefinition;
+use App\Alerting\Channels\Senders\EmailSender;
 use App\Alerting\Messages\TemplateRenderer;
 use App\Enums\ChannelType;
+use App\Enums\WorkspaceRole;
 use App\Models\NotificationChannel;
+use App\Models\User;
+use App\Models\Workspace;
 use App\OpenApi\DocumentedRequestBody;
 use App\OpenApi\KeyedObject;
+use App\Support\SecretKeys;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -20,7 +26,12 @@ use Illuminate\Validation\Validator;
  *
  * On update, `config` is merged over the stored config and a secret is replaced only when sent; sending
  * null removes it. The merged secrets are validated, so an update that leaves a required secret alone
- * passes, while removing one is refused.
+ * passes, while removing one is refused. An update that changes a destination key of the type (where the
+ * secrets are sent) must send every stored secret again or remove it with null, so a stored secret never
+ * follows a destination its author did not confirm.
+ *
+ * An email channel on the instance mailer (`smtp` null or without a host of its own) sends with the organisation's sender, so only
+ * workspace owners and admins may create one, test one unsaved, or change its recipients or templates.
  */
 class NotificationChannelRequest extends FormRequest implements DocumentedRequestBody
 {
@@ -28,9 +39,52 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
 
     private const BODY_MAX = 4000;
 
-    public function authorize(): bool
+    public const INSTANCE_MAILER_DENIED = 'Only workspace owners and admins can configure an email channel that uses the instance mailer.';
+
+    public const REENTER_SECRET = 'Re-enter this secret when changing the destination, or remove it with null.';
+
+    /**
+     * Runs after prepareForValidation, so the merged config is already in the input.
+     */
+    public function authorize(): bool|Response
     {
-        return true;
+        if (! $this->touchesInstanceMailer()) {
+            return true;
+        }
+        $user = $this->user();
+        $workspace = $this->route('workspace');
+        $role = $user instanceof User && $workspace instanceof Workspace ? $user->roleIn($workspace) : null;
+
+        return $role?->atLeast(WorkspaceRole::Admin) === true ? true : Response::deny(self::INSTANCE_MAILER_DENIED);
+    }
+
+    /**
+     * Whether the request configures an email channel on the instance mailer: creating or test-sending one,
+     * moving a channel onto it, or changing the recipients or templates of one. Renaming, activating or
+     * deactivating it does not count.
+     */
+    public function touchesInstanceMailer(): bool
+    {
+        if ($this->channelType() !== ChannelType::Email) {
+            return false;
+        }
+        $config = $this->input('config');
+        // The sender uses the instance mailer for any smtp value without a host, `smtp: {}` included. Any other
+        // value without a host fails validation (smtp.host is required with a non-empty smtp), so it is left
+        // to the 422 rather than refused here.
+        $smtp = is_array($config) ? ($config['smtp'] ?? null) : false;
+        if ($smtp !== null && $smtp !== []) {
+            return false;
+        }
+        $stored = $this->stored();
+        if ($this->creating() || $stored === null) {
+            return true;
+        }
+        if (EmailSender::usesOwnSmtp($stored->config['smtp'] ?? null) || SecretKeys::destinationChanged($stored->config ?? [], $config, ['to'])) {
+            return true;
+        }
+
+        return $this->has('templates') && $this->templates($this->input('templates')) !== $this->templates($stored->templates);
     }
 
     /**
@@ -57,6 +111,13 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
     private bool $secretsSubmitted = false;
 
     /**
+     * The secret names in the request body, including those sent as null.
+     *
+     * @var list<string>
+     */
+    private array $submittedSecretKeys = [];
+
+    /**
      * Whether the request body itself carried secrets, as opposed to the stored ones merged in for validation.
      */
     public function secretsSubmitted(): bool
@@ -68,6 +129,7 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
     {
         $raw = $this->input('secrets');
         $this->secretsSubmitted = is_array($raw) && $raw !== [];
+        $this->submittedSecretKeys = is_array($raw) ? array_map(strval(...), array_keys($raw)) : [];
 
         $type = $this->channelType();
         if ($type === null) {
@@ -190,6 +252,7 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
                 return;
             }
             $definition = $type->definition();
+            $this->checkDestinationChange($definition, $v);
 
             $typed = array_filter(
                 $v->errors()->keys(),
@@ -213,6 +276,33 @@ class NotificationChannelRequest extends FormRequest implements DocumentedReques
                 $definition->afterValidation($config, $secrets, $v);
             }
         });
+    }
+
+    /**
+     * Refuses an update that points the stored secrets at a new destination without sending them again.
+     */
+    private function checkDestinationChange(ChannelDefinition $definition, Validator $v): void
+    {
+        $stored = $this->stored();
+        if ($this->creating() || $stored === null || ($stored->secrets ?? []) === []) {
+            return;
+        }
+        $after = $v->getData()['config'] ?? null;
+        if (! is_array($after)) {
+            return;
+        }
+        $before = array_replace($definition->defaults(), $stored->config ?? []);
+        if (! SecretKeys::destinationChanged($before, $after, $definition->destinationKeys())) {
+            return;
+        }
+        $missing = SecretKeys::unresent($stored->secrets, $this->submittedSecretKeys);
+        if ($missing === []) {
+            return;
+        }
+        $v->errors()->add('secrets', 'Re-enter the stored secrets ('.implode(', ', $missing).') when changing the destination, or remove them with null.');
+        foreach ($missing as $key) {
+            $v->errors()->add('secrets.'.$key, self::REENTER_SECRET);
+        }
     }
 
     /**

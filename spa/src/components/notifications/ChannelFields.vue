@@ -19,6 +19,8 @@ const props = defineProps<{
   secretKeys: string[]
   /** Secret validation messages, keyed relative to `secrets.`. */
   secretErrors: Record<string, string>
+  /** Stored secrets that must be entered again (or cleared) because the destination changed. */
+  requiredSecrets?: string[]
 }>()
 
 const config = defineModel<Config>('config', { required: true })
@@ -64,7 +66,8 @@ function text(spec: FieldSpec, value: string | null): void {
 }
 
 function label(spec: FieldSpec): string {
-  return `${t(`channels.fields.${spec.key}`)}${spec.required ? ' *' : ''}`
+  const required = spec.required === true || (spec.kind === 'secret' && (props.requiredSecrets ?? []).includes(spec.key))
+  return `${t(`channels.fields.${spec.key}`)}${required ? ' *' : ''}`
 }
 
 function hint(spec: FieldSpec): string | undefined {

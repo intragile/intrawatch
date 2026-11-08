@@ -11,6 +11,12 @@ class TeamsDefinition extends AbstractChannelDefinition
         return ChannelType::Teams;
     }
 
+    public function destinationKeys(): array
+    {
+        // The secret is the destination itself.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [];

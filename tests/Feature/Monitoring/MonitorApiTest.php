@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\AssertsWorkspaceIsolation;
 use Tests\TestCase;
 
@@ -405,5 +406,94 @@ class MonitorApiTest extends TestCase
 
         $this->app['auth']->forgetGuards();
         $this->getJson('/api/v1/monitor-types')->assertUnauthorized();
+    }
+
+    private const STORED_SECRETS = ['bearer_token' => 'tok-123', 'secret_headers' => ['X-Key' => 'hdr-456'], 'proxy_password' => 'proxy-pw'];
+
+    private function securedMonitor(): Monitor
+    {
+        $id = $this->actingAs($this->editor)->postJson($this->url(), $this->http([
+            'config' => [
+                'url' => 'https://example.test/health',
+                'auth' => ['type' => 'bearer'],
+                'proxy' => ['url' => 'http://proxy.example.test:3128', 'username' => 'ops'],
+            ],
+            'secrets' => self::STORED_SECRETS,
+        ]))->assertCreated()->json('data.id');
+        $this->assertIsInt($id);
+
+        return Monitor::findOrFail($id);
+    }
+
+    /**
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function monitorDestinationChanges(): array
+    {
+        return [
+            'url' => [['url' => 'https://attacker.example.test/health']],
+            'proxy url' => [['proxy' => ['url' => 'http://attacker.example.test:3128', 'username' => 'ops']]],
+            'proxy removed' => [['proxy' => null]],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $change
+     */
+    #[DataProvider('monitorDestinationChanges')]
+    public function test_changing_the_destination_requires_the_stored_secrets(array $change): void
+    {
+        $monitor = $this->securedMonitor();
+        $config = $monitor->config;
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$monitor->id}"), ['config' => $change])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['secrets', 'secrets.bearer_token', 'secrets.secret_headers', 'secrets.proxy_password']);
+        $fresh = Monitor::findOrFail($monitor->id);
+        $this->assertEquals(self::STORED_SECRETS, $fresh->secrets);
+        $this->assertSame($config, $fresh->config);
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$monitor->id}"), ['config' => $change, 'secrets' => self::STORED_SECRETS])
+            ->assertOk();
+        $this->assertEquals(self::STORED_SECRETS, Monitor::findOrFail($monitor->id)->secrets);
+    }
+
+    public function test_changing_the_destination_may_remove_secrets_with_null(): void
+    {
+        $monitor = $this->securedMonitor();
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$monitor->id}"), [
+            'config' => ['url' => 'https://elsewhere.example.test', 'auth' => ['type' => 'none'], 'proxy' => null],
+            'secrets' => ['bearer_token' => null, 'secret_headers' => null, 'proxy_password' => null],
+        ])->assertOk()->assertJsonPath('data.secret_keys', []);
+        $this->assertNull(Monitor::findOrFail($monitor->id)->secrets);
+    }
+
+    public function test_adding_a_proxy_requires_the_stored_secrets(): void
+    {
+        $id = $this->actingAs($this->editor)->postJson($this->url(), $this->http([
+            'config' => ['url' => 'https://example.test', 'auth' => ['type' => 'bearer']],
+            'secrets' => ['bearer_token' => 'tok-123'],
+        ]))->assertCreated()->json('data.id');
+        $this->assertIsInt($id);
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['config' => ['proxy' => ['url' => 'http://attacker.example.test:8080']]])
+            ->assertUnprocessable()->assertJsonValidationErrors(['secrets', 'secrets.bearer_token']);
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), [
+            'config' => ['proxy' => ['url' => 'http://proxy.example.test:8080']], 'secrets' => ['bearer_token' => 'tok-123'],
+        ])->assertOk();
+    }
+
+    public function test_changing_another_field_keeps_the_stored_secrets(): void
+    {
+        $monitor = $this->securedMonitor();
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$monitor->id}"), ['config' => ['method' => 'HEAD'], 'name' => 'Renamed'])
+            ->assertOk()->assertJsonPath('data.config.method', 'HEAD');
+        // The same destination sent again is no change.
+        $this->actingAs($this->editor)->patchJson($this->url("/{$monitor->id}"), ['config' => ['url' => 'https://example.test/health']])
+            ->assertOk();
+
+        $this->assertEquals(self::STORED_SECRETS, Monitor::findOrFail($monitor->id)->secrets);
     }
 }

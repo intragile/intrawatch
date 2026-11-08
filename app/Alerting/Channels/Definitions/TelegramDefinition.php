@@ -11,6 +11,11 @@ class TelegramDefinition extends AbstractChannelDefinition
         return ChannelType::Telegram;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['server_url'];
+    }
+
     public function configRules(): array
     {
         return [

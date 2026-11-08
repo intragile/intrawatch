@@ -12,6 +12,12 @@ class GroupDefinition extends AbstractDefinition
         return MonitorType::Group;
     }
 
+    public function destinationKeys(): array
+    {
+        // Evaluated from its children; nothing is contacted.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [

@@ -13,6 +13,11 @@ class DomainDefinition extends AbstractDefinition
         return MonitorType::Domain;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['domain'];
+    }
+
     public function configRules(): array
     {
         return [

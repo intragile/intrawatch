@@ -11,6 +11,11 @@ class EmailDefinition extends AbstractChannelDefinition
         return ChannelType::Email;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['smtp.host', 'smtp.port', 'smtp.encryption'];
+    }
+
     public const SMTP_DEFAULT_PORT = 587;
 
     public const SMTP_DEFAULT_ENCRYPTION = 'starttls';

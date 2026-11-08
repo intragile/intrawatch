@@ -25,6 +25,11 @@ class HttpDefinition extends AbstractDefinition
         return MonitorType::Http;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['url', 'proxy.url'];
+    }
+
     public function configRules(): array
     {
         return [

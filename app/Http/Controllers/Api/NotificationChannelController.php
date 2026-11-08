@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\Notifications\CreateNotificationChannel;
 use App\Enums\ChannelType;
+use App\Enums\TokenAbility;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
 use App\Http\Requests\NotificationChannelRequest;
 use App\Http\Requests\UpdateNotificationChannelRequest;
 use App\Http\Resources\NotificationChannelPresenter;
 use App\Models\NotificationChannel;
+use App\Models\User;
 use App\Models\Workspace;
 use App\Support\Audit;
 use Illuminate\Database\Eloquent\Builder;
@@ -37,19 +39,21 @@ class NotificationChannelController extends Controller
             $q->whereRaw("lower(notification_channels.name) like ? escape '!'", ['%'.$needle.'%']);
         });
 
-        return CursorPage::from($query, $request, fn (Model $m): array => NotificationChannelPresenter::toArray($this->channel($m)));
+        $reveal = $this->revealsSensitive($request, $workspace);
+
+        return CursorPage::from($query, $request, fn (Model $m): array => NotificationChannelPresenter::toArray($this->channel($m), $reveal));
     }
 
     public function store(NotificationChannelRequest $request, Workspace $workspace, CreateNotificationChannel $create): JsonResponse
     {
         $channel = $create->handle($workspace, $request->validatedChannel(), null);
 
-        return response()->json(['data' => NotificationChannelPresenter::toArray($this->fresh($channel))], 201);
+        return response()->json(['data' => NotificationChannelPresenter::toArray($this->fresh($channel), $this->revealsSensitive($request, $workspace))], 201);
     }
 
-    public function show(Workspace $workspace, NotificationChannel $channel): JsonResponse
+    public function show(Request $request, Workspace $workspace, NotificationChannel $channel): JsonResponse
     {
-        return response()->json(['data' => NotificationChannelPresenter::toArray($this->fresh($channel))]);
+        return response()->json(['data' => NotificationChannelPresenter::toArray($this->fresh($channel), $this->revealsSensitive($request, $workspace))]);
     }
 
     public function update(UpdateNotificationChannelRequest $request, Workspace $workspace, NotificationChannel $channel): JsonResponse
@@ -86,7 +90,7 @@ class NotificationChannelController extends Controller
             }
         });
 
-        return response()->json(['data' => NotificationChannelPresenter::toArray($this->fresh($channel))]);
+        return response()->json(['data' => NotificationChannelPresenter::toArray($this->fresh($channel), $this->revealsSensitive($request, $workspace))]);
     }
 
     public function destroy(Workspace $workspace, NotificationChannel $channel): Response
@@ -97,6 +101,20 @@ class NotificationChannelController extends Controller
         });
 
         return response()->noContent();
+    }
+
+    /**
+     * Whether the caller sees sensitive config values (a webhook path, an ntfy topic) in full: only those who may
+     * manage channels, and for a token only one that can write them.
+     */
+    private function revealsSensitive(Request $request, Workspace $workspace): bool
+    {
+        $user = $request->user();
+        if (! $user instanceof User || ! $user->can('manageNotifications', $workspace)) {
+            return false;
+        }
+
+        return ! $user->authenticatedByToken() || $user->tokenCan(TokenAbility::NotificationsWrite->value);
     }
 
     private function attachToMonitors(Workspace $workspace, NotificationChannel $channel): int

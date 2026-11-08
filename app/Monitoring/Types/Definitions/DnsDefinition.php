@@ -12,6 +12,11 @@ class DnsDefinition extends AbstractDefinition
         return MonitorType::Dns;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['name', 'resolver'];
+    }
+
     public function configRules(): array
     {
         return [

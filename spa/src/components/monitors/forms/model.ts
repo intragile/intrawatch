@@ -27,6 +27,8 @@ export interface TypeFieldProps {
   secretKeys: string[]
   /** Secret validation messages, keyed relative to `secrets.`. */
   secretErrors: Record<string, string>
+  /** Stored secrets that must be entered again (or cleared) because the destination changed. */
+  requiredSecrets?: string[]
 }
 
 /** Secrets that are maps; they are edited as `Name: value` lines. */
@@ -153,6 +155,46 @@ export function renderedSecrets(type: MonitorType, config: Config): string[] {
   if (config.proxy !== null && config.proxy !== undefined)
     keys.push('proxy_password')
   return keys
+}
+
+/**
+ * Config paths that decide where a check connects, and so where the stored secrets go; they mirror the
+ * server's `destinationKeys()`. Changing one on a saved monitor requires every stored secret again.
+ */
+export const DESTINATION_KEYS: Record<MonitorType, string[]> = {
+  http: ['url', 'proxy.url'],
+  tcp: ['host', 'port'],
+  ping: ['host'],
+  dns: ['name', 'resolver'],
+  tls: ['host', 'port', 'servername'],
+  domain: ['domain'],
+  push: [],
+  cron: [],
+  group: [],
+}
+
+function atPath(config: Record<string, unknown>, path: string): unknown {
+  let value: unknown = config
+  for (const part of path.split('.')) {
+    value = typeof value === 'object' && value !== null
+      ? (value as Record<string, unknown>)[part]
+      : undefined
+  }
+  return value
+}
+
+/** A config value in the form the server compares: absent and null match, scalars compare as text. */
+function comparable(value: unknown): unknown {
+  if (value === null || value === undefined)
+    return null
+  return typeof value === 'object'
+    ? JSON.stringify(value)
+    : String(value)
+}
+
+/** Whether a destination value differs between the two configs. */
+export function destinationChanged(type: MonitorType, before: Config, after: Config): boolean {
+  return DESTINATION_KEYS[type].some(path => comparable(atPath(before, path)) !== comparable(atPath(after, path)))
 }
 
 /** Drops drafts of secrets whose feature the user has switched off. */

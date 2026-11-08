@@ -15,6 +15,8 @@ use App\Models\User;
 use App\Models\Workspace;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Mail\Transport\ArrayTransport;
+use Illuminate\Support\Facades\Mail;
 use Tests\Feature\Alerting\Senders\SenderTestCase;
 
 class NotificationTestSendTest extends SenderTestCase
@@ -141,5 +143,52 @@ class NotificationTestSendTest extends SenderTestCase
 
         $other = User::factory()->memberOf($this->ws, WorkspaceRole::Editor)->create();
         $this->actingAs($other)->postJson($this->url("/{$channel->id}/test"))->assertOk();
+    }
+
+    public function test_editors_cannot_test_send_through_the_instance_mailer_unsaved(): void
+    {
+        config(['mail.default' => 'array', 'mail.from.address' => 'app@example.test']);
+        $transport = Mail::mailer('array')->getSymfonyTransport();
+        $this->assertInstanceOf(ArrayTransport::class, $transport);
+        $body = ['name' => 'Draft', 'type' => 'email', 'config' => ['to' => ['anyone@example.test']]];
+
+        $this->actingAs($this->editor)->postJson($this->url('/test'), $body)->assertForbidden();
+        $this->actingAs($this->editor)->postJson($this->url('/test'), array_replace_recursive($body, ['config' => ['smtp' => null]]))->assertForbidden();
+        // An empty smtp object has no host, so the sender would fall back to the instance mailer.
+        $this->actingAs($this->editor)->postJson($this->url('/test'), ['name' => 'Draft', 'type' => 'email', 'config' => ['to' => ['anyone@example.test'], 'smtp' => (object) []]])->assertForbidden();
+        $this->assertCount(0, $transport->messages(), 'nothing was sent with the organisation sender');
+
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $this->actingAs($admin)->postJson($this->url('/test'), $body)->assertOk()->assertJsonPath('data.ok', true);
+        $this->assertCount(1, $transport->messages());
+
+        // A saved channel was set up by an admin, so an editor may test it.
+        $saved = NotificationChannel::factory()->for($this->ws)->email()->create();
+        $this->actingAs($this->editor)->postJson($this->url("/{$saved->id}/test"))->assertOk()->assertJsonPath('data.ok', true);
+    }
+
+    public function test_test_send_is_rate_limited_per_workspace(): void
+    {
+        $channel = NotificationChannel::factory()->for($this->ws)->create();
+        $this->mockHttp(array_fill(0, 32, new Response(200)));
+
+        for ($user = 0; $user < 3; $user++) {
+            $editor = User::factory()->memberOf($this->ws, WorkspaceRole::Editor)->create();
+            for ($i = 0; $i < 10; $i++) {
+                $this->actingAs($editor)->postJson($this->url("/{$channel->id}/test"))->assertOk();
+            }
+        }
+
+        $fresh = User::factory()->memberOf($this->ws, WorkspaceRole::Editor)->create();
+        $this->actingAs($fresh)->postJson($this->url("/{$channel->id}/test"))
+            ->assertStatus(429)->assertHeader('Content-Type', 'application/problem+json')->assertHeader('Retry-After');
+        $this->actingAs($fresh)->postJson($this->url('/test'), ['name' => 'Draft', 'type' => 'slack', 'secrets' => ['webhook_url' => self::SECRET_URL]])
+            ->assertStatus(429);
+
+        // Another workspace has a budget of its own.
+        $other = Workspace::factory()->create();
+        $outsider = User::factory()->memberOf($other, WorkspaceRole::Editor)->create();
+        $foreign = NotificationChannel::factory()->for($other)->create();
+        $this->actingAs($outsider)->postJson("/api/v1/workspaces/{$other->slug}/notification-channels/{$foreign->id}/test")->assertOk();
     }
 }

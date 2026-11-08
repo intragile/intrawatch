@@ -22,6 +22,8 @@ class NotificationChannelApiTest extends TestCase
 
     private const SLACK_URL = 'https://hooks.slack.example/services/T000/B000/TOPSECRETVALUE';
 
+    private const SMTP = ['host' => 'smtp.example.test', 'port' => 587, 'encryption' => 'starttls', 'username' => 'ops', 'from_address' => 'alerts@example.test'];
+
     private Workspace $ws;
 
     private User $editor;
@@ -400,7 +402,7 @@ class NotificationChannelApiTest extends TestCase
         $url = 'https://hooks.example.test/in/abcdef';
 
         return [
-            'email' => ['email', ['to' => ['ops@example.test']], []],
+            'email' => ['email', ['to' => ['ops@example.test'], 'smtp' => self::SMTP], ['smtp_password' => 'smtp-pass']],
             'webhook' => ['webhook', ['url' => 'https://hooks.example.test/in'], ['signing_secret' => str_repeat('s', 20), 'secret_headers' => ['X-Token' => 'abc']]],
             'slack' => ['slack', [], ['webhook_url' => $url]],
             'discord' => ['discord', [], ['webhook_url' => $url]],
@@ -434,5 +436,261 @@ class NotificationChannelApiTest extends TestCase
             ->assertOk()->assertJsonPath('data.name', 'After');
 
         $this->assertSame($before, $this->channel($id)->secrets);
+    }
+
+    /**
+     * Type, create config, stored secrets, a destination change and a change of a non-destination field.
+     *
+     * @return array<string, array{0: string, 1: array<string, mixed>, 2: array<string, mixed>, 3: array<string, mixed>, 4: array<string, mixed>}>
+     */
+    public static function destinationChanges(): array
+    {
+        return [
+            'webhook' => ['webhook', ['url' => 'https://hooks.example.test/in'], ['signing_secret' => str_repeat('s', 20), 'secret_headers' => ['X-Token' => 'abc']], ['url' => 'https://attacker.example.test/in'], ['method' => 'PUT']],
+            'telegram' => ['telegram', ['chat_id' => '-100123456'], ['bot_token' => '123456:'.str_repeat('a', 35)], ['server_url' => 'https://attacker.example.test'], ['silent' => true]],
+            'ntfy' => ['ntfy', ['topic' => 'alerts'], ['access_token' => 'tk_secret'], ['server_url' => 'https://attacker.example.test'], ['priority' => 3]],
+            'gotify' => ['gotify', ['server_url' => 'https://gotify.example.test'], ['app_token' => 'apptoken'], ['server_url' => 'https://attacker.example.test'], ['priority' => 5]],
+            'apprise' => ['apprise', ['server_url' => 'https://apprise.example.test'], ['urls' => 'json://example.test/hook'], ['server_url' => 'https://attacker.example.test'], ['config_key' => 'team-a']],
+            'matrix' => ['matrix', ['homeserver_url' => 'https://matrix.example.test', 'room_id' => '!room:example.test'], ['access_token' => 'syt_token'], ['homeserver_url' => 'https://attacker.example.test'], ['room_id' => '!other:example.test']],
+            'opsgenie' => ['opsgenie', [], ['api_key' => 'apikey'], ['region' => 'eu'], ['priority' => 'P1']],
+            'email smtp host' => ['email', ['to' => ['ops@example.test'], 'smtp' => self::SMTP], ['smtp_password' => 'smtp-pass'], ['smtp' => ['host' => 'attacker.example.test'] + self::SMTP], ['to' => ['other@example.test']]],
+            'email smtp port' => ['email', ['to' => ['ops@example.test'], 'smtp' => self::SMTP], ['smtp_password' => 'smtp-pass'], ['smtp' => ['port' => 2525] + self::SMTP], ['smtp' => ['from_name' => 'Ops'] + self::SMTP]],
+            'email smtp encryption' => ['email', ['to' => ['ops@example.test'], 'smtp' => self::SMTP], ['smtp_password' => 'smtp-pass'], ['smtp' => ['encryption' => 'none'] + self::SMTP], ['smtp' => ['username' => 'other'] + self::SMTP]],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @param  array<string, mixed>  $secrets
+     * @return array{0: int, 1: array<string, mixed>|null, 2: array<string, mixed>}
+     */
+    private function storedChannel(string $type, array $config, array $secrets): array
+    {
+        $id = $this->id($this->actingAs($this->editor)->postJson($this->url(), [
+            'name' => 'Stored', 'type' => $type, 'config' => $config, 'secrets' => $secrets,
+        ])->assertCreated()->json('data.id'));
+        $channel = $this->channel($id);
+
+        return [$id, $channel->secrets, $channel->config];
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @param  array<string, mixed>  $secrets
+     * @param  array<string, mixed>  $destination
+     * @param  array<string, mixed>  $other
+     */
+    #[DataProvider('destinationChanges')]
+    public function test_changing_the_destination_without_the_secrets_is_refused(string $type, array $config, array $secrets, array $destination, array $other): void
+    {
+        [$id, $storedSecrets, $storedConfig] = $this->storedChannel($type, $config, $secrets);
+
+        $errors = array_merge(['secrets'], array_map(static fn (string $k): string => "secrets.{$k}", array_keys($secrets)));
+        $response = $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['config' => $destination])
+            ->assertUnprocessable()->assertJsonValidationErrors($errors);
+        $this->assertStringContainsString('destination', $this->str($this->arr($this->arr($response->json('errors'))['secrets'])[0]));
+
+        $this->assertSame($storedSecrets, $this->channel($id)->secrets, 'the secrets stay in place');
+        $this->assertSame($storedConfig, $this->channel($id)->config, 'the destination stays in place');
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @param  array<string, mixed>  $secrets
+     * @param  array<string, mixed>  $destination
+     * @param  array<string, mixed>  $other
+     */
+    #[DataProvider('destinationChanges')]
+    public function test_changing_the_destination_with_every_secret_is_accepted(string $type, array $config, array $secrets, array $destination, array $other): void
+    {
+        [$id] = $this->storedChannel($type, $config, $secrets);
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['config' => $destination, 'secrets' => $secrets])
+            ->assertOk();
+
+        $this->assertEquals($secrets, $this->channel($id)->secrets);
+        foreach ($destination as $key => $value) {
+            $this->assertEquals($value, $this->channel($id)->config[$key] ?? null);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @param  array<string, mixed>  $secrets
+     * @param  array<string, mixed>  $destination
+     * @param  array<string, mixed>  $other
+     */
+    #[DataProvider('destinationChanges')]
+    public function test_changing_another_field_keeps_the_secrets(string $type, array $config, array $secrets, array $destination, array $other): void
+    {
+        [$id, $storedSecrets] = $this->storedChannel($type, $config, $secrets);
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['config' => $other])->assertOk();
+
+        $this->assertSame($storedSecrets, $this->channel($id)->secrets);
+    }
+
+    public function test_changing_the_destination_may_remove_optional_secrets_with_null(): void
+    {
+        [$id] = $this->storedChannel('webhook', ['url' => 'https://hooks.example.test/in'], ['signing_secret' => str_repeat('s', 20), 'secret_headers' => ['X-Token' => 'abc']]);
+
+        // One secret sent again, one forgotten: only the forgotten one is named.
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), [
+            'config' => ['url' => 'https://elsewhere.example.test/in'],
+            'secrets' => ['signing_secret' => str_repeat('t', 20)],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['secrets', 'secrets.secret_headers'])
+            ->assertJsonMissingValidationErrors(['secrets.signing_secret']);
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), [
+            'config' => ['url' => 'https://elsewhere.example.test/in'],
+            'secrets' => ['signing_secret' => null, 'secret_headers' => null],
+        ])->assertOk()->assertJsonPath('data.secret_keys', []);
+        $this->assertNull($this->channel($id)->secrets);
+
+        // A required secret still cannot be removed.
+        [$telegram] = $this->storedChannel('telegram', ['chat_id' => '-100123456'], ['bot_token' => '123456:'.str_repeat('a', 35)]);
+        $this->actingAs($this->editor)->patchJson($this->url("/{$telegram}"), [
+            'config' => ['server_url' => 'https://elsewhere.example.test'], 'secrets' => ['bot_token' => null],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['secrets.bot_token']);
+    }
+
+    public function test_a_channel_without_stored_secrets_changes_its_destination_freely(): void
+    {
+        [$id] = $this->storedChannel('webhook', ['url' => 'https://hooks.example.test/in'], []);
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['config' => ['url' => 'https://elsewhere.example.test/in']])
+            ->assertOk()->assertJsonPath('data.config.url', 'https://elsewhere.example.test/in');
+    }
+
+    /**
+     * Authenticates the next requests with a real personal access token bound to the workspace.
+     *
+     * @param  list<string>  $abilities
+     */
+    private function withAbilities(User $user, array $abilities): void
+    {
+        $token = $user->createToken('t', $abilities);
+        $token->accessToken->forceFill(['workspace_id' => $this->ws->id])->save();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token->plainTextToken);
+    }
+
+    /**
+     * @return array{0: NotificationChannel, 1: NotificationChannel}
+     */
+    private function sensitiveChannels(): array
+    {
+        $webhook = NotificationChannel::factory()->for($this->ws)->webhook('https://hooks.example.test:8443/in/T0PSECRETPATH?token=Q1')->create();
+        $ntfy = NotificationChannel::factory()->for($this->ws)->create([
+            'type' => ChannelType::Ntfy, 'config' => ['server_url' => 'https://ntfy.example.test', 'topic' => 'secret-topic-123', 'priority' => null], 'secrets' => null,
+        ]);
+
+        return [$webhook, $ntfy];
+    }
+
+    public function test_sensitive_config_is_masked_for_viewers(): void
+    {
+        [$webhook, $ntfy] = $this->sensitiveChannels();
+        $viewer = User::factory()->memberOf($this->ws, WorkspaceRole::Viewer)->create();
+
+        $show = $this->actingAs($viewer)->getJson($this->url("/{$webhook->id}"))->assertOk()
+            ->assertJsonPath('data.config.url', 'https://hooks.example.test:8443/***')
+            ->assertJsonPath('data.config.method', 'POST');
+        $this->assertStringNotContainsString('T0PSECRETPATH', (string) $show->getContent());
+
+        $this->actingAs($viewer)->getJson($this->url("/{$ntfy->id}"))->assertOk()
+            ->assertJsonPath('data.config.topic', '***')
+            ->assertJsonPath('data.config.server_url', 'https://ntfy.example.test');
+
+        $index = $this->actingAs($viewer)->getJson($this->url())->assertOk();
+        $this->assertStringNotContainsString('T0PSECRETPATH', (string) $index->getContent());
+        $this->assertStringNotContainsString('secret-topic-123', (string) $index->getContent());
+    }
+
+    public function test_sensitive_config_is_masked_for_read_only_tokens(): void
+    {
+        [$webhook, $ntfy] = $this->sensitiveChannels();
+
+        $this->withAbilities($this->editor, ['notifications:read']);
+        $this->getJson($this->url("/{$webhook->id}"))->assertOk()->assertJsonPath('data.config.url', 'https://hooks.example.test:8443/***');
+        $this->getJson($this->url())->assertOk();
+        $this->assertStringNotContainsString('secret-topic-123', (string) $this->getJson($this->url())->getContent());
+        $this->getJson($this->url("/{$ntfy->id}"))->assertOk()->assertJsonPath('data.config.topic', '***');
+    }
+
+    public function test_sensitive_config_is_shown_to_channel_managers(): void
+    {
+        [$webhook, $ntfy] = $this->sensitiveChannels();
+        $url = 'https://hooks.example.test:8443/in/T0PSECRETPATH?token=Q1';
+
+        $this->actingAs($this->editor)->getJson($this->url("/{$webhook->id}"))->assertOk()->assertJsonPath('data.config.url', $url);
+        $this->actingAs($this->editor)->getJson($this->url("/{$ntfy->id}"))->assertOk()->assertJsonPath('data.config.topic', 'secret-topic-123');
+        $this->actingAs($this->editor)->patchJson($this->url("/{$webhook->id}"), ['name' => 'Renamed'])->assertOk()->assertJsonPath('data.config.url', $url);
+
+        $this->withAbilities($this->editor, ['notifications:read', 'notifications:write']);
+        $this->getJson($this->url("/{$webhook->id}"))->assertOk()->assertJsonPath('data.config.url', $url);
+        $this->getJson($this->url())->assertOk()->assertJsonPath('data.0.config.url', $url);
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra
+     * @return array<string, mixed>
+     */
+    private function instanceMailer(array $extra = []): array
+    {
+        return $extra + ['name' => 'Mail', 'type' => 'email', 'config' => ['to' => ['ops@example.test']]];
+    }
+
+    public function test_only_admins_create_an_email_channel_on_the_instance_mailer(): void
+    {
+        $this->actingAs($this->editor)->postJson($this->url(), $this->instanceMailer())->assertForbidden();
+        $this->actingAs($this->editor)->postJson($this->url(), $this->instanceMailer(['config' => ['to' => ['ops@example.test'], 'smtp' => null]]))->assertForbidden();
+        // An empty smtp object has no host of its own, so it is the instance mailer too.
+        $this->actingAs($this->editor)->postJson($this->url(), $this->instanceMailer(['config' => ['to' => ['ops@example.test'], 'smtp' => (object) []]]))->assertForbidden();
+        // A blank host never reaches the instance mailer either: validation refuses it.
+        $this->actingAs($this->editor)->postJson($this->url(), $this->instanceMailer(['config' => ['to' => ['ops@example.test'], 'smtp' => ['host' => '', 'from_address' => 'a@example.test']]]))->assertUnprocessable()->assertJsonValidationErrors('config.smtp.host');
+        $this->assertDatabaseCount('notification_channels', 0);
+
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $owner = User::factory()->memberOf($this->ws, WorkspaceRole::Owner)->create();
+        $this->actingAs($admin)->postJson($this->url(), $this->instanceMailer())->assertCreated();
+        $this->actingAs($owner)->postJson($this->url(), $this->instanceMailer())->assertCreated();
+
+        // An editor may still use an SMTP server of their own.
+        $this->actingAs($this->editor)->postJson($this->url(), $this->instanceMailer([
+            'config' => ['to' => ['ops@example.test'], 'smtp' => self::SMTP], 'secrets' => ['smtp_password' => 'pw'],
+        ]))->assertCreated();
+    }
+
+    public function test_tokens_follow_the_role_of_their_owner_for_the_instance_mailer(): void
+    {
+        $this->withAbilities($this->editor, ['notifications:read', 'notifications:write']);
+        $this->postJson($this->url(), $this->instanceMailer())->assertForbidden();
+
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $this->withAbilities($admin, ['notifications:read', 'notifications:write']);
+        $this->postJson($this->url(), $this->instanceMailer())->assertCreated();
+    }
+
+    public function test_editors_cannot_retarget_an_instance_mailer_channel(): void
+    {
+        $admin = User::factory()->memberOf($this->ws, WorkspaceRole::Admin)->create();
+        $id = $this->id($this->actingAs($admin)->postJson($this->url(), $this->instanceMailer())->assertCreated()->json('data.id'));
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['config' => ['to' => ['anyone@example.test']]])->assertForbidden();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['config' => ['to' => ['anyone@example.test'], 'smtp' => (object) []]])->assertForbidden();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['templates' => ['body' => 'Buy now {{ message }}']])->assertForbidden();
+        $this->assertSame(['ops@example.test'], $this->channel($id)->config['to'] ?? null);
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['name' => 'Renamed'])->assertOk();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['active' => false])->assertOk();
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['config' => ['to' => ['ops@example.test']]])->assertOk();
+
+        $this->actingAs($admin)->patchJson($this->url("/{$id}"), ['config' => ['to' => ['team@example.test']]])->assertOk();
+
+        // Moving a custom-SMTP channel onto the instance mailer is an admin decision as well.
+        [$smtp] = $this->storedChannel('email', ['to' => ['ops@example.test'], 'smtp' => self::SMTP], ['smtp_password' => 'pw']);
+        $this->actingAs($this->editor)->patchJson($this->url("/{$smtp}"), ['config' => ['smtp' => null], 'secrets' => ['smtp_password' => null]])->assertForbidden();
+        $this->actingAs($admin)->patchJson($this->url("/{$smtp}"), ['config' => ['smtp' => null], 'secrets' => ['smtp_password' => null]])->assertOk();
     }
 }

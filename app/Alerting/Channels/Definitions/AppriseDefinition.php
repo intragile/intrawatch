@@ -12,6 +12,16 @@ class AppriseDefinition extends AbstractChannelDefinition
         return ChannelType::Apprise;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['server_url'];
+    }
+
+    public function sensitiveConfigKeys(): array
+    {
+        return ['config_key'];
+    }
+
     public function configRules(): array
     {
         return [

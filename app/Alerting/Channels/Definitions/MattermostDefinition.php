@@ -11,6 +11,12 @@ class MattermostDefinition extends AbstractChannelDefinition
         return ChannelType::Mattermost;
     }
 
+    public function destinationKeys(): array
+    {
+        // The secret is the destination itself.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [

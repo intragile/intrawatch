@@ -11,6 +11,11 @@ class GotifyDefinition extends AbstractChannelDefinition
         return ChannelType::Gotify;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['server_url'];
+    }
+
     public function configRules(): array
     {
         return [

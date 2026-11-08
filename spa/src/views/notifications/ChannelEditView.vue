@@ -13,7 +13,7 @@ import ProblemAlert from '../../components/common/ProblemAlert.vue'
 import { BULK_MAX_IDS } from '../../components/monitors/filters'
 import { clone, deepEqual, errorFor, invalidHeaderLines } from '../../components/monitors/forms/model'
 import ChannelFields from '../../components/notifications/ChannelFields.vue'
-import { CHANNEL_TYPES, configFields, renderedSecrets } from '../../components/notifications/fields'
+import { CHANNEL_TYPES, configFields, destinationChanged, renderedSecrets } from '../../components/notifications/fields'
 import {
   createBody,
   formFromChannel,
@@ -110,6 +110,15 @@ const knownFields = computed(() => {
   return Object.keys(error.value?.errors ?? {}).filter(key =>
     roots.some(root => key === root || key.startsWith(`${root}.`)))
 })
+
+/**
+ * Stored secrets to enter again: the server refuses a destination change that would carry them along
+ * unconfirmed, so each one must be retyped or cleared.
+ */
+const reenter = computed(() => isEdit.value && form.value !== null && initial.value !== null
+  && destinationChanged(type.value, initial.value.config, form.value.config)
+  ? secretKeys.value
+  : [])
 
 const dirty = computed(() => form.value !== null
   && initial.value !== null
@@ -214,7 +223,33 @@ function checkedSecrets(current: ChannelForm): SecretDraft | null {
       return null
     }
   }
-  return draft
+  return withReenteredSecrets(current, draft)
+}
+
+/**
+ * After a destination change every stored secret must be sent again: one on screen has to be retyped or
+ * cleared by the user, one without a control (its feature is off) is removed.
+ */
+function withReenteredSecrets(current: ChannelForm, draft: SecretDraft): SecretDraft | null {
+  if (reenter.value.length === 0)
+    return draft
+  const onScreen = new Set(renderedSecrets(type.value, current.config).map(f => f.key))
+  const out: SecretDraft = { ...draft }
+  const missing: Record<string, string> = {}
+  for (const key of reenter.value) {
+    const value = out[key]
+    if (value !== undefined && value !== '')
+      continue
+    if (onScreen.has(key))
+      missing[key] = t('validation.required')
+    else
+      out[key] = null
+  }
+  if (Object.keys(missing).length > 0) {
+    clientSecretErrors.value = missing
+    return null
+  }
+  return out
 }
 
 // Set just before navigating away after a successful create so the leave guard stays quiet.
@@ -513,6 +548,7 @@ watch(leaveOpen, (open) => {
               :errors="configErrors"
               :secret-keys="secretKeys"
               :secret-errors="secretErrors"
+              :required-secrets="reenter"
             />
 
             <h2 class="text-h6 mt-4 mb-2">

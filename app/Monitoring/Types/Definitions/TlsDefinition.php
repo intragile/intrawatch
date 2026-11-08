@@ -12,6 +12,11 @@ class TlsDefinition extends AbstractDefinition
         return MonitorType::Tls;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['host', 'port', 'servername'];
+    }
+
     public function configRules(): array
     {
         return [

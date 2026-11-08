@@ -30,6 +30,14 @@ interface TypeDefinition
     public function secretRules(): array;
 
     /**
+     * Config keys (dotted for nested values) that decide where a check connects, and so where the stored
+     * secrets go. Changing one on update requires the stored secrets to be sent again.
+     *
+     * @return list<string>
+     */
+    public function destinationKeys(): array;
+
+    /**
      * Values merged under the submitted config.
      *
      * @return array<string, mixed>

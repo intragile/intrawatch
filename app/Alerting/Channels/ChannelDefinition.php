@@ -29,6 +29,23 @@ interface ChannelDefinition
     public function secretRules(): array;
 
     /**
+     * Config keys (dotted for nested values) that decide where the stored secrets are sent. Changing one on
+     * update requires the stored secrets to be sent again, so a changed destination never receives a secret
+     * its author did not type in.
+     *
+     * @return list<string>
+     */
+    public function destinationKeys(): array;
+
+    /**
+     * Config keys whose values act as credentials for some receivers (an unguessable webhook path, a topic
+     * name). They are masked for callers that cannot manage notification channels.
+     *
+     * @return list<string>
+     */
+    public function sensitiveConfigKeys(): array;
+
+    /**
      * Values merged under the submitted config.
      *
      * @return array<string, mixed>

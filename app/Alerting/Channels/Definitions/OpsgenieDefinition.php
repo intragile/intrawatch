@@ -11,6 +11,12 @@ class OpsgenieDefinition extends AbstractChannelDefinition
         return ChannelType::Opsgenie;
     }
 
+    public function destinationKeys(): array
+    {
+        // The region picks the API host the key is sent to.
+        return ['region'];
+    }
+
     public function configRules(): array
     {
         return [

@@ -23,6 +23,17 @@ final class EmailSender implements ChannelSender
         private readonly SmtpTransportFactory $transports,
     ) {}
 
+    /**
+     * Whether an `smtp` config value names an SMTP server of its own. Anything else (null, an empty object,
+     * a missing or empty host) sends with the instance mailer.
+     *
+     * @phpstan-assert-if-true array<string, mixed> $smtp
+     */
+    public static function usesOwnSmtp(mixed $smtp): bool
+    {
+        return is_array($smtp) && is_string($smtp['host'] ?? null) && $smtp['host'] !== '';
+    }
+
     public function send(ChannelSpec $channel, OutgoingNotification $n, string $idempotencyKey): void
     {
         $to = array_values(array_filter(
@@ -35,7 +46,7 @@ final class EmailSender implements ChannelSender
 
         try {
             $smtp = $channel->config['smtp'] ?? null;
-            if (is_array($smtp) && is_string($smtp['host'] ?? null) && $smtp['host'] !== '') {
+            if (self::usesOwnSmtp($smtp)) {
                 $this->viaSmtp($channel, $smtp, $to, $n, $idempotencyKey);
             } else {
                 $this->viaApplicationMailer($to, $n, $idempotencyKey);

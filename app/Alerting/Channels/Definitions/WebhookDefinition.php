@@ -17,6 +17,16 @@ class WebhookDefinition extends AbstractChannelDefinition
         return ChannelType::Webhook;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['url'];
+    }
+
+    public function sensitiveConfigKeys(): array
+    {
+        return ['url'];
+    }
+
     public function configRules(): array
     {
         return [

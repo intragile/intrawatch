@@ -12,6 +12,11 @@ class PingDefinition extends AbstractDefinition
         return MonitorType::Ping;
     }
 
+    public function destinationKeys(): array
+    {
+        return ['host'];
+    }
+
     public function configRules(): array
     {
         return [

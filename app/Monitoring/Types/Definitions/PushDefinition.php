@@ -11,6 +11,12 @@ class PushDefinition extends AbstractDefinition
         return MonitorType::Push;
     }
 
+    public function destinationKeys(): array
+    {
+        // Nothing is contacted: the monitor is fed from outside.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [

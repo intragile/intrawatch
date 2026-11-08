@@ -23,6 +23,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Tests\Support\RecordingQueue;
 use Tests\TestCase;
@@ -176,6 +177,30 @@ class AlertEvaluatorTest extends TestCase
             $this->assertInstanceOf(SendNotification::class, $job);
             $this->assertContains($job->deliveryId, AlertDelivery::pluck('id')->all());
         }
+    }
+
+    public function test_a_channel_of_another_workspace_gets_no_delivery(): void
+    {
+        $own = NotificationChannel::factory()->for($this->ws)->webhook()->create();
+        $foreign = NotificationChannel::factory()->for(Workspace::factory())->webhook()->create();
+        $monitor = Monitor::factory()->for($this->ws)->create();
+        $monitor->notificationChannels()->attach($own->id);
+        // The API refuses such a binding; a corrupted row must still not leak alerts across workspaces.
+        DB::table('monitor_notification')->insert(['monitor_id' => $monitor->id, 'notification_channel_id' => $foreign->id]);
+        $log = Log::spy();
+
+        $this->evaluateDown([$monitor]);
+
+        $this->assertSame(0, AlertDelivery::where('notification_channel_id', $foreign->id)->count());
+        $this->assertSame(1, AlertDelivery::where('notification_channel_id', $own->id)->count());
+        $log->shouldHaveReceived('warning')->once()->withArgs(fn (string $message, array $context): bool => str_contains($message, 'another workspace')
+            && $context === [
+                'monitor_id' => $monitor->id,
+                'channel_id' => $foreign->id,
+                'monitor_workspace_id' => $this->ws->id,
+                'channel_workspace_id' => $foreign->workspace_id,
+            ]);
+        Queue::assertPushed(SendNotification::class, 1);
     }
 
     public function test_suppression_map_finds_the_nearest_alerting_ancestor(): void

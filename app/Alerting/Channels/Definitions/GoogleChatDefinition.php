@@ -11,6 +11,12 @@ class GoogleChatDefinition extends AbstractChannelDefinition
         return ChannelType::GoogleChat;
     }
 
+    public function destinationKeys(): array
+    {
+        // The secret is the destination itself.
+        return [];
+    }
+
     public function configRules(): array
     {
         return [];

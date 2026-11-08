@@ -236,6 +236,10 @@ describe('monitor editor', () => {
 
   it('patch sends only changed keys', async () => {
     const server = fakeApi(routes({
+      // Without stored secrets, so the url change needs no secret re-entry (see edit-destination.spec.ts).
+      'GET /workspaces/acme/monitors/1': json({
+        data: { ...MONITOR, secret_keys: [] },
+      }),
       'PATCH /workspaces/acme/monitors/1': json({
         data: { ...MONITOR, interval_seconds: 120 },
       }),

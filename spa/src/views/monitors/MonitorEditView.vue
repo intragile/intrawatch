@@ -14,6 +14,7 @@ import {
   clone,
   createBody,
   deepEqual,
+  destinationChanged,
   formFromMonitor,
   invalidHeaderLines,
   newForm,
@@ -124,6 +125,15 @@ const knownFields = computed(() => {
   return Object.keys(error.value?.errors ?? {}).filter(key =>
     roots.some(root => key === root || key.startsWith(`${root}.`)))
 })
+
+/**
+ * Stored secrets to enter again: the server refuses a destination change that would carry them along
+ * unconfirmed, so each one must be retyped or cleared.
+ */
+const reenter = computed(() => isEdit.value && form.value !== null && initial.value !== null
+  && destinationChanged(type.value, initial.value.config, form.value.config)
+  ? secretKeys.value
+  : [])
 
 const dirty = computed(() => form.value !== null
   && initial.value !== null
@@ -265,6 +275,8 @@ async function save(): Promise<void> {
   error.value = null
   clientSecretErrors.value = {}
   const draft = pruneSecrets(type.value, current.config, secrets.value)
+  if (!withReenteredSecrets(current, draft))
+    return
   const headerDraft = draft.secret_headers
   if (typeof headerDraft === 'string') {
     const bad = invalidHeaderLines(headerDraft)
@@ -320,6 +332,30 @@ async function save(): Promise<void> {
   finally {
     saving.value = false
   }
+}
+
+/**
+ * After a destination change every stored secret must be sent again: one on screen has to be retyped or
+ * cleared by the user, one without a control (its feature is off) is removed. Fills `draft` in place and
+ * returns false when a secret on screen is missing.
+ */
+function withReenteredSecrets(current: MonitorForm, draft: SecretDraft): boolean {
+  const onScreen = new Set(renderedSecrets(type.value, current.config))
+  const missing: Record<string, string> = {}
+  for (const key of reenter.value) {
+    const value = draft[key]
+    if (value !== undefined && value !== '')
+      continue
+    if (onScreen.has(key))
+      missing[key] = t('validation.required')
+    else
+      draft[key] = null
+  }
+  if (Object.keys(missing).length > 0) {
+    clientSecretErrors.value = missing
+    return false
+  }
+  return true
 }
 
 function cancel(): void {
@@ -418,6 +454,7 @@ watch(leaveOpen, (open) => {
           :errors="configErrors"
           :secret-keys="secretKeys"
           :secret-errors="secretErrors"
+          :required-secrets="reenter"
         />
 
         <h2 class="text-h6 mt-6 mb-2">

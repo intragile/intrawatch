@@ -17,6 +17,11 @@ abstract class AbstractChannelDefinition implements ChannelDefinition
         return [];
     }
 
+    public function sensitiveConfigKeys(): array
+    {
+        return [];
+    }
+
     public function defaults(): array
     {
         return [];
