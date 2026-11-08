@@ -93,7 +93,8 @@ behaviour that an existing installation may rely on.
 - **Action:** `WORKSPACE_CREATORS` (default `owners`) limits who may create
   workspaces; API tokens never do.
 - **Action:** custom status domains are off until `STATUS_CUSTOM_DOMAINS`
-  lists the allowed hosts. Existing domains keep working. Every custom domain,
+  lists the allowed hosts. Existing domains keep working; the admin interface
+  shows them read-only and lets admins remove them. Every custom domain,
   published or not, now serves only its status page and `/up`, also while the
   database is down.
 - **Action:** websockets accept only the `APP_URL` host by default; add further
