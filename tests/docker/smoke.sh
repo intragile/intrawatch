@@ -133,7 +133,8 @@ else
   timeout 1500 docker build ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} -f docker/Dockerfile -t "$IMAGE" .
 fi
 
-ENV_ARGS=()
+# Custom domains need an installation-level allowlist; the status page section serves one under example.test.
+ENV_ARGS=(-e 'STATUS_CUSTOM_DOMAINS=*.example.test')
 NET_ARGS=()
 if [[ $USE_PGSQL -eq 1 ]]; then
   echo "== start postgres"
@@ -146,7 +147,7 @@ if [[ $USE_PGSQL -eq 1 ]]; then
     sleep 1
   done
   NET_ARGS=(--network "$NETWORK")
-  ENV_ARGS=(-e DB_CONNECTION=pgsql -e DB_HOST="$PG_NAME" -e DB_PORT=5432
+  ENV_ARGS+=(-e DB_CONNECTION=pgsql -e DB_HOST="$PG_NAME" -e DB_PORT=5432
     -e DB_DATABASE=intrawatch -e DB_USERNAME=postgres -e DB_PASSWORD=secret)
 fi
 
