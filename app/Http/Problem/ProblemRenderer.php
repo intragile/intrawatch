@@ -2,6 +2,7 @@
 
 namespace App\Http\Problem;
 
+use App\Exceptions\ImportConflict;
 use App\Exceptions\SessionUnavailable;
 use App\Exceptions\SetupAlreadyCompleted;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -55,6 +56,10 @@ final class ProblemRenderer
         } elseif ($e instanceof SetupAlreadyCompleted) {
             $status = 409;
             $type = 'urn:problem:setup-already-completed';
+            $detail = $e->getMessage();
+        } elseif ($e instanceof ImportConflict) {
+            $status = 409;
+            $type = $e->type;
             $detail = $e->getMessage();
         } elseif ($e instanceof SessionUnavailable) {
             $status = 400;

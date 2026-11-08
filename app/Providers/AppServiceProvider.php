@@ -154,6 +154,8 @@ class AppServiceProvider extends ServiceProvider
         // Public status pages, per client address; counted in the status page file cache.
         RateLimiter::for(ThrottleStatusRequests::LIMITER, fn (Request $request): Limit => Limit::perMinute(300)->by('status:'.$request->ip()));
 
+        RateLimiter::for('import-upload', fn (Request $request): Limit => Limit::perMinute(10)->by('user:'.($request->user()->id ?? $request->ip())));
+
         RateLimiter::for('notification-test', fn (Request $request): Limit => Limit::perMinute(10)->by('user:'.($request->user()->id ?? $request->ip())));
 
         Event::listen(MonitorStatusChanged::class, StampStatusPages::class);

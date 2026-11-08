@@ -464,6 +464,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspace}/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the workspace's imports, newest first */
+        get: operations["import.index"];
+        put?: never;
+        /**
+         * Upload an Uptime Kuma SQLite database or 1.23 JSON backup and queue its analysis
+         * @description The file must start like a SQLite database or a JSON document; anything else is a 422 on `file`. A
+         *     workspace whose previous import has not finished (or was analysed but neither run nor deleted) gets a
+         *     409 problem of type `urn:problem:import-in-progress`.
+         */
+        post: operations["import.store"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace}/imports/{import}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Show an import with its report */
+        get: operations["import.show"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an import and its stored file
+         * @description An import that is being analysed or run cannot be deleted (409 problem of type
+         *     `urn:problem:import-in-progress`). The entities a completed run created stay.
+         */
+        delete: operations["import.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace}/imports/{import}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run an analysed import
+         * @description Only an import in status `analyzed` can be run; any other status is a 409 problem of type
+         *     `urn:problem:import-not-analyzed`.
+         */
+        post: operations["import.run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces/{workspace}/incidents": {
         parameters: {
             query?: never;
@@ -1177,6 +1243,20 @@ export interface components {
             upcoming_maintenance_days?: number;
             incident_history_days?: number;
             show_latency?: boolean;
+        };
+        /**
+         * StoreImportRequest
+         * @description An import upload: the source file plus the run options. Booleans arrive as multipart fields, so `1`/`0`
+         *     (or `true`/`false` in JSON) are accepted.
+         */
+        StoreImportRequest: {
+            /**
+             * Format: binary
+             * @description Maximum file size: 262144 kilobytes.
+             */
+            file: string;
+            history?: boolean;
+            paused?: boolean;
         };
         /** StoreMonitorRequest */
         StoreMonitorRequest: {
@@ -2412,6 +2492,410 @@ export interface operations {
             403: components["responses"]["AuthorizationException"];
             404: components["responses"]["ModelNotFoundException"];
             422: components["responses"]["ValidationException"];
+        };
+    };
+    "import.index": {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The workspace slug */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            /** @enum {string} */
+                            status: "pending" | "analyzing" | "analyzed" | "running" | "completed" | "failed";
+                            source: string;
+                            file_name: string | null;
+                            file_size: number | null;
+                            options: {
+                                history: boolean;
+                                paused: boolean;
+                            };
+                            report: {
+                                source: {
+                                    kind: string;
+                                    version: string;
+                                };
+                                dry_run: boolean;
+                                started_at: string;
+                                finished_at: string;
+                                duration_ms: number;
+                                counts: {
+                                    [key: string]: {
+                                        [key: string]: number;
+                                    };
+                                };
+                                entries: {
+                                    entity: string;
+                                    source_id: number;
+                                    name: string;
+                                    outcome: string;
+                                    target_id: number | null;
+                                    notes: {
+                                        code: string;
+                                        message: string;
+                                    }[];
+                                    errors?: {
+                                        [key: string]: string[];
+                                    };
+                                }[];
+                                not_migrated: {
+                                    users: number;
+                                    api_keys: number;
+                                    docker_hosts: number;
+                                    remote_browsers: number;
+                                };
+                                history: {
+                                    monitors: number;
+                                    hour_rows: number;
+                                    day_rows: number;
+                                    notes: {
+                                        code: string;
+                                        message: string;
+                                    }[];
+                                };
+                                notes: {
+                                    code: string;
+                                    message: string;
+                                }[];
+                            } | null;
+                            error: string | null;
+                            created_at: string | null;
+                            started_at: string | null;
+                            finished_at: string | null;
+                        }[];
+                        meta: {
+                            next_cursor: string | null;
+                            limit: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "import.store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The workspace slug */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["StoreImportRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            /** @enum {string} */
+                            status: "pending" | "analyzing" | "analyzed" | "running" | "completed" | "failed";
+                            source: string;
+                            file_name: string | null;
+                            file_size: number | null;
+                            options: {
+                                history: boolean;
+                                paused: boolean;
+                            };
+                            report: {
+                                source: {
+                                    kind: string;
+                                    version: string;
+                                };
+                                dry_run: boolean;
+                                started_at: string;
+                                finished_at: string;
+                                duration_ms: number;
+                                counts: {
+                                    [key: string]: {
+                                        [key: string]: number;
+                                    };
+                                };
+                                entries: {
+                                    entity: string;
+                                    source_id: number;
+                                    name: string;
+                                    outcome: string;
+                                    target_id: number | null;
+                                    notes: {
+                                        code: string;
+                                        message: string;
+                                    }[];
+                                    errors?: {
+                                        [key: string]: string[];
+                                    };
+                                }[];
+                                not_migrated: {
+                                    users: number;
+                                    api_keys: number;
+                                    docker_hosts: number;
+                                    remote_browsers: number;
+                                };
+                                history: {
+                                    monitors: number;
+                                    hour_rows: number;
+                                    day_rows: number;
+                                    notes: {
+                                        code: string;
+                                        message: string;
+                                    }[];
+                                };
+                                notes: {
+                                    code: string;
+                                    message: string;
+                                }[];
+                            } | null;
+                            error: string | null;
+                            created_at: string | null;
+                            started_at: string | null;
+                            finished_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "import.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The workspace slug */
+                workspace: string;
+                /** @description The import ID */
+                import: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            /** @enum {string} */
+                            status: "pending" | "analyzing" | "analyzed" | "running" | "completed" | "failed";
+                            source: string;
+                            file_name: string;
+                            file_size: string;
+                            options: {
+                                history: boolean;
+                                paused: boolean;
+                            };
+                            report: {
+                                source: {
+                                    kind: string;
+                                    version: string;
+                                };
+                                dry_run: boolean;
+                                started_at: string;
+                                finished_at: string;
+                                duration_ms: number;
+                                counts: {
+                                    [key: string]: {
+                                        [key: string]: number;
+                                    };
+                                };
+                                entries: {
+                                    entity: string;
+                                    source_id: number;
+                                    name: string;
+                                    outcome: string;
+                                    target_id: number | null;
+                                    notes: {
+                                        code: string;
+                                        message: string;
+                                    }[];
+                                    errors?: {
+                                        [key: string]: string[];
+                                    };
+                                }[];
+                                not_migrated: {
+                                    users: number;
+                                    api_keys: number;
+                                    docker_hosts: number;
+                                    remote_browsers: number;
+                                };
+                                history: {
+                                    monitors: number;
+                                    hour_rows: number;
+                                    day_rows: number;
+                                    notes: {
+                                        code: string;
+                                        message: string;
+                                    }[];
+                                };
+                                notes: {
+                                    code: string;
+                                    message: string;
+                                }[];
+                            } | null;
+                            error: string;
+                            created_at: string | null;
+                            started_at: string | null;
+                            finished_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "import.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The workspace slug */
+                workspace: string;
+                /** @description The import ID */
+                import: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "import.run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The workspace slug */
+                workspace: string;
+                /** @description The import ID */
+                import: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            /** @enum {string} */
+                            status: "pending" | "analyzing" | "analyzed" | "running" | "completed" | "failed";
+                            source: string;
+                            file_name: string | null;
+                            file_size: number | null;
+                            options: {
+                                history: boolean;
+                                paused: boolean;
+                            };
+                            report: {
+                                source: {
+                                    kind: string;
+                                    version: string;
+                                };
+                                dry_run: boolean;
+                                started_at: string;
+                                finished_at: string;
+                                duration_ms: number;
+                                counts: {
+                                    [key: string]: {
+                                        [key: string]: number;
+                                    };
+                                };
+                                entries: {
+                                    entity: string;
+                                    source_id: number;
+                                    name: string;
+                                    outcome: string;
+                                    target_id: number | null;
+                                    notes: {
+                                        code: string;
+                                        message: string;
+                                    }[];
+                                    errors?: {
+                                        [key: string]: string[];
+                                    };
+                                }[];
+                                not_migrated: {
+                                    users: number;
+                                    api_keys: number;
+                                    docker_hosts: number;
+                                    remote_browsers: number;
+                                };
+                                history: {
+                                    monitors: number;
+                                    hour_rows: number;
+                                    day_rows: number;
+                                    notes: {
+                                        code: string;
+                                        message: string;
+                                    }[];
+                                };
+                                notes: {
+                                    code: string;
+                                    message: string;
+                                }[];
+                            } | null;
+                            error: string | null;
+                            created_at: string | null;
+                            started_at: string | null;
+                            finished_at: string | null;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: components["responses"]["ModelNotFoundException"];
         };
     };
     "incident.index": {

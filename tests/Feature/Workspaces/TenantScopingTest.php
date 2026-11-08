@@ -64,7 +64,7 @@ class TenantScopingTest extends TestCase
         }
     }
 
-    public function test_every_child_route_parameter_is_numeric(): void
+    public function test_every_child_route_parameter_is_constrained(): void
     {
         $unconstrained = [];
         foreach (Route::getRoutes()->getRoutes() as $route) {
@@ -75,6 +75,10 @@ class TenantScopingTest extends TestCase
             foreach ($route->parameterNames() as $parameter) {
                 // A push token is a credential, not a model id; it only has to be alphanumeric.
                 if ($parameter === 'token' && str_starts_with($route->uri(), 'api/v1/push/') && ($wheres[$parameter] ?? null) === '[A-Za-z0-9]+') {
+                    continue;
+                }
+                // Imports are keyed by ULID; the constraint is Laravel's whereUlid() pattern.
+                if ($parameter === 'import' && ($wheres[$parameter] ?? null) === '[0-7][0-9a-hjkmnp-tv-zA-HJKMNP-TV-Z]{25}') {
                     continue;
                 }
                 if (is_string($parameter) && $parameter !== 'workspace' && ($wheres[$parameter] ?? null) !== '[0-9]+') {

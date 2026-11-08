@@ -57,6 +57,7 @@ final class SpaController
             'version' => config()->string('app.version', 'dev'),
             'reverb' => ['key' => is_string($key) ? $key : ''],
             'locale' => config()->string('app.locale', 'en'),
+            'import' => ['max_upload_mb' => config()->integer('intrawatch.import.max_upload_mb', 256)],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 }

@@ -180,6 +180,40 @@ class OpenApiTest extends TestCase
         $this->assertSame(['type' => 'boolean'], $items['items']['properties']['expand_children']);
     }
 
+    public function test_openapi_documents_import_report_shape(): void
+    {
+        $paths = (array) $this->committed()['paths'];
+        $this->assertArrayHasKey('/workspaces/{workspace}/imports', $paths);
+        $this->assertArrayHasKey('/workspaces/{workspace}/imports/{import}', $paths);
+        $this->assertArrayHasKey('/workspaces/{workspace}/imports/{import}/run', $paths);
+
+        $upload = $this->schemaAt(['paths', '/workspaces/{workspace}/imports', 'post', 'requestBody', 'content', 'multipart/form-data', 'schema']);
+        $this->assertSame(['file', 'history', 'paused'], array_keys((array) ($upload['properties'] ?? [])));
+
+        $data = ['paths', '/workspaces/{workspace}/imports/{import}', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'properties', 'data', 'properties'];
+        $this->assertSame(
+            ['id', 'status', 'source', 'file_name', 'file_size', 'options', 'report', 'error', 'created_at', 'started_at', 'finished_at'],
+            array_keys($this->schemaAt($data)),
+        );
+        $this->assertSame(['history', 'paused'], array_keys($this->schemaAt([...$data, 'options', 'properties'])));
+
+        $report = [...$data, 'report', 'properties'];
+        $this->assertSame(['object', 'null'], $this->schemaAt([...$data, 'report'])['type'] ?? null);
+        $this->assertSame(
+            ['source', 'dry_run', 'started_at', 'finished_at', 'duration_ms', 'counts', 'entries', 'not_migrated', 'history', 'notes'],
+            array_keys($this->schemaAt($report)),
+        );
+        $entry = [...$report, 'entries', 'items'];
+        $this->assertSame('object', $this->schemaAt($entry)['type'] ?? null);
+        $this->assertSame(['entity', 'source_id', 'name', 'outcome', 'target_id', 'notes', 'errors'], array_keys($this->schemaAt([...$entry, 'properties'])));
+        $this->assertSame(['code', 'message'], array_keys($this->schemaAt([...$entry, 'properties', 'notes', 'items', 'properties'])));
+        $this->assertSame(['users', 'api_keys', 'docker_hosts', 'remote_browsers'], array_keys($this->schemaAt([...$report, 'not_migrated', 'properties'])));
+        $this->assertSame(['monitors', 'hour_rows', 'day_rows', 'notes'], array_keys($this->schemaAt([...$report, 'history', 'properties'])));
+
+        $list = $this->schemaAt(['paths', '/workspaces/{workspace}/imports', 'get', 'responses', '200', 'content', 'application/json', 'schema', 'properties', 'data', 'items', 'properties']);
+        $this->assertArrayHasKey('report', $list);
+    }
+
     public function test_spec_documents_versioned_paths_only(): void
     {
         $paths = array_keys((array) $this->getJson('/api/v1/openapi.json')->json('paths'));

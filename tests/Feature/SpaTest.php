@@ -41,6 +41,7 @@ class SpaTest extends TestCase
             'app.version' => '1.2.3',
             'app.locale' => 'en',
             'broadcasting.connections.reverb.key' => 'reverb-"key"',
+            'intrawatch.import.max_upload_mb' => 128,
         ]);
     }
 
@@ -54,7 +55,7 @@ class SpaTest extends TestCase
     public function test_shell_is_served_for_deep_links_with_config_and_csp(): void
     {
         $expected = htmlspecialchars(
-            (string) json_encode(['version' => '1.2.3', 'reverb' => ['key' => 'reverb-"key"'], 'locale' => 'en']),
+            (string) json_encode(['version' => '1.2.3', 'reverb' => ['key' => 'reverb-"key"'], 'locale' => 'en', 'import' => ['max_upload_mb' => 128]]),
             ENT_QUOTES,
         );
 

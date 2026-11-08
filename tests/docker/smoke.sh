@@ -4,8 +4,8 @@
 # a non-localhost APP_URL, a permanently failing worker and an unwritable
 # /data, plus monitors checked by the in-image worker, a public status page
 # by slug and by custom domain, the admin shell under /admin/, down and up alerts
-# delivered to a webhook receiver inside the container, and a timed docker
-# stop. Usage: bash tests/docker/smoke.sh [--pgsql]
+# delivered to a webhook receiver inside the container, an Uptime Kuma import
+# through the API, and a timed docker stop. Usage: bash tests/docker/smoke.sh [--pgsql]
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -150,7 +150,7 @@ WS_URL="$BASE/api/v1/workspaces/smoke-ops"
 load_xsrf
 token_json="$(curl -fsS --max-time 10 -c "$JAR" -b "$JAR" "${STATEFUL[@]}" -H "X-XSRF-TOKEN: $XSRF" \
   -H 'Content-Type: application/json' -X POST "$WS_URL/tokens" \
-  -d '{"name":"smoke","abilities":["monitors:write","monitors:read","notifications:write","notifications:read","status-pages:write","status-pages:read"]}')" || fail "token creation failed"
+  -d '{"name":"smoke","abilities":["monitors:write","monitors:read","notifications:write","notifications:read","status-pages:write","status-pages:read","workspace:manage"]}')" || fail "token creation failed"
 API_TOKEN="$(jq -r '.token // empty' <<<"$token_json")"
 [[ -n "$API_TOKEN" ]] || fail "no token in response: $token_json"
 AUTH=(-H "Authorization: Bearer $API_TOKEN" -H 'Accept: application/json' -H 'Content-Type: application/json')
@@ -337,6 +337,53 @@ ok "alert history lists both alerts with sent deliveries"
 # Pause the monitor first, so it cannot raise more alerts once the helpers stop or while the container stops.
 [[ "$(http_code "${AUTH[@]}" -X POST "$WS_URL/monitors/$TCP_ID/pause")" == "200" ]] || fail "could not pause the tcp monitor"
 timeout 30 docker exec "$NAME" sh -c 'kill $(cat /tmp/smoke-alerts/receiver.pid /tmp/smoke-alerts/target.pid) 2>/dev/null; rm -rf /tmp/smoke-alerts /tmp/smoke-target' || true
+
+echo "== import from Uptime Kuma"
+[[ "$(timeout 30 docker exec "$NAME" php -r 'echo ini_get("upload_max_filesize"), " ", ini_get("post_max_size");')" == "512M 520M" ]] \
+  || fail "PHP upload limits are not raised for imports"
+# The push token of the fixture's push monitor (tests/Fixtures/kuma/kuma2.db, monitor "Push").
+KUMA_PUSH_TOKEN="researchPushToken01"
+UPLOAD_AUTH=(-H "Authorization: Bearer $API_TOKEN" -H 'Accept: application/json')
+import_json="$(curl -sS --max-time 60 "${UPLOAD_AUTH[@]}" -F "file=@tests/Fixtures/kuma/kuma2.db" "$WS_URL/imports")" \
+  || fail "import upload failed"
+IMPORT_ID="$(jq -r '.data.id // empty' <<<"$import_json")"
+[[ -n "$IMPORT_ID" && "$(jq -r '.data.status' <<<"$import_json")" == "pending" ]] || fail "upload did not create a pending import: $import_json"
+ok "kuma2.db uploaded"
+
+# wait_for_import <status> <seconds>: polls the import until it reaches the status; a failed import aborts.
+wait_for_import() {
+  local want="$1" deadline=$((SECONDS + $2)) status=""
+  while true; do
+    IMPORT_JSON="$(curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/imports/$IMPORT_ID" 2>/dev/null || true)"
+    status="$(jq -r '.data.status // empty' <<<"$IMPORT_JSON" 2>/dev/null || true)"
+    [[ "$status" == "$want" ]] && return 0
+    [[ "$status" == "failed" ]] && fail "import failed: $(jq -r '.data.error' <<<"$IMPORT_JSON")"
+    ((SECONDS < deadline)) || fail "import not $want within $2s (status: ${status:-none})"
+    sleep 1
+  done
+}
+wait_for_import analyzed 60
+timeout 30 docker exec "$NAME" sh -c "test \"\$(stat -c %u /data/storage/app/private/imports/$IMPORT_ID)\" = 1000" \
+  || fail "the uploaded file is not stored under /data for uid 1000"
+# Ten fixture monitors, one of them (Redis) a type IntraWatch cannot check.
+jq -e '(.data.report.counts.monitor.would_create // 0) + (.data.report.counts.monitor.invalid // 0) == 9 and .data.report.dry_run == true' \
+  <<<"$IMPORT_JSON" >/dev/null || fail "analysis counts are wrong: $(jq -c '.data.report.counts' <<<"$IMPORT_JSON")"
+ok "import analysed: $(jq -c '.data.report.counts.monitor' <<<"$IMPORT_JSON")"
+
+[[ "$(http_code "${AUTH[@]}" -X POST "$WS_URL/imports/$IMPORT_ID/run")" == "202" ]] || fail "import run was not accepted"
+wait_for_import completed 120
+if timeout 30 docker exec "$NAME" test -e "/data/storage/app/private/imports/$IMPORT_ID"; then fail "the uploaded file was kept after the run"; fi
+curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/monitors?limit=200" | jq -e '[.data[] | select(.name == "Example HTTP")] | length == 1' >/dev/null \
+  || fail "the imported monitor \"Example HTTP\" is not listed"
+[[ "$(http_code "$BASE/status/public")" == "200" ]] || fail "the imported status page /status/public is not a 200"
+[[ "$(http_code "$BASE/api/push/${KUMA_PUSH_TOKEN}?status=up")" == "200" ]] || fail "the Kuma push alias did not accept the imported token"
+ok "import ran: monitors, status page and Kuma push alias work"
+# The imported monitors check outside hosts and alert to the fixture's channels; pause them so they cannot
+# interfere with the remaining steps.
+imported_ids="$(curl -fsS --max-time 10 "${AUTH[@]}" "$WS_URL/monitors?limit=200" | jq -c --argjson keep "[$HTTP_ID,$PUSH_ID,$TCP_ID]" \
+  '[.data[] | .id | select(. as $id | $keep | index($id) | not)]')" || fail "could not list the imported monitors"
+[[ "$(http_code "${AUTH[@]}" -X POST "$WS_URL/monitors/bulk" -d "{\"action\":\"pause\",\"ids\":${imported_ids}}")" == "200" ]] \
+  || fail "could not pause the imported monitors"
 
 [[ "$(timeout 30 docker exec "$NAME" id -u)" == "1000" ]] || fail "docker exec does not run as uid 1000"
 timeout 30 docker exec "$NAME" ping -c1 -W5 127.0.0.1 >/dev/null || fail "ping as uid 1000 failed"

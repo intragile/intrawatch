@@ -135,7 +135,7 @@ workspace and are not exposed over the API yet.
 | `app.key` | Application key, generated on first start (mode 0600) |
 | `reverb.env` | Generated websocket credentials |
 | `database.sqlite` | The database, when `DB_CONNECTION=sqlite` (default) |
-| `storage/` | Uploads and framework files |
+| `storage/` | Uploads (import files under `storage/app/private/imports`, kept at most 24 hours) and framework files |
 
 Back up this volume and you have backed up everything. `app.key` matters even
 when the database is external: it encrypts the two-factor secrets and recovery
@@ -160,9 +160,105 @@ websockets are proxied internally.
 | `SANCTUM_STATEFUL_DOMAINS` | `localhost:3000,127.0.0.1:3000` plus the `APP_URL` host | Hosts (with port) of the web frontend that use cookie sessions; setting it replaces the default list |
 | `SESSION_SECURE_COOKIE` | unset | Set to `true` when the instance is served over HTTPS (behind a TLS-terminating proxy), so session cookies are only sent over TLS |
 | `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` | generated | Websocket credentials |
+| `IMPORT_MAX_UPLOAD_MB` | `256` | Largest Uptime Kuma file accepted by the admin upload (at most 512, the image's PHP limit) |
 
 A ready-made `docker/compose.example.yml` shows the SQLite default and
 commented-out PostgreSQL and MySQL services.
+
+### Migrating from Uptime Kuma
+
+IntraWatch imports monitors, notification channels, tags, status pages,
+incidents, maintenance windows and uptime history from an Uptime Kuma instance
+into a workspace. Uptime Kuma is a project by its respective authors;
+IntraWatch is not affiliated with it.
+
+Supported sources:
+
+| Source | Kuma version | Admin upload | CLI |
+| --- | --- | --- | --- |
+| SQLite database (`kuma.db`) | 2.x and 1.23 | yes | yes |
+| "Export Backup" JSON (monitors, notifications and tags only) | 1.23 | yes | yes |
+| Live MariaDB/MySQL database, read-only, as `mysql://user:pass@host:port/db` | 2.x | no | yes |
+
+Kuma 2.x has no JSON backup and no REST API, so for 2.x use the database. A
+SQL dump cannot be uploaded.
+
+**Take a consistent copy first.** Kuma keeps recent writes in a `-wal` file
+next to `kuma.db`. Stop Kuma before copying the file, or make a consistent copy
+while it runs:
+
+```bash
+sqlite3 /path/to/kuma/data/kuma.db ".backup kuma-export.db"
+```
+
+**In the admin interface** (workspace admins and owners): upload the file,
+check the analysis (a dry run that lists what would be created, skipped or is
+invalid, with a reason for each item), then run the import. Uploads are limited
+to `IMPORT_MAX_UPLOAD_MB` (256 MB by default; the image's PHP limits allow up
+to 512 MB). Analysis and run happen in the background on the `long` queue, up
+to 900 seconds each. One import per workspace can be open at a time; the
+uploaded file is deleted when the run completes or fails, when the import is
+deleted, or after 24 hours. Over the API the same flow is
+`POST /api/v1/workspaces/{workspace}/imports` (multipart `file`, optional
+`history` and `paused` as `1`/`0`), then `POST .../imports/{id}/run` once the
+status is `analyzed`; tokens need the `workspace:manage` ability.
+
+**On the command line** (no size limit, runs as the system):
+
+```bash
+docker cp kuma-export.db intrawatch:/data/kuma-export.db
+docker exec -it intrawatch php artisan intrawatch:import:kuma /data/kuma-export.db --workspace=ops --dry-run
+docker exec -it intrawatch php artisan intrawatch:import:kuma /data/kuma-export.db --workspace=ops --report=/data/kuma-report.json
+docker exec intrawatch rm /data/kuma-export.db
+```
+
+Options: `--dry-run` (analyse only), `--no-history`, `--paused` (import every
+monitor paused) and `--report=<path>` (the full JSON report). For a Kuma that
+uses an external MariaDB, pass `mysql://user:pass@host:3306/kuma` as the
+source; a read-only database user is enough. The embedded MariaDB of Kuma 2.x
+listens only on a socket inside the Kuma container, so dump it and load the
+dump into a temporary MariaDB the CLI can reach:
+
+```bash
+docker exec uptime-kuma mariadb-dump --skip-lock-tables -S /app/data/run/mariadb.sock -u root kuma > kuma.sql
+docker network create kuma-import
+docker run -d --name kuma-import-db --network kuma-import -e MARIADB_ROOT_PASSWORD=secret -e MARIADB_DATABASE=kuma mariadb:11
+docker exec -i kuma-import-db mariadb -uroot -psecret kuma < kuma.sql   # retry once the server accepts connections
+docker network connect kuma-import intrawatch
+docker exec -it intrawatch php artisan intrawatch:import:kuma 'mysql://root:secret@kuma-import-db:3306/kuma' --workspace=ops
+docker network disconnect kuma-import intrawatch && docker rm -f kuma-import-db && docker network rm kuma-import
+```
+
+Re-running an import is safe: entities already imported are reported as
+`existing` and never changed or recreated, so local edits and deletions win.
+Importing the same instance once from a JSON backup and once from its database
+cannot be matched and creates duplicates (the report warns about it).
+
+**Not migrated:** users, API keys, Docker hosts and remote browsers (counted in
+the report), minute-level history and individual heartbeats, monitor types and
+notification providers IntraWatch does not support, and manual maintenance
+windows. These are skipped with a note. Settings that would change behaviour
+(an unsupported authentication method or proxy protocol, a JSON query that
+cannot be translated, Kuma's `conditions`) import the monitor paused or the
+channel inactive, again with a note. Nothing is dropped silently: every row
+appears in the report.
+
+**Push monitors keep their tokens.** IntraWatch also answers Kuma's push URL
+shape, `GET|POST|HEAD /api/push/<token>?status=up|down&msg=...`, so push
+clients only need the new host.
+
+**History:**
+
+- Kuma 2.x: hourly statistics (the last 30 days) become hour rollups and daily
+  statistics (up to 365 days) become day rollups. Kuma counts pending checks as
+  down in these statistics, so imported 2.x history does too. Kuma days are UTC
+  days; they are stored on the same calendar date in the workspace timezone,
+  with a note when that timezone is not UTC.
+- Kuma 1.23: heartbeats are summed into hour and day rollups, with pending kept
+  as pending.
+- History is imported only for monitors the run creates, and only within the
+  retention settings (`RETENTION_HOUR_DAYS`, `RETENTION_DAY_DAYS`). Pass `--no-history` or `history=0` to skip
+  it.
 
 ### Monitors
 
@@ -270,8 +366,8 @@ useful for monitoring the whole cluster from one place.
 Three queue workers run in the container: one for regular jobs (such as live
 update broadcasts and alert evaluation), one for the `notifications` queue,
 which sends alerts to notification channels, and one for the `long` queue
-connection, which runs the day rollup rebuilds after a timezone change (up to
-900 seconds each, with `retry_after` 960 seconds). The separate workers keep a
+connection, which runs the day rollup rebuilds after a timezone change and
+Uptime Kuma imports (up to 900 seconds each, with `retry_after` 960 seconds). The separate workers keep a
 slow notification provider or a long rebuild from delaying regular jobs.
 Outside the image, run all three:
 

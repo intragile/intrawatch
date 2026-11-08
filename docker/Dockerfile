@@ -46,6 +46,7 @@ WORKDIR /app
 COPY --from=composer --chown=app:app /app /app
 COPY --from=spa --chown=app:app /spa/dist /app/spa/dist
 COPY docker/Caddyfile /etc/caddy/Caddyfile
+COPY docker/php/intrawatch.ini /usr/local/etc/php/conf.d/zz-intrawatch.ini
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chmod=0755 docker/supervisor-fatal-exit /usr/local/bin/supervisor-fatal-exit

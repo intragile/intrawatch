@@ -41,6 +41,7 @@ fi
 rm -f "$probe"
 
 mkdir -p \
+  "$DATA_DIR/storage/app/private/imports" \
   "$DATA_DIR/storage/app/public" \
   "$DATA_DIR/storage/framework/cache/data" \
   "$DATA_DIR/storage/framework/cache/status-pages" \

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\AuditController;
+use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\IncidentController;
 use App\Http\Controllers\Api\IncidentUpdateController;
 use App\Http\Controllers\Api\MaintenanceController;
@@ -51,7 +52,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/workspaces', [WorkspaceController::class, 'store']);
 
         // Child models are resolved through the workspace (scoped bindings), so an id that belongs to
-        // another workspace is a 404. Every other route parameter is a numeric id.
+        // another workspace is a 404. Every other route parameter is a numeric id, except import ULIDs.
         Route::prefix('/workspaces/{workspace}')->middleware('workspace')->scopeBindings()->group(function (): void {
             Route::patch('/', [WorkspaceController::class, 'update'])->middleware('ability:workspace:manage');
             Route::delete('/', [WorkspaceController::class, 'destroy'])->middleware('ability:workspace:manage');
@@ -138,6 +139,15 @@ Route::prefix('v1')->group(function (): void {
                 Route::patch('/status-pages/{statusPage}', [StatusPageController::class, 'update'])->whereNumber('statusPage');
                 Route::delete('/status-pages/{statusPage}', [StatusPageController::class, 'destroy'])->whereNumber('statusPage');
                 Route::put('/status-pages/{statusPage}/layout', [StatusPageLayoutController::class, 'update'])->whereNumber('statusPage');
+            });
+
+            // Imports create entities of every kind, so they need the workspace admin role and token ability.
+            Route::middleware(['ability:workspace:manage', 'can:update,workspace'])->group(function (): void {
+                Route::get('/imports', [ImportController::class, 'index']);
+                Route::post('/imports', [ImportController::class, 'store'])->middleware('throttle:import-upload');
+                Route::get('/imports/{import}', [ImportController::class, 'show'])->whereUlid('import');
+                Route::delete('/imports/{import}', [ImportController::class, 'destroy'])->whereUlid('import');
+                Route::post('/imports/{import}/run', [ImportController::class, 'run'])->whereUlid('import');
             });
 
             Route::get('/tokens', [TokenController::class, 'index']);

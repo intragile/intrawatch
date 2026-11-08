@@ -2300,6 +2300,1423 @@
                 }
             }
         },
+        "/workspaces/{workspace}/imports": {
+            "get": {
+                "operationId": "import.index",
+                "summary": "List the workspace's imports, newest first",
+                "tags": [
+                    "Import"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque cursor taken from `meta.next_cursor` of the previous page; omit it for the first page.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "minimum": 1,
+                            "maximum": 200
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "status": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "pending",
+                                                            "analyzing",
+                                                            "analyzed",
+                                                            "running",
+                                                            "completed",
+                                                            "failed"
+                                                        ]
+                                                    },
+                                                    "source": {
+                                                        "type": "string"
+                                                    },
+                                                    "file_name": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "file_size": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "options": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "history": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "paused": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "history",
+                                                            "paused"
+                                                        ]
+                                                    },
+                                                    "report": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "properties": {
+                                                            "source": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "kind": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "version": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "kind",
+                                                                    "version"
+                                                                ]
+                                                            },
+                                                            "dry_run": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "started_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "finished_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "duration_ms": {
+                                                                "type": "integer"
+                                                            },
+                                                            "counts": {
+                                                                "type": "object",
+                                                                "additionalProperties": {
+                                                                    "type": "object",
+                                                                    "additionalProperties": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                }
+                                                            },
+                                                            "entries": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "entity": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "source_id": {
+                                                                            "type": "integer"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "outcome": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "target_id": {
+                                                                            "type": [
+                                                                                "integer",
+                                                                                "null"
+                                                                            ]
+                                                                        },
+                                                                        "notes": {
+                                                                            "type": "array",
+                                                                            "items": {
+                                                                                "type": "object",
+                                                                                "properties": {
+                                                                                    "code": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "message": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "required": [
+                                                                                    "code",
+                                                                                    "message"
+                                                                                ]
+                                                                            }
+                                                                        },
+                                                                        "errors": {
+                                                                            "type": "object",
+                                                                            "additionalProperties": {
+                                                                                "type": "array",
+                                                                                "items": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "entity",
+                                                                        "source_id",
+                                                                        "name",
+                                                                        "outcome",
+                                                                        "target_id",
+                                                                        "notes"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "not_migrated": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "users": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "api_keys": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "docker_hosts": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "remote_browsers": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "users",
+                                                                    "api_keys",
+                                                                    "docker_hosts",
+                                                                    "remote_browsers"
+                                                                ]
+                                                            },
+                                                            "history": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "monitors": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "hour_rows": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "day_rows": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "notes": {
+                                                                        "type": "array",
+                                                                        "items": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "code": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "message": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "code",
+                                                                                "message"
+                                                                            ]
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "monitors",
+                                                                    "hour_rows",
+                                                                    "day_rows",
+                                                                    "notes"
+                                                                ]
+                                                            },
+                                                            "notes": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "code": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "message": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "code",
+                                                                        "message"
+                                                                    ]
+                                                                }
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "source",
+                                                            "dry_run",
+                                                            "started_at",
+                                                            "finished_at",
+                                                            "duration_ms",
+                                                            "counts",
+                                                            "entries",
+                                                            "not_migrated",
+                                                            "history",
+                                                            "notes"
+                                                        ]
+                                                    },
+                                                    "error": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "created_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "started_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "finished_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "status",
+                                                    "source",
+                                                    "file_name",
+                                                    "file_size",
+                                                    "options",
+                                                    "report",
+                                                    "error",
+                                                    "created_at",
+                                                    "started_at",
+                                                    "finished_at"
+                                                ]
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "next_cursor": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "next_cursor",
+                                                "limit"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "import.store",
+                "description": "The file must start like a SQLite database or a JSON document; anything else is a 422 on `file`. A\nworkspace whose previous import has not finished (or was analysed but neither run nor deleted) gets a\n409 problem of type `urn:problem:import-in-progress`.",
+                "summary": "Upload an Uptime Kuma SQLite database or 1.23 JSON backup and queue its analysis",
+                "tags": [
+                    "Import"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreImportRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pending",
+                                                        "analyzing",
+                                                        "analyzed",
+                                                        "running",
+                                                        "completed",
+                                                        "failed"
+                                                    ]
+                                                },
+                                                "source": {
+                                                    "type": "string"
+                                                },
+                                                "file_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "file_size": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "options": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "history": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "paused": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "history",
+                                                        "paused"
+                                                    ]
+                                                },
+                                                "report": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "source": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "version": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "version"
+                                                            ]
+                                                        },
+                                                        "dry_run": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "started_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "finished_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "duration_ms": {
+                                                            "type": "integer"
+                                                        },
+                                                        "counts": {
+                                                            "type": "object",
+                                                            "additionalProperties": {
+                                                                "type": "object",
+                                                                "additionalProperties": {
+                                                                    "type": "integer"
+                                                                }
+                                                            }
+                                                        },
+                                                        "entries": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "entity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "source_id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "outcome": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "target_id": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "notes": {
+                                                                        "type": "array",
+                                                                        "items": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "code": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "message": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "code",
+                                                                                "message"
+                                                                            ]
+                                                                        }
+                                                                    },
+                                                                    "errors": {
+                                                                        "type": "object",
+                                                                        "additionalProperties": {
+                                                                            "type": "array",
+                                                                            "items": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "entity",
+                                                                    "source_id",
+                                                                    "name",
+                                                                    "outcome",
+                                                                    "target_id",
+                                                                    "notes"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "not_migrated": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "users": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "api_keys": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "docker_hosts": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "remote_browsers": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "users",
+                                                                "api_keys",
+                                                                "docker_hosts",
+                                                                "remote_browsers"
+                                                            ]
+                                                        },
+                                                        "history": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "monitors": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "hour_rows": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "day_rows": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "notes": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "code": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "message": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "code",
+                                                                            "message"
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "monitors",
+                                                                "hour_rows",
+                                                                "day_rows",
+                                                                "notes"
+                                                            ]
+                                                        },
+                                                        "notes": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "code": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "message": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "code",
+                                                                    "message"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "source",
+                                                        "dry_run",
+                                                        "started_at",
+                                                        "finished_at",
+                                                        "duration_ms",
+                                                        "counts",
+                                                        "entries",
+                                                        "not_migrated",
+                                                        "history",
+                                                        "notes"
+                                                    ]
+                                                },
+                                                "error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "started_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "finished_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "status",
+                                                "source",
+                                                "file_name",
+                                                "file_size",
+                                                "options",
+                                                "report",
+                                                "error",
+                                                "created_at",
+                                                "started_at",
+                                                "finished_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/imports/{import}": {
+            "get": {
+                "operationId": "import.show",
+                "summary": "Show an import with its report",
+                "tags": [
+                    "Import"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "import",
+                        "in": "path",
+                        "required": true,
+                        "description": "The import ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pending",
+                                                        "analyzing",
+                                                        "analyzed",
+                                                        "running",
+                                                        "completed",
+                                                        "failed"
+                                                    ]
+                                                },
+                                                "source": {
+                                                    "type": "string"
+                                                },
+                                                "file_name": {
+                                                    "type": "string"
+                                                },
+                                                "file_size": {
+                                                    "type": "string"
+                                                },
+                                                "options": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "history": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "paused": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "history",
+                                                        "paused"
+                                                    ]
+                                                },
+                                                "report": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "source": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "version": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "version"
+                                                            ]
+                                                        },
+                                                        "dry_run": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "started_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "finished_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "duration_ms": {
+                                                            "type": "integer"
+                                                        },
+                                                        "counts": {
+                                                            "type": "object",
+                                                            "additionalProperties": {
+                                                                "type": "object",
+                                                                "additionalProperties": {
+                                                                    "type": "integer"
+                                                                }
+                                                            }
+                                                        },
+                                                        "entries": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "entity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "source_id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "outcome": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "target_id": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "notes": {
+                                                                        "type": "array",
+                                                                        "items": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "code": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "message": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "code",
+                                                                                "message"
+                                                                            ]
+                                                                        }
+                                                                    },
+                                                                    "errors": {
+                                                                        "type": "object",
+                                                                        "additionalProperties": {
+                                                                            "type": "array",
+                                                                            "items": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "entity",
+                                                                    "source_id",
+                                                                    "name",
+                                                                    "outcome",
+                                                                    "target_id",
+                                                                    "notes"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "not_migrated": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "users": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "api_keys": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "docker_hosts": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "remote_browsers": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "users",
+                                                                "api_keys",
+                                                                "docker_hosts",
+                                                                "remote_browsers"
+                                                            ]
+                                                        },
+                                                        "history": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "monitors": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "hour_rows": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "day_rows": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "notes": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "code": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "message": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "code",
+                                                                            "message"
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "monitors",
+                                                                "hour_rows",
+                                                                "day_rows",
+                                                                "notes"
+                                                            ]
+                                                        },
+                                                        "notes": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "code": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "message": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "code",
+                                                                    "message"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "source",
+                                                        "dry_run",
+                                                        "started_at",
+                                                        "finished_at",
+                                                        "duration_ms",
+                                                        "counts",
+                                                        "entries",
+                                                        "not_migrated",
+                                                        "history",
+                                                        "notes"
+                                                    ]
+                                                },
+                                                "error": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "started_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "finished_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "status",
+                                                "source",
+                                                "file_name",
+                                                "file_size",
+                                                "options",
+                                                "report",
+                                                "error",
+                                                "created_at",
+                                                "started_at",
+                                                "finished_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "import.destroy",
+                "description": "An import that is being analysed or run cannot be deleted (409 problem of type\n`urn:problem:import-in-progress`). The entities a completed run created stay.",
+                "summary": "Delete an import and its stored file",
+                "tags": [
+                    "Import"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "import",
+                        "in": "path",
+                        "required": true,
+                        "description": "The import ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/imports/{import}/run": {
+            "post": {
+                "operationId": "import.run",
+                "description": "Only an import in status `analyzed` can be run; any other status is a 409 problem of type\n`urn:problem:import-not-analyzed`.",
+                "summary": "Run an analysed import",
+                "tags": [
+                    "Import"
+                ],
+                "parameters": [
+                    {
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true,
+                        "description": "The workspace slug",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "import",
+                        "in": "path",
+                        "required": true,
+                        "description": "The import ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pending",
+                                                        "analyzing",
+                                                        "analyzed",
+                                                        "running",
+                                                        "completed",
+                                                        "failed"
+                                                    ]
+                                                },
+                                                "source": {
+                                                    "type": "string"
+                                                },
+                                                "file_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "file_size": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "options": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "history": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "paused": {
+                                                            "type": "boolean"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "history",
+                                                        "paused"
+                                                    ]
+                                                },
+                                                "report": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "properties": {
+                                                        "source": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "kind": {
+                                                                    "type": "string"
+                                                                },
+                                                                "version": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "version"
+                                                            ]
+                                                        },
+                                                        "dry_run": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "started_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "finished_at": {
+                                                            "type": "string"
+                                                        },
+                                                        "duration_ms": {
+                                                            "type": "integer"
+                                                        },
+                                                        "counts": {
+                                                            "type": "object",
+                                                            "additionalProperties": {
+                                                                "type": "object",
+                                                                "additionalProperties": {
+                                                                    "type": "integer"
+                                                                }
+                                                            }
+                                                        },
+                                                        "entries": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "entity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "source_id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "outcome": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "target_id": {
+                                                                        "type": [
+                                                                            "integer",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "notes": {
+                                                                        "type": "array",
+                                                                        "items": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "code": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "message": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "code",
+                                                                                "message"
+                                                                            ]
+                                                                        }
+                                                                    },
+                                                                    "errors": {
+                                                                        "type": "object",
+                                                                        "additionalProperties": {
+                                                                            "type": "array",
+                                                                            "items": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "entity",
+                                                                    "source_id",
+                                                                    "name",
+                                                                    "outcome",
+                                                                    "target_id",
+                                                                    "notes"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "not_migrated": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "users": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "api_keys": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "docker_hosts": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "remote_browsers": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "users",
+                                                                "api_keys",
+                                                                "docker_hosts",
+                                                                "remote_browsers"
+                                                            ]
+                                                        },
+                                                        "history": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "monitors": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "hour_rows": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "day_rows": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "notes": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "code": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "message": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "code",
+                                                                            "message"
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "monitors",
+                                                                "hour_rows",
+                                                                "day_rows",
+                                                                "notes"
+                                                            ]
+                                                        },
+                                                        "notes": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "code": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "message": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "code",
+                                                                    "message"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "source",
+                                                        "dry_run",
+                                                        "started_at",
+                                                        "finished_at",
+                                                        "duration_ms",
+                                                        "counts",
+                                                        "entries",
+                                                        "not_migrated",
+                                                        "history",
+                                                        "notes"
+                                                    ]
+                                                },
+                                                "error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "created_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "started_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "finished_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "status",
+                                                "source",
+                                                "file_name",
+                                                "file_size",
+                                                "options",
+                                                "report",
+                                                "error",
+                                                "created_at",
+                                                "started_at",
+                                                "finished_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/incidents": {
             "get": {
                 "operationId": "incident.index",
@@ -11277,6 +12694,28 @@
                     "title"
                 ],
                 "title": "StatusPageRequest"
+            },
+            "StoreImportRequest": {
+                "type": "object",
+                "description": "An import upload: the source file plus the run options. Booleans arrive as multipart fields, so `1`/`0`\n(or `true`/`false` in JSON) are accepted.",
+                "properties": {
+                    "file": {
+                        "type": "string",
+                        "format": "binary",
+                        "contentMediaType": "application/octet-stream",
+                        "description": "Maximum file size: 262144 kilobytes."
+                    },
+                    "history": {
+                        "type": "boolean"
+                    },
+                    "paused": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "file"
+                ],
+                "title": "StoreImportRequest"
             },
             "StoreMonitorRequest": {
                 "type": "object",

@@ -90,6 +90,14 @@ class Workspace extends Model
     }
 
     /**
+     * @return HasMany<Import, $this>
+     */
+    public function imports(): HasMany
+    {
+        return $this->hasMany(Import::class);
+    }
+
+    /**
      * @return HasMany<NotificationChannel, $this>
      */
     public function notificationChannels(): HasMany
