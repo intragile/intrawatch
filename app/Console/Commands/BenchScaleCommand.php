@@ -35,8 +35,8 @@ Warning: TRUSTED_PROXIES=127.0.0.1 is a setting for the benchmark container only
 X-Forwarded-For header that clients send, which defeats the per-IP public status rate limit. Never set it in
 production unless a real reverse proxy at that address sets the header.
 
-The checks reach loopback without any network policy switch: CHECK_BLOCKED_NETWORKS blocks only cloud metadata
-addresses by default.
+The checks reach loopback without any network policy switch: by default only the built-in cloud metadata addresses
+are blocked (CHECK_BLOCKED_NETWORKS is empty).
 TXT)]
 class BenchScaleCommand extends Command
 {

@@ -66,4 +66,25 @@ class NetworkPolicyTest extends TestCase
             $this->assertTrue($policy->allows($ip), "{$ip} is public");
         }
     }
+
+    public function test_builtin_metadata_networks_are_exactly_the_six_cloud_endpoints(): void
+    {
+        $this->assertSame(
+            ['169.254.169.254/32', '169.254.170.2/32', '169.254.170.23/32', 'fd00:ec2::254/128', 'fd20:ce::254/128', '100.100.100.200/32'],
+            NetworkPolicy::METADATA_NETWORKS,
+        );
+    }
+
+    public function test_builtin_metadata_policy_blocks_only_the_metadata_hosts(): void
+    {
+        $policy = new NetworkPolicy(NetworkPolicy::METADATA_NETWORKS);
+
+        foreach (['169.254.169.254', '169.254.170.2', '169.254.170.23', 'fd00:ec2::254', 'fd20:ce::254', '100.100.100.200', '::ffff:169.254.170.2', '::ffff:100.100.100.200'] as $ip) {
+            $this->assertFalse($policy->allows($ip), $ip);
+        }
+
+        foreach (['169.254.10.10', '169.254.169.253', '169.254.170.3', '100.100.100.201', 'fd00:ec2::255', 'fe80::1'] as $ip) {
+            $this->assertTrue($policy->allows($ip), $ip);
+        }
+    }
 }

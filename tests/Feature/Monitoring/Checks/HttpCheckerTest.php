@@ -22,6 +22,7 @@ use App\Monitoring\Engine\MonitorSpec;
 use App\Monitoring\Net\GuardedConnector;
 use App\Monitoring\Net\NetworkPolicy;
 use App\Monitoring\Worker\SystemClock;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\HttpFixtureServer;
 use Tests\Support\ProxyFixtureServer;
 use Tests\Support\StubDnsResolver;
@@ -381,6 +382,125 @@ class HttpCheckerTest extends TestCase
         }
 
         $this->assertSame(["127.0.0.1:{$s->port()}", "127.0.0.1:{$s->port()}"], $proxyServer->targets);
+    }
+
+    /**
+     * @return array{0: HttpFixtureServer, 1: ProxyFixtureServer, 2: array<string, string>}
+     */
+    private function proxied(): array
+    {
+        $this->proxy = new ProxyFixtureServer;
+
+        return [$this->server(), $this->proxy, ['proxy_password' => ProxyFixtureServer::PASSWORD]];
+    }
+
+    /**
+     * @return array{url: string, username: string}
+     */
+    private function proxyConfig(string $scheme, ProxyFixtureServer $proxy): array
+    {
+        return ['url' => "{$scheme}://{$proxy->address()}", 'username' => ProxyFixtureServer::USER];
+    }
+
+    public function test_proxy_target_literal_metadata_ip_is_blocked_before_the_tunnel(): void
+    {
+        [$s, $proxyServer, $credentials] = $this->proxied();
+        $checker = $this->checker(blocked: ['169.254.169.254/32']);
+
+        foreach (['http', 'socks5'] as $scheme) {
+            $this->assertDown('Blocked target', $this->probe(['url' => "http://169.254.169.254:{$s->port()}/fast", 'proxy' => $this->proxyConfig($scheme, $proxyServer)], $credentials, checker: $checker));
+        }
+
+        $this->assertSame([], $proxyServer->targets);
+    }
+
+    public function test_proxy_target_hostname_resolving_to_blocked_address_is_blocked(): void
+    {
+        [$s, $proxyServer, $credentials] = $this->proxied();
+        $checker = $this->checker(['meta.test' => ['169.254.169.254']], ['169.254.169.254/32']);
+
+        foreach (['http', 'socks5'] as $scheme) {
+            $this->assertDown('Blocked target', $this->probe(['url' => "http://meta.test:{$s->port()}/fast", 'proxy' => $this->proxyConfig($scheme, $proxyServer)], $credentials, checker: $checker));
+        }
+
+        $this->assertSame([], $proxyServer->targets);
+    }
+
+    public function test_proxy_redirect_hop_to_metadata_ip_is_blocked(): void
+    {
+        [$s, $proxyServer, $credentials] = $this->proxied();
+        $checker = $this->checker(blocked: ['169.254.169.254/32']);
+        $target = rawurlencode("http://169.254.169.254:{$s->port()}/fast");
+
+        foreach (['http', 'socks5'] as $scheme) {
+            $this->assertDown('Blocked target', $this->probe(['url' => $s->url('/redirect-to?target='.$target), 'proxy' => $this->proxyConfig($scheme, $proxyServer)], $credentials, checker: $checker));
+        }
+
+        $this->assertSame(["127.0.0.1:{$s->port()}", "127.0.0.1:{$s->port()}"], $proxyServer->targets);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function numericMetadataHosts(): array
+    {
+        return [
+            'decimal' => ['2852039166'],
+            'hex' => ['0xa9fea9fe'],
+            'short dotted' => ['169.254.43518'],
+            'octal dotted' => ['0251.0376.0251.0376'],
+            'mixed hex part' => ['169.0xfe.169.254'],
+        ];
+    }
+
+    #[DataProvider('numericMetadataHosts')]
+    public function test_proxy_target_numeric_ipv4_form_of_metadata_ip_is_blocked(string $host): void
+    {
+        [$s, $proxyServer, $credentials] = $this->proxied();
+        $checker = $this->checker(blocked: ['169.254.169.254/32']);
+
+        foreach (['http', 'socks5'] as $scheme) {
+            $this->assertDown('Blocked target', $this->probe(['url' => "http://{$host}:{$s->port()}/fast", 'proxy' => $this->proxyConfig($scheme, $proxyServer)], $credentials, checker: $checker));
+        }
+
+        $this->assertSame([], $proxyServer->targets);
+    }
+
+    public function test_proxy_redirect_hop_to_numeric_metadata_ip_is_blocked(): void
+    {
+        [$s, $proxyServer, $credentials] = $this->proxied();
+        $checker = $this->checker(blocked: ['169.254.169.254/32']);
+        $target = rawurlencode("http://2852039166:{$s->port()}/fast");
+
+        foreach (['http', 'socks5'] as $scheme) {
+            $this->assertDown('Blocked target', $this->probe(['url' => $s->url('/redirect-to?target='.$target), 'proxy' => $this->proxyConfig($scheme, $proxyServer)], $credentials, checker: $checker));
+        }
+
+        $this->assertSame(["127.0.0.1:{$s->port()}", "127.0.0.1:{$s->port()}"], $proxyServer->targets);
+    }
+
+    public function test_proxy_target_numeric_ipv4_form_of_allowed_address_is_tunnelled(): void
+    {
+        [$s, $proxyServer, $credentials] = $this->proxied();
+        $checker = $this->checker(blocked: ['169.254.169.254/32']);
+
+        foreach (['http', 'socks5'] as $scheme) {
+            $this->assertUp($this->probe(['url' => "http://2130706433:{$s->port()}/fast", 'proxy' => $this->proxyConfig($scheme, $proxyServer)], $credentials, checker: $checker), $scheme);
+        }
+
+        $this->assertSame(["2130706433:{$s->port()}", "2130706433:{$s->port()}"], $proxyServer->targets);
+    }
+
+    public function test_proxy_target_unknown_to_local_dns_is_still_tunnelled(): void
+    {
+        [$s, $proxyServer, $credentials] = $this->proxied();
+        $checker = $this->checker(blocked: ['169.254.169.254/32']);
+
+        foreach (['http', 'socks5'] as $scheme) {
+            $this->assertUp($this->probe(['url' => "http://internal.test:{$s->port()}/fast", 'proxy' => $this->proxyConfig($scheme, $proxyServer)], $credentials, checker: $checker), $scheme);
+        }
+
+        $this->assertSame(["internal.test:{$s->port()}", "internal.test:{$s->port()}"], $proxyServer->targets);
     }
 
     public function test_unusable_proxy_fails_closed_instead_of_connecting_directly(): void

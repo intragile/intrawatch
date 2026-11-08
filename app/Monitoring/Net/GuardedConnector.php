@@ -56,6 +56,22 @@ final class GuardedConnector implements SocketConnector
     }
 
     /**
+     * Checks the target a proxy tunnel will connect to, before the tunnel is opened: a literal IP must pass the
+     * network policy, and a hostname is refused when any address it resolves to locally is blocked. A hostname
+     * that does not resolve locally is allowed, and the proxy may resolve a name to a different address than the
+     * worker would, so for hostnames this is best effort.
+     *
+     * @throws BlockedTarget
+     * @throws ConnectException When the target is malformed.
+     */
+    public function assertTunnelTarget(SocketAddress|string $uri, ?ConnectContext $context = null, ?Cancellation $cancellation = null): void
+    {
+        [$host] = $this->split($uri);
+
+        $this->addresses->assertNotBlocked($host, $context?->getDnsTypeRestriction(), $cancellation ?? new NullCancellation);
+    }
+
+    /**
      * @return array{0: string, 1: int<0, 65535>}
      */
     private function split(SocketAddress|string $uri): array

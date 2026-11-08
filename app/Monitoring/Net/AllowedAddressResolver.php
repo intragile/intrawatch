@@ -3,6 +3,7 @@
 namespace App\Monitoring\Net;
 
 use Amp\Cancellation;
+use Amp\CancelledException;
 use Amp\Dns\DnsException;
 use Amp\Dns\DnsRecord;
 use Amp\Dns\DnsResolver;
@@ -49,5 +50,115 @@ final class AllowedAddressResolver
         }
 
         return $allowed;
+    }
+
+    /**
+     * Refuses a host that a proxy will connect to on our behalf. A literal IP must be permitted. A hostname is
+     * resolved locally on a best-effort basis: when any of its addresses is blocked the host is refused, because
+     * the proxy picks the address itself; when it does not resolve locally it is allowed, since the proxy may
+     * resolve names the worker cannot. The proxy may still resolve the name differently.
+     *
+     * @throws BlockedTarget When the address, or any locally resolved address, is blocked.
+     * @throws CancelledException When the check is cancelled during resolution.
+     */
+    public function assertNotBlocked(string $host, ?int $typeRestriction = null, ?Cancellation $cancellation = null): void
+    {
+        $host = trim($host, '[]');
+
+        if (@inet_pton($host) !== false) {
+            $addresses = [$host];
+        } elseif (self::looksNumeric($host)) {
+            // The proxy resolves the name with inet_aton/getaddrinfo, which reads decimal, hex, octal and short
+            // dotted forms (2852039166, 0xa9fea9fe, 169.254.43518) as IPv4. Check the address it will reach.
+            $address = self::inetAton($host);
+            if ($address === null) {
+                throw new BlockedTarget('Blocked target');
+            }
+            $addresses = [$address];
+        } else {
+            try {
+                $records = $this->resolver->resolve($host, $typeRestriction, $cancellation);
+            } catch (DnsException) {
+                return;
+            }
+
+            $addresses = array_map(static fn (DnsRecord $r): string => $r->getValue(), $records);
+        }
+
+        foreach ($addresses as $address) {
+            if (! $this->policy->allows($address)) {
+                throw new BlockedTarget('Blocked target');
+            }
+        }
+    }
+
+    /**
+     * True when every dot-separated label is a number, so libc would treat the host as an IPv4 address (or reject
+     * it) rather than look it up as a name. One trailing dot is ignored.
+     */
+    private static function looksNumeric(string $host): bool
+    {
+        $host = str_ends_with($host, '.') ? substr($host, 0, -1) : $host;
+        if ($host === '') {
+            return false;
+        }
+
+        foreach (explode('.', $host) as $label) {
+            if (preg_match('/^(0x[0-9a-f]*|[0-9]+)$/i', $label) !== 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Parses a host the way inet_aton does: 1-4 parts, each decimal, octal (leading 0) or hex (0x), the last part
+     * filling the remaining bytes. Returns dotted IPv4, or null when inet_aton would reject it.
+     */
+    private static function inetAton(string $host): ?string
+    {
+        $host = str_ends_with($host, '.') ? substr($host, 0, -1) : $host;
+        $parts = explode('.', $host);
+        if (count($parts) > 4) {
+            return null;
+        }
+
+        $values = [];
+        foreach ($parts as $part) {
+            if (preg_match('/^0x([0-9a-f]*)$/i', $part, $m) === 1) {
+                $digits = ltrim($m[1], '0');
+                $value = strlen($digits) > 8 ? null : (int) hexdec($digits === '' ? '0' : $digits);
+            } elseif (preg_match('/^0([0-7]*)$/', $part, $m) === 1) {
+                $digits = ltrim($m[1], '0');
+                $value = strlen($digits) > 11 ? null : (int) octdec($digits === '' ? '0' : $digits);
+            } elseif (preg_match('/^[1-9][0-9]*$/', $part) === 1) {
+                $value = strlen($part) > 10 ? null : (int) $part;
+            } else {
+                return null;
+            }
+            if ($value === null) {
+                return null;
+            }
+            $values[] = $value;
+        }
+
+        $last = array_pop($values);
+        foreach ($values as $value) {
+            if ($value > 0xFF) {
+                return null;
+            }
+        }
+        $lastBits = 8 * (4 - count($values));
+        if ($last >= (1 << $lastBits)) {
+            return null;
+        }
+
+        $int = $last;
+        foreach ($values as $i => $value) {
+            $int |= $value << (8 * (3 - $i));
+        }
+
+        return long2ip($int);
     }
 }

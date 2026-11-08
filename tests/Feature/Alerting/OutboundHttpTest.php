@@ -280,6 +280,18 @@ class OutboundHttpTest extends TestCase
         $this->assertSame(200, $this->http()->send('GET', "http://127.0.0.1:{$this->port}/")->status);
     }
 
+    public function test_notification_policy_blocks_builtin_metadata_with_custom_list(): void
+    {
+        config(['monitoring.worker.blocked_networks' => ['10.0.0.0/8'], 'monitoring.worker.allow_metadata' => true]);
+        $this->fakeResolver([]);
+
+        foreach (['http://169.254.169.254/', 'http://169.254.170.23/', 'http://[fd00:ec2::254]/', 'http://[fd20:ce::254]/', 'http://100.100.100.200/', 'http://10.1.1.1/'] as $url) {
+            $e = $this->failure(fn () => $this->http()->send('GET', $url));
+            $this->assertSame('Blocked target', $e->getMessage(), $url);
+            $this->assertTrue($e->permanent, $url);
+        }
+    }
+
     public function test_webhook_rejects_unspecified_address_and_port_zero(): void
     {
         config(['monitoring.worker.blocked_networks' => ['127.0.0.0/8', '::1/128']]);

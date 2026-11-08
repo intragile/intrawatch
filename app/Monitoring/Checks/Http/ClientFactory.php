@@ -25,7 +25,9 @@ use Throwable;
  * Builds a fresh HTTP client and request for one check of an http monitor.
  *
  * Every connection, including each redirect hop and the hop to a proxy, is opened through the guarded
- * connector, so the network policy and the resolve-then-connect protection apply to all of them. A new pool is
+ * connector, so the network policy and the resolve-then-connect protection apply to all of them. On proxied
+ * hops the target the proxy connects to is checked too: literal IPs exactly, hostnames by a best-effort local
+ * resolution, since the proxy resolves the name itself. A new pool is
  * created per check and requests ask for the connection to be closed, so no connection, and no credential, is
  * ever shared between checks or monitors.
  *
@@ -167,7 +169,7 @@ final class ClientFactory
         // A proxy that is configured but unusable fails every connection instead of connecting directly.
         $parts = is_array($proxy) && is_string($proxy['url'] ?? null) ? parse_url($proxy['url']) : false;
         if (! is_array($proxy) || ! is_array($parts) || ! isset($parts['host'], $parts['port']) || ! in_array($parts['scheme'] ?? '', ['http', 'socks5'], true)) {
-            return new ProxyConnector(null);
+            return new ProxyConnector(null, $this->connector);
         }
 
         $host = str_contains($parts['host'], ':') && ! str_starts_with($parts['host'], '[') ? "[{$parts['host']}]" : $parts['host'];
@@ -176,12 +178,12 @@ final class ClientFactory
         $password = is_string($secrets['proxy_password'] ?? null) ? $secrets['proxy_password'] : '';
 
         if ($parts['scheme'] === 'socks5') {
-            return new ProxyConnector(new Socks5TunnelConnector($address, $this->connector, $username, $password));
+            return new ProxyConnector(new Socks5TunnelConnector($address, $this->connector, $username, $password), $this->connector);
         }
 
         $headers = $username === null ? [] : ['Proxy-Authorization' => 'Basic '.base64_encode($username.':'.$password)];
 
-        return new ProxyConnector(new Http1TunnelConnector($address, $headers, $this->connector));
+        return new ProxyConnector(new Http1TunnelConnector($address, $headers, $this->connector), $this->connector);
     }
 
     /**

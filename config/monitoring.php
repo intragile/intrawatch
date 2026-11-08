@@ -42,11 +42,15 @@ return [
         'shard_offset' => (int) env('CHECK_SHARD_OFFSET', 0),
         'shards_total' => (int) env('CHECK_SHARDS_TOTAL', env('CHECK_WORKERS', 1)),
         'concurrency' => (int) env('CHECK_CONCURRENCY', 200),
-        // Networks a check may never connect to (CIDR notation).
+        // Networks a check may never connect to (CIDR notation). The list extends, never replaces, the built-in
+        // cloud metadata list (NetworkPolicy::METADATA_NETWORKS), which is always blocked unless allow_metadata
+        // is set; notification targets never reach the metadata endpoints either way.
         'blocked_networks' => array_values(array_filter(array_map(
             'trim',
-            explode(',', (string) env('CHECK_BLOCKED_NETWORKS', '169.254.169.254/32,fd00:ec2::254/128')),
+            explode(',', (string) env('CHECK_BLOCKED_NETWORKS', '')),
         ))),
+        // Lets monitors reach the built-in cloud metadata endpoints (off by default).
+        'allow_metadata' => (bool) env('CHECK_ALLOW_METADATA', false),
     ],
 
     /*

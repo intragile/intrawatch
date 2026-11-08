@@ -23,6 +23,17 @@ final class NetworkPolicy
     }
 
     /**
+     * Cloud instance metadata endpoints, blocked for monitors on top of the configured list unless
+     * monitoring.worker.allow_metadata (CHECK_ALLOW_METADATA) is set, and always blocked for notifications:
+     * AWS IMDS, ECS task metadata, EKS Pod Identity, AWS IMDS over IPv6, GCP metadata over IPv6 and Alibaba Cloud.
+     * The rest of 169.254.0.0/16 stays reachable for monitors, because intranet link-local devices are
+     * legitimate targets.
+     */
+    public const METADATA_NETWORKS = [
+        '169.254.169.254/32', '169.254.170.2/32', '169.254.170.23/32', 'fd00:ec2::254/128', 'fd20:ce::254/128', '100.100.100.200/32',
+    ];
+
+    /**
      * Loopback, private, shared (CGNAT), link-local, unique-local, IETF protocol assignment, benchmarking,
      * multicast and reserved networks, and the IPv6 translation prefixes that can embed any IPv4 address
      * (NAT64 and 6to4); registries are never there.
@@ -43,12 +54,13 @@ final class NetworkPolicy
     }
 
     /**
-     * Cloud metadata and translation networks, and the unspecified addresses (which connect to the local host),
-     * that notification targets must never reach, on top of the configured list. Loopback and private networks
-     * stay allowed so self-hosted receivers work.
+     * Cloud metadata, link-local and translation networks, and the unspecified addresses (which connect to the
+     * local host), that notification targets must never reach, on top of the configured list. The metadata list
+     * applies even when CHECK_ALLOW_METADATA lifts it for monitors. Loopback and private networks stay allowed so
+     * self-hosted receivers work.
      */
     public const NOTIFICATION_BLOCKED_NETWORKS = [
-        '169.254.0.0/16', 'fe80::/10', '100.100.100.200/32', '64:ff9b::/96', '2002::/16', '0.0.0.0/8', '::/128',
+        ...self::METADATA_NETWORKS, '169.254.0.0/16', 'fe80::/10', '64:ff9b::/96', '2002::/16', '0.0.0.0/8', '::/128',
     ];
 
     public static function forNotifications(): self
@@ -56,12 +68,20 @@ final class NetworkPolicy
         return new self([...self::fromConfig()->networks, ...self::NOTIFICATION_BLOCKED_NETWORKS]);
     }
 
+    /**
+     * The monitor policy: the configured networks plus the built-in metadata list, which only
+     * monitoring.worker.allow_metadata removes. The configured list extends the built-in one, never replaces it.
+     */
     public static function fromConfig(): self
     {
-        return new self(array_values(array_filter(
+        $configured = array_values(array_filter(
             (array) config('monitoring.worker.blocked_networks', []),
             is_string(...),
-        )));
+        ));
+
+        return new self(config('monitoring.worker.allow_metadata', false) === true
+            ? $configured
+            : [...$configured, ...self::METADATA_NETWORKS]);
     }
 
     /**
