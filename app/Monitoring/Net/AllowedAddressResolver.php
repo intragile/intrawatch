@@ -4,16 +4,25 @@ namespace App\Monitoring\Net;
 
 use Amp\Cancellation;
 use Amp\CancelledException;
+use Amp\CompositeCancellation;
 use Amp\Dns\DnsException;
 use Amp\Dns\DnsRecord;
 use Amp\Dns\DnsResolver;
+use Amp\NullCancellation;
 use Amp\Socket\ConnectException;
+use Amp\TimeoutCancellation;
 
 /**
  * Resolves a host and keeps only the addresses the network policy permits. Literal IPs skip DNS.
  */
 final class AllowedAddressResolver
 {
+    /**
+     * Seconds the best-effort lookup of a proxied target may take. Workers that reach the network only through
+     * their proxy often have no usable resolver; the lookup must not eat the check's connect timeout there.
+     */
+    public const float TUNNEL_TARGET_DNS_TIMEOUT = 1.0;
+
     public function __construct(
         private readonly DnsResolver $resolver,
         private readonly NetworkPolicy $policy,
@@ -56,7 +65,8 @@ final class AllowedAddressResolver
      * Refuses a host that a proxy will connect to on our behalf. A literal IP must be permitted. A hostname is
      * resolved locally on a best-effort basis: when any of its addresses is blocked the host is refused, because
      * the proxy picks the address itself; when it does not resolve locally it is allowed, since the proxy may
-     * resolve names the worker cannot. The proxy may still resolve the name differently.
+     * resolve names the worker cannot. The lookup gives up after TUNNEL_TARGET_DNS_TIMEOUT for the same reason. The
+     * proxy may still resolve the name differently.
      *
      * @throws BlockedTarget When the address, or any locally resolved address, is blocked.
      * @throws CancelledException When the check is cancelled during resolution.
@@ -76,9 +86,19 @@ final class AllowedAddressResolver
             }
             $addresses = [$address];
         } else {
+            $cancellation ??= new NullCancellation;
             try {
-                $records = $this->resolver->resolve($host, $typeRestriction, $cancellation);
+                $records = $this->resolver->resolve(
+                    $host,
+                    $typeRestriction,
+                    new CompositeCancellation($cancellation, new TimeoutCancellation(self::TUNNEL_TARGET_DNS_TIMEOUT)),
+                );
             } catch (DnsException) {
+                return;
+            } catch (CancelledException $e) {
+                // Only our own lookup deadline expired: let the proxy resolve the name. A cancelled check propagates.
+                $cancellation->throwIfRequested();
+
                 return;
             }
 
