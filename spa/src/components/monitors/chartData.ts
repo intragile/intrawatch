@@ -86,3 +86,69 @@ export function availability(rollups: MonitorRollup[]): number | null {
     ? good / counted
     : null
 }
+
+const DAY = 86_400
+
+/**
+ * Whole-number formatting for the chart's value axis; an unknown locale falls back to the runtime default.
+ */
+export function wholeNumberFormatter(locale: string): Intl.NumberFormat {
+  try {
+    return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+  }
+  catch {
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
+  }
+}
+
+/**
+ * Tick labels for the chart's time axis in the interface language and the user's time zone; uPlot's own
+ * labels are hard-wired to US month/day order and a 12-hour clock. The tick spacing picks the precision:
+ * clock time below a day, month and day below a month, month and year beyond. Clock ticks get the date as
+ * a second line on the first tick and wherever the day changes.
+ *
+ * @returns A function of the tick positions (epoch seconds) and their spacing (seconds).
+ */
+export function timeTickFormatter(locale: string, timeZone: string): (ticks: number[], spacing: number) => string[] {
+  // An unknown time zone falls back to UTC, an unknown locale to the runtime default: a bad preference must
+  // not keep the chart from rendering.
+  const attempts: [string | undefined, string][] = [
+    [locale, timeZone],
+    [locale, 'UTC'],
+    [undefined, 'UTC'],
+  ]
+  const make = (options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat => {
+    for (const [tag, zone] of attempts) {
+      try {
+        return new Intl.DateTimeFormat(tag, { ...options, timeZone: zone })
+      }
+      catch {}
+    }
+    return new Intl.DateTimeFormat(undefined, options)
+  }
+  const clock = make({ hour: 'numeric', minute: '2-digit' })
+  const clockWithSeconds = make({ hour: 'numeric', minute: '2-digit', second: '2-digit' })
+  const day = make({ month: 'short', day: 'numeric' })
+  const month = make({ year: 'numeric', month: 'short' })
+  const dayKey = make({ year: 'numeric', month: '2-digit', day: '2-digit' })
+
+  return (ticks, spacing) => {
+    if (spacing >= 28 * DAY)
+      return ticks.map(t => month.format(t * 1000))
+    if (spacing >= DAY)
+      return ticks.map(t => day.format(t * 1000))
+    const time = spacing < 60
+      ? clockWithSeconds
+      : clock
+    let previous = ''
+    return ticks.map((t) => {
+      const at = t * 1000
+      const key = dayKey.format(at)
+      const label = key === previous
+        ? time.format(at)
+        : `${time.format(at)}\n${day.format(at)}`
+      previous = key
+      return label
+    })
+  }
+}

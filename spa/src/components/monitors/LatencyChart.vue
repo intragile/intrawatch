@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from 'vuetify'
 import { useSession } from '../../stores/session'
-import { alignedData, RANGES, summarize } from './chartData'
+import { alignedData, RANGES, summarize, timeTickFormatter, wholeNumberFormatter } from './chartData'
 import 'uplot/dist/uPlot.min.css'
 
 const props = defineProps<{
@@ -50,6 +50,8 @@ function colors() {
 function options(): UPlot.Options {
   const palette = colors()
   const zone = session.current?.timezone ?? 'UTC'
+  const timeTicks = timeTickFormatter(locale.value, zone)
+  const ms = wholeNumberFormatter(locale.value)
   const axis = {
     stroke: palette.text,
     font: '12px Barlow, system-ui, sans-serif',
@@ -74,10 +76,14 @@ function options(): UPlot.Options {
       },
     },
     axes: [
-      { ...axis },
       {
         ...axis,
-        values: (_u, ticks) => ticks.map(v => `${v} ms`),
+        // uPlot hands over the spacing it chose for the ticks, which sets how precise each label is.
+        values: (_u, ticks, _axis, _space, spacing) => timeTicks(ticks, spacing),
+      },
+      {
+        ...axis,
+        values: (_u, ticks) => ticks.map(v => `${ms.format(v)} ms`),
         size: 70,
       },
     ],

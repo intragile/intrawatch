@@ -13,6 +13,7 @@
   --iw-empty: #e2e7ed;
   --iw-selected: #e3e9fa;
   --iw-line: #d3dae2;
+  color-scheme: light;
 }
 
 .v-theme--dark {
@@ -25,6 +26,7 @@
   --iw-empty: #243040;
   --iw-selected: #243156;
   --iw-line: #2a3544;
+  color-scheme: dark;
 }
 
 .v-application {
@@ -49,6 +51,57 @@
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/*
+ * Native date and time inputs. `color-scheme` on the theme classes above already gives the browser's own
+ * picker the active theme; here the field text takes the Barlow figures, the separators are muted, the
+ * focused part is tinted with the primary colour, and the browser's calendar glyph becomes the MDI
+ * calendar in the theme colour.
+ */
+.v-field input:is([type='date'], [type='datetime-local']) {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-datetime-edit {
+  padding: 0;
+}
+
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-datetime-edit-text {
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-datetime-edit-year-field:focus,
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-datetime-edit-month-field:focus,
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-datetime-edit-day-field:focus,
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-datetime-edit-hour-field:focus,
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-datetime-edit-minute-field:focus {
+  border-radius: 3px;
+  background: rgba(var(--v-theme-primary), 0.16);
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-calendar-picker-indicator {
+  width: 20px;
+  height: 20px;
+  margin-left: 8px;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19 3H18V1H16V3H8V1H6V3H5C3.89 3 3 3.9 3 5V19C3 20.11 3.9 21 5 21H19C20.11 21 21 20.11 21 19V5C21 3.9 20.11 3 19 3M19 19H5V9H19V19M19 7H5V5H19V7Z'/%3E%3C/svg%3E") center / 18px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19 3H18V1H16V3H8V1H6V3H5C3.89 3 3 3.9 3 5V19C3 20.11 3.9 21 5 21H19C20.11 21 21 20.11 21 19V5C21 3.9 20.11 3 19 3M19 19H5V9H19V19M19 7H5V5H19V7Z'/%3E%3C/svg%3E") center / 18px no-repeat;
+}
+
+.v-field input:is([type='date'], [type='datetime-local'])::-webkit-calendar-picker-indicator:hover,
+.v-field--focused input:is([type='date'], [type='datetime-local'])::-webkit-calendar-picker-indicator {
+  background: rgb(var(--v-theme-primary));
 }
 
 /*
