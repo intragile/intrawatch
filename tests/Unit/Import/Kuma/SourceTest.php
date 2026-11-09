@@ -95,7 +95,18 @@ final class SourceTest extends TestCase
         $this->assertSame(SourceKind::Json, SourceFactory::detect(self::fixture('kuma1-backup.json')));
 
         $this->expectException(UnreadableSource::class);
-        SourceFactory::detect($this->tempFile(random_bytes(256)));
+        // Fixed bytes: random ones start with "{" after the trimmed BOM and whitespace bytes about once in 249 runs.
+        SourceFactory::detect($this->tempFile("PK\x03\x04\x14\x00\x00\x00\x08\x00".str_repeat("\x00\xFF", 120)));
+    }
+
+    public function test_detection_only_looks_at_the_leading_bytes(): void
+    {
+        // A binary file that happens to start with "{" is taken for a backup; reading it as JSON then fails.
+        $this->assertSame(SourceKind::Json, SourceFactory::detect($this->tempFile("\xEF\xBB\xBF \n{\x00\xFF\x9C")));
+        $this->assertSame(SourceKind::Sqlite, SourceFactory::detect($this->tempFile("SQLite format 3\0\xFF\x00")));
+
+        $this->expectExceptionObject(new UnreadableSource('The file is not valid JSON.'));
+        SourceFactory::open($this->tempFile("\xEF\xBB\xBF \n{\x00\xFF\x9C"));
     }
 
     public function test_reads_kuma2_fixture(): void
