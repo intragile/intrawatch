@@ -15,7 +15,7 @@ to run the benchmarks yourself is described in the
 | Docker | Docker Desktop, engine 29.8.2; Linux VM aarch64, 2 vCPU, 3.8 GiB memory |
 | Image | `intrawatch:bench-rel`, built from `docker/Dockerfile` (FrankenPHP, PHP 8.5) |
 | Databases | SQLite in the image's `/data` volume; PostgreSQL 16.15 (`postgres:16`) in a container next to it; MySQL 8.4.13 and PostgreSQL 16.15 in containers for the host runs |
-| Date | 2026-11-08 |
+| Date | 2026-11-08; schedule drift and status pages 2026-11-09 |
 
 Runs "inside the image" execute in a container of the image on the Docker VM.
 Runs "on the host" execute PHP on macOS against the database containers; the
@@ -142,15 +142,20 @@ docker run --rm --cpus=2 intrawatch:bench-rel \
 One check worker, SQLite, inside the image, against a local target that
 answers in 50 to 300 ms. Passed.
 
-| Metric | Value |
-|---|---:|
-| Checks | 3 000 (expected at least 3 000) |
-| Checks not up | 0 |
-| Checks per minute | 1 000.0 |
-| Drift p50 | 3 ms |
-| Drift p95 | 11 ms |
-| Drift max | 27 ms |
-| Longest result flush | 222 ms |
+Re-run for 1.1.1, which changed the worker's broadcast and the status page
+bars, back to back with the published 1.1.0 image under the same load. An
+earlier 1.1.1 run on a busier VM gave a p95 of 39 ms and a maximum of 522 ms;
+the back-to-back pair below shows no difference between the versions.
+
+| Metric | 1.1.1 | 1.1.0 |
+|---|---:|---:|
+| Checks | 3 000 (expected at least 3 000) | 3 000 |
+| Checks not up | 0 | 0 |
+| Checks per minute | 999.6 | 1 000.0 |
+| Drift p50 | 4 ms | 4 ms |
+| Drift p95 | 12 ms | 13 ms |
+| Drift max | 82 ms | 93 ms |
+| Longest result flush | 47 ms | 72 ms |
 
 ## Status pages: 300 pages, in-process
 
@@ -163,12 +168,16 @@ SQLite, inside the image, requests sent through the application in-process (no
 web server). The warm pass mixes the page, its feeds, summary and badge.
 Passed.
 
-| Pass | Requests | p50 (ms) | p95 (ms) | Max (ms) |
-|---|---:|---:|---:|---:|
-| cold | 300 | 40.01 | 61.10 | 132.17 |
-| warm | 3 000 | 0.87 | 1.92 | 67.87 |
+Re-run for 1.1.1 back to back with the published 1.1.0 image, as above.
 
-Database queries during the warm pass: 0.
+| Version | Pass | Requests | p50 (ms) | p95 (ms) | Max (ms) |
+|---|---|---:|---:|---:|---:|
+| 1.1.1 | cold | 300 | 42.91 | 70.87 | 217.46 |
+| 1.1.1 | warm | 3 000 | 0.90 | 1.36 | 17.80 |
+| 1.1.0 | cold | 300 | 40.32 | 61.06 | 139.51 |
+| 1.1.0 | warm | 3 000 | 0.93 | 1.87 | 114.92 |
+
+Database queries during the warm pass: 0 for both.
 
 ## Earlier results
 
