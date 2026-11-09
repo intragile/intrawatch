@@ -41,7 +41,7 @@ Javítások az 1.1.0-s megújításhoz.
 
 - A natív dátumválasztók követik a világos vagy sötét témát, a naptárikon is
   a témához igazodik.
-- A válaszidő-diagram időtengelye a felület nyelvét és a te időzónádat követi
+- A válaszidő-diagram időtengelye a felület nyelvét és az időzónádat követi
   a rögzített amerikai formátum helyett. A dátum az első osztásnál és ott
   jelenik meg, ahol a nap váltik.
 - A csoport ellenőrzési sávja mostantól élőben követi a kiértékeléseket. Ha egy
@@ -85,7 +85,7 @@ Megújult admin felület és nyilvános státuszoldal.
 - Az összesített állapot állapotjellel ellátott címsor lett a színes sávon
   megjelenő fehér szöveg helyett; az állapotszövegek színei világos és sötét
   témában is megfelelő kontrasztot adnak.
-- Ha az oldal nem ad meg saját faviconet, alapértelmezésként az IntraWatch jele
+- Ha az oldal nem ad meg saját favicont, alapértelmezésként az IntraWatch jele
   jelenik meg.
 
 ### API
@@ -117,7 +117,7 @@ kötetben.
 - Az alkalmazáskulcs és a websocket-hitelesítő adatok az első indításkor
   jönnek létre, és a `/data` alatt maradnak meg. A konténer jogosultságok
   nélküli felhasználóként fut.
-- Helyi, több architektúrás build (`scripts/build-image.sh`) és kiadási
+- Helyi, többarchitektúrás build (`scripts/build-image.sh`) és kiadási
   ellenőrzőlista (`docs/RELEASE.md`).
 
 ### Fiókok, munkaterületek és API
@@ -201,7 +201,7 @@ támaszkodhat.
   ki hozhat létre munkaterületet; API-tokennel ez soha nem lehetséges.
 - **Teendő:** az egyedi státuszdomainek ki vannak kapcsolva, amíg a
   `STATUS_CUSTOM_DOMAINS` fel nem sorolja az engedélyezett hosztokat. A meglévő
-  domainek továbbra is működnek; az admin felület csak olvashatóan mutatja
+  domainek továbbra is működnek; az admin felület csak olvasható módon mutatja
   őket, és az adminisztrátorok eltávolíthatják őket. Minden egyedi domain,
   akár publikált, akár nem, mostantól csak a saját státuszoldalát és az `/up`
   címet szolgálja ki, akkor is, ha az adatbázis nem érhető el.
@@ -218,7 +218,7 @@ támaszkodhat.
   `APP_KEY` és a `REVERB_*` értékeit (különben a konténer figyelmeztet). A
   közös adatbázisok migrációja gyorsítótár-zár alatt, egyszerre egy gépen fut.
 - **Teendő:** a konténer – a `docker exec` paranccsal indított PHP-parancsokat
-  is beleértve – 027-es umaskkal és root tulajdonú alkalmazáskóddal fut; a
+  is beleértve – 027-es umaskkal és root-tulajdonú alkalmazáskóddal fut; a
   `/data` tartalmát más uid alatt olvasó mentőeszközöknek az 1000-es csoport
   tagjainak kell lenniük. A példa compose-fájl a portot csak a `127.0.0.1`
   címen publikálja.
@@ -241,7 +241,7 @@ támaszkodhat.
 - A meghívólinkek a tokent az URL fragmentumában hordozzák
   (`/admin/invitations#token=…`), így az már nem kerül a hozzáférési
   naplókba; a régi, útvonalas formában kiküldött linkek továbbra is működnek. A
-  munkaterület és a meghívó neve már nem csempészhet Markdownt (linkeket,
+  munkaterület és a meghívást küldő felhasználó neve már nem csempészhet Markdownt (linkeket,
   kiemelést) a meghívó e-mailbe, amely mostantól angolul vagy magyarul megy ki
   (`locale`; az admin felület a saját nyelvét küldi).
 - Az eseménynapló ugyanazokat a csatornabeállításokat maszkolja, mint a
@@ -259,12 +259,12 @@ támaszkodhat.
   eseménynaplóba; `X-Content-Type-Options: nosniff` minden válaszon; nincs
   `X-Powered-By` fejléc; a `STATUS_RATE_LIMIT` a nyilvános státuszoldal
   kéréskorlátját teszi beállíthatóvá.
-- A `scripts/build-image.sh` elutasítja a buildkörnyezeten belüli `--out`
+- A `scripts/build-image.sh` elutasítja a build-kontextuson belüli `--out`
   értéket.
 
 ### Ismert korlátok
 
-- Közös MySQL- vagy PostgreSQL-adatbázison a migráció közben leállított gép
+- Közös MySQL- vagy PostgreSQL-adatbázison a migráció közben váratlanul leállított gép
   akár egy órára is visszahagyja a migrációs zárat, és a többi gép addig vár
   rá. Ha egyik gép sem migrál éppen, a `php artisan cache:clear` feloldja (lásd
   a README több gépes telepítésről szóló részét).
