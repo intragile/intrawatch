@@ -88,7 +88,7 @@ class MonitorBulkController extends Controller
 
             $regroup = array_values(array_unique(array_filter($regroup, fn (?int $id): bool => $id !== null)));
             if ($regroup !== []) {
-                $events = PostCommit::statusEvents($this->groups->recompute($regroup), CarbonImmutable::now());
+                $events = PostCommit::groupEvents($this->groups->recompute($regroup), CarbonImmutable::now());
                 $jobs = AlertSignals::queue($events);
             }
 

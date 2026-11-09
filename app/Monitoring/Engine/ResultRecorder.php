@@ -227,13 +227,8 @@ final class ResultRecorder
         array_push($jobs, ...AlertSignals::queue($events));
 
         if ($broadcastChecks) {
-            // A group reached at two levels yields twice; like the worker's buffer, only its latest evaluation goes out.
-            $groupChecks = [];
-            foreach ($groupTransitions as $transition) {
-                $groupChecks[$transition->workspaceId][$transition->monitorId] = self::groupCheck($transition, $now);
-            }
-            foreach ($groupChecks as $workspaceId => $list) {
-                $checks[$workspaceId] = [...($checks[$workspaceId] ?? []), ...array_values($list)];
+            foreach (PostCommit::groupChecks($groupTransitions, $now) as $workspaceId => $list) {
+                $checks[$workspaceId] = [...($checks[$workspaceId] ?? []), ...$list];
             }
             foreach ($checks as $workspaceId => $list) {
                 foreach (array_chunk($list, self::BROADCAST_CHUNK) as $chunk) {

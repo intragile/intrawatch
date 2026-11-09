@@ -169,7 +169,7 @@ final class MaintenanceSync
         $events = [];
         $jobs = [];
         if ($groups !== []) {
-            $events = PostCommit::statusEvents($this->groups->recompute($groups), $now);
+            $events = PostCommit::groupEvents($this->groups->recompute($groups), $now);
             $jobs = AlertSignals::queue($events);
         }
 

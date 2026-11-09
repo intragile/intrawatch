@@ -6,6 +6,7 @@ use App\Actions\Monitors\CreateMonitor;
 use App\Alerting\Engine\AlertSignals;
 use App\Enums\MonitorStatus;
 use App\Enums\MonitorType;
+use App\Events\ChecksRecorded;
 use App\Events\MonitorStatusChanged;
 use App\Http\Controllers\Controller;
 use App\Http\Pagination\CursorPage;
@@ -239,11 +240,11 @@ class MonitorController extends Controller
      * transaction. Returns the events to dispatch and the jobs to queue once it has committed.
      *
      * @param  list<int>  $groupIds
-     * @return array{0: list<MonitorStatusChanged>, 1: list<EvaluateAlerts>}
+     * @return array{0: list<MonitorStatusChanged|ChecksRecorded>, 1: list<EvaluateAlerts>}
      */
     private function groupChanges(array $groupIds): array
     {
-        $events = PostCommit::statusEvents($this->groups->recompute($groupIds), CarbonImmutable::now());
+        $events = PostCommit::groupEvents($this->groups->recompute($groupIds), CarbonImmutable::now());
 
         return [$events, AlertSignals::queue($events)];
     }

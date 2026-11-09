@@ -2,6 +2,7 @@
 
 namespace App\Monitoring\Engine;
 
+use App\Events\ChecksRecorded;
 use App\Events\MonitorStatusChanged;
 use App\Jobs\BroadcastEvents;
 use Carbon\CarbonImmutable;
@@ -156,5 +157,41 @@ final class PostCommit
         }
 
         return $events;
+    }
+
+    /**
+     * The events of a group recompute: the status changes, and the live check entries of the evaluations it
+     * wrote (see ResultRecorder::groupCheck()), so a group's heartbeat strip moves whichever path recomputed it.
+     *
+     * @param  list<Transition>  $transitions
+     * @return list<MonitorStatusChanged|ChecksRecorded>
+     */
+    public static function groupEvents(array $transitions, CarbonImmutable $at): array
+    {
+        $events = self::statusEvents($transitions, $at);
+        foreach (self::groupChecks($transitions, $at) as $workspaceId => $checks) {
+            foreach (array_chunk($checks, ResultRecorder::BROADCAST_CHUNK) as $chunk) {
+                $events[] = new ChecksRecorded($workspaceId, $chunk);
+            }
+        }
+
+        return $events;
+    }
+
+    /**
+     * The live check entries of group evaluations by workspace. A group reached at two levels yields twice;
+     * only its latest evaluation is kept.
+     *
+     * @param  list<Transition>  $transitions
+     * @return array<int, list<array{monitor_id: int, status: string, latency_ms: null, checked_at: string}>>
+     */
+    public static function groupChecks(array $transitions, CarbonImmutable $fallback): array
+    {
+        $checks = [];
+        foreach ($transitions as $transition) {
+            $checks[$transition->workspaceId][$transition->monitorId] = ResultRecorder::groupCheck($transition, $fallback);
+        }
+
+        return array_map(array_values(...), $checks);
     }
 }

@@ -7,6 +7,7 @@ namespace App\Actions\Monitors;
 use App\Actions\Concerns\RunsInWorkspace;
 use App\Alerting\Engine\AlertSignals;
 use App\Enums\MonitorType;
+use App\Events\ChecksRecorded;
 use App\Events\MonitorStatusChanged;
 use App\Http\Requests\StoreMonitorRequest;
 use App\Jobs\EvaluateAlerts;
@@ -126,11 +127,11 @@ class CreateMonitor
      * transaction. Returns the events to dispatch and the jobs to queue once it has committed.
      *
      * @param  list<int>  $groupIds
-     * @return array{0: list<MonitorStatusChanged>, 1: list<EvaluateAlerts>}
+     * @return array{0: list<MonitorStatusChanged|ChecksRecorded>, 1: list<EvaluateAlerts>}
      */
     private function groupChanges(array $groupIds): array
     {
-        $events = PostCommit::statusEvents($this->groups->recompute($groupIds), CarbonImmutable::now());
+        $events = PostCommit::groupEvents($this->groups->recompute($groupIds), CarbonImmutable::now());
 
         return [$events, AlertSignals::queue($events)];
     }

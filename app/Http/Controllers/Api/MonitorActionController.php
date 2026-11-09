@@ -75,7 +75,7 @@ class MonitorActionController extends Controller
             // The parent group, and a paused or resumed group itself, are re-evaluated for the new activity.
             $affected = array_values(array_filter([$monitor->parent_id, $monitor->type === MonitorType::Group ? $monitor->id : null], fn (?int $id): bool => $id !== null));
             if ($affected !== []) {
-                $events = PostCommit::statusEvents($this->groups->recompute($affected), CarbonImmutable::now());
+                $events = PostCommit::groupEvents($this->groups->recompute($affected), CarbonImmutable::now());
                 $jobs = AlertSignals::queue($events);
             }
         });
