@@ -6,6 +6,25 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-11-09
+
+Fixes to the 1.1.0 redesign.
+
+### Admin interface
+
+- Native date pickers follow the light or dark theme, with a themed calendar
+  icon.
+- The latency chart's time axis follows the interface language and your time
+  zone instead of a fixed US format. The date appears on the first tick and
+  where the day changes.
+- A group's heartbeat strip now moves live with its evaluations. A group that
+  has not been evaluated yet says so instead of showing empty slots.
+
+### Public status page
+
+- The daily bars follow the dark scheme and use the admin interface's
+  palette; maintenance is violet, as in the admin interface.
+
 ## [1.1.0] - 2026-11-08
 
 A redesigned admin interface and public status page.
