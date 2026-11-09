@@ -6,6 +6,19 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Admin interface
+
+- A Changelog page in the account menu lists every release in the interface
+  language, falling back to English per release where no translation exists.
+
+### API
+
+- `GET /api/v1/changelog`, `/changelog/latest` and `/changelog/{version}`
+  return the release notes as sanitised HTML, in the language of the
+  `Accept-Language` header or the `locale` query parameter.
+
 ## [1.2.0] - 2026-11-09
 
 Live group strips from every change, readable outage days on the status page

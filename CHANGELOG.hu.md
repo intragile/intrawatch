@@ -8,6 +8,19 @@ Az IntraWatch minden lényeges változása itt olvasható. A formátum a
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) ajánlását követi, a
 verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait.
 
+## [Unreleased]
+
+### Admin felület
+
+- A fiókmenüben új Fejlesztési napló oldal sorolja fel a kiadásokat a felület
+  nyelvén; ahol egy verziónak nincs fordítása, ott az angol szöveg jelenik meg.
+
+### API
+
+- A `GET /api/v1/changelog`, `/changelog/latest` és `/changelog/{version}`
+  végpont biztonságosan szűrt HTML-ként adja vissza a kiadási jegyzeteket, az
+  `Accept-Language` fejléc vagy a `locale` lekérdezési paraméter nyelvén.
+
 ## [1.2.0] - 2026-11-09
 
 Bármilyen változásra élőben frissülő csoportsávok, színek nélkül is jól
