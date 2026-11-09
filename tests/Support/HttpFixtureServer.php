@@ -17,7 +17,6 @@ use Amp\Socket\ServerSocket;
 use Amp\Socket\ServerTlsContext;
 use Amp\Socket\Socket;
 use Amp\Socket\SocketException;
-use Psr\Log\NullLogger;
 
 use function Amp\async;
 use function Amp\delay;
@@ -162,7 +161,7 @@ final class HttpFixtureServer
 
     private static function createServer(): SocketHttpServer
     {
-        return SocketHttpServer::createForDirectAccess(new NullLogger, enableCompression: false, connectionLimitPerIp: 1000);
+        return FixtureHttpServer::create();
     }
 
     private static function portOf(SocketHttpServer $server): int

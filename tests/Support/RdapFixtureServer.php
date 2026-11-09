@@ -11,7 +11,6 @@ use Amp\Socket\BindContext;
 use Amp\Socket\Certificate;
 use Amp\Socket\InternetAddress;
 use Amp\Socket\ServerTlsContext;
-use Psr\Log\NullLogger;
 
 use function Amp\delay;
 
@@ -39,7 +38,7 @@ final class RdapFixtureServer
 
     public function __construct(?TestCertificates $certificates = null)
     {
-        $this->server = SocketHttpServer::createForDirectAccess(new NullLogger, enableCompression: false, connectionLimitPerIp: 1000);
+        $this->server = FixtureHttpServer::create();
         $this->server->expose('127.0.0.1:0', $certificates === null
             ? null
             : (new BindContext)->withTlsContext((new ServerTlsContext)->withDefaultCertificate(new Certificate($certificates->serverFile))));
