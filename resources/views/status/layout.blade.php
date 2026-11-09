@@ -29,9 +29,10 @@
 --{{ $status->value }}:{{ \App\Status\Pages\Svg::color($status) }};--b-{{ $status->value }}:var(--{{ $status->value }});
 @endif
 @endforeach
+--b-major_outage-hatch:{{ \App\Status\Pages\Svg::HATCH_STRIPE }};
 --t-operational:#157f4d;--t-degraded:#8c5b00;--t-partial_outage:#a84b00;--t-major_outage:#bf2d35;--t-maintenance:#6448b8;--t-unknown:var(--muted)}
 @media (prefers-color-scheme:dark){:root{--bg:#111821;--card:#18212c;--text:#e6eaf0;--muted:#9aa6b6;--line:#2a3544;
---operational:#2fa36a;--degraded:#d69a1c;--partial_outage:#df7a36;--major_outage:#e0464e;--maintenance:#8467d6;--unknown:#465163;--b-unknown:#243040;
+--operational:#2fa36a;--degraded:#d69a1c;--partial_outage:#df7a36;--major_outage:#e0464e;--maintenance:#8467d6;--unknown:#465163;--b-unknown:#243040;--b-major_outage-hatch:#6e2328;
 --t-operational:#55c990;--t-degraded:#ebbb55;--t-partial_outage:#f2a35e;--t-major_outage:#f4878b;--t-maintenance:#b19ef3}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.5 Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
@@ -69,6 +70,9 @@ svg.bars .b-operational{fill:var(--b-operational);stroke:var(--b-operational)}sv
 svg.bars .b-partial_outage{fill:var(--b-partial_outage);stroke:var(--b-partial_outage)}svg.bars .b-major_outage{fill:var(--b-major_outage);stroke:var(--b-major_outage)}
 svg.bars .b-maintenance{fill:var(--b-maintenance);stroke:var(--b-maintenance)}svg.bars .b-unknown{fill:var(--b-unknown);stroke:var(--b-unknown)}
 svg.bars path[class]{fill:none}
+svg.bars rect.b-major_outage{fill:url(#iw-hatch) var(--b-major_outage)}
+#iw-hatch .h-fill{fill:var(--b-major_outage)}#iw-hatch .h-stripe{fill:var(--b-major_outage-hatch)}
+svg.defs{position:absolute;width:0;height:0;overflow:hidden}
 svg.spark{display:block;width:100%;height:30px;margin-top:6px;fill:none;stroke:var(--accent);stroke-width:1.5}
 svg.spark circle{fill:var(--accent);stroke:none}
 .scale{display:flex;justify-content:space-between;gap:8px;margin-top:4px;font-size:.8125em;color:var(--muted)}
@@ -84,6 +88,7 @@ footer .muted{margin:4px 0}
 </style>
 </head>
 <body>
+{!! \App\Status\Pages\Svg::hatchDefs() !!}
 <main>
 @yield('content')
 </main>

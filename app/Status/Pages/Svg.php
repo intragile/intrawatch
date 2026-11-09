@@ -11,6 +11,18 @@ use Closure;
  */
 final class Svg
 {
+    /**
+     * The id of the page's shared hatch pattern, which major outage days are filled with.
+     */
+    public const HATCH_ID = 'iw-hatch';
+
+    /**
+     * The light-theme stripe colour of the hatch, the admin's down-beat hatch.
+     */
+    public const HATCH_STRIPE = '#f3b9bc';
+
+    private const HATCH_SIZE = 6;
+
     private const BAR_WIDTH = 4;
 
     private const BAR_STEP = 5;
@@ -95,6 +107,22 @@ final class Svg
         }
 
         return $svg.$rects.'</svg>';
+    }
+
+    /**
+     * The hatch pattern that major outage days are filled with, so an outage reads without colour, like the
+     * admin's down beat. It is defined once per page and the bars refer to it from the stylesheet. The SVG holding
+     * it is sized to nothing rather than hidden: a pattern inside a display:none SVG does not paint.
+     */
+    public static function hatchDefs(): string
+    {
+        $size = self::HATCH_SIZE;
+
+        return '<svg class="defs" xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false"><defs>'
+            .'<pattern id="'.self::HATCH_ID.'" patternUnits="userSpaceOnUse" width="'.$size.'" height="'.$size.'" patternTransform="rotate(45)">'
+            .'<rect class="h-fill" width="'.$size.'" height="'.$size.'" fill="'.self::color(DisplayStatus::MajorOutage).'"/>'
+            .'<rect class="h-stripe" width="'.intdiv($size, 2).'" height="'.$size.'" fill="'.self::HATCH_STRIPE.'"/>'
+            .'</pattern></defs></svg>';
     }
 
     /**

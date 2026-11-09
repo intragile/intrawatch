@@ -521,6 +521,19 @@ class PublicStatusPageTest extends TestCase
         }
     }
 
+    public function test_major_outage_days_are_hatched_in_both_schemes(): void
+    {
+        $html = (string) $this->get('/status/acme')->assertOk()->getContent();
+        [$light, $dark] = explode('@media (prefers-color-scheme:dark)', $html, 2);
+
+        $this->assertSame(1, substr_count($html, '<pattern id="'.Svg::HATCH_ID.'"'), 'one shared pattern per page');
+        $this->assertStringContainsString('svg.bars rect.b-major_outage{fill:url(#'.Svg::HATCH_ID.') var(--b-major_outage)}', $html);
+        $this->assertStringContainsString('#'.Svg::HATCH_ID.' .h-fill{fill:var(--b-major_outage)}#'.Svg::HATCH_ID.' .h-stripe{fill:var(--b-major_outage-hatch)}', $html);
+        $this->assertStringContainsString('--b-major_outage-hatch:'.Svg::HATCH_STRIPE.';', $light);
+        $this->assertMatchesRegularExpression('/--b-major_outage-hatch:#[0-9a-f]{6}/', strstr($dark, '}}', true) ?: '');
+        $this->assertStringContainsString('svg.defs{position:absolute;width:0;height:0', $html);
+    }
+
     public function test_worst_case_page_stays_small(): void
     {
         $bars = [];

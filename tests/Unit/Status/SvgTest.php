@@ -69,6 +69,19 @@ class SvgTest extends TestCase
         }
     }
 
+    public function test_the_hatch_pattern_is_the_major_outage_red_with_light_stripes(): void
+    {
+        $defs = Svg::hatchDefs();
+
+        $this->assertStringStartsWith('<svg class="defs" ', $defs);
+        $this->assertStringContainsString('aria-hidden="true"', $defs);
+        $this->assertStringContainsString('<pattern id="'.Svg::HATCH_ID.'" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">', $defs);
+        // Presentation colours are the light theme's; the page overrides them with its tokens for the dark one.
+        $this->assertStringContainsString('<rect class="h-fill" width="6" height="6" fill="'.Svg::color(DisplayStatus::MajorOutage).'"/>', $defs);
+        $this->assertStringContainsString('<rect class="h-stripe" width="3" height="6" fill="'.Svg::HATCH_STRIPE.'"/>', $defs);
+        $this->assertStringNotContainsString('display', $defs, 'a pattern inside a display:none SVG does not paint');
+    }
+
     public function test_titles_are_escaped(): void
     {
         $hostile = '</title><script>alert("x")</script>&';
