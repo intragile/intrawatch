@@ -178,6 +178,11 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../views/account/AccountView.vue'),
   },
   {
+    path: '/changelog',
+    name: 'changelog',
+    component: () => import('../views/changelog/ChangelogView.vue'),
+  },
+  {
     path: '/w/:workspace',
     children: [
       {

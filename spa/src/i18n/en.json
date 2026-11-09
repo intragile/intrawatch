@@ -54,6 +54,7 @@
     "tokens": "API tokens",
     "audit": "Audit log",
     "account": "Account and security",
+    "changelog": "Changelog",
     "workspace": "Workspace",
     "accountMenu": "Account menu",
     "mainMenu": "Main menu",
@@ -125,6 +126,14 @@
       "intro": "This is a sensitive action. Enter your password to continue.",
       "submit": "Confirm"
     }
+  },
+  "changelog": {
+    "title": "Changelog",
+    "unreleased": "Unreleased",
+    "yanked": "Yanked",
+    "yankedHint": "This release was withdrawn and should not be used.",
+    "fallbackNotice": "This version is only available in English.",
+    "empty": "There are no releases yet."
   },
   "account": {
     "title": "Account and security",

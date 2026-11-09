@@ -8,6 +8,7 @@ import {
   mdiCogOutline,
   mdiDatabaseImportOutline,
   mdiFileDocumentOutline,
+  mdiHistory,
   mdiKeyVariant,
   mdiLogout,
   mdiMonitorDashboard,
@@ -285,6 +286,11 @@ watch(() => session.me, (current) => {
               :to="{ name: 'account' }"
               :prepend-icon="mdiShieldAccountOutline"
               :title="t('nav.account')"
+            />
+            <v-list-item
+              :to="{ name: 'changelog' }"
+              :prepend-icon="mdiHistory"
+              :title="t('nav.changelog')"
             />
             <v-list-item
               :prepend-icon="isDark ? mdiWeatherSunny : mdiWeatherNight"

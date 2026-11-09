@@ -54,6 +54,7 @@
     "tokens": "API-tokenek",
     "audit": "Eseménynapló",
     "account": "Fiók és biztonság",
+    "changelog": "Fejlesztési napló",
     "workspace": "Munkaterület",
     "accountMenu": "Fiókmenü",
     "mainMenu": "Főmenü",
@@ -125,6 +126,14 @@
       "intro": "Ez érzékeny művelet. A folytatáshoz adja meg a jelszavát.",
       "submit": "Megerősítés"
     }
+  },
+  "changelog": {
+    "title": "Fejlesztési napló",
+    "unreleased": "Kiadás előtt",
+    "yanked": "Visszavonva",
+    "yankedHint": "Ezt a kiadást visszavonták, nem szabad használni.",
+    "fallbackNotice": "Ez a verzió csak angolul érhető el.",
+    "empty": "Még nincs kiadás."
   },
   "account": {
     "title": "Fiók és biztonság",
