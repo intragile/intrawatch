@@ -24,12 +24,19 @@ RUN rm -rf spa \
 FROM dunglas/frankenphp:1-php8.5
 
 ARG APP_VERSION=dev
+# The base image carries its own revision, creation time and URL; they are set here so the image describes
+# IntraWatch, not FrankenPHP. scripts/build-image.sh passes the commit and the build time.
+ARG VCS_REF=unknown
+ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="IntraWatch" \
       org.opencontainers.image.description="Self-hosted uptime monitor and status page" \
       org.opencontainers.image.source="https://github.com/intragile/intrawatch" \
+      org.opencontainers.image.url="https://github.com/intragile/intrawatch" \
       org.opencontainers.image.vendor="IntrAgile Kft." \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.version="${APP_VERSION}"
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.created="${BUILD_DATE}"
 
 # The command-line SAPI reads php-cli.ini instead of php.ini: queue workers (the import job on the long queue) and
 # the command-line importer get a 512M memory limit, while web requests keep the production default.

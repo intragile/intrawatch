@@ -82,6 +82,11 @@ archive_platforms() {
 
 command -v jq >/dev/null 2>&1 || { echo "error: jq is required to verify the platforms in the archive" >&2; exit 1; }
 
+# The commit and build time go into the image labels; a build from a modified tree says so in its revision.
+VCS_REF="$(git rev-parse HEAD)"
+[[ -z "$(git status --porcelain)" ]] || VCS_REF="${VCS_REF}-dirty"
+BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
 mkdir -p "$OUT"
 ARCHIVE="${OUT}/intrawatch-${VERSION}.oci.tar"
 
@@ -98,6 +103,8 @@ timeout "$BUILD_TIMEOUT" docker buildx build \
   --platform "$PLATFORMS" \
   --file docker/Dockerfile \
   --build-arg "APP_VERSION=${VERSION}" \
+  --build-arg "VCS_REF=${VCS_REF}" \
+  --build-arg "BUILD_DATE=${BUILD_DATE}" \
   --tag "intrawatch:${VERSION}" \
   --output "type=oci,dest=${ARCHIVE}" \
   .
@@ -127,6 +134,8 @@ if [[ -n "$LOAD_PLATFORM" ]]; then
     --platform "$LOAD_PLATFORM" \
     --file docker/Dockerfile \
     --build-arg "APP_VERSION=${VERSION}" \
+    --build-arg "VCS_REF=${VCS_REF}" \
+    --build-arg "BUILD_DATE=${BUILD_DATE}" \
     --tag "$tag" \
     --load \
     .
