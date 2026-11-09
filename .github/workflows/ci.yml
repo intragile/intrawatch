@@ -133,7 +133,7 @@ jobs:
       - name: Changelog check
         if: matrix.db == 'sqlite'
         timeout-minutes: 2
-        run: php artisan changelog:check
+        run: php artisan changelog:check --locale=hu
 
   spa:
     runs-on: ubuntu-latest

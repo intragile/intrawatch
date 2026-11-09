@@ -19,10 +19,10 @@ Run every command from the repository root. Replace `1.0.0` for later releases.
    ```
 
    `CHANGELOG.hu.md` gets the version too (Dávid reviews the translation), and
-   `php artisan changelog:check` is green.
+   `php artisan changelog:check --locale=hu` is green.
 
    ```bash
-   php artisan changelog:check   # expect: Changelog check passed. (exit 0)
+   php artisan changelog:check --locale=hu   # expect: Changelog check passed. (exit 0)
    ```
 
 2. **Three-database suite** (SQLite, MySQL 8.4, PostgreSQL 16).
