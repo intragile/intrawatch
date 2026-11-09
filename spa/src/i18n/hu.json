@@ -678,9 +678,9 @@
     "heroFor": "{duration} óta",
     "strip": {
       "label": "Legutóbbi ellenőrzések",
-      "count": "Legutóbbi {count} ellenőrzés",
+      "count": "Legutóbbi ellenőrzés | Legutóbbi {n} ellenőrzés",
       "now": "most",
-      "groupCount": "Legutóbbi {count} kiértékelés"
+      "groupCount": "Legutóbbi kiértékelés | Legutóbbi {n} kiértékelés"
     }
   },
   "channels": {

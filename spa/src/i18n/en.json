@@ -678,9 +678,9 @@
     "heroFor": "for {duration}",
     "strip": {
       "label": "Recent checks",
-      "count": "Last {count} checks",
+      "count": "Last check | Last {n} checks",
       "now": "now",
-      "groupCount": "Last {count} evaluations"
+      "groupCount": "Last evaluation | Last {n} evaluations"
     }
   },
   "channels": {

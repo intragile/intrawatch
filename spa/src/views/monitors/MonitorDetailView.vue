@@ -364,7 +364,7 @@ void load()
       <section class="strip" :aria-label="t('monitorDetail.strip.label')">
         <HeartbeatBar :beats="stripBeats" :slots="STRIP_SLOTS" size="large" :group="isGroup" :pending="stripPending" />
         <div v-if="!isGroup || stripBeats.length > 0" class="strip-scale">
-          <span>{{ t(isGroup ? 'monitorDetail.strip.groupCount' : 'monitorDetail.strip.count', { count: STRIP_SLOTS }) }}</span>
+          <span>{{ t(isGroup ? 'monitorDetail.strip.groupCount' : 'monitorDetail.strip.count', Math.min(stripBeats.length, STRIP_SLOTS)) }}</span>
           <span>{{ t('monitorDetail.strip.now') }}</span>
         </div>
       </section>

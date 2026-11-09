@@ -314,5 +314,7 @@ describe('monitor detail', () => {
     expect(document.querySelector('[data-test="hero"]')?.textContent).toContain('32 minutes')
     expect(text()).toContain('HTTP 503')
     await expect.poll(() => document.querySelector('.heartbeat--large')?.getAttribute('aria-label')).toContain('2')
+    // The scale counts the beats shown, not the strip's capacity.
+    expect(document.querySelector('.strip-scale')?.textContent).toContain('Last 2 checks')
   })
 })
