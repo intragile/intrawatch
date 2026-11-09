@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ApiError } from '../../api'
 import type { components } from '../../api/schema'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '../../api'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
@@ -52,6 +52,15 @@ async function load(): Promise<void> {
 }
 
 onMounted(load)
+
+// Release texts are served in the request locale, so a language switch starts over.
+watch(locale, () => {
+  releases.value = []
+  page.value = 0
+  lastPage.value = 1
+  loaded.value = false
+  void load()
+})
 
 const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -136,6 +145,12 @@ function showFallback(release: Release): boolean {
       <!-- eslint-enable vue/no-v-html -->
     </v-card-text>
   </v-card>
+
+  <div v-if="error && releases.length === 0">
+    <v-btn variant="tonal" :loading="loading" data-test="retry" @click="load">
+      {{ t('common.retry') }}
+    </v-btn>
+  </div>
 
   <p v-if="loaded && releases.length === 0" class="text-medium-emphasis">
     {{ t('changelog.empty') }}

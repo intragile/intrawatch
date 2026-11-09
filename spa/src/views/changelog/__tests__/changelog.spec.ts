@@ -129,11 +129,41 @@ describe('changelog view', () => {
     await expect.poll(() => document.body.textContent).toContain('There are no releases yet.')
   })
 
-  it('shows a failure', async () => {
-    fakeApi({
-      'GET /changelog': problem(500, { title: 'Boom' }),
+  it('shows a failure and retries it', async () => {
+    const server = fakeApi({
+      'GET /changelog': [
+        problem(500, { title: 'Boom' }),
+        json(index([
+          release(),
+        ])),
+      ],
     })
     mountComponent(ChangelogView)
-    await expect.poll(() => document.querySelector('.v-alert')).not.toBeNull()
+    await expect.poll(() => document.querySelector('.v-alert')?.textContent).toContain('Boom')
+    await click('[data-test="retry"]')
+    await expect.poll(() => document.body.textContent).toContain('1.2.0')
+    expect(document.querySelector('.v-alert')).toBeNull()
+    expect(document.querySelector('[data-test="retry"]')).toBeNull()
+    expect(server.of('GET /changelog')).toHaveLength(2)
+  })
+
+  it('refetches and replaces the list when the locale changes', async () => {
+    i18n.global.setLocaleMessage('hu', (await import('../../../i18n/hu.json')).default)
+    const server = fakeApi({
+      'GET /changelog': [
+        json(index([
+          release(),
+        ])),
+        json(index([
+          release({ version: '2.0.0' }),
+        ])),
+      ],
+    })
+    mountComponent(ChangelogView)
+    await expect.poll(() => document.body.textContent).toContain('1.2.0')
+    i18n.global.locale.value = 'hu'
+    await expect.poll(() => document.body.textContent).toContain('2.0.0')
+    expect(document.body.textContent).not.toContain('1.2.0')
+    expect(server.of('GET /changelog')).toHaveLength(2)
   })
 })
