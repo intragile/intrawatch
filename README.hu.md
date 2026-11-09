@@ -16,7 +16,7 @@ docker run -d --name intrawatch --restart unless-stopped -p 3000:3000 \
 
 A kép `linux/amd64` és `linux/arm64` platformra elérhető a GitHub Container
 Registryben (`ghcr.io/intragile/intrawatch`) és a Docker Hubon
-(`intragile/intrawatch`), `1.1.1`, `1.1`, `1` és `latest` taggel. Rögzíts egy
+(`intragile/intrawatch`), `1.2.0`, `1.2`, `1` és `latest` taggel. Rögzíts egy
 verziótaget (például `:1.1`), ha te akarod eldönteni, mikor frissítesz. A képet
 forrásból is megépítheted:
 
@@ -1057,7 +1057,7 @@ A `scripts/build-image.sh` több platformra építi a képet egy helyi OCI-arch�
 `intrawatch-builder` nevű buildx buildert:
 
 ```bash
-scripts/build-image.sh --version 1.1.1 --platforms linux/amd64,linux/arm64 --out build
+scripts/build-image.sh --version 1.2.0 --platforms linux/amd64,linux/arm64 --out build
 ```
 
 A `--out` csak a `build/` (vagy alatta lévő) könyvtár, illetve a repón kívüli
@@ -1074,7 +1074,7 @@ meglévő `SMOKE_IMAGE`-et használ, a `--quick` pedig csak a monitor-, státusz
 admin- és importszakaszt futtatja, háromszoros időkorlátokkal:
 
 ```bash
-SMOKE_PLATFORM=linux/amd64 SMOKE_SKIP_BUILD=1 SMOKE_IMAGE=intrawatch:1.1.1-amd64 \
+SMOKE_PLATFORM=linux/amd64 SMOKE_SKIP_BUILD=1 SMOKE_IMAGE=intrawatch:1.2.0-amd64 \
   bash tests/docker/smoke.sh --quick
 ```
 
