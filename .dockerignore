@@ -26,6 +26,9 @@ docs/*
 docker/compose.example.yml
 *.md
 !README.md
+# The changelog API reads CHANGELOG.md and its translations at runtime.
+!CHANGELOG.md
+!CHANGELOG.*.md
 database/*.sqlite*
 storage/app/*
 storage/logs/*
