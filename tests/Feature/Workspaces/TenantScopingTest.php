@@ -81,6 +81,10 @@ class TenantScopingTest extends TestCase
                 if ($parameter === 'import' && ($wheres[$parameter] ?? null) === '[0-7][0-9a-hjkmnp-tv-zA-HJKMNP-TV-Z]{25}') {
                     continue;
                 }
+                // A changelog version is a release number from CHANGELOG.md, not a model id; the package answers 404 for an unknown one.
+                if ($parameter === 'version' && $route->uri() === 'api/v1/changelog/{version}') {
+                    continue;
+                }
                 if (is_string($parameter) && $parameter !== 'workspace' && ($wheres[$parameter] ?? null) !== '[0-9]+') {
                     $unconstrained[] = $route->uri().' {'.$parameter.'}';
                 }

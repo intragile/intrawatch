@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "89eb65a8993d0c492c87683120e71c78",
+    "content-hash": "788ecb51448e35808aa0c7ad69fc4f6e",
     "packages": [
         {
             "name": "amphp/amp",
@@ -2551,6 +2551,84 @@
                 }
             ],
             "time": "2026-08-24T17:13:02+00:00"
+        },
+        {
+            "name": "intragile/laravel-changelog",
+            "version": "v1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/intragile/laravel-changelog.git",
+                "reference": "4ef66d2bd174832d66f2dacef3f2fd44ae06b5c1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/intragile/laravel-changelog/zipball/4ef66d2bd174832d66f2dacef3f2fd44ae06b5c1",
+                "reference": "4ef66d2bd174832d66f2dacef3f2fd44ae06b5c1",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/auth": "^12.0|^13.0",
+                "illuminate/console": "^12.0|^13.0",
+                "illuminate/contracts": "^12.0|^13.0",
+                "illuminate/http": "^12.0|^13.0",
+                "illuminate/routing": "^12.0|^13.0",
+                "illuminate/support": "^12.0|^13.0",
+                "illuminate/validation": "^12.0|^13.0",
+                "league/commonmark": "^2.6",
+                "php": "^8.3"
+            },
+            "conflict": {
+                "illuminate/support": "<12.0"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.20",
+                "orchestra/testbench": "^10.0|^11.0",
+                "phpunit/phpunit": "^12.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "IntrAgile\\Changelog\\ChangelogServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "IntrAgile\\Changelog\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "IntrAgile Kft.",
+                    "email": "info@intragile.eu",
+                    "homepage": "https://intragile.eu"
+                }
+            ],
+            "description": "Serves a Laravel app's Keep a Changelog CHANGELOG.md, with per-locale translations, over a JSON API, and checks the file with an artisan command.",
+            "homepage": "https://intragile.eu",
+            "keywords": [
+                "api",
+                "changelog",
+                "i18n",
+                "keep-a-changelog",
+                "kiadási jegyzet",
+                "laravel",
+                "markdown",
+                "release-notes",
+                "változásnapló"
+            ],
+            "support": {
+                "issues": "https://github.com/intragile/laravel-changelog/issues",
+                "security": "https://github.com/intragile/laravel-changelog/security/policy",
+                "source": "https://github.com/intragile/laravel-changelog"
+            },
+            "time": "2026-11-09T22:23:27+00:00"
         },
         {
             "name": "jeremykendall/php-domain-parser",

@@ -488,6 +488,263 @@
                 }
             }
         },
+        "/changelog": {
+            "get": {
+                "operationId": "changelog.index",
+                "description": "`locale` is the resolved language; `fallback` is true when any returned release is shown in the base language\nbecause it has no translation.",
+                "summary": "List the releases, newest first, paginated",
+                "tags": [
+                    "Changelog"
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "version": {
+                                                        "type": "string"
+                                                    },
+                                                    "date": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "url": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "unreleased": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "yanked": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "summary_html": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "groups": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "summary_html": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "items": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "html": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "text": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "html",
+                                                                            "text"
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "name",
+                                                                "summary_html",
+                                                                "items"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "locale": {
+                                                        "type": "string"
+                                                    },
+                                                    "fallback": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "version",
+                                                    "date",
+                                                    "url",
+                                                    "unreleased",
+                                                    "yanked",
+                                                    "summary_html",
+                                                    "groups",
+                                                    "locale",
+                                                    "fallback"
+                                                ]
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer"
+                                                },
+                                                "last_page": {
+                                                    "type": "integer"
+                                                },
+                                                "per_page": {
+                                                    "type": "integer"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "last_page",
+                                                "per_page",
+                                                "total"
+                                            ]
+                                        },
+                                        "locale": {
+                                            "type": "string"
+                                        },
+                                        "fallback": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta",
+                                        "locale",
+                                        "fallback"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/changelog/latest": {
+            "get": {
+                "operationId": "changelog.latest",
+                "summary": "The newest released version",
+                "tags": [
+                    "Changelog"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ReleaseResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ReleaseResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/changelog/{version}": {
+            "get": {
+                "operationId": "changelog.show",
+                "summary": "One release by version number",
+                "tags": [
+                    "Changelog"
+                ],
+                "parameters": [
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ReleaseResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ReleaseResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/invitations/accept": {
             "post": {
                 "operationId": "invitation.accept",
@@ -12929,6 +13186,96 @@
                     "name"
                 ],
                 "title": "NotificationChannelRequest"
+            },
+            "ReleaseResource": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "string"
+                    },
+                    "date": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "unreleased": {
+                        "type": "boolean"
+                    },
+                    "yanked": {
+                        "type": "boolean"
+                    },
+                    "summary_html": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "groups": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "summary_html": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "html": {
+                                                "type": "string"
+                                            },
+                                            "text": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "html",
+                                            "text"
+                                        ]
+                                    }
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "summary_html",
+                                "items"
+                            ]
+                        }
+                    },
+                    "locale": {
+                        "type": "string"
+                    },
+                    "fallback": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "version",
+                    "date",
+                    "url",
+                    "unreleased",
+                    "yanked",
+                    "summary_html",
+                    "groups",
+                    "locale",
+                    "fallback"
+                ],
+                "title": "ReleaseResource"
             },
             "SendPasswordResetLinkRequest": {
                 "type": "object",

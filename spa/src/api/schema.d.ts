@@ -210,6 +210,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/changelog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the releases, newest first, paginated
+         * @description `locale` is the resolved language; `fallback` is true when any returned release is shown in the base language
+         *     because it has no translation.
+         */
+        get: operations["changelog.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/changelog/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The newest released version */
+        get: operations["changelog.latest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/changelog/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One release by version number */
+        get: operations["changelog.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/invitations/accept": {
         parameters: {
             query?: never;
@@ -1260,6 +1315,25 @@ export interface components {
                 } | null;
             };
         };
+        /** ReleaseResource */
+        ReleaseResource: {
+            version: string;
+            date: string | null;
+            url: string | null;
+            unreleased: boolean;
+            yanked: boolean;
+            summary_html: string | null;
+            groups: {
+                name: string;
+                summary_html: string | null;
+                items: {
+                    html: string;
+                    text: string;
+                }[];
+            }[];
+            locale: string;
+            fallback: boolean;
+        };
         /** SendPasswordResetLinkRequest */
         SendPasswordResetLinkRequest: {
             /** Format: email */
@@ -1884,6 +1958,107 @@ export interface operations {
                 content: {
                     "application/json": {
                         secretKey: unknown;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "changelog.index": {
+        parameters: {
+            query?: {
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            version: string;
+                            date: string | null;
+                            url: string | null;
+                            unreleased: boolean;
+                            yanked: boolean;
+                            summary_html: string | null;
+                            groups: {
+                                name: string;
+                                summary_html: string | null;
+                                items: {
+                                    html: string;
+                                    text: string;
+                                }[];
+                            }[];
+                            locale: string;
+                            fallback: boolean;
+                        }[];
+                        meta: {
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                        };
+                        locale: string;
+                        fallback: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "changelog.latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `ReleaseResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ReleaseResource"];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+        };
+    };
+    "changelog.show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `ReleaseResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ReleaseResource"];
                     };
                 };
             };

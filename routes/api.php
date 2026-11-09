@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\PingController;
 use Illuminate\Support\Facades\Route;
+use IntrAgile\Changelog\Facades\Changelog;
 
 Route::prefix('v1')->group(function (): void {
     Route::get('/ping', PingController::class);
@@ -45,6 +46,9 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/me', MeController::class);
+
+        // The release notes of this installation, from CHANGELOG.md; any signed-in user or token, whatever its abilities.
+        Changelog::routes();
 
         Route::get('/monitor-types', MonitorTypeController::class);
         Route::get('/notification-channel-types', NotificationChannelTypeController::class);
