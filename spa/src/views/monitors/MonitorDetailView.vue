@@ -291,6 +291,8 @@ const target = computed(() => monitor.value
   ? monitorTarget(monitor.value)
   : '')
 
+const isGroup = computed(() => monitor.value?.type === 'group')
+
 /** Beats for the large strip: the live list's beats, else the newest loaded results. */
 const STRIP_SLOTS = 50
 const stripBeats = computed(() => {
@@ -303,6 +305,9 @@ const stripBeats = computed(() => {
     at: r.checked_at,
   }))
 })
+
+/** No beats yet because the results are still on their way, not because there are none. */
+const stripPending = computed(() => stripBeats.value.length === 0 && results.loading.value)
 
 void load()
 </script>
@@ -357,9 +362,9 @@ void load()
       </header>
 
       <section class="strip" :aria-label="t('monitorDetail.strip.label')">
-        <HeartbeatBar :beats="stripBeats" :slots="STRIP_SLOTS" size="large" />
-        <div class="strip-scale">
-          <span>{{ t('monitorDetail.strip.count', { count: STRIP_SLOTS }) }}</span>
+        <HeartbeatBar :beats="stripBeats" :slots="STRIP_SLOTS" size="large" :group="isGroup" :pending="stripPending" />
+        <div v-if="!isGroup || stripBeats.length > 0" class="strip-scale">
+          <span>{{ t(isGroup ? 'monitorDetail.strip.groupCount' : 'monitorDetail.strip.count', { count: STRIP_SLOTS }) }}</span>
           <span>{{ t('monitorDetail.strip.now') }}</span>
         </div>
       </section>

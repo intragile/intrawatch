@@ -4,6 +4,7 @@ namespace Tests\Feature\Monitoring;
 
 use App\Enums\MonitorStatus;
 use App\Enums\WorkspaceRole;
+use App\Events\ChecksRecorded;
 use App\Events\MonitorStatusChanged;
 use App\Models\CheckResult;
 use App\Models\Monitor;
@@ -146,6 +147,42 @@ class GroupEvaluatorTest extends TestCase
 
         $this->assertSame([1, 1, 2], $counts);
         $this->assertSame(1, MonitorEvent::where('monitor_id', $group->id)->count());
+    }
+
+    public function test_group_results_are_broadcast_with_the_child_checks(): void
+    {
+        Event::fake([ChecksRecorded::class, MonitorStatusChanged::class]);
+        [$group, [$child]] = $this->groupOf('all', [MonitorStatus::Up]);
+        $this->setStatus($group, MonitorStatus::Up);
+
+        $this->app->make(ResultRecorder::class)->record([
+            [MonitorSpec::fromModel($child), CheckOutcome::down('boom'), CarbonImmutable::now(), 1],
+        ]);
+
+        $stored = CheckResult::where('monitor_id', $group->id)->sole()->checked_at->toIso8601ZuluString();
+        Event::assertDispatched(ChecksRecorded::class, function (ChecksRecorded $e) use ($group, $child, $stored): bool {
+            $byId = array_column($e->checks, null, 'monitor_id');
+
+            return ($byId[$child->id]['status'] ?? null) === 'down'
+                && ($byId[$group->id]['status'] ?? null) === 'down'
+                && $byId[$group->id]['latency_ms'] === null
+                && $byId[$group->id]['checked_at'] === $stored
+                && count(array_keys(array_column($e->checks, 'monitor_id'), $group->id)) === 1;
+        });
+    }
+
+    public function test_an_unchanged_group_that_is_not_due_is_not_broadcast(): void
+    {
+        Event::fake([ChecksRecorded::class, MonitorStatusChanged::class]);
+        [$group, [$child]] = $this->groupOf('all', [MonitorStatus::Up]);
+        $recorder = $this->app->make(ResultRecorder::class);
+        $recorder->record([[MonitorSpec::fromModel($child), CheckOutcome::up(20), CarbonImmutable::now(), 1]]);
+        Event::fake([ChecksRecorded::class, MonitorStatusChanged::class]);
+
+        $recorder->record([[MonitorSpec::fromModel($child), CheckOutcome::up(25), CarbonImmutable::now(), 1]]);
+
+        Event::assertDispatched(ChecksRecorded::class, fn (ChecksRecorded $e): bool => array_column($e->checks, 'monitor_id') === [$child->id]);
+        $this->assertSame(1, $this->resultCount($group));
     }
 
     public function test_nested_groups_propagate_within_one_record_call(): void

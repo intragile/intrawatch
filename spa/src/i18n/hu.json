@@ -349,7 +349,9 @@
     },
     "beats": {
       "label": "Utolsó {count} ellenőrzés: {up} sikeres, {down} hibás, {other} egyéb",
-      "none": "Még nem érkezett ellenőrzés"
+      "none": "Még nem érkezett ellenőrzés",
+      "groupLabel": "Utolsó {count} csoport-kiértékelés: {up} működik, {down} leállt, {other} egyéb",
+      "groupNone": "Még nincs kiértékelés: a csoport állapota a tagjaiból adódik"
     },
     "summary": {
       "label": "A betöltött monitorok állapota",
@@ -677,7 +679,8 @@
     "strip": {
       "label": "Legutóbbi ellenőrzések",
       "count": "Legutóbbi {count} ellenőrzés",
-      "now": "most"
+      "now": "most",
+      "groupCount": "Legutóbbi {count} kiértékelés"
     }
   },
   "channels": {

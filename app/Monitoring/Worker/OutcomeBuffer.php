@@ -388,6 +388,13 @@ final class OutcomeBuffer
             $this->release($key, $transition);
             unset($this->queue[$key]);
         }
+
+        if ($batch->groupTransitions !== []) {
+            $now = $this->clock->now();
+            foreach ($batch->groupTransitions as $transition) {
+                $this->unbroadcast[$transition->workspaceId][$transition->monitorId] = ResultRecorder::groupCheck($transition, $now);
+            }
+        }
     }
 
     /**

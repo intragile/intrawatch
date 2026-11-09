@@ -389,6 +389,27 @@ class WorkerTest extends TestCase
         $this->assertSame([$first->id => 11, $second->id => 9], $checks, 'only the latest check per monitor');
     }
 
+    public function test_group_evaluations_ride_along_with_the_check_broadcast(): void
+    {
+        $dispatched = [];
+        Event::listen(ChecksRecorded::class, function (ChecksRecorded $e) use (&$dispatched): void {
+            $dispatched[] = $e;
+        });
+        $group = Monitor::factory()->for($this->ws)->group()->create();
+        [$child] = $this->tcpMonitors(1, ['parent_id' => $group->id, 'retries' => 0]);
+        $buffer = $this->buffer();
+
+        $buffer->push(MonitorSpec::fromModel($child), CheckOutcome::down('refused'), $this->clock->now(), 0, function (): void {});
+        $buffer->flush();
+        $buffer->broadcast(true);
+
+        $this->assertCount(1, $dispatched);
+        $checks = array_column(array_slice($dispatched, 0)[0]->checks, null, 'monitor_id');
+        $this->assertSame('down', $checks[$child->id]['status'] ?? null);
+        $stored = CheckResult::where('monitor_id', $group->id)->sole()->checked_at;
+        $this->assertSame(['monitor_id' => $group->id, 'status' => 'down', 'latency_ms' => null, 'checked_at' => $stored->toIso8601ZuluString()], $checks[$group->id] ?? null, 'the stamp of the stored group row');
+    }
+
     public function test_status_command_reports_stale_shard(): void
     {
         config(['monitoring.worker.shards_total' => 2]);

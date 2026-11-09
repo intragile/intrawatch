@@ -221,6 +221,7 @@ final class DatabaseGroupEvaluator implements GroupEvaluator
                 nextDelaySeconds: $this->int($group->interval_seconds),
                 message: $message,
                 previousSince: $since,
+                checkedAt: $now->startOfSecond(),
             );
         }
     }

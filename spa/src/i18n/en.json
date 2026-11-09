@@ -349,7 +349,9 @@
     },
     "beats": {
       "label": "Last {count} checks: {up} up, {down} down, {other} other",
-      "none": "No checks received yet"
+      "none": "No checks received yet",
+      "groupLabel": "Last {count} group evaluations: {up} up, {down} down, {other} other",
+      "groupNone": "No evaluations yet: a group’s status comes from its members"
     },
     "summary": {
       "label": "Status of loaded monitors",
@@ -677,7 +679,8 @@
     "strip": {
       "label": "Recent checks",
       "count": "Last {count} checks",
-      "now": "now"
+      "now": "now",
+      "groupCount": "Last {count} evaluations"
     }
   },
   "channels": {

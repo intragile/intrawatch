@@ -126,7 +126,7 @@ function onRowClick(event: MouseEvent): void {
       <time class="since" :datetime="monitor.state.since" :title="absolute">{{ since }}</time>
     </span>
     <span class="strip">
-      <HeartbeatBar :beats="beats" :slots="40" />
+      <HeartbeatBar :beats="beats" :slots="40" :group="monitor.type === 'group'" />
     </span>
   </li>
 </template>

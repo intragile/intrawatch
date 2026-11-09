@@ -227,6 +227,14 @@ final class ResultRecorder
         array_push($jobs, ...AlertSignals::queue($events));
 
         if ($broadcastChecks) {
+            // A group reached at two levels yields twice; like the worker's buffer, only its latest evaluation goes out.
+            $groupChecks = [];
+            foreach ($groupTransitions as $transition) {
+                $groupChecks[$transition->workspaceId][$transition->monitorId] = self::groupCheck($transition, $now);
+            }
+            foreach ($groupChecks as $workspaceId => $list) {
+                $checks[$workspaceId] = [...($checks[$workspaceId] ?? []), ...array_values($list)];
+            }
             foreach ($checks as $workspaceId => $list) {
                 foreach (array_chunk($list, self::BROADCAST_CHUNK) as $chunk) {
                     $events[] = new ChecksRecorded($workspaceId, $chunk);
@@ -235,6 +243,24 @@ final class ResultRecorder
         }
 
         return new RecordedBatch($transitions, $groupTransitions);
+    }
+
+    /**
+     * The live check entry of a group evaluation. Every group transition stands for a result row the group
+     * evaluator wrote, so broadcasting it keeps a group's heartbeat strip moving along with its children's. The
+     * checked_at is the one stamped on that row, so a reload does not show the same evaluation twice; $fallback
+     * only applies to a transition that carries none.
+     *
+     * @return array{monitor_id: int, status: string, latency_ms: null, checked_at: string}
+     */
+    public static function groupCheck(Transition $transition, CarbonImmutable $fallback): array
+    {
+        return [
+            'monitor_id' => $transition->monitorId,
+            'status' => $transition->effective->value,
+            'latency_ms' => null,
+            'checked_at' => ($transition->checkedAt ?? $fallback)->toIso8601ZuluString(),
+        ];
     }
 
     /**
