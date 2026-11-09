@@ -22,12 +22,17 @@
 @font-face{font-family:"Barlow Semi Condensed";font-weight:600;font-display:swap;src:url(/fonts/barlow-semi-condensed-latin-ext-600-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 
 :root{--accent: {{ $accent }};--bg:#f2f4f7;--card:#fff;--text:#17202b;--muted:#526070;--line:#d3dae2;
---operational:{{ \App\Status\Pages\Svg::color(\App\Enums\DisplayStatus::Operational) }};--degraded:{{ \App\Status\Pages\Svg::color(\App\Enums\DisplayStatus::Degraded) }};
---partial_outage:{{ \App\Status\Pages\Svg::color(\App\Enums\DisplayStatus::PartialOutage) }};--major_outage:{{ \App\Status\Pages\Svg::color(\App\Enums\DisplayStatus::MajorOutage) }};
---maintenance:{{ \App\Status\Pages\Svg::color(\App\Enums\DisplayStatus::Maintenance) }};--unknown:{{ \App\Status\Pages\Svg::color(\App\Enums\DisplayStatus::Unknown) }};
---t-operational:#157f4d;--t-degraded:#8c5b00;--t-partial_outage:#a84b00;--t-major_outage:#bf2d35;--t-maintenance:#1f64a8;--t-unknown:var(--muted)}
+@foreach (\App\Enums\DisplayStatus::cases() as $status)
+@if ($status === \App\Enums\DisplayStatus::Unknown)
+--unknown:#b5bdc8;--b-unknown:{{ \App\Status\Pages\Svg::color($status) }};
+@else
+--{{ $status->value }}:{{ \App\Status\Pages\Svg::color($status) }};--b-{{ $status->value }}:var(--{{ $status->value }});
+@endif
+@endforeach
+--t-operational:#157f4d;--t-degraded:#8c5b00;--t-partial_outage:#a84b00;--t-major_outage:#bf2d35;--t-maintenance:#6448b8;--t-unknown:var(--muted)}
 @media (prefers-color-scheme:dark){:root{--bg:#111821;--card:#18212c;--text:#e6eaf0;--muted:#9aa6b6;--line:#2a3544;
---t-operational:#55c990;--t-degraded:#ebbb55;--t-partial_outage:#f2a35e;--t-major_outage:#f4878b;--t-maintenance:#7db1ee}}
+--operational:#2fa36a;--degraded:#d69a1c;--partial_outage:#df7a36;--major_outage:#e0464e;--maintenance:#8467d6;--unknown:#465163;--b-unknown:#243040;
+--t-operational:#55c990;--t-degraded:#ebbb55;--t-partial_outage:#f2a35e;--t-major_outage:#f4878b;--t-maintenance:#b19ef3}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.5 Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
 main{max-width:860px;margin:0 auto;padding:32px 16px 56px}
@@ -60,6 +65,10 @@ h3{font-size:1rem;font-weight:600;margin:0}
 .status.partial_outage{color:var(--t-partial_outage)}.status.major_outage{color:var(--t-major_outage)}
 .status.maintenance{color:var(--t-maintenance)}.status.unknown{color:var(--t-unknown)}
 svg.bars{display:block;width:100%;height:30px;margin-top:10px}
+svg.bars .b-operational{fill:var(--b-operational);stroke:var(--b-operational)}svg.bars .b-degraded{fill:var(--b-degraded);stroke:var(--b-degraded)}
+svg.bars .b-partial_outage{fill:var(--b-partial_outage);stroke:var(--b-partial_outage)}svg.bars .b-major_outage{fill:var(--b-major_outage);stroke:var(--b-major_outage)}
+svg.bars .b-maintenance{fill:var(--b-maintenance);stroke:var(--b-maintenance)}svg.bars .b-unknown{fill:var(--b-unknown);stroke:var(--b-unknown)}
+svg.bars path[class]{fill:none}
 svg.spark{display:block;width:100%;height:30px;margin-top:6px;fill:none;stroke:var(--accent);stroke-width:1.5}
 svg.spark circle{fill:var(--accent);stroke:none}
 .scale{display:flex;justify-content:space-between;gap:8px;margin-top:4px;font-size:.8125em;color:var(--muted)}

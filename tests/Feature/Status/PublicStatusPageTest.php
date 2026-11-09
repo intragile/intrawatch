@@ -24,6 +24,7 @@ use App\Status\Pages\PageRenderer;
 use App\Status\Pages\PageStamps;
 use App\Status\Pages\PageView;
 use App\Status\Pages\SectionView;
+use App\Status\Pages\Svg;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -499,6 +500,25 @@ class PublicStatusPageTest extends TestCase
             $this->get('http://other.example.org/up')->assertOk();
             $this->assertSame($tried, $attempts());
         });
+    }
+
+    public function test_every_bar_status_is_coloured_from_the_theme_tokens_in_both_schemes(): void
+    {
+        $html = (string) $this->get('/status/acme')->assertOk()->getContent();
+        [$light, $dark] = explode('@media (prefers-color-scheme:dark)', $html, 2);
+
+        foreach (DisplayStatus::cases() as $status) {
+            $class = Svg::barClass($status);
+            $this->assertStringContainsString("svg.bars .{$class}{fill:var(--{$class});stroke:var(--{$class})}", $html);
+            $this->assertMatchesRegularExpression('/--'.preg_quote($class, '/').':[^;]+;/', $light, "{$class} has no light value");
+            // The light bar colour is the SVG's own fill fallback, so the two cannot drift apart.
+            $token = $status === DisplayStatus::Unknown ? $class : $status->value;
+            $this->assertStringContainsString("--{$token}:".Svg::color($status).';', $light, "{$token} differs from Svg::color()");
+        }
+        // The dark scheme redefines the colours the bar tokens point at, and the empty-day colour of its own.
+        foreach (['operational', 'degraded', 'partial_outage', 'major_outage', 'maintenance', 'b-unknown'] as $token) {
+            $this->assertMatchesRegularExpression('/--'.$token.':#[0-9a-f]{6}/', strstr($dark, '}}', true) ?: '', "{$token} has no dark value");
+        }
     }
 
     public function test_worst_case_page_stays_small(): void

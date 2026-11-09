@@ -23,8 +23,8 @@ class SvgTest extends TestCase
         $this->assertStringStartsWith('<svg ', $svg);
         $this->assertStringContainsString('viewBox="0 0 20 30"', $svg);
         $this->assertStringContainsString('aria-label="API, last 4 days"><title>API, last 4 days</title>', $svg);
-        $this->assertStringContainsString('<path d="M0 15h9M15 15h4" fill="none" stroke="'.Svg::color(DisplayStatus::Operational).'" stroke-width="30" stroke-dasharray="4 1"/>', $svg);
-        $this->assertStringContainsString('<path d="M10 15h4" fill="none" stroke="'.Svg::color(DisplayStatus::Unknown).'"', $svg);
+        $this->assertStringContainsString('<path class="b-operational" d="M0 15h9M15 15h4" fill="none" stroke="'.Svg::color(DisplayStatus::Operational).'" stroke-width="30" stroke-dasharray="4 1"/>', $svg);
+        $this->assertStringContainsString('<path class="b-unknown" d="M10 15h4" fill="none" stroke="'.Svg::color(DisplayStatus::Unknown).'"', $svg);
         $this->assertStringNotContainsString('<rect', $svg);
         $this->assertSame(1, substr_count($svg, '<title>'));
     }
@@ -41,9 +41,9 @@ class SvgTest extends TestCase
         $svg = Svg::bars($bars, fn (DayBar $bar): string => $bar->date);
 
         $this->assertSame(2, substr_count($svg, '<rect '));
-        $this->assertStringContainsString('<rect x="5" width="4" height="30" fill="'.Svg::color(DisplayStatus::MajorOutage).'"><title>2026-11-02</title></rect>', $svg);
-        $this->assertStringContainsString('<rect x="10" width="4" height="30" fill="'.Svg::color(DisplayStatus::Maintenance).'"><title>2026-11-03</title></rect>', $svg);
-        $this->assertStringContainsString('<path d="M0 15h4M15 15h4"', $svg);
+        $this->assertStringContainsString('<rect class="b-major_outage" x="5" width="4" height="30" fill="'.Svg::color(DisplayStatus::MajorOutage).'"><title>2026-11-02</title></rect>', $svg);
+        $this->assertStringContainsString('<rect class="b-maintenance" x="10" width="4" height="30" fill="'.Svg::color(DisplayStatus::Maintenance).'"><title>2026-11-03</title></rect>', $svg);
+        $this->assertStringContainsString('<path class="b-operational" d="M0 15h4M15 15h4"', $svg);
     }
 
     public function test_a_year_of_healthy_days_is_small(): void
@@ -55,7 +55,7 @@ class SvgTest extends TestCase
 
         $svg = Svg::bars($bars, fn (DayBar $bar): string => $bar->date, 'API');
 
-        $this->assertStringContainsString('<path d="M0 15h1824"', $svg);
+        $this->assertStringContainsString('<path class="b-operational" d="M0 15h1824"', $svg);
         $this->assertLessThan(400, strlen($svg));
     }
 

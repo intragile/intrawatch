@@ -23,16 +23,29 @@ final class Svg
 
     private const LINE_PADDING = 2;
 
+    /**
+     * The light-theme fill of a status, the admin's heartbeat palette plus an orange for a partial outage. It is
+     * the presentation attribute of every bar, so a bar keeps its colour without the page stylesheet; the page
+     * overrides it through the bar's class with the `--b-*` tokens, which also carry the dark theme.
+     */
     public static function color(DisplayStatus $status): string
     {
         return match ($status) {
-            DisplayStatus::Operational => '#22a06b',
-            DisplayStatus::Degraded => '#d9a400',
-            DisplayStatus::PartialOutage => '#e8730c',
-            DisplayStatus::MajorOutage => '#d93838',
-            DisplayStatus::Maintenance => '#3b7ddd',
-            DisplayStatus::Unknown => '#b8bec7',
+            DisplayStatus::Operational => '#22a565',
+            DisplayStatus::Degraded => '#e0a11b',
+            DisplayStatus::PartialOutage => '#e5762a',
+            DisplayStatus::MajorOutage => '#d93a42',
+            DisplayStatus::Maintenance => '#8467d6',
+            DisplayStatus::Unknown => '#e2e7ed',
         };
+    }
+
+    /**
+     * The class a bar of this status carries; the page colours it with the matching `--b-*` token.
+     */
+    public static function barClass(DisplayStatus $status): string
+    {
+        return 'b-'.$status->value;
     }
 
     /**
@@ -52,31 +65,32 @@ final class Svg
             .'" preserveAspectRatio="none" role="img"'.($summary === '' ? '' : ' aria-label="'.$label.'"').'>'
             .($summary === '' ? '' : '<title>'.$label.'</title>');
 
-        // Subpaths by colour: one dashed stroke per run of consecutive same-coloured days without a tooltip.
+        // Subpaths by status: one dashed stroke per run of consecutive same-status days without a tooltip.
         $runs = [];
         $rects = '';
         $runStart = 0;
-        $runColor = null;
+        $runKey = null;
         $count = count($bars);
         for ($index = 0; $index <= $count; $index++) {
             $bar = $bars[$index] ?? null;
-            $color = $bar === null || self::hasTooltip($bar->status) ? null : self::color($bar->status);
-            if ($runColor !== null && $color !== $runColor) {
+            $key = $bar === null || self::hasTooltip($bar->status) ? null : $bar->status->value;
+            if ($runKey !== null && $key !== $runKey) {
                 $length = ($index - $runStart) * self::BAR_STEP - (self::BAR_STEP - self::BAR_WIDTH);
-                $runs[$runColor][] = 'M'.($runStart * self::BAR_STEP).' '.(self::BAR_HEIGHT / 2).'h'.$length;
+                $runs[$runKey][] = 'M'.($runStart * self::BAR_STEP).' '.(self::BAR_HEIGHT / 2).'h'.$length;
             }
-            if ($color !== null && $color !== $runColor) {
+            if ($key !== null && $key !== $runKey) {
                 $runStart = $index;
             }
-            $runColor = $color;
-            if ($bar !== null && $color === null) {
-                $rects .= '<rect x="'.($index * self::BAR_STEP).'" width="'.self::BAR_WIDTH.'" height="'.self::BAR_HEIGHT
+            $runKey = $key;
+            if ($bar !== null && $key === null) {
+                $rects .= '<rect class="'.self::barClass($bar->status).'" x="'.($index * self::BAR_STEP).'" width="'.self::BAR_WIDTH.'" height="'.self::BAR_HEIGHT
                     .'" fill="'.self::color($bar->status).'"><title>'.self::escape($title($bar)).'</title></rect>';
             }
         }
 
-        foreach ($runs as $color => $subpaths) {
-            $svg .= '<path d="'.implode('', $subpaths).'" fill="none" stroke="'.$color.'" stroke-width="'.self::BAR_HEIGHT
+        foreach ($runs as $value => $subpaths) {
+            $status = DisplayStatus::from($value);
+            $svg .= '<path class="'.self::barClass($status).'" d="'.implode('', $subpaths).'" fill="none" stroke="'.self::color($status).'" stroke-width="'.self::BAR_HEIGHT
                 .'" stroke-dasharray="'.self::BAR_WIDTH.' '.(self::BAR_STEP - self::BAR_WIDTH).'"/>';
         }
 
