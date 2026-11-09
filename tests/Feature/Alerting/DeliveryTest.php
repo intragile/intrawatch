@@ -193,10 +193,10 @@ class DeliveryTest extends SenderTestCase
         $this->assertSame(0, AlertEvent::count());
         $this->assertCount(0, $this->history);
 
-        $this->assertSame(0, Artisan::call('queue:work', ['--stop-when-empty' => true, '--queue' => 'default']));
+        $this->assertSame(0, $this->workQueue('default'));
         $this->assertSame(1000, AlertEvent::where('kind', AlertKind::Down->value)->count());
         $this->assertSame(1005, DB::table('jobs')->where('queue', 'notifications')->count());
-        $this->assertSame(0, Artisan::call('queue:work', ['--stop-when-empty' => true, '--queue' => 'notifications']));
+        $this->assertSame(0, $this->workQueue('notifications'));
         $this->assertSame(0, DB::table('jobs')->count());
         $this->assertSame(0, DB::table('failed_jobs')->count());
 

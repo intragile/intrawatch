@@ -283,7 +283,7 @@ class AlertPipelineTest extends TestCase
         $this->assertStringContainsString(str_replace('\\', '\\\\', EvaluateAlerts::class), $job->payload);
         $this->assertSame(0, AlertEvent::count(), 'the evaluation runs on the queue, not in the recorder');
 
-        $this->assertSame(0, Artisan::call('queue:work', ['--stop-when-empty' => true, '--queue' => 'default']));
+        $this->assertSame(0, $this->workQueue('default'));
 
         $this->assertSame(AlertKind::Down, AlertEvent::sole()->kind);
         $delivery = AlertDelivery::sole();

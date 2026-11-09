@@ -4,6 +4,7 @@ namespace Tests;
 
 use App\Listeners\StampStatusPages;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 
@@ -24,5 +25,15 @@ abstract class TestCase extends BaseTestCase
         ]);
         Cache::forgetDriver('status_pages');
         StampStatusPages::reset();
+    }
+
+    /**
+     * Runs the queue worker until the queue is empty and returns its exit code. The worker stops with exit
+     * code 12 once the process uses more than its --memory limit (128 MB by default), and late in a full test
+     * run this process is far past that, so the limit is lifted here; phpunit.xml's memory_limit still applies.
+     */
+    protected function workQueue(string $queue): int
+    {
+        return Artisan::call('queue:work', ['--stop-when-empty' => true, '--queue' => $queue, '--memory' => 1_000_000]);
     }
 }
