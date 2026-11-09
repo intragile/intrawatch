@@ -6,6 +6,26 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Admin interface
+
+- A group's heartbeat strip also moves live when the group is re-evaluated by
+  a change rather than a check: pausing, resuming, moving, deleting or adding
+  a member, editing the group, or a maintenance window starting or ending.
+- The scale under a monitor's heartbeat strip counts the checks it shows
+  instead of always saying 50.
+
+### Public status page
+
+- Major outage days are hatched as well as red, like a down beat in the admin
+  interface, so they read without colour.
+
+### Docker image
+
+- The image labels name IntraWatch's own commit, build time and project URL
+  instead of the ones inherited from the FrankenPHP base image.
+
 ## [1.1.1] - 2026-11-09
 
 Fixes to the 1.1.0 redesign.
