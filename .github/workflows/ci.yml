@@ -129,6 +129,12 @@ jobs:
           php artisan scramble:export --path=/tmp/o.json
           diff -q /tmp/o.json docs/openapi.json
 
+      # CHANGELOG.md parses and every translation (CHANGELOG.hu.md) has its versions and dates.
+      - name: Changelog check
+        if: matrix.db == 'sqlite'
+        timeout-minutes: 2
+        run: php artisan changelog:check
+
   spa:
     runs-on: ubuntu-latest
     timeout-minutes: 20

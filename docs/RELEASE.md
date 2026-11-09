@@ -18,6 +18,13 @@ Run every command from the repository root. Replace `1.0.0` for later releases.
    grep -n 'ARG APP_VERSION' docker/Dockerfile  # expect: ARG APP_VERSION=dev (the build passes the release version)
    ```
 
+   `CHANGELOG.hu.md` gets the version too (Dávid reviews the translation), and
+   `php artisan changelog:check` is green.
+
+   ```bash
+   php artisan changelog:check   # expect: Changelog check passed. (exit 0)
+   ```
+
 2. **Three-database suite** (SQLite, MySQL 8.4, PostgreSQL 16).
 
    ```bash
