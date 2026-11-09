@@ -142,20 +142,19 @@ docker run --rm --cpus=2 intrawatch:bench-rel \
 One check worker, SQLite, inside the image, against a local target that
 answers in 50 to 300 ms. Passed.
 
-Re-run for 1.1.1, which changed the worker's broadcast and the status page
-bars, back to back with the published 1.1.0 image under the same load. An
-earlier 1.1.1 run on a busier VM gave a p95 of 39 ms and a maximum of 522 ms;
-the back-to-back pair below shows no difference between the versions.
+Re-run for 1.2.0, which broadcasts group evaluations from every recompute
+path, back to back with the published 1.1.1 image under the same load. The
+pair shows no difference between the versions.
 
-| Metric | 1.1.1 | 1.1.0 |
+| Metric | 1.2.0 | 1.1.1 |
 |---|---:|---:|
 | Checks | 3 000 (expected at least 3 000) | 3 000 |
 | Checks not up | 0 | 0 |
-| Checks per minute | 999.6 | 1 000.0 |
+| Checks per minute | 999.7 | 999.9 |
 | Drift p50 | 4 ms | 4 ms |
-| Drift p95 | 12 ms | 13 ms |
-| Drift max | 82 ms | 93 ms |
-| Longest result flush | 47 ms | 72 ms |
+| Drift p95 | 11 ms | 11 ms |
+| Drift max | 44 ms | 91 ms |
+| Longest result flush | 69 ms | 61 ms |
 
 ## Status pages: 300 pages, in-process
 
@@ -168,14 +167,17 @@ SQLite, inside the image, requests sent through the application in-process (no
 web server). The warm pass mixes the page, its feeds, summary and badge.
 Passed.
 
-Re-run for 1.1.1 back to back with the published 1.1.0 image, as above.
+Re-run for 1.2.0, which hatches major outage days in the status page bars,
+back to back with the published 1.1.1 image, as above. The warm p95 of 1.2.0
+is 0.8 ms higher in this single run on the shared VM; both stay far below the
+100 ms threshold.
 
 | Version | Pass | Requests | p50 (ms) | p95 (ms) | Max (ms) |
 |---|---|---:|---:|---:|---:|
-| 1.1.1 | cold | 300 | 42.91 | 70.87 | 217.46 |
-| 1.1.1 | warm | 3 000 | 0.90 | 1.36 | 17.80 |
-| 1.1.0 | cold | 300 | 40.32 | 61.06 | 139.51 |
-| 1.1.0 | warm | 3 000 | 0.93 | 1.87 | 114.92 |
+| 1.2.0 | cold | 300 | 39.78 | 52.88 | 221.51 |
+| 1.2.0 | warm | 3 000 | 0.90 | 2.06 | 146.91 |
+| 1.1.1 | cold | 300 | 40.37 | 55.71 | 232.02 |
+| 1.1.1 | warm | 3 000 | 0.87 | 1.25 | 23.43 |
 
 Database queries during the warm pass: 0 for both.
 
