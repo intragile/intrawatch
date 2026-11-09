@@ -41,7 +41,7 @@ Javítások az 1.1.0-s megújításhoz.
 
 - A natív dátumválasztók követik a világos vagy sötét témát, a naptárikon is
   a témához igazodik.
-- A válaszidő-diagram időtengelye a felület nyelvét és az időzónádat követi
+- A válaszidő-diagram időtengelye a felület nyelvét és a felhasználó időzónáját követi
   a rögzített amerikai formátum helyett. A dátum az első osztásnál és ott
   jelenik meg, ahol a nap váltik.
 - A csoport ellenőrzési sávja mostantól élőben követi a kiértékeléseket. Ha egy
