@@ -1132,8 +1132,8 @@ kihagyja), nyelvenként feltölt egy ideiglenes SQLite-adatbázist a
 `ManualScreenshotSeeder` adataival, egy szabad porton a PHP beépített
 szerverével kiszolgálja, bejelentkezik, és elkészíti az összes képet; a
 `-- --only=<név>` csak a megadott képeket készíti el. A seeder éles környezetben
-nem fut. A fejezetek `![alternatív szöveg](/admin/manual/hu/<név>.webp)`
-formában hivatkoznak a képekre, a `ManualContentTest` pedig ellenőrzi, hogy
+nem fut. A fejezetek Markdown-képszintaxissal, az
+`/admin/manual/hu/<név>.webp` címmel ágyazzák be a képeket, a `ManualContentTest` pedig ellenőrzi, hogy
 mindegyik létezik, van alternatív szövege, és mindkét nyelven szerepel.
 
 Az ütemezés-eltérési benchmark egy eldobható munkaterületet tölt fel HTTP

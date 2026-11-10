@@ -1077,8 +1077,8 @@ Composer dependencies and Playwright's Chromium). It builds the admin (skip with
 `ManualScreenshotSeeder` for each language, serves it with PHP's built-in
 server on a free port, signs in and captures every screen; `-- --only=<name>`
 limits it to some images. The seeder refuses to run in production. The
-chapters reference the images as `![alt text](/admin/manual/hu/<name>.webp)`,
-and `ManualContentTest` checks that each one exists, has an alt text and is
+chapters embed them with Markdown image syntax and the URL
+`/admin/manual/hu/<name>.webp`, and `ManualContentTest` checks that each one exists, has an alt text and is
 used in both languages.
 
 The schedule drift benchmark seeds a throwaway workspace with HTTP monitors
