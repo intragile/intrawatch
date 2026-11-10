@@ -56,6 +56,7 @@
     "audit": "Audit log",
     "account": "Account and security",
     "changelog": "Changelog",
+    "help": "Help",
     "workspace": "Workspace",
     "accountMenu": "Account menu",
     "mainMenu": "Main menu",
@@ -135,6 +136,22 @@
     "yankedHint": "This release was withdrawn and should not be used.",
     "fallbackNotice": "This version is only available in English.",
     "empty": "There are no releases yet."
+  },
+  "help": {
+    "title": "Help",
+    "search": "Search the manual",
+    "searchResults": "Search results",
+    "searchEmpty": "No chapter matches your search.",
+    "contents": "On this page",
+    "backToIndex": "Back to the manual",
+    "previous": "Previous",
+    "next": "Next",
+    "pager": "Chapters",
+    "readingTime": "{minutes} min read",
+    "fallbackNotice": "This chapter is only available in Hungarian for now.",
+    "indexFallbackNotice": "The manual is only available in Hungarian for now.",
+    "notFoundTitle": "Chapter not found",
+    "notFound": "There is no such chapter. It may have been moved or renamed."
   },
   "account": {
     "title": "Account and security",

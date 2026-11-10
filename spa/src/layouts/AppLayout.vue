@@ -8,6 +8,7 @@ import {
   mdiCogOutline,
   mdiDatabaseImportOutline,
   mdiFileDocumentOutline,
+  mdiHelpCircleOutline,
   mdiHistory,
   mdiKeyVariant,
   mdiLogout,
@@ -282,6 +283,11 @@ watch(() => session.me, (current) => {
               :subtitle="session.user.email"
             />
             <v-divider />
+            <v-list-item
+              :to="{ name: 'help' }"
+              :prepend-icon="mdiHelpCircleOutline"
+              :title="t('nav.help')"
+            />
             <v-list-item
               :to="{ name: 'account' }"
               :prepend-icon="mdiShieldAccountOutline"

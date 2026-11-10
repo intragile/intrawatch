@@ -56,6 +56,7 @@
     "audit": "Eseménynapló",
     "account": "Fiók és biztonság",
     "changelog": "Fejlesztési napló",
+    "help": "Súgó",
     "workspace": "Munkaterület",
     "accountMenu": "Fiókmenü",
     "mainMenu": "Főmenü",
@@ -135,6 +136,22 @@
     "yankedHint": "Ezt a kiadást visszavonták, nem szabad használni.",
     "fallbackNotice": "Ez a verzió csak angolul érhető el.",
     "empty": "Még nincs kiadás."
+  },
+  "help": {
+    "title": "Súgó",
+    "search": "Keresés a súgóban",
+    "searchResults": "Találatok",
+    "searchEmpty": "Egyetlen fejezet sem felel meg a keresésnek.",
+    "contents": "A fejezet tartalma",
+    "backToIndex": "Vissza a súgóhoz",
+    "previous": "Előző",
+    "next": "Következő",
+    "pager": "Fejezetek",
+    "readingTime": "{minutes} perc olvasás",
+    "fallbackNotice": "Ez a fejezet még csak magyarul érhető el.",
+    "indexFallbackNotice": "A súgó még csak magyarul érhető el.",
+    "notFoundTitle": "A fejezet nem található",
+    "notFound": "Nincs ilyen fejezet. Lehet, hogy áthelyezték vagy átnevezték."
   },
   "account": {
     "title": "Fiók és biztonság",

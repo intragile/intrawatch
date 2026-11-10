@@ -183,6 +183,18 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../views/changelog/ChangelogView.vue'),
   },
   {
+    path: '/help',
+    name: 'help',
+    component: () => import('../views/help/HelpIndexView.vue'),
+  },
+  {
+    // The slug keeps its slash (`section/chapter`); links build the path, see chapterLocation().
+    path: '/help/:slug(.*)',
+    name: 'help.chapter',
+    component: () => import('../views/help/HelpChapterView.vue'),
+    props: true,
+  },
+  {
     path: '/w/:workspace',
     children: [
       {

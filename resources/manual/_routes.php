@@ -8,6 +8,8 @@ return [
     'account',
     'changelog',
     'forgot-password',
+    'help',
+    'help.chapter',
     'home',
     'invitation',
     'invitation-legacy',

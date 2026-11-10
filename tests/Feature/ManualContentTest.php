@@ -19,9 +19,9 @@ class ManualContentTest extends TestCase
         $router = file_get_contents(base_path('spa/src/router/index.ts'));
         $this->assertIsString($router);
 
-        // Route records name themselves on a line of their own; `redirect: { name: ... }` targets
-        // are named elsewhere too, so de-duplicating covers multi-line redirect objects.
-        preg_match_all("/^\s*name: '([^']+)',?$/m", $router, $matches);
+        // Every quoted `name:` counts, whatever its quoting or position; `redirect: { name: ... }`
+        // targets are named on their own record too, so de-duplicating covers them.
+        preg_match_all('/\bname:\s*[\'"]([^\'"]+)[\'"]/', $router, $matches);
         $spa = array_values(array_unique($matches[1]));
         sort($spa);
 
