@@ -922,7 +922,7 @@
         "/manual": {
             "get": {
                 "operationId": "manual.index",
-                "description": "`locale` is the language the tree is served in (the requested one when it is configured,\notherwise the source locale); `fallback` is true when that differs from the requested one.\nA single chapter missing from that language is still listed from the next language of the\nfallback chain; its own `locale`/`fallback` are returned by the chapter endpoint.",
+                "description": "`locale` is the language the tree is served in (the requested one when it is configured,\notherwise the first configured `fallback` language, otherwise the source locale); `fallback` is true when that differs from the requested one.\nA single chapter missing from that language is still listed from the next language of the\nfallback chain; its own `locale`/`fallback` are returned by the chapter endpoint.",
                 "summary": "The manual tree: sections in order, each with its chapters",
                 "tags": [
                     "Manual"
