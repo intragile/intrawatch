@@ -92,6 +92,7 @@ function index(over: Record<string, unknown> = {}) {
 }
 
 const HTML = [
+  '<h1>Monitors</h1>\n',
   '<p>Press <i class="manual-icon" data-icon="mdi-plus" aria-hidden="true"></i> to add one.',
   ' Unknown <i class="manual-icon" data-icon="mdi-no-such-icon" aria-hidden="true"></i> stays empty.</p>',
   '<h2 id="first-steps">First steps</h2>',
@@ -343,6 +344,9 @@ describe('help chapter', () => {
     expect(slugs).toEqual(['monitoring/monitors'])
     expect(document.querySelector('h1')?.textContent).toContain('Monitors')
     const content = document.querySelector('[data-test="content"]')
+    // The page title is the view's own <h1>; the chapter's Markdown title is not repeated.
+    expect(document.querySelectorAll('h1')).toHaveLength(1)
+    expect(content?.querySelector('h1')).toBeNull()
     expect(content?.querySelector('h2#first-steps')?.textContent).toBe('First steps')
     expect(content?.querySelector('.manual-callout[data-type="tip"]')).not.toBeNull()
     expect(content?.querySelector('.manual-table-wrap > table')).not.toBeNull()

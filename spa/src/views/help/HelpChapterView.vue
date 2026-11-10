@@ -174,6 +174,8 @@ function enhance(root: HTMLElement): void {
 }
 
 // The content is re-created when the chapter or the workspace its links point to changes.
+/** The chapter body without its leading Markdown title: the view renders the title as its own <h1>. */
+const body = computed(() => chapter.value?.html.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/, '') ?? '')
 const contentKey = computed(() => `${loads.value}|${workspaceSlug.value ?? ''}`)
 watch([contentKey, content], () => {
   if (content.value)
@@ -267,7 +269,7 @@ function onKeydown(event: KeyboardEvent): void {
 
         <ManualSidebar v-if="mobile" :headings="chapter.headings" class="mb-4 toc-inline" />
 
-        <!-- Sanitized server-side (CommonMark html_input: strip, unsafe links removed); v-html is used for chapter.html only. -->
+        <!-- Sanitized server-side (CommonMark html_input: strip, unsafe links removed); v-html is used for chapter.html only (minus its title). -->
         <!-- eslint-disable vue/no-v-html -->
         <div
           :key="contentKey"
@@ -276,7 +278,7 @@ function onKeydown(event: KeyboardEvent): void {
           data-test="content"
           @click="onClick"
           @keydown="onKeydown"
-          v-html="chapter.html"
+          v-html="body"
         />
         <!-- eslint-enable vue/no-v-html -->
 
