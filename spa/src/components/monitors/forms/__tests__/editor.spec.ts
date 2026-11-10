@@ -345,10 +345,41 @@ describe('monitor editor', () => {
     choose(wrapper, 'monitor-type', 'push')
     await flushPromises()
     expect(document.querySelector('input[name="timeout_seconds"]')).toBeNull()
+    expect(document.querySelector('input[name="retries"]')).toBeNull()
+    expect(document.querySelector('input[name="degraded_threshold_ms"]')).toBeNull()
     fill('input[name="monitor_name"]', 'Job')
     await submit('input[name="monitor_name"]')
     await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
     await expect.poll(() => document.querySelector('.problem-alert')?.textContent ?? '').toContain('The timeout is too long.')
+  })
+
+  it('a push monitor sets its expected check-in interval', async () => {
+    const server = fakeApi(routes({
+      'POST /workspaces/acme/monitors': json({
+        data: { ...MONITOR, id: 8 },
+      }, 201),
+    }))
+    const { wrapper } = await mountApp('/w/acme/monitors/new')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    choose(wrapper, 'monitor-type', 'push')
+    await flushPromises()
+    expect(document.body.textContent).toContain('Expected check-in interval')
+    // Each field patches the whole form, so let every change render before the next.
+    fill('input[name="monitor_name"]', 'Nightly backup')
+    await flushPromises()
+    fill('input[name="interval_seconds"]', '3600')
+    await flushPromises()
+    fill('input[name="retry_interval_seconds"]', '300')
+    await flushPromises()
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
+    const body = server.of('POST /workspaces/acme/monitors')[0]?.body as Record<string, unknown>
+    expect(body).toMatchObject({
+      type: 'push',
+      name: 'Nightly backup',
+      interval_seconds: 3600,
+      retry_interval_seconds: 300,
+    })
   })
 
   it('bare tags and header_checks errors are visible', async () => {

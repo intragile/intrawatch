@@ -25,6 +25,10 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
   értesítés alapból be van kapcsolva, és a kapcsoló felirata is megnevezi, mire
   vonatkozik. A korábban létrehozott TLS- és domain-monitoroknál érdemes
   ellenőrizni és bekapcsolni.
+- A push monitor űrlapján beállítható a várt jelentkezési időköz és az
+  újrapróbálkozási időköz. Eddig ezek nem jelentek meg, ezért a felületen
+  létrehozott push monitor az alapértelmezett időközt várta, függetlenül attól,
+  milyen gyakran fut a feladat.
 
 ### API
 

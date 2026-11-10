@@ -22,6 +22,9 @@ All notable changes to IntraWatch are recorded here. The format follows
   upcoming expiry. These alerts are now on by default, and the switch label
   names what it covers. Check TLS and domain monitors created earlier and turn
   the switch on.
+- The push monitor form now sets the expected check-in interval and the retry
+  interval. They were hidden before, so a push monitor created in the
+  interface expected the default interval however often the job really runs.
 
 ### API
 

@@ -62,7 +62,7 @@ A csoport állapota a tagjaiból adódik. Egy monitort úgy tehet csoportba, hog
 
 ## Ellenőrzési időköz, időtúllépés és újrapróbálkozás
 
-Az **Időzítés** szakasz csak a rendszeresen lekérdezett típusoknál jelenik meg.
+Az **Időzítés** szakasz teljes egészében a rendszeresen lekérdezett típusoknál jelenik meg. Push monitornál csak a **Várt jelentkezési időköz** és az **Újrapróbálkozási időköz** látszik: a feladatnak ennyi időnként kell jelentkeznie, és a monitor akkor számít leálltnak, ha ehhez a türelmi időt is hozzáadva sem jelentkezett. Minden további elmaradt jelentkezést az újrapróbálkozási időköz után számol az alkalmazás.
 
 - **Ellenőrzési időköz**: milyen gyakran ellenőrzi az alkalmazás a célt, másodpercben.
 - **Időtúllépés**: meddig vár az alkalmazás egy ellenőrzés válaszára. Legfeljebb az ellenőrzési időköz 80%-a lehet.

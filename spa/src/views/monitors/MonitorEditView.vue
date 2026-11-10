@@ -15,6 +15,7 @@ import {
   createBody,
   deepEqual,
   formFromMonitor,
+  hasInterval,
   invalidHeaderLines,
   newForm,
   patchBody,
@@ -117,9 +118,10 @@ const knownFields = computed(() => {
     roots.push('notification_channel_ids')
   if (entry?.supports_inverted)
     roots.push('inverted')
-  if (entry?.scheduled) {
-    roots.push('interval_seconds', 'timeout_seconds', 'retries', 'retry_interval_seconds', 'degraded_threshold_ms')
-  }
+  if (entry && hasInterval(entry))
+    roots.push('interval_seconds', 'retry_interval_seconds')
+  if (entry?.scheduled)
+    roots.push('timeout_seconds', 'retries', 'degraded_threshold_ms')
   if (current?.alerting.notify_degraded)
     roots.push('alerting.degraded_alert_after_seconds')
   return Object.keys(error.value?.errors ?? {}).filter(key =>
@@ -268,7 +270,7 @@ async function save(): Promise<void> {
   const entry = info.value
   if (!current || !baseline || !entry || saving.value || !canManage.value)
     return
-  if (entry.scheduled && current.interval_seconds < entry.min_interval_seconds)
+  if (hasInterval(entry) && current.interval_seconds < entry.min_interval_seconds)
     return
 
   error.value = null

@@ -62,7 +62,7 @@ A group's state comes from its members. To put a monitor in a group, choose the 
 
 ## Check interval, timeout and retries
 
-The **Timing** section appears only for types that are polled regularly.
+The full **Timing** section appears for types that are polled regularly. A push monitor shows only the **Expected check-in interval** and the **Retry interval**: the job must check in that often, and the monitor is marked down when it has not checked in within that interval plus the grace period. Each further missed check-in is counted after the retry interval.
 
 - **Check interval**: how often the app checks the target, in seconds.
 - **Timeout**: how long the app waits for a check's response. It can be at most 80% of the check interval.
