@@ -9,6 +9,8 @@ import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import ImportReport from '../../components/import/ImportReport.vue'
 import ImportUpload from '../../components/import/ImportUpload.vue'
 import { useApiFailure } from '../../composables/useApiFailure'
@@ -257,9 +259,12 @@ watch([slug, allowed], () => {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-2">
-    {{ t('import.title') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-2">
+    <h1 class="text-h5">
+      {{ t('import.title') }}
+    </h1>
+    <HelpLink v-bind="screenHelp('ws.import')" />
+  </div>
 
   <EmptyState v-if="!allowed" :title="t('common.noAccess')" />
   <template v-else>

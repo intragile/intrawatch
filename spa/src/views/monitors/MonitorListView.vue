@@ -12,6 +12,8 @@ import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
 import StatusMark from '../../components/common/StatusMark.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import BulkBar from '../../components/monitors/BulkBar.vue'
 import { BULK_MAX_IDS } from '../../components/monitors/filters'
 import MonitorFilters from '../../components/monitors/MonitorFilters.vue'
@@ -522,6 +524,7 @@ provide(MONITOR_OVERVIEW, {
           <h1 id="monitors-title" class="text-h5">
             {{ t('monitors.title') }}
           </h1>
+          <HelpLink v-bind="screenHelp('ws.monitors')" />
           <v-spacer />
           <v-btn
             v-if="canManage"

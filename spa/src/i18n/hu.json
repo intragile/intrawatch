@@ -187,7 +187,20 @@
     "fallbackNotice": "Ez a fejezet még csak magyarul érhető el.",
     "indexFallbackNotice": "A súgó még csak magyarul érhető el.",
     "notFoundTitle": "A fejezet nem található",
-    "notFound": "Nincs ilyen fejezet. Lehet, hogy áthelyezték vagy átnevezték."
+    "notFound": "Nincs ilyen fejezet. Lehet, hogy áthelyezték vagy átnevezték.",
+    "link": "Súgó: {title}",
+    "chapterTitles": {
+      "monitoring/monitors": "Monitorok",
+      "monitoring/notifications": "Értesítési csatornák",
+      "monitoring/incidents": "Incidensek",
+      "monitoring/maintenances": "Karbantartások",
+      "monitoring/status-pages": "Státuszoldalak",
+      "workspace/workspace": "Munkaterület és tagok",
+      "workspace/api-tokens": "API-tokenek",
+      "workspace/import": "Importálás Uptime Kumából",
+      "workspace/audit": "Eseménynapló",
+      "account/account": "Saját fiók"
+    }
   },
   "account": {
     "title": "Fiók és biztonság",

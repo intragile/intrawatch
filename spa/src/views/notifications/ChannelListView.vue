@@ -10,6 +10,8 @@ import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
@@ -76,9 +78,11 @@ async function remove(): Promise<void> {
 
 <template>
   <div class="d-flex align-center flex-wrap ga-2 mb-4">
-    <h1 class="text-h5 flex-grow-1">
+    <h1 class="text-h5">
       {{ t('channels.title') }}
     </h1>
+    <HelpLink v-bind="screenHelp('ws.channels')" />
+    <v-spacer />
     <v-btn
       v-if="canManage"
       data-test="channel-new"

@@ -6,6 +6,8 @@ import { useRouter } from 'vue-router'
 import { api, fieldErrors, unwrap } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
@@ -114,9 +116,12 @@ async function remove(): Promise<void> {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-4">
-    {{ t('settings.title') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-4">
+    <h1 class="text-h5">
+      {{ t('settings.title') }}
+    </h1>
+    <HelpLink v-bind="screenHelp('ws.settings')" />
+  </div>
 
   <v-card v-if="workspace" class="mb-4" max-width="720">
     <v-form @submit.prevent="save">

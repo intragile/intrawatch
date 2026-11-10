@@ -9,6 +9,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, fieldErrors, unwrap } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import AffectedPicker from '../../components/incidents/AffectedPicker.vue'
 import {
   createBody,
@@ -242,9 +244,12 @@ async function remove(): Promise<void> {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-4">
-    {{ isEdit ? t('maintenances.editTitle') : t('maintenances.newTitle') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-4">
+    <h1 class="text-h5">
+      {{ isEdit ? t('maintenances.editTitle') : t('maintenances.newTitle') }}
+    </h1>
+    <HelpLink v-bind="screenHelp('ws.maintenance')" />
+  </div>
 
   <v-progress-linear v-if="loading" indeterminate :aria-label="t('maintenances.loading')" />
   <div v-else-if="loadError">

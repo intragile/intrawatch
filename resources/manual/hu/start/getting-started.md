@@ -12,6 +12,8 @@ A bal oldali menü tetején a **Munkaterület** választó látható. Minden, am
 - a **Munkaterület kezelése** csoportban többek között [[icon:mdi-account-group]] **Tagok** és [[icon:mdi-key-variant]] **API-tokenek**
 - a **Súgó és újdonságok** csoportban a [[icon:mdi-help-circle-outline]] **Súgó**, vagyis ez a kézikönyv, és a [[icon:mdi-history]] **Fejlesztési napló**, az egyes kiadások változásai
 
+Az oldalak címe mellett látható [[icon:mdi-help-circle-outline]] ikon a súgónak azt a fejezetét nyitja meg, amely az adott oldalt ismerteti.
+
 A menü alján, a nevére kattintva nyílik a **Fiókmenü**. Itt találja a **Fiók és biztonság** oldalt, a téma- és nyelvváltást, valamint a **Kijelentkezés** lehetőséget.
 
 A menüben csak azok a pontok jelennek meg, amelyekhez a szerepköre hozzáférést ad. Monitort, csatornát és státuszoldalt legalább **Szerkesztő** szerepkörrel hozhat létre. Ha valamelyik gombot nem látja, kérjen magasabb szerepkört a munkaterület egyik adminisztrátorától. A szerepkörökről a [[manual:workspace/workspace|Munkaterület és tagok]] fejezet szól.

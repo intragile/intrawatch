@@ -1,5 +1,6 @@
 import type { RouteLocationRaw } from 'vue-router'
 import type { Ability } from '../../api/types'
+import type { Locale } from '../../i18n'
 
 /**
  * The location of a manual chapter, optionally at one of its heading anchors. Built as a path
@@ -41,6 +42,76 @@ export function chapterAppTarget(slug: string): AppTarget | null {
   return Object.hasOwn(CHAPTER_APP_TARGETS, slug)
     ? CHAPTER_APP_TARGETS[slug] ?? null
     : null
+}
+
+/**
+ * A heading anchor per locale. Anchors are slugified headings, and the headings are translated,
+ * so the same section has a different anchor in every language.
+ */
+export type LocalizedAnchor = Readonly<Record<Locale, string>>
+
+/** The manual chapter (and optionally the section of it) that explains a screen. */
+export interface ScreenHelp {
+  slug: string
+  anchor?: LocalizedAnchor
+}
+
+/**
+ * The help link of each app screen, by route name. Every screen a chapter opens ("Open in the
+ * app") links back to the top of that chapter; the rest of the entries are the screens that
+ * belong to a section of a chapter (editors, the alert history, the workspace settings).
+ */
+export const SCREEN_HELP: Readonly<Record<string, ScreenHelp>> = {
+  ...Object.fromEntries(Object.entries(CHAPTER_APP_TARGETS).map(([slug, target]) => [
+    target.route,
+    { slug },
+  ])),
+  'ws.monitor.new': {
+    slug: 'monitoring/monitors',
+    anchor: { hu: 'uj-monitor-letrehozasa', en: 'creating-a-monitor' },
+  },
+  'ws.monitor.edit': {
+    slug: 'monitoring/monitors',
+    anchor: { hu: 'uj-monitor-letrehozasa', en: 'creating-a-monitor' },
+  },
+  'ws.channel.new': {
+    slug: 'monitoring/notifications',
+    anchor: { hu: 'uj-csatorna-letrehozasa', en: 'creating-a-channel' },
+  },
+  'ws.channel': {
+    slug: 'monitoring/notifications',
+    anchor: { hu: 'uj-csatorna-letrehozasa', en: 'creating-a-channel' },
+  },
+  'ws.alerts': {
+    slug: 'monitoring/notifications',
+    anchor: { hu: 'riasztasi-naplo', en: 'alert-history' },
+  },
+  'ws.incident': {
+    slug: 'monitoring/incidents',
+    anchor: { hu: 'frissites-kozzetetele', en: 'posting-an-update' },
+  },
+  'ws.maintenance': {
+    slug: 'monitoring/maintenances',
+    anchor: { hu: 'uj-karbantartas-utemezese', en: 'scheduling-maintenance' },
+  },
+  'ws.status-page': {
+    slug: 'monitoring/status-pages',
+    anchor: { hu: 'az-elrendezes-osszeallitasa', en: 'building-the-layout' },
+  },
+  'ws.settings': {
+    slug: 'workspace/workspace',
+    anchor: { hu: 'a-munkaterulet-beallitasai', en: 'workspace-settings' },
+  },
+}
+
+/** The help link of a screen. Throws for a route without one, so a typo fails every test of its view. */
+export function screenHelp(route: string): ScreenHelp {
+  const help = Object.hasOwn(SCREEN_HELP, route)
+    ? SCREEN_HELP[route]
+    : undefined
+  if (!help)
+    throw new Error(`No help chapter for the ${route} screen`)
+  return help
 }
 
 /** The visible text of an HTML fragment (e.g. a release summary), without rendering or running it. */

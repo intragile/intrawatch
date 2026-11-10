@@ -9,6 +9,8 @@ import { api, unwrap, useCursorList } from '../../api'
 import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import ImpactChip from '../../components/incidents/ImpactChip.vue'
 import IncidentCreateDialog from '../../components/incidents/IncidentCreateDialog.vue'
 import IncidentStatusChip from '../../components/incidents/IncidentStatusChip.vue'
@@ -88,9 +90,11 @@ async function create(body: IncidentCreateBody): Promise<void> {
 
 <template>
   <div class="d-flex align-center flex-wrap ga-2 mb-4">
-    <h1 class="text-h5 flex-grow-1">
+    <h1 class="text-h5">
       {{ t('incidents.title') }}
     </h1>
+    <HelpLink v-bind="screenHelp('ws.incidents')" />
+    <v-spacer />
     <v-btn
       v-if="canManage"
       data-test="incident-new"

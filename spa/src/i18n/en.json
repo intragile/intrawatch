@@ -187,7 +187,20 @@
     "fallbackNotice": "This chapter is only available in Hungarian for now.",
     "indexFallbackNotice": "The manual is only available in Hungarian for now.",
     "notFoundTitle": "Chapter not found",
-    "notFound": "There is no such chapter. It may have been moved or renamed."
+    "notFound": "There is no such chapter. It may have been moved or renamed.",
+    "link": "Help: {title}",
+    "chapterTitles": {
+      "monitoring/monitors": "Monitors",
+      "monitoring/notifications": "Notification channels",
+      "monitoring/incidents": "Incidents",
+      "monitoring/maintenances": "Maintenance",
+      "monitoring/status-pages": "Status pages",
+      "workspace/workspace": "Workspace and members",
+      "workspace/api-tokens": "API tokens",
+      "workspace/import": "Import from Uptime Kuma",
+      "workspace/audit": "Audit log",
+      "account/account": "Your account"
+    }
   },
   "account": {
     "title": "Account and security",

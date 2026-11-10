@@ -9,6 +9,8 @@ import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
 import StatusChip from '../../components/common/StatusChip.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import DeliveryStatusChip from '../../components/notifications/DeliveryStatusChip.vue'
 import { useWorkspaceLive } from '../../live/useWorkspaceLive'
 import { bodyOf } from '../../utils/cursorPage'
@@ -149,9 +151,12 @@ function duration(seconds: number | null): string {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-4">
-    {{ t('alerts.title') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-4">
+    <h1 class="text-h5">
+      {{ t('alerts.title') }}
+    </h1>
+    <HelpLink v-bind="screenHelp('ws.alerts')" />
+  </div>
 
   <div class="d-flex flex-wrap ga-4 mb-2">
     <v-select

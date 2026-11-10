@@ -8,6 +8,8 @@ import { api, useCursorList } from '../../api'
 import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import { useCan } from '../../composables/useCan'
 import { bodyOf } from '../../utils/cursorPage'
 import { formatChange, parseAuditEvent } from './rows'
@@ -107,9 +109,12 @@ if (can('viewAudit'))
 </script>
 
 <template>
-  <h1 class="text-h5 mb-4">
-    {{ t('audit.title') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-4">
+    <h1 class="text-h5">
+      {{ t('audit.title') }}
+    </h1>
+    <HelpLink v-bind="screenHelp('ws.audit')" />
+  </div>
 
   <EmptyState v-if="!can('viewAudit')" :title="t('common.noAccess')" />
 

@@ -9,6 +9,8 @@ import { api, fieldErrors, unwrap } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import DateTime from '../../components/common/DateTime.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import AffectedPicker from '../../components/incidents/AffectedPicker.vue'
 import ImpactChip from '../../components/incidents/ImpactChip.vue'
 import IncidentStatusChip from '../../components/incidents/IncidentStatusChip.vue'
@@ -345,6 +347,7 @@ async function removeIncident(): Promise<void> {
       <h1 class="text-h5">
         {{ incident.title }}
       </h1>
+      <HelpLink v-bind="screenHelp('ws.incident')" />
       <ImpactChip :impact="incident.impact" />
       <InternalChip v-if="incident.internal" />
       <span data-test="incident-status">
