@@ -29,6 +29,9 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
   újrapróbálkozási időköz. Eddig ezek nem jelentek meg, ezért a felületen
   létrehozott push monitor az alapértelmezett időközt várta, függetlenül attól,
   milyen gyakran fut a feladat.
+- A monitor űrlapjának címkeválasztójában új címke is létrehozható: a beírt
+  névhez megjelenik a „… címke létrehozása” sor. Eddig címkét csak az API-n
+  vagy Uptime Kuma-importtal lehetett létrehozni.
 
 ### API
 

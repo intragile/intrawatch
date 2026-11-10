@@ -34,7 +34,7 @@ The **Pending** state is an intentional step in between: a single failed check d
 
 :::
 
-In the **Notification channels** field, the channels marked as default are already selected. The [[manual:monitoring/notifications|Notification channels]] chapter explains how to create channels. In the **Tags** field you can choose from the workspace's existing tags.
+In the **Notification channels** field, the channels marked as default are already selected. The [[manual:monitoring/notifications|Notification channels]] chapter explains how to create channels. In the **Tags** field you can choose from the workspace's existing tags. For a new tag, type its name and choose the **Create tag “…”** row or press Enter: the tag is created and assigned to the monitor. Each tag can also carry an optional value, such as `prod` or `eu-west`.
 
 ## Monitor types
 

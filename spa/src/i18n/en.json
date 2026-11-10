@@ -524,6 +524,9 @@
     "tags": {
       "label": "Tags",
       "none": "No tags exist yet.",
+      "noneCreate": "No tags yet. Type a name to create one.",
+      "create": "Create tag “{name}”",
+      "createFailed": "The tag could not be created.",
       "value": "Value for {name} (optional)"
     },
     "tcp": {

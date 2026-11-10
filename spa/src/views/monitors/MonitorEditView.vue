@@ -143,6 +143,24 @@ const dirty = computed(() => form.value !== null
 
 const FormComponent = computed(() => FORMS[type.value])
 
+/** Creates a tag for the picker; a rejection carries the message to show under it. */
+async function createTag(name: string): Promise<Tag> {
+  try {
+    const tag = await unwrap<Tag>(api.POST('/workspaces/{workspace}/tags', {
+      params: {
+        path: { workspace: slug.value },
+      },
+      body: { name },
+    }))
+    tags.value = [...tags.value, tag]
+    return tag
+  }
+  catch (e) {
+    const problem = asApiError(e)
+    throw new Error(problem.errors?.name?.[0] ?? problem.message)
+  }
+}
+
 async function loadOptions(): Promise<void> {
   loadingOptions.value = true
   try {
@@ -461,6 +479,7 @@ watch(leaveOpen, (open) => {
           :loading="loadingOptions"
           :error="fields.tags"
           :errors="tagErrors"
+          :create="canManage ? createTag : undefined"
         />
       </v-card-text>
       <v-card-actions>

@@ -524,6 +524,9 @@
     "tags": {
       "label": "Címkék",
       "none": "Még nincs címke.",
+      "noneCreate": "Még nincs címke. Írjon be egy nevet, és hozza létre.",
+      "create": "„{name}” címke létrehozása",
+      "createFailed": "A címkét nem sikerült létrehozni.",
       "value": "{name} értéke (nem kötelező)"
     },
     "tcp": {

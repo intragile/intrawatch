@@ -25,6 +25,9 @@ All notable changes to IntraWatch are recorded here. The format follows
 - The push monitor form now sets the expected check-in interval and the retry
   interval. They were hidden before, so a push monitor created in the
   interface expected the default interval however often the job really runs.
+- The tag picker on the monitor form can create a tag: a typed new name
+  offers a “Create tag …” row. Until now tags could only be created through
+  the API or an Uptime Kuma import.
 
 ### API
 

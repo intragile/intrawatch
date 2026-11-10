@@ -382,6 +382,61 @@ describe('monitor editor', () => {
     })
   })
 
+  it('creates a tag from the picker and assigns it', async () => {
+    const server = fakeApi(routes({
+      'POST /workspaces/acme/tags': json({
+        data: { id: 31, name: 'backup', color: '#607d8b' },
+      }, 201),
+      'POST /workspaces/acme/monitors': json({
+        data: { ...MONITOR, id: 9 },
+      }, 201),
+    }))
+    await mountApp('/w/acme/monitors/new')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    expect(text()).toContain('Type a name to create one.')
+    fill('input[name="monitor_name"]', 'API')
+    await flushPromises()
+    fill('input[name="config_url"]', 'https://api.example.com')
+    await flushPromises()
+    // The picker opens its menu for typed text only while focused, as for a real user.
+    document.querySelector<HTMLInputElement>('input[name="tags"]')?.focus()
+    await flushPromises()
+    fill('input[name="tags"]', 'backup')
+    await expect.poll(exists('[data-test="tag-create"]')).not.toBeNull()
+    expect(text()).toContain('Create tag “backup”')
+    await click('[data-test="tag-create"]')
+    await expect.poll(() => server.of('POST /workspaces/acme/tags')).toHaveLength(1)
+    expect(server.of('POST /workspaces/acme/tags')[0]?.body).toEqual({ name: 'backup' })
+    await expect.poll(exists('input[name="tag_value_31"]')).not.toBeNull()
+
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
+    const body = server.of('POST /workspaces/acme/monitors')[0]?.body as Record<string, unknown>
+    expect(body.tags).toEqual([
+      { id: 31, value: null },
+    ])
+  })
+
+  it('shows why a tag could not be created', async () => {
+    fakeApi(routes({
+      'POST /workspaces/acme/tags': problem(422, {
+        title: 'The given data was invalid.',
+        errors: {
+          name: ['The name has already been taken.'],
+        },
+      }),
+    }))
+    await mountApp('/w/acme/monitors/new')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    // The picker opens its menu for typed text only while focused, as for a real user.
+    document.querySelector<HTMLInputElement>('input[name="tags"]')?.focus()
+    await flushPromises()
+    fill('input[name="tags"]', 'backup')
+    await expect.poll(exists('[data-test="tag-create"]')).not.toBeNull()
+    await click('[data-test="tag-create"]')
+    await expect.poll(text).toContain('The name has already been taken.')
+  })
+
   it('bare tags and header_checks errors are visible', async () => {
     const server = fakeApi(routes({
       'PATCH /workspaces/acme/monitors/1': json({
