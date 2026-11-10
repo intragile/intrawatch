@@ -50,7 +50,7 @@ A napló többek között a következő műveleteket rögzíti. A **Művelet** o
 
 A `member.added` akkor kerül a naplóba, amikor a meghívott elfogadja a meghívót. A `monitor.check_requested` egy azonnali ellenőrzés kérését jelzi.
 
-A saját fiókjával kapcsolatos események, például a bejelentkezés, a jelszó módosítása (`auth.password_changed`) vagy a kijelentkezés minden más eszközről (`auth.other_sessions_signed_out`), egyik munkaterülethez sem tartoznak, ezért ebben a naplóban nem jelennek meg.
+A saját fiókjával kapcsolatos események, például a bejelentkezés, a jelszó módosítása (`auth.password_changed`) vagy a kijelentkezés más eszközökről (`auth.other_sessions_signed_out`, `auth.session_signed_out`), egyik munkaterülethez sem tartoznak, ezért ebben a naplóban nem jelennek meg.
 
 ## Szűrés
 

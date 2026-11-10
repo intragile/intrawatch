@@ -231,7 +231,12 @@
       "signOutOthers": "Kijelentkezés minden más eszközről",
       "signOutOthersIntro": "Adja meg a jelszavát. Ezen az eszközön bejelentkezve marad, minden más eszközön kijelentkeztetjük. Az API-tokenjei továbbra is működnek.",
       "signOutConfirm": "Kijelentkezés",
-      "signOutOthersDone": "Minden más eszközön kijelentkeztettük."
+      "signOutOthersDone": "Minden más eszközön kijelentkeztettük.",
+      "signOutOne": "Kijelentkeztetés",
+      "signOutOneLabel": "Kijelentkeztetés: {device}",
+      "signOutOneTitle": "Kijelentkezteti ezt az eszközt?",
+      "signOutOneText": "Véget ér ez a bejelentkezés: {device}. Azon az eszközön újra be kell jelentkeznie. A többi eszközén bejelentkezve marad, de ott a „Maradjak bejelentkezve” beállítás megszűnik.",
+      "signOutOneDone": "Kijelentkeztettük: {device}."
     }
   },
   "home": {

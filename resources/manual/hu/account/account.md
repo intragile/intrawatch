@@ -104,6 +104,8 @@ Ha olyan eszközt lát, amelyet nem ismer fel, vagy egy közös gépen elfelejte
 
 Ezen az eszközön bejelentkezve marad, minden más eszközön kijelentkezteti a rendszer. Az API-tokenjei továbbra is működnek; ha szükséges, vonja vissza őket az API-tokenek oldalon. Ha úgy gondolja, hogy más is ismeri a jelszavát, inkább módosítsa a jelszavát: ez a többi eszközön is kijelentkezteti.
 
+Egyetlen eszközt is kijelentkeztethet: kattintson a sorában a **Kijelentkeztetés** gombra, majd erősítse meg. Ehhez nem kell a jelszava; a többi eszközén bejelentkezve marad, de ott a **Maradjak bejelentkezve** beállítás megszűnik.
+
 ## Jelszó megerősítése érzékeny műveletekhez
 
 Egyes érzékeny műveletek előtt az IntraWatch újra kéri a jelszavát. Ilyen például a kétlépcsős azonosítás bekapcsolása vagy kikapcsolása. Ekkor a **Jelszó megerősítése** ablak jelenik meg. Adja meg a jelszavát a **Jelszó** mezőben, és kattintson a **Megerősítés** gombra. A művelet ezután folytatódik.

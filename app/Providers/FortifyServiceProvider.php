@@ -58,6 +58,13 @@ class FortifyServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by('password-check:'.($user instanceof User ? $user->id : $request->ip()));
         });
 
+        // Signing out a single session needs no password, so it does not spend the guessing budget above.
+        RateLimiter::for('session-sign-out', function (Request $request) {
+            $user = $request->user();
+
+            return Limit::perMinute(10)->by('session-sign-out:'.($user instanceof User ? $user->id : $request->ip()));
+        });
+
         RateLimiter::for('setup', fn (Request $request) => Limit::perMinute(10)->by((string) $request->ip()));
 
         RateLimiter::for('openapi', fn (Request $request) => Limit::perMinute(60)->by((string) $request->ip()));

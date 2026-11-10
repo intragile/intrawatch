@@ -50,7 +50,7 @@ The log records the following actions, among others. The **Action** column shows
 
 `member.added` is logged when the invited person accepts the invitation. `monitor.check_requested` means someone requested an immediate check.
 
-Events of your own account, such as signing in, changing your password (`auth.password_changed`) or signing out all other devices (`auth.other_sessions_signed_out`), belong to no workspace, so they do not appear in this log.
+Events of your own account, such as signing in, changing your password (`auth.password_changed`) or signing out other devices (`auth.other_sessions_signed_out`, `auth.session_signed_out`), belong to no workspace, so they do not appear in this log.
 
 ## Filtering
 

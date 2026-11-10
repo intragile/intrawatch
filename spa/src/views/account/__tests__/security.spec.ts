@@ -167,4 +167,87 @@ describe('account sessions', () => {
     expect(document.body.textContent).toContain('You are not signed in on any other device.')
     expect(useNotify().notices.value.map(n => n.text)).toContain('You have been signed out on all other devices.')
   })
+
+  it('signs out one other device after a confirmation', async () => {
+    const server = fakeApi({
+      'GET /me/sessions': [
+        json({
+          data: [
+            session(),
+            session({
+              id: 'b2',
+              current: false,
+              browser: 'Safari',
+              platform: 'iOS',
+            }),
+            session({
+              id: 'c3',
+              current: false,
+              browser: 'Chrome',
+              platform: 'Android',
+            }),
+          ],
+        }),
+        json({
+          data: [
+            session(),
+            session({
+              id: 'c3',
+              current: false,
+              browser: 'Chrome',
+              platform: 'Android',
+            }),
+          ],
+        }),
+      ],
+      'DELETE /me/sessions/b2': json(null, 204),
+    })
+    mountComponent(SessionsCard)
+
+    await expect.poll(() => document.querySelectorAll('[data-test="sessions"] .v-list-item')).toHaveLength(3)
+    // Only the other sessions have the button, each labeled with its device.
+    const buttons = [
+      ...document.querySelectorAll('[data-test="sign-out-one"]'),
+    ]
+    expect(buttons.map(b => b.getAttribute('aria-label'))).toEqual(['Sign out Safari · iOS', 'Sign out Chrome · Android'])
+    const rows = [
+      ...document.querySelectorAll('[data-test="sessions"] .v-list-item'),
+    ]
+    expect(rows[0]?.querySelector('[data-test="sign-out-one"]')).toBeNull()
+
+    await click('[aria-label="Sign out Safari · iOS"]')
+    await expect.poll(() => document.body.textContent).toContain('Sign out this device?')
+    expect(document.body.textContent).toContain('The session on Safari · iOS ends')
+    expect(server.of('DELETE /me/sessions/b2')).toHaveLength(0)
+
+    await click('[data-test="confirm"]')
+
+    await expect.poll(() => server.of('DELETE /me/sessions/b2')).toHaveLength(1)
+    await expect.poll(() => document.querySelectorAll('[data-test="sessions"] .v-list-item')).toHaveLength(2)
+    expect(server.of('GET /me/sessions')).toHaveLength(2)
+    expect(document.querySelector('[data-test="sessions"]')?.textContent).not.toContain('Safari')
+    expect(useNotify().notices.value.map(n => n.text)).toContain('Safari · iOS has been signed out.')
+  })
+
+  it('keeps the confirmation open with the problem when signing out one device fails', async () => {
+    const server = fakeApi({
+      'GET /me/sessions': json({
+        data: [
+          session(),
+          session({ id: 'b2', current: false }),
+        ],
+      }),
+      'DELETE /me/sessions/b2': problem(429, { title: 'Too Many Attempts.' }),
+    })
+    mountComponent(SessionsCard)
+
+    await expect.poll(() => document.querySelectorAll('[data-test="sign-out-one"]')).toHaveLength(1)
+    await click('[data-test="sign-out-one"]')
+    await click('[data-test="confirm"]')
+
+    await expect.poll(() => document.body.textContent).toContain('Too Many Attempts.')
+    expect(server.of('DELETE /me/sessions/b2')).toHaveLength(1)
+    expect(server.of('GET /me/sessions')).toHaveLength(1)
+    expect(document.body.textContent).toContain('Sign out this device?')
+  })
 })

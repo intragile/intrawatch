@@ -60,6 +60,36 @@ final class UserSessions
     }
 
     /**
+     * The user's unexpired stored session whose public handle is the given one, or null. The handle is
+     * recomputed for each of the user's own rows, so a raw session id or another user's handle never
+     * matches.
+     *
+     * @return object{id: string, ip_address: string|null, user_agent: string|null, last_activity: int}|null
+     */
+    public static function findByPublicId(User $user, string $publicId): ?object
+    {
+        foreach (self::active($user) as $row) {
+            if (hash_equals(self::publicId($row->id), $publicId)) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Deletes one stored session of the user.
+     */
+    public static function delete(User $user, string $sessionId): int
+    {
+        if (! self::stored()) {
+            return 0;
+        }
+
+        return self::table()->where('user_id', $user->id)->where('id', $sessionId)->delete();
+    }
+
+    /**
      * An opaque, stable handle for a session: the raw id is the session cookie value and never leaves
      * the server.
      */
