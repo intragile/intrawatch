@@ -286,6 +286,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The manual tree: sections in order, each with its chapters
+         * @description `locale` is the language the tree is served in (the requested one when it is configured,
+         *     otherwise the source locale); `fallback` is true when that differs from the requested one.
+         *     A single chapter missing from that language is still listed from the next language of the
+         *     fallback chain; its own `locale`/`fallback` are returned by the chapter endpoint.
+         */
+        get: operations["manual.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/manual/chapter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One rendered chapter by slug (`section/chapter`)
+         * @description `data.locale` is the language of the file actually served; `data.fallback` is true when that
+         *     differs from the requested language.
+         */
+        get: operations["manual.chapter"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/manual/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full-text search; returns matching chapters with a short plain-text snippet
+         * @description `locale` and `fallback` follow the same rules as the tree.
+         */
+        get: operations["manual.search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -1192,6 +1256,33 @@ export interface components {
          * @enum {string}
          */
         ChannelType: "email" | "webhook" | "slack" | "discord" | "teams" | "mattermost" | "google_chat" | "telegram" | "ntfy" | "gotify" | "pushover" | "matrix" | "pagerduty" | "opsgenie" | "apprise";
+        /** ChapterResource */
+        ChapterResource: {
+            slug: string;
+            number: string;
+            title: string;
+            summary: string;
+            section: string;
+            position: number;
+            total: number;
+            readingMinutes: number;
+            html: string;
+            headings: {
+                anchor: string;
+                text: string;
+                level: number;
+            }[];
+            prev: {
+                slug: string;
+                title: string;
+            } | null;
+            next: {
+                slug: string;
+                title: string;
+            } | null;
+            locale: string;
+            fallback: boolean;
+        };
         /**
          * DeliveryStatus
          * @enum {string}
@@ -2131,6 +2222,105 @@ export interface operations {
                     };
                 };
             };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "manual.index": {
+        parameters: {
+            query?: {
+                locale?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            icon: string;
+                            title: string;
+                            chapters: {
+                                slug: string;
+                                number: string;
+                                title: string;
+                                summary: string;
+                            }[];
+                        }[];
+                        locale: string;
+                        fallback: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "manual.chapter": {
+        parameters: {
+            query: {
+                slug: string;
+                locale?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `ChapterResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ChapterResource"];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "manual.search": {
+        parameters: {
+            query: {
+                q: string;
+                locale?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            slug: string;
+                            section: string;
+                            title: string;
+                            snippet: string;
+                            score: number;
+                        }[];
+                        locale: string;
+                        fallback: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
     };

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "788ecb51448e35808aa0c7ad69fc4f6e",
+    "content-hash": "8aee5c7422f184e23cbf8c864c1ab06f",
     "packages": [
         {
             "name": "amphp/amp",
@@ -2629,6 +2629,97 @@
                 "source": "https://github.com/intragile/laravel-changelog"
             },
             "time": "2026-11-09T22:23:27+00:00"
+        },
+        {
+            "name": "intragile/laravel-manual",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../intragile-packagist/laravel-manual",
+                "reference": "11537f1e0078dba61c01857c8728fd365c98afbb"
+            },
+            "require": {
+                "illuminate/auth": "^12.0|^13.0",
+                "illuminate/console": "^12.0|^13.0",
+                "illuminate/contracts": "^12.0|^13.0",
+                "illuminate/http": "^12.0|^13.0",
+                "illuminate/routing": "^12.0|^13.0",
+                "illuminate/support": "^12.0|^13.0",
+                "illuminate/validation": "^12.0|^13.0",
+                "league/commonmark": "^2.6",
+                "php": "^8.3"
+            },
+            "conflict": {
+                "illuminate/support": "<12.0"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.20",
+                "orchestra/testbench": "^10.0|^11.0",
+                "phpunit/phpunit": "^12.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "IntrAgile\\Manual\\ManualServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "IntrAgile\\Manual\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "IntrAgile\\Manual\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ],
+                "analyse": [
+                    "phpstan analyse --memory-limit=1G"
+                ],
+                "format": [
+                    "pint"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "IntrAgile Kft.",
+                    "email": "info@intragile.eu",
+                    "homepage": "https://intragile.eu"
+                }
+            ],
+            "description": "Headless manual-as-code for Laravel: a Markdown user manual in your repo, rendered and searched server-side, served over a JSON API.",
+            "homepage": "https://intragile.eu",
+            "keywords": [
+                "api",
+                "documentation",
+                "help",
+                "i18n",
+                "kézikönyv",
+                "laravel",
+                "manual",
+                "markdown",
+                "search",
+                "user-guide"
+            ],
+            "support": {
+                "issues": "https://github.com/intragile/laravel-manual/issues",
+                "source": "https://github.com/intragile/laravel-manual",
+                "security": "https://github.com/intragile/laravel-manual/security/policy"
+            },
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
         },
         {
             "name": "jeremykendall/php-domain-parser",
@@ -12847,7 +12938,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "intragile/laravel-manual": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

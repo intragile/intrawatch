@@ -919,6 +919,254 @@
                 }
             }
         },
+        "/manual": {
+            "get": {
+                "operationId": "manual.index",
+                "description": "`locale` is the language the tree is served in (the requested one when it is configured,\notherwise the source locale); `fallback` is true when that differs from the requested one.\nA single chapter missing from that language is still listed from the next language of the\nfallback chain; its own `locale`/`fallback` are returned by the chapter endpoint.",
+                "summary": "The manual tree: sections in order, each with its chapters",
+                "tags": [
+                    "Manual"
+                ],
+                "parameters": [
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "icon": {
+                                                        "type": "string"
+                                                    },
+                                                    "title": {
+                                                        "type": "string"
+                                                    },
+                                                    "chapters": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "slug": {
+                                                                    "type": "string"
+                                                                },
+                                                                "number": {
+                                                                    "type": "string"
+                                                                },
+                                                                "title": {
+                                                                    "type": "string"
+                                                                },
+                                                                "summary": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "slug",
+                                                                "number",
+                                                                "title",
+                                                                "summary"
+                                                            ]
+                                                        }
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "icon",
+                                                    "title",
+                                                    "chapters"
+                                                ]
+                                            }
+                                        },
+                                        "locale": {
+                                            "type": "string"
+                                        },
+                                        "fallback": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "locale",
+                                        "fallback"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/manual/chapter": {
+            "get": {
+                "operationId": "manual.chapter",
+                "description": "`data.locale` is the language of the file actually served; `data.fallback` is true when that\ndiffers from the requested language.",
+                "summary": "One rendered chapter by slug (`section/chapter`)",
+                "tags": [
+                    "Manual"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 200
+                        }
+                    },
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ChapterResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ChapterResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/manual/search": {
+            "get": {
+                "operationId": "manual.search",
+                "description": "`locale` and `fallback` follow the same rules as the tree.",
+                "summary": "Full-text search; returns matching chapters with a short plain-text snippet",
+                "tags": [
+                    "Manual"
+                ],
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 200
+                        }
+                    },
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "slug": {
+                                                        "type": "string"
+                                                    },
+                                                    "section": {
+                                                        "type": "string"
+                                                    },
+                                                    "title": {
+                                                        "type": "string"
+                                                    },
+                                                    "snippet": {
+                                                        "type": "string"
+                                                    },
+                                                    "score": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "slug",
+                                                    "section",
+                                                    "title",
+                                                    "snippet",
+                                                    "score"
+                                                ]
+                                            }
+                                        },
+                                        "locale": {
+                                            "type": "string"
+                                        },
+                                        "fallback": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "locale",
+                                        "fallback"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/me": {
             "get": {
                 "operationId": "me",
@@ -12825,6 +13073,119 @@
                     "apprise"
                 ],
                 "title": "ChannelType"
+            },
+            "ChapterResource": {
+                "type": "object",
+                "properties": {
+                    "slug": {
+                        "type": "string"
+                    },
+                    "number": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "section": {
+                        "type": "string"
+                    },
+                    "position": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    },
+                    "readingMinutes": {
+                        "type": "integer"
+                    },
+                    "html": {
+                        "type": "string"
+                    },
+                    "headings": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "anchor": {
+                                    "type": "string"
+                                },
+                                "text": {
+                                    "type": "string"
+                                },
+                                "level": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "anchor",
+                                "text",
+                                "level"
+                            ]
+                        }
+                    },
+                    "prev": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "slug": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "slug",
+                            "title"
+                        ]
+                    },
+                    "next": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "slug": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "slug",
+                            "title"
+                        ]
+                    },
+                    "locale": {
+                        "type": "string"
+                    },
+                    "fallback": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "slug",
+                    "number",
+                    "title",
+                    "summary",
+                    "section",
+                    "position",
+                    "total",
+                    "readingMinutes",
+                    "html",
+                    "headings",
+                    "prev",
+                    "next",
+                    "locale",
+                    "fallback"
+                ],
+                "title": "ChapterResource"
             },
             "DeliveryStatus": {
                 "type": "string",

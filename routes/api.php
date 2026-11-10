@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\PingController;
 use Illuminate\Support\Facades\Route;
 use IntrAgile\Changelog\Facades\Changelog;
+use IntrAgile\Manual\Facades\Manual;
 
 Route::prefix('v1')->group(function (): void {
     Route::get('/ping', PingController::class);
@@ -49,6 +50,9 @@ Route::prefix('v1')->group(function (): void {
 
         // The release notes of this installation, from CHANGELOG.md; any signed-in user or token, whatever its abilities.
         Changelog::routes();
+
+        // The user manual, from resources/manual; any signed-in user or token, whatever its abilities.
+        Manual::routes();
 
         Route::get('/monitor-types', MonitorTypeController::class);
         Route::get('/notification-channel-types', NotificationChannelTypeController::class);
