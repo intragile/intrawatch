@@ -1,5 +1,6 @@
 import type { RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-router'
 import { useSession } from '../stores/session'
+import { WORKSPACE_CONTEXT_ROUTES } from './index'
 import { captureInvitationToken } from './invitationToken'
 
 /** A same-application path from a `redirect` query, or the home route. */
@@ -83,8 +84,14 @@ export function installGuards(router: Router): void {
     const slug = typeof to.params.workspace === 'string'
       ? to.params.workspace
       : null
-    session.currentSlug = slug
-    if (slug !== null)
+    if (slug !== null) {
+      session.currentSlug = slug
       session.rememberWorkspace(slug)
+    }
+    else {
+      session.currentSlug = typeof to.name === 'string' && WORKSPACE_CONTEXT_ROUTES.has(to.name)
+        ? session.homeWorkspace()
+        : null
+    }
   })
 }

@@ -213,6 +213,17 @@ export const routes: RouteRecordRaw[] = [
   },
 ]
 
+/**
+ * Screens outside any workspace that still show the shell's workspace navigation: they keep the last used
+ * workspace as the current one, so the rail does not empty out on the way to help or the changelog.
+ */
+export const WORKSPACE_CONTEXT_ROUTES = new Set([
+  'account',
+  'changelog',
+  'help',
+  'help.chapter',
+])
+
 /** Workspace list screens a workspace switch can stay on (they need no record id). */
 export const WORKSPACE_LIST_ROUTES = new Set([
   'ws.monitors',

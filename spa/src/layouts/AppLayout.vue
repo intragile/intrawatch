@@ -261,6 +261,25 @@ watch(() => session.me, (current) => {
       </template>
     </v-list>
 
+    <v-list nav density="compact" class="rail-list rail-help" :aria-label="t('nav.helpSection')">
+      <v-list-subheader class="rail-subheader">
+        {{ t('nav.helpSection') }}
+      </v-list-subheader>
+      <v-list-item
+        data-test="nav-help"
+        :to="{ name: 'help' }"
+        :active="route.name === 'help' || route.name === 'help.chapter'"
+        :prepend-icon="mdiHelpCircleOutline"
+        :title="t('nav.help')"
+      />
+      <v-list-item
+        data-test="nav-changelog"
+        :to="{ name: 'changelog' }"
+        :prepend-icon="mdiHistory"
+        :title="t('nav.changelog')"
+      />
+    </v-list>
+
     <template #append>
       <div class="rail-foot">
         <div v-if="!mobile" class="rail-status">
@@ -283,16 +302,6 @@ watch(() => session.me, (current) => {
               :subtitle="session.user.email"
             />
             <v-divider />
-            <v-list-item
-              :to="{ name: 'help' }"
-              :prepend-icon="mdiHelpCircleOutline"
-              :title="t('nav.help')"
-            />
-            <v-list-item
-              :to="{ name: 'changelog' }"
-              :prepend-icon="mdiHistory"
-              :title="t('nav.changelog')"
-            />
             <v-list-item
               :to="{ name: 'account' }"
               :prepend-icon="mdiShieldAccountOutline"

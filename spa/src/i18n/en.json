@@ -60,6 +60,7 @@
     "workspace": "Workspace",
     "accountMenu": "Account menu",
     "mainMenu": "Main menu",
+    "helpSection": "Help and news",
     "manage": "Manage workspace",
     "toggleMenu": "Show or hide the menu",
     "signOut": "Sign out",
