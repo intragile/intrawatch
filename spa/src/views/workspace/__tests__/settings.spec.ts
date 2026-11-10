@@ -43,7 +43,12 @@ describe('workspace settings', () => {
     await mountApp('/w/acme/settings')
     await expect.poll(() => document.querySelector('input[name="settings_name"]')).not.toBeNull()
 
-    const link = document.querySelector('h1')?.parentElement?.querySelector('[data-test="help-link"]')
+    // The link sits next to this screen's own title, not next to whichever h1 happens to come first.
+    const title = [
+      ...document.querySelectorAll('h1'),
+    ].find(h => h.textContent?.trim() === 'Workspace settings')
+    expect(title).toBeDefined()
+    const link = title?.parentElement?.querySelector('[data-test="help-link"]')
     expect(link?.getAttribute('href')).toBe('/help/workspace/workspace#workspace-settings')
     expect(link?.getAttribute('aria-label')).toBe('Help: Workspace and members')
   })
