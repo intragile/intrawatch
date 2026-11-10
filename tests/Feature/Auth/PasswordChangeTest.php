@@ -75,7 +75,11 @@ class PasswordChangeTest extends TestCase
         $this->assertSame($user->id, $event->actor_user_id);
         $this->assertNull($event->workspace_id);
         $this->assertIsString($event->changes);
-        $this->assertSame(['other_sessions' => [1, 0], 'api_keys' => [1, 0]], json_decode($event->changes, true));
+        // MySQL's JSON column reorders object keys, so compare them sorted.
+        $changes = json_decode($event->changes, true);
+        $this->assertIsArray($changes);
+        ksort($changes);
+        $this->assertSame(['api_keys' => [1, 0], 'other_sessions' => [1, 0]], $changes);
         $this->assertStringNotContainsString('a-new-long-password', $event->changes);
     }
 
