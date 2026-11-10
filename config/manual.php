@@ -45,11 +45,11 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    // Off: routes/api.php registers Manual::routes() inside the auth:sanctum group.
+    // Off: routes/api.php registers Manual::routes() inside the auth:sanctum group, which supplies the
+    // middleware; Manual::routes() uses only `prefix` and `name`.
     'routes' => [
         'enabled' => false,
         'prefix' => 'manual',
-        'middleware' => ['api'],
         'name' => 'manual.',
     ],
 
