@@ -8,7 +8,6 @@ Click your name at the bottom of the left-hand menu to open the account menu. He
 
 - your name and e-mail address;
 - [[icon:mdi-shield-account-outline]] **Account and security**: the [[route:account|Account and security]] page;
-- [[icon:mdi-history]] **Changelog**: what changed in each IntraWatch release, on the [[route:changelog|Changelog]] page;
 - the theme switch (see below);
 - **Language**: the language of the interface;
 - [[icon:mdi-logout]] **Sign out**.

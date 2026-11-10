@@ -10,9 +10,9 @@ All notable changes to IntraWatch are recorded here. The format follows
 
 ### Admin interface
 
-- A Changelog page in the account menu lists every release in the interface
+- A Changelog page in the main menu lists every release in the interface
   language, falling back to English per release where no translation exists.
-- A searchable Help section in the account menu holds the user manual in
+- A searchable Help section in the main menu holds the user manual in
   Hungarian and English, from the first monitor through notifications,
   incidents, maintenance windows and status pages to workspaces, API tokens,
   the audit log, import and account settings. Each chapter has a table of

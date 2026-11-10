@@ -10,6 +10,7 @@ A bal oldali menü tetején a **Munkaterület** választó látható. Minden, am
 - [[icon:mdi-bell-outline]] **Értesítési csatornák**
 - [[icon:mdi-web-check]] **Státuszoldalak**
 - a **Munkaterület kezelése** csoportban többek között [[icon:mdi-account-group]] **Tagok** és [[icon:mdi-key-variant]] **API-tokenek**
+- a **Súgó és újdonságok** csoportban a [[icon:mdi-help-circle-outline]] **Súgó**, vagyis ez a kézikönyv, és a [[icon:mdi-history]] **Fejlesztési napló**, az egyes kiadások változásai
 
 A menü alján, a nevére kattintva nyílik a **Fiókmenü**. Itt találja a **Fiók és biztonság** oldalt, a téma- és nyelvváltást, valamint a **Kijelentkezés** lehetőséget.
 

@@ -8,7 +8,6 @@ A bal oldali menü alján, a nevére kattintva nyílik a fiókmenü. Itt a köve
 
 - a nevét és az e-mail-címét;
 - [[icon:mdi-shield-account-outline]] **Fiók és biztonság**: a [[route:account|Fiók és biztonság]] oldal;
-- [[icon:mdi-history]] **Fejlesztési napló**: az IntraWatch kiadásainak változásai a [[route:changelog|Fejlesztési napló]] oldalon;
 - téma váltása (lásd lent);
 - **Nyelv**: a felület nyelve;
 - [[icon:mdi-logout]] **Kijelentkezés**.

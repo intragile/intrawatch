@@ -10,6 +10,7 @@ The **Workspace** switcher sits at the top of the left-hand menu. Everything you
 - [[icon:mdi-bell-outline]] **Notification channels**
 - [[icon:mdi-web-check]] **Status pages**
 - in the **Manage workspace** group, among others, [[icon:mdi-account-group]] **Members** and [[icon:mdi-key-variant]] **API tokens**
+- in the **Help and news** group, [[icon:mdi-help-circle-outline]] **Help**, this manual, and [[icon:mdi-history]] **Changelog**, what changed in each release
 
 Click your name at the bottom of the menu to open the **Account menu**. There you find the **Account and security** page, the theme and language switches, and **Sign out**.
 

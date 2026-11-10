@@ -12,9 +12,9 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
 
 ### Admin felület
 
-- A fiókmenüben új Fejlesztési napló oldal sorolja fel a kiadásokat a felület
+- A főmenüben új Fejlesztési napló oldal sorolja fel a kiadásokat a felület
   nyelvén; ahol egy verziónak nincs fordítása, ott az angol szöveg jelenik meg.
-- A fiókmenüben új, kereshető Súgó érhető el magyarul és angolul. Az első
+- A főmenüben új, kereshető Súgó érhető el magyarul és angolul. Az első
   monitortól az értesítéseken, incidenseken, karbantartásokon és
   státuszoldalakon át a munkaterületig, az API-tokenekig, az eseménynaplóig, az
   importálásig és a fiókbeállításokig mindent leír; minden fejezetnek van
