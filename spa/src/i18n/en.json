@@ -53,6 +53,7 @@
     "settings": "Workspace settings",
     "members": "Members",
     "tokens": "API tokens",
+    "tags": "Tags",
     "audit": "Audit log",
     "account": "Account and security",
     "changelog": "Changelog",
@@ -356,6 +357,55 @@
       "field": "Token",
       "done": "I have copied it"
     }
+  },
+  "tags": {
+    "title": "Tags",
+    "intro": "Tags group your monitors: you can filter the monitor list by tag and add or remove a tag on many selected monitors at once. You assign tags to a monitor while editing it.",
+    "readOnly": "Only members who can manage monitors can create, edit or delete tags.",
+    "create": {
+      "title": "Create tag",
+      "submit": "Create tag"
+    },
+    "edit": {
+      "title": "Edit tag"
+    },
+    "delete": {
+      "title": "Delete the tag?",
+      "confirm": "The tag “{name}” is removed from every monitor, together with the value each monitor gave it. The monitors keep running and alerting as before; they only lose this tag. This cannot be undone."
+    },
+    "name": "Name",
+    "color": {
+      "label": "Color",
+      "presets": "Preset colors",
+      "custom": "Custom color (#rrggbb)",
+      "invalid": "Enter the color as #rrggbb, for example #2563eb.",
+      "presetNames": {
+        "gray": "Gray",
+        "red": "Red",
+        "orange": "Orange",
+        "amber": "Amber",
+        "green": "Green",
+        "teal": "Teal",
+        "sky": "Sky blue",
+        "blue": "Blue",
+        "violet": "Violet",
+        "pink": "Pink"
+      }
+    },
+    "preview": "Preview:",
+    "previewName": "Tag",
+    "list": "Tags of the workspace",
+    "tag": "Tag",
+    "colorColumn": "Color",
+    "actions": "Actions",
+    "empty": {
+      "title": "No tags yet",
+      "text": "Tags group monitors: the monitor list can be filtered by tag, and a tag can be added to or removed from many selected monitors at once.",
+      "textManage": "Create the first tag above, or in the Tags field while editing a monitor. You can then filter the monitor list by tag and add or remove a tag on many selected monitors at once."
+    },
+    "created": "Tag “{name}” created.",
+    "saved": "Tag changes saved.",
+    "deleted": "Tag “{name}” deleted."
   },
   "audit": {
     "title": "Audit log",

@@ -15,6 +15,7 @@ import {
   mdiMonitorDashboard,
   mdiPlus,
   mdiShieldAccountOutline,
+  mdiTagMultipleOutline,
   mdiTrafficCone,
   mdiWeatherNight,
   mdiWeatherSunny,
@@ -120,6 +121,12 @@ const adminItems = computed<NavItem[]>(() => [
     label: t('nav.tokens'),
     icon: mdiKeyVariant,
     ability: 'view',
+  },
+  {
+    route: 'ws.tags',
+    label: t('nav.tags'),
+    icon: mdiTagMultipleOutline,
+    ability: 'viewMonitors',
   },
   {
     route: 'ws.audit',
