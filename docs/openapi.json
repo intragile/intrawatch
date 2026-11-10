@@ -491,7 +491,7 @@
         "/changelog": {
             "get": {
                 "operationId": "changelog.index",
-                "description": "`locale` is the resolved language; `fallback` is true when any returned release is shown in the base language\nbecause it has no translation.",
+                "description": "`?locale=` is optional on every endpoint: empty behaves like a missing one, and a well-formed but unsupported\nvalue falls through to Accept-Language.\n\n`locale` is the resolved language; `fallback` is true when any returned release is shown in the base language\nbecause it has no translation.",
                 "summary": "List the releases, newest first, paginated",
                 "tags": [
                     "Changelog"
@@ -513,6 +513,17 @@
                             "type": "integer",
                             "minimum": 1,
                             "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
                         }
                     }
                 ],
@@ -672,6 +683,19 @@
                 "tags": [
                     "Changelog"
                 ],
+                "parameters": [
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "`ReleaseResource`",
@@ -691,8 +715,11 @@
                             }
                         }
                     },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
                     "404": {
-                        "$ref": "#/components/responses/ModelNotFoundException"
+                        "$ref": "#/components/responses/NotFoundHttpException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -715,6 +742,17 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
+                        }
                     }
                 ],
                 "responses": {
@@ -736,8 +774,11 @@
                             }
                         }
                     },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
                     "404": {
-                        "$ref": "#/components/responses/ModelNotFoundException"
+                        "$ref": "#/components/responses/NotFoundHttpException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -922,7 +963,7 @@
         "/manual": {
             "get": {
                 "operationId": "manual.index",
-                "description": "`locale` is the language the tree is served in (the requested one when it is configured,\notherwise the first configured `fallback` language, otherwise the source locale); `fallback` is true when that differs from the requested one.\nA single chapter missing from that language is still listed from the next language of the\nfallback chain; its own `locale`/`fallback` are returned by the chapter endpoint.",
+                "description": "`locale` is the language the tree is served in (the requested one when it is configured,\notherwise the first configured `fallback` language, otherwise the source locale); `fallback`\nis true when that differs from the requested one. A single chapter missing from that language\nis still listed from the next language of the fallback chain; its own `locale`/`fallback` are\nreturned by the chapter endpoint.",
                 "summary": "The manual tree: sections in order, each with its chapters",
                 "tags": [
                     "Manual"
@@ -932,7 +973,10 @@
                         "name": "locale",
                         "in": "query",
                         "schema": {
-                            "type": "string",
+                            "type": [
+                                "string",
+                                "null"
+                            ],
                             "maxLength": 20
                         }
                     }
@@ -1041,7 +1085,10 @@
                         "name": "locale",
                         "in": "query",
                         "schema": {
-                            "type": "string",
+                            "type": [
+                                "string",
+                                "null"
+                            ],
                             "maxLength": 20
                         }
                     }
@@ -1069,7 +1116,7 @@
                         "$ref": "#/components/responses/ValidationException"
                     },
                     "404": {
-                        "$ref": "#/components/responses/ModelNotFoundException"
+                        "$ref": "#/components/responses/NotFoundHttpException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -1099,7 +1146,10 @@
                         "name": "locale",
                         "in": "query",
                         "schema": {
-                            "type": "string",
+                            "type": [
+                                "string",
+                                "null"
+                            ],
                             "maxLength": 20
                         }
                     }
@@ -14569,6 +14619,25 @@
                 }
             },
             "ModelNotFoundException": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Error overview."
+                                }
+                            },
+                            "required": [
+                                "message"
+                            ]
+                        }
+                    }
+                }
+            },
+            "NotFoundHttpException": {
                 "description": "Not found",
                 "content": {
                     "application/json": {

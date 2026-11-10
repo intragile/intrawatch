@@ -219,7 +219,10 @@ export interface paths {
         };
         /**
          * List the releases, newest first, paginated
-         * @description `locale` is the resolved language; `fallback` is true when any returned release is shown in the base language
+         * @description `?locale=` is optional on every endpoint: empty behaves like a missing one, and a well-formed but unsupported
+         *     value falls through to Accept-Language.
+         *
+         *     `locale` is the resolved language; `fallback` is true when any returned release is shown in the base language
          *     because it has no translation.
          */
         get: operations["changelog.index"];
@@ -296,9 +299,10 @@ export interface paths {
         /**
          * The manual tree: sections in order, each with its chapters
          * @description `locale` is the language the tree is served in (the requested one when it is configured,
-         *     otherwise the first configured `fallback` language, otherwise the source locale); `fallback` is true when that differs from the requested one.
-         *     A single chapter missing from that language is still listed from the next language of the
-         *     fallback chain; its own `locale`/`fallback` are returned by the chapter endpoint.
+         *     otherwise the first configured `fallback` language, otherwise the source locale); `fallback`
+         *     is true when that differs from the requested one. A single chapter missing from that language
+         *     is still listed from the next language of the fallback chain; its own `locale`/`fallback` are
+         *     returned by the chapter endpoint.
          */
         get: operations["manual.index"];
         put?: never;
@@ -1708,6 +1712,18 @@ export interface components {
                 };
             };
         };
+        /** @description Not found */
+        NotFoundHttpException: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    /** @description Error overview. */
+                    message: string;
+                };
+            };
+        };
         /** @description Authorization error */
         AuthorizationException: {
             headers: {
@@ -2061,6 +2077,7 @@ export interface operations {
             query?: {
                 page?: number;
                 per_page?: number;
+                locale?: string | null;
             };
             header?: never;
             path?: never;
@@ -2109,7 +2126,9 @@ export interface operations {
     };
     "changelog.latest": {
         parameters: {
-            query?: never;
+            query?: {
+                locale?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2128,12 +2147,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            404: components["responses"]["ModelNotFoundException"];
+            404: components["responses"]["NotFoundHttpException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "changelog.show": {
         parameters: {
-            query?: never;
+            query?: {
+                locale?: string | null;
+            };
             header?: never;
             path: {
                 version: string;
@@ -2154,7 +2176,8 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            404: components["responses"]["ModelNotFoundException"];
+            404: components["responses"]["NotFoundHttpException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "invitation.accept": {
@@ -2228,7 +2251,7 @@ export interface operations {
     "manual.index": {
         parameters: {
             query?: {
-                locale?: string;
+                locale?: string | null;
             };
             header?: never;
             path?: never;
@@ -2266,7 +2289,7 @@ export interface operations {
         parameters: {
             query: {
                 slug: string;
-                locale?: string;
+                locale?: string | null;
             };
             header?: never;
             path?: never;
@@ -2286,7 +2309,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
-            404: components["responses"]["ModelNotFoundException"];
+            404: components["responses"]["NotFoundHttpException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -2294,7 +2317,7 @@ export interface operations {
         parameters: {
             query: {
                 q: string;
-                locale?: string;
+                locale?: string | null;
             };
             header?: never;
             path?: never;
