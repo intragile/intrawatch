@@ -1123,6 +1123,19 @@ A kép az alkalmazást a `docker/Dockerfile` egy Node.js szakaszában építi
 (`npm ci` és `npm run build`), és csak az `spa/dist` könyvtárat másolja a
 futásidejű képbe; a Node.js nem része a végső képnek.
 
+Az alkalmazásba épített kézikönyv képernyőképei az `spa/public/manual/{hu,en}/`
+könyvtárban vannak, és a build többi részéhez hasonlóan az `/admin/manual/`
+alól érhetők el. Látható felületi változás után az `npm run manual:screenshots`
+paranccsal készítheted el őket újra (PHP, a Composer-függőségek és a Playwright
+Chromiuma kell hozzá). A parancs megépíti az admin felületet (a `-- --no-build`
+kihagyja), nyelvenként feltölt egy ideiglenes SQLite-adatbázist a
+`ManualScreenshotSeeder` adataival, egy szabad porton a PHP beépített
+szerverével kiszolgálja, bejelentkezik, és elkészíti az összes képet; a
+`-- --only=<név>` csak a megadott képeket készíti el. A seeder éles környezetben
+nem fut. A fejezetek Markdown-képszintaxissal, az
+`/admin/manual/hu/<név>.webp` címmel ágyazzák be a képeket, a `ManualContentTest` pedig ellenőrzi, hogy
+mindegyik létezik, van alternatív szövege, és mindkét nyelven szerepel.
+
 Az ütemezés-eltérési benchmark egy eldobható munkaterületet tölt fel HTTP
 monitorokkal egy helyi célpont ellen, amely 50–300 ms alatt válaszol, egy
 ellenőrző worker-t futtat, és kiírja az ütemezéstől való késés mediánját, 95.

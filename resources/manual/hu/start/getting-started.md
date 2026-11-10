@@ -12,6 +12,8 @@ A bal oldali menü tetején a **Munkaterület** választó látható. Minden, am
 - a **Munkaterület kezelése** csoportban többek között [[icon:mdi-account-group]] **Tagok** és [[icon:mdi-key-variant]] **API-tokenek**
 - a **Súgó és újdonságok** csoportban a [[icon:mdi-help-circle-outline]] **Súgó**, vagyis ez a kézikönyv, és a [[icon:mdi-history]] **Fejlesztési napló**, az egyes kiadások változásai
 
+![Az IntraWatch felülete bejelentkezés után: bal oldalon a menü a munkaterület-választóval, középen a monitorlista az állapotokkal és az ellenőrzések sávjaival, jobb oldalon az áttekintés a leállt és az akadozó monitorral](/admin/manual/hu/overview.webp)
+
 Az oldalak címe mellett látható [[icon:mdi-help-circle-outline]] ikon a súgónak azt a fejezetét nyitja meg, amely az adott oldalt ismerteti.
 
 A menü alján, a nevére kattintva nyílik a **Fiókmenü**. Itt találja a **Fiók és biztonság** oldalt, a téma- és nyelvváltást, valamint a **Kijelentkezés** lehetőséget.

@@ -12,6 +12,8 @@ The **Workspace** switcher sits at the top of the left-hand menu. Everything you
 - in the **Manage workspace** group, among others, [[icon:mdi-account-group]] **Members** and [[icon:mdi-key-variant]] **API tokens**
 - in the **Help and news** group, [[icon:mdi-help-circle-outline]] **Help**, this manual, and [[icon:mdi-history]] **Changelog**, what changed in each release
 
+![The IntraWatch screen after signing in: the menu with the workspace selector on the left, the monitor list with statuses and check bars in the middle, and the overview with the down and the degraded monitor on the right](/admin/manual/en/overview.webp)
+
 The [[icon:mdi-help-circle-outline]] icon next to a page title opens the help chapter that describes that page.
 
 Click your name at the bottom of the menu to open the **Account menu**. There you find the **Account and security** page, the theme and language switches, and **Sign out**.

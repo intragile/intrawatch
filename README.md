@@ -1069,6 +1069,18 @@ The image builds the application in a Node.js stage of `docker/Dockerfile`
 (`npm ci` and `npm run build`) and copies only `spa/dist` into the runtime
 image; Node.js is not part of the final image.
 
+The screenshots of the in-app manual live in `spa/public/manual/{hu,en}/` and
+are served from `/admin/manual/` like the rest of the build. Regenerate them
+after a visible UI change with `npm run manual:screenshots` (needs PHP, the
+Composer dependencies and Playwright's Chromium). It builds the admin (skip with
+`-- --no-build`), seeds a temporary SQLite database with
+`ManualScreenshotSeeder` for each language, serves it with PHP's built-in
+server on a free port, signs in and captures every screen; `-- --only=<name>`
+limits it to some images. The seeder refuses to run in production. The
+chapters embed them with Markdown image syntax and the URL
+`/admin/manual/hu/<name>.webp`, and `ManualContentTest` checks that each one exists, has an alt text and is
+used in both languages.
+
 The schedule drift benchmark seeds a throwaway workspace with HTTP monitors
 against a local target that answers in 50 to 300 ms, runs one check worker and
 prints the median, 95th percentile and maximum delay from the schedule, the

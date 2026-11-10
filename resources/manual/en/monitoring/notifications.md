@@ -21,6 +21,8 @@ You need at least the **Editor** role to create and change channels.
 
 :::
 
+![The new channel form with the Slack type: "#alerts" in the Name field, the Webhook URL field under Slack settings, then the Delivery and Message text sections](/admin/manual/en/channel-new.webp)
+
 ## Channel types
 
 | Type | Required details |

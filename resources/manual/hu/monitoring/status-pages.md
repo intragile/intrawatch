@@ -28,6 +28,8 @@ Az oldal létrehozása után megjelenik az **Elrendezés** kártya, ahol hozzáa
 
 A nyilvános oldalon a monitorok szekciókba rendezve jelennek meg, például „Weboldalak” vagy „Belső rendszerek”.
 
+![Az Elrendezés kártya két szekcióval: a Weboldalak szekcióban a Webshop, az API és a Számlázás, a Belső rendszerek szekcióban a Levelezőszerver és az Adatbázis monitor, alul a Szekció hozzáadása és az Elrendezés mentése gomb](/admin/manual/hu/status-page-layout.webp)
+
 :::steps
 
 1. Az **Elrendezés** kártyán kattintson az [[icon:mdi-plus]] **Szekció hozzáadása** gombra.
