@@ -61,6 +61,8 @@ While you work on the fix, you can keep visitors informed with updates. Open the
 
 :::
 
+![An incident timeline with two updates (Investigating, Identified), and below it the Post an update card with the Status and Message fields and the Post update button](/admin/manual/en/incident-update.webp)
+
 The incident always takes the status of the latest update. So to close an incident, post an update with the **Resolved** status.
 
 :::note

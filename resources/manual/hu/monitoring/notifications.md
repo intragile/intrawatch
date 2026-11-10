@@ -21,6 +21,8 @@ A csatornák létrehozásához és módosításához legalább **Szerkesztő** s
 
 :::
 
+![Az új csatorna űrlapja Slack típussal: a Név mezőben „#alerts”, a Slack beállításai alatt a Webhook URL mező, majd a Kézbesítés és az Üzenet szövege szakasz](/admin/manual/hu/channel-new.webp)
+
 ## Csatornatípusok
 
 | Típus | Kötelező adatok |

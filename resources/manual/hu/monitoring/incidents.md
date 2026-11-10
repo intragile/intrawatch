@@ -61,6 +61,8 @@ A hibaelhárítás közben frissítésekkel tájékoztathatja a látogatókat. N
 
 :::
 
+![Egy incidens idővonala két frissítéssel (Vizsgálat alatt, Azonosítva), alatta a Frissítés közzététele kártya az Állapot és az Üzenet mezővel és a Frissítés küldése gombbal](/admin/manual/hu/incident-update.webp)
+
 Az incidens mindig a legújabb frissítés állapotát veszi fel. Az incidenst tehát úgy zárhatja le, hogy egy **Megoldva** állapotú frissítést tesz közzé.
 
 :::note

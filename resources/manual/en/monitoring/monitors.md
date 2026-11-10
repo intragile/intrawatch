@@ -6,6 +6,8 @@ A monitor regularly checks a website, server, certificate or scheduled job, and 
 
 The left side of the [[route:ws.monitors|Monitors]] screen lists all monitors with their state, latency and a bar of recent checks. Click a monitor to open its details next to the list. The state counters above the list also work as filters, and under **Filters** you can filter by type, tag, activity and name.
 
+![The monitor list with eight monitors. The details of the selected, degraded Billing monitor appear beside the list: the bar of the last 50 checks, availability and the latency chart](/admin/manual/en/monitor-list.webp)
+
 You need at least the **Editor** role to create and change monitors. With the **Viewer** role you can see everything but change nothing.
 
 ## What do the states mean?
@@ -33,6 +35,8 @@ The **Pending** state is an intentional step in between: a single failed check d
 6. Click **Create**.
 
 :::
+
+![The top of the New monitor form: the HTTP monitor type, "Webshop" in the Name field, then the Description and Parent group fields, the Active and Inverted result switches, and the Timing section](/admin/manual/en/monitor-new.webp)
 
 In the **Notification channels** field, the channels marked as default are already selected. The [[manual:monitoring/notifications|Notification channels]] chapter explains how to create channels. In the **Tags** field you can choose from the workspace's existing tags. For a new tag, type its name and choose the **Create tag “…”** row or press Enter: the tag is created and assigned to the monitor. Each tag can also carry an optional value, such as `prod` or `eu-west`. On the [[route:ws.tags|Tags]] screen under **Manage workspace** you can rename, recolor and delete existing tags; a deleted tag is removed from every monitor, but the monitors keep working.
 

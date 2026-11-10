@@ -28,6 +28,8 @@ After you create the page, the **Layout** card appears, where you can add monito
 
 On the public page, monitors are grouped into sections, such as "Websites" or "Internal systems".
 
+![The Layout card with two sections: Webshop, API and Billing under Websites, Mail server and Database under Internal systems, with the Add section and Save layout buttons at the bottom](/admin/manual/en/status-page-layout.webp)
+
 :::steps
 
 1. On the **Layout** card, click the [[icon:mdi-plus]] **Add section** button.

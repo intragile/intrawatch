@@ -6,6 +6,8 @@ A monitor rendszeresen ellenőriz egy weboldalt, szervert, tanúsítványt vagy 
 
 A [[route:ws.monitors|Monitorok]] képernyő bal oldalán az összes monitor látható az állapotával, a válaszidővel és a legutóbbi ellenőrzések sávjával. Ha egy monitorra kattint, a részletei a lista mellett nyílnak meg. A lista fölött az állapotok szerinti számlálók szűrőként is működnek, a **Szűrők** között pedig típusra, címkére, aktivitásra és névre is szűrhet.
 
+![A monitorlista nyolc monitorral. A kijelölt, akadozó Számlázás monitor részletei a lista mellett láthatók: a legutóbbi 50 ellenőrzés sávja, a rendelkezésre állás és a válaszidő grafikonja](/admin/manual/hu/monitor-list.webp)
+
 A monitorok létrehozásához és módosításához legalább **Szerkesztő** szerepkör kell. **Megtekintő** szerepkörrel mindent láthat, de semmit sem módosíthat.
 
 ## Mit jelentenek az állapotok?
@@ -33,6 +35,8 @@ A **Függőben** állapot szándékos átmenet: egyetlen hibás ellenőrzés mé
 6. Kattintson a **Létrehozás** gombra.
 
 :::
+
+![Az Új monitor űrlap eleje: HTTP monitortípus, a Név mezőben „Webshop”, alatta a Leírás és a Szülőcsoport mező, az Aktív és a Fordított eredmény kapcsoló, majd az Időzítés szakasz](/admin/manual/hu/monitor-new.webp)
 
 Az **Értesítési csatornák** mezőben előre ki vannak jelölve azok a csatornák, amelyeket alapértelmezettként jelöltek meg. A csatornák létrehozásáról az [[manual:monitoring/notifications|Értesítési csatornák]] fejezet szól. A **Címkék** mezőben a munkaterület meglévő címkéi közül választhat. Új címkéhez írja be a nevét, és válassza a **„…” címke létrehozása** sort, vagy nyomjon Entert: a címke létrejön, és a monitorhoz is hozzárendelődik. Minden címkéhez megadhat egy nem kötelező értéket is, például `prod` vagy `eu-west`. A meglévő címkéket a **Munkaterület kezelése** alatti [[route:ws.tags|Címkék]] képernyőn nevezheti át, színezheti át és törölheti; a törölt címke minden monitorról lekerül, de a monitorok tovább működnek.
 
