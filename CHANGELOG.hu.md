@@ -32,6 +32,10 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
 - A monitor űrlapjának címkeválasztójában új címke is létrehozható: a beírt
   névhez megjelenik a „… címke létrehozása” sor. Eddig címkét csak az API-n
   vagy Uptime Kuma-importtal lehetett létrehozni.
+- A magyar felület és a meghívó e-mail mindenhol magázó, és a szóhasználat
+  egységes: az akadozó állapot és a hozzá tartozó beállítások, riasztások
+  mindenhol „Akadozik” néven szerepelnek, a „figyelő” helyett „monitor”, az
+  „állapotoldal” helyett „státuszoldal” áll.
 
 ### API
 

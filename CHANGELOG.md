@@ -28,6 +28,9 @@ All notable changes to IntraWatch are recorded here. The format follows
 - The tag picker on the monitor form can create a tag: a typed new name
   offers a “Create tag …” row. Until now tags could only be created through
   the API or an Uptime Kuma import.
+- The Hungarian interface and invitation email now address the user formally
+  throughout and use one term per concept, for example for the degraded state
+  and its settings and alerts.
 
 ### API
 

@@ -8,7 +8,7 @@ return [
     'subject' => 'Meghívó: :workspace (:app)',
     'heading' => 'Meghívó munkaterületre: :workspace',
     'intro' => ':inviter meghívta Önt, hogy **:role** szerepkörrel csatlakozzon ehhez a munkaterülethez: **:workspace** (:app).',
-    'how' => 'A csatlakozáshoz jelentkezzen be ezzel az e-mail-címmel, és nyissa meg az alábbi hivatkozást. Ha még nincs fiókja, előbb kérjen a rendszergazdától fiókot ehhez az e-mail-címhez; nyilvános regisztráció nincs.',
+    'how' => 'A csatlakozáshoz jelentkezzen be ezzel az e-mail-címmel, és nyissa meg az alábbi hivatkozást. Ha még nincs fiókja, előbb kérjen a adminisztrátortól fiókot ehhez az e-mail-címhez; nyilvános regisztráció nincs.',
     'accept' => 'Meghívó elfogadása',
     'validity' => 'A hivatkozás :days napig érvényes, és egyszer használható. Ha nem számított erre a meghívóra, nyugodtan hagyja figyelmen kívül ezt a levelet.',
     'fallback' => 'Ha a gomb nem működik, másolja be ezt a címet a böngészőjébe:',

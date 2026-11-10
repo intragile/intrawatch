@@ -500,8 +500,8 @@
       "retriesHint": "Ennyiszer ismételjük a sikertelen ellenőrzést, mielőtt leállónak jelöljük.",
       "retryInterval": "Újrapróbálkozási időköz",
       "heartbeatRetryHint": "Egy elmaradt jelentkezés után ennyi idő múlva számít újabb kimaradásnak.",
-      "degradedThreshold": "Lassú, ha a válaszidő több mint",
-      "degradedThresholdHint": "A monitor lassúnak számít, ha az ellenőrzés ennél tovább tart. Üresen hagyva ki van kapcsolva."
+      "degradedThreshold": "Akadozik, ha a válaszidő több mint",
+      "degradedThresholdHint": "A monitor akadozónak számít, ha az ellenőrzés ennél tovább tart. Üresen hagyva ki van kapcsolva."
     },
     "parent": {
       "label": "Szülőcsoport",
@@ -511,9 +511,9 @@
       "resend": "Emlékeztető időköze (perc)",
       "resendHint": "Ismétli a riasztást, amíg a monitor leállt. A 0 nem küld emlékeztetőt.",
       "notifyChanges": "Értesítés a tanúsítvány, a DNS és a lejárat változásairól",
-      "notifyDegraded": "Riasztás lassú működésnél",
-      "degradedAfter": "Lassú működés riasztási késleltetése",
-      "degradedAfterHint": "Ennyi ideig kell lassúnak lennie a monitornak, mielőtt riasztunk."
+      "notifyDegraded": "Riasztás akadozáskor",
+      "degradedAfter": "Akadozás riasztási késleltetése",
+      "degradedAfterHint": "Ennyi ideig kell akadoznia a monitornak, mielőtt riasztunk."
     },
     "notifications": {
       "label": "Értesítési csatornák",
@@ -567,7 +567,7 @@
       "servernameHint": "Nem kötelező. Üresen az állomásnevet használjuk.",
       "expiryDays": "Figyelmeztetés lejárat előtt (nap)",
       "expiryDaysHint": "Minden napszám után nyomjon Entert.",
-      "degradedBelowDays": "Lassú, ha ennél kevesebb nap van hátra",
+      "degradedBelowDays": "Akadozik, ha ennél kevesebb nap van hátra",
       "checkProtocols": "Támogatott protokollok ellenőrzése",
       "checkCiphers": "Titkosítási csomagok ellenőrzése",
       "watchCertificate": "Riasztás, ha a tanúsítvány megváltozik"
@@ -577,7 +577,7 @@
       "domainHint": "A regisztrált domain, például example.com.",
       "expiryDays": "Figyelmeztetés lejárat előtt (nap)",
       "expiryDaysHint": "Minden napszám után nyomjon Entert.",
-      "degradedBelowDays": "Lassú, ha ennél kevesebb nap van hátra"
+      "degradedBelowDays": "Akadozik, ha ennél kevesebb nap van hátra"
     },
     "push": {
       "info": "Mentés után a push URL a monitor részletező oldalán jelenik meg. A feladatából vagy szolgáltatásából legalább a várt jelentkezési időközönként hívja meg, hogy működőnek jelentse magát.",
@@ -925,7 +925,7 @@
     "kinds": {
       "down": "Leállt",
       "up": "Újra elérhető",
-      "degraded": "Lassú",
+      "degraded": "Akadozik",
       "still_down": "Még mindig leállt",
       "flapping": "Ingadozik",
       "stable": "Stabil",
@@ -952,7 +952,7 @@
     "back": "Összes incidens",
     "empty": {
       "title": "Nincs incidens",
-      "text": "Jelentsen egy incidenst, hogy a státuszoldalak és a feliratkozók tájékozottak maradjanak."
+      "text": "Jelentsen egy incidenst, hogy a státuszoldalak látogatói tájékozottak maradjanak."
     },
     "filter": {
       "label": "Incidensek megjelenítése",
@@ -1001,10 +1001,10 @@
     },
     "affected": {
       "title": "Érintettek",
-      "monitors": "Érintett figyelők",
+      "monitors": "Érintett monitorok",
       "statusPages": "Megjelenik a státuszoldalakon",
-      "searchMonitors": "Figyelők keresése",
-      "monitorById": "{id}. figyelő",
+      "searchMonitors": "Monitorok keresése",
+      "monitorById": "{id}. monitor",
       "statusPageById": "{id}. státuszoldal",
       "hint": "Nem kötelező. A státuszoldal csak akkor mutatja az incidenst, ha itt ki van választva.",
       "truncated": "Csak az első {count} státuszoldal látható a listában."
@@ -1068,7 +1068,7 @@
       "strategy": "Ütemezés",
       "state": "Állapot",
       "window": "Ablak",
-      "monitors": "Figyelők",
+      "monitors": "Monitorok",
       "actions": "Műveletek"
     },
     "strategy": {
@@ -1120,8 +1120,8 @@
     },
     "lastDay": "Utolsó nap",
     "targets": {
-      "title": "Érintett figyelők és státuszoldalak",
-      "monitorsRequired": "Válasszon ki legalább egy figyelőt.",
+      "title": "Érintett monitorok és státuszoldalak",
+      "monitorsRequired": "Válasszon ki legalább egy monitort.",
       "statusPagesHint": "Nem kötelező. A státuszoldal csak akkor mutatja a karbantartást, ha itt ki van választva."
     },
     "preview": {
@@ -1134,14 +1134,14 @@
     "endNow": "Befejezés most",
     "endNowDialog": {
       "title": "Befejezi most a karbantartást?",
-      "text": "A(z) „{title}” azonnal véget ér, a figyelők újra riasztanak.",
+      "text": "A(z) „{title}” azonnal véget ér, a monitorok újra riasztanak.",
       "confirm": "Befejezés most",
       "ended": "A karbantartás befejeződött.",
       "recurring": "Az ismétlődő karbantartást nem lehet befejezni; kapcsolja ki az Aktív kapcsolóval."
     },
     "delete": {
       "title": "Törli a karbantartást?",
-      "text": "A(z) „{title}” törlődik. Ha éppen fut, a figyelők újra riasztanak.",
+      "text": "A(z) „{title}” törlődik. Ha éppen fut, a monitorok újra riasztanak.",
       "deleted": "A karbantartás törölve."
     },
     "created": "A karbantartás beütemezve.",
@@ -1268,7 +1268,7 @@
   },
   "import": {
     "title": "Importálás Uptime Kumából",
-    "intro": "Töltse fel az Uptime Kuma adatbázisának egy másolatát, hogy a monitorok, értesítési csatornák, címkék, állapotoldalak, incidensek és karbantartási ablakok átkerüljenek ebbe a munkaterületbe. A feltöltést először elemezzük; addig semmi sem jön létre, amíg el nem indítja az importot.",
+    "intro": "Töltse fel az Uptime Kuma adatbázisának egy másolatát, hogy a monitorok, értesítési csatornák, címkék, státuszoldalak, incidensek és karbantartási ablakok átkerüljenek ebbe a munkaterületbe. A feltöltést először elemezzük; addig semmi sem jön létre, amíg el nem indítja az importot.",
     "upload": {
       "title": "Fájl feltöltése",
       "file": "Kuma-adatbázis vagy mentés",
@@ -1307,7 +1307,7 @@
       "tag": "Címkék",
       "notification": "Értesítési csatornák",
       "monitor": "Monitorok",
-      "status_page": "Állapotoldalak",
+      "status_page": "Státuszoldalak",
       "incident": "Incidensek",
       "maintenance": "Karbantartási ablakok"
     },
@@ -1315,7 +1315,7 @@
       "tag": "{n} címke",
       "notification": "{n} értesítési csatorna",
       "monitor": "{n} monitor",
-      "status_page": "{n} állapotoldal",
+      "status_page": "{n} státuszoldal",
       "incident": "{n} incidens",
       "maintenance": "{n} karbantartási ablak"
     },

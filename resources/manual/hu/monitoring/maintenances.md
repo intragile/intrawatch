@@ -19,7 +19,7 @@ A karbantartásokat mindenki megtekintheti a munkaterületen. Ütemezésükhöz 
 1. Nyissa meg a [[route:ws.maintenances|Karbantartás]] képernyőt, és kattintson az [[icon:mdi-plus]] **Karbantartás ütemezése** gombra.
 2. Adja meg a **Cím** mezőt, és ha szükséges, a **Leírás** mezőt.
 3. Válassza ki az **Ütemezés típusa** és az **Időzóna** értékét, majd töltse ki az időpontokat (lásd lent).
-4. Az **Érintett figyelők és státuszoldalak** alatt válasszon ki legalább egy monitort az **Érintett figyelők** mezőben (a felületen „figyelő” néven).
+4. Az **Érintett monitorok és státuszoldalak** alatt válasszon ki legalább egy monitort az **Érintett monitorok** mezőben.
 5. Ha olyan státuszoldalon is meg szeretné jeleníteni a karbantartást, amelyen egyik érintett monitor sem szerepel, válassza ki azt is.
 6. Kattintson a **Létrehozás** gombra.
 

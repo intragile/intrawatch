@@ -13,7 +13,7 @@ A monitorok létrehozásához és módosításához legalább **Szerkesztő** sz
 | Állapot | Jelentés |
 | --- | --- |
 | Működik | Az utolsó ellenőrzés sikeres volt. |
-| Akadozik | Az ellenőrzés sikerült, de túllépte a beállított lassúsági küszöböt, vagy egy tanúsítvány vagy domain lejáratáig kevesebb nap van hátra, mint a **Lassú, ha ennél kevesebb nap van hátra** mezőben megadott érték. |
+| Akadozik | Az ellenőrzés sikerült, de túllépte a beállított lassúsági küszöböt, vagy egy tanúsítvány vagy domain lejáratáig kevesebb nap van hátra, mint a **Akadozik, ha ennél kevesebb nap van hátra** mezőben megadott érték. |
 | Függőben | Az új vagy újraindított monitor még nem ellenőrzött, vagy az ellenőrzés hibát jelzett, de az újrapróbálkozások még nem fogytak el. |
 | Leállt | Az ellenőrzés az újrapróbálkozások után is sikertelen. |
 | Karbantartás | A monitor egy karbantartási ablakban van, ezért nem riaszt. |
@@ -68,14 +68,14 @@ Az **Időzítés** szakasz teljes egészében a rendszeresen lekérdezett típus
 - **Időtúllépés**: meddig vár az alkalmazás egy ellenőrzés válaszára. Legfeljebb az ellenőrzési időköz 80%-a lehet.
 - **Újrapróbálkozások**: hányszor ismétli meg az alkalmazás a sikertelen ellenőrzést, mielőtt a monitort leálltnak jelöli (0–10). Közben a monitor **Függőben** állapotú.
 - **Újrapróbálkozási időköz**: milyen gyorsan ismétli meg az alkalmazás az ellenőrzést hiba után, legalább 20 másodperc.
-- **Lassú, ha a válaszidő több mint**: e fölött a monitor **Akadozik** állapotba kerül. Üresen hagyva ki van kapcsolva.
+- **Akadozik, ha a válaszidő több mint**: e fölött a monitor **Akadozik** állapotba kerül. Üresen hagyva ki van kapcsolva.
 
 A **Fordított eredmény** kapcsolóval megfordíthatja az eredményt: ilyenkor a sikertelen ellenőrzés számít működőnek. Ez például akkor hasznos, ha azt figyeli, hogy egy szolgáltatás kívülről ne legyen elérhető.
 
 ## Riasztási beállítások
 
 - **Emlékeztető időköze (perc)**: amíg a monitor leállt, ennyi percenként ismétli a riasztást. A 0 nem küld emlékeztetőt.
-- **Riasztás lassú működésnél**: bekapcsolva az **Akadozik** állapot is riaszt, a **Lassú működés riasztási késleltetése** után.
+- **Riasztás akadozáskor**: bekapcsolva az **Akadozik** állapot is riaszt, az **Akadozás riasztási késleltetése** után.
 - **Értesítés a tanúsítvány, a DNS és a lejárat változásairól**: ez a kapcsoló a tanúsítvány- és DNS-változásokról, valamint a közeledő lejáratokról szóló riasztásokat kapcsolja be. Új monitornál alapból be van kapcsolva; TLS-, domain- és DNS-monitornál érdemes így hagyni.
 
 Ha egy monitor rövid időn belül sokszor vált állapotot, az alkalmazás nem küld minden váltásról külön üzenetet. Ehelyett egy **Ingadozik** riasztást küld, majd egy **Stabil** riasztást, amikor a monitor megnyugodott.

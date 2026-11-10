@@ -1,6 +1,6 @@
 # Importálás Uptime Kumából
 
-Ha eddig Uptime Kumát használt, a monitorokat, értesítési csatornákat, címkéket, állapotoldalakat, incidenseket és karbantartási ablakokat egy fájl feltöltésével átviheti egy IntraWatch-munkaterületre. Az importálás két lépésben történik: előbb elemzés, utána a tényleges import.
+Ha eddig Uptime Kumát használt, a monitorokat, értesítési csatornákat, címkéket, státuszoldalakat, incidenseket és karbantartási ablakokat egy fájl feltöltésével átviheti egy IntraWatch-munkaterületre. Az importálás két lépésben történik: előbb elemzés, utána a tényleges import.
 
 ## Ki importálhat?
 

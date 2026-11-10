@@ -37,14 +37,14 @@ A státuszoldal mindig a súlyosabb állapotot mutatja: ha a monitor maga rossza
 1. Nyissa meg az [[route:ws.incidents|Incidensek]] képernyőt, és kattintson az [[icon:mdi-plus]] **Új incidens** gombra.
 2. Adja meg a **Cím** mezőt, és válassza ki a **Hatás** értékét.
 3. Az **Első frissítés** alatt válassza ki az **Állapot** értékét, és írja meg az **Üzenet** szövegét. Ez lesz az idővonal első bejegyzése.
-4. Az **Érintettek** alatt válassza ki az **Érintett figyelők** közül az érintett monitorokat (a felületen „figyelő” néven), és a **Megjelenik a státuszoldalakon** mezőben azokat a további státuszoldalakat, ahol az incidensnek akkor is látszania kell, ha az érintett monitorok nincsenek rajta.
+4. Az **Érintettek** alatt válassza ki az **Érintett monitorok** közül az érintett monitorokat, és a **Megjelenik a státuszoldalakon** mezőben azokat a további státuszoldalakat, ahol az incidensnek akkor is látszania kell, ha az érintett monitorok nincsenek rajta.
 5. Kattintson az **Incidens létrehozása** gombra.
 
 :::
 
 :::warning
 
-A státuszoldal akkor mutatja az incidenst, ha a **Megjelenik a státuszoldalakon** mezőben kiválasztotta az oldalt, vagy ha az **Érintett figyelők** között olyan monitor szerepel, amely az oldalon látható. Ha egy incidenst csak a munkaterületen belül szeretne nyilvántartani, ne jelöljön meg olyan monitort, amely nyilvános státuszoldalon is szerepel.
+A státuszoldal akkor mutatja az incidenst, ha a **Megjelenik a státuszoldalakon** mezőben kiválasztotta az oldalt, vagy ha az **Érintett monitorok** között olyan monitor szerepel, amely az oldalon látható. Ha egy incidenst csak a munkaterületen belül szeretne nyilvántartani, ne jelöljön meg olyan monitort, amely nyilvános státuszoldalon is szerepel.
 
 :::
 

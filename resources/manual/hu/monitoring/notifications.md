@@ -79,7 +79,7 @@ A riasztások típusai:
 | --- | --- |
 | Leállt | A monitor leállt. |
 | Újra elérhető | A leállt monitor újra működik. |
-| Lassú | A monitor **Akadozik** állapotba került, és be van kapcsolva a **Riasztás lassú működésnél**. |
+| Akadozik | A monitor **Akadozik** állapotba került, és be van kapcsolva a **Riasztás akadozáskor**. |
 | Még mindig leállt | Emlékeztető, ha a monitornál be van állítva az **Emlékeztető időköze (perc)**. |
 | Ingadozik | A monitor rövid idő alatt sokszor váltott állapotot; amíg ingadozik, nem kap minden váltásról külön üzenetet. |
 | Stabil | Az ingadozás véget ért. |
