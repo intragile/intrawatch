@@ -76,7 +76,7 @@ A **Fordított eredmény** kapcsolóval megfordíthatja az eredményt: ilyenkor 
 
 - **Emlékeztető időköze (perc)**: amíg a monitor leállt, ennyi percenként ismétli a riasztást. A 0 nem küld emlékeztetőt.
 - **Riasztás lassú működésnél**: bekapcsolva az **Akadozik** állapot is riaszt, a **Lassú működés riasztási késleltetése** után.
-- **Értesítés a beállítások változásáról**: ez a kapcsoló a tanúsítvány- és DNS-változásokról, valamint a közeledő lejáratokról szóló riasztásokat kapcsolja be. TLS-, domain- és DNS-monitornál érdemes bekapcsolni.
+- **Értesítés a tanúsítvány, a DNS és a lejárat változásairól**: ez a kapcsoló a tanúsítvány- és DNS-változásokról, valamint a közeledő lejáratokról szóló riasztásokat kapcsolja be. Új monitornál alapból be van kapcsolva; TLS-, domain- és DNS-monitornál érdemes így hagyni.
 
 Ha egy monitor rövid időn belül sokszor vált állapotot, az alkalmazás nem küld minden váltásról külön üzenetet. Ehelyett egy **Ingadozik** riasztást küld, majd egy **Stabil** riasztást, amikor a monitor megnyugodott.
 

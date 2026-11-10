@@ -76,7 +76,7 @@ The **Inverted result** switch flips the result: a failed check then counts as u
 
 - **Reminder interval (minutes)**: while the monitor is down, the alert repeats every this many minutes. 0 sends no reminders.
 - **Alert when degraded**: when on, the **Degraded** state also alerts, after the **Degraded alert delay**.
-- **Notify about configuration changes**: this switch turns on alerts about certificate and DNS changes and about upcoming expiries. Turn it on for TLS, domain and DNS monitors.
+- **Notify about certificate, DNS and expiry changes**: this switch turns on alerts about certificate and DNS changes and about upcoming expiries. It is on by default for new monitors; leave it on for TLS, domain and DNS monitors.
 
 If a monitor changes state many times in a short period, the app does not send a message for every change. Instead it sends one **Flapping** alert, then a **Stable** alert when the monitor has settled.
 

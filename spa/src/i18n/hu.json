@@ -507,7 +507,7 @@
     "alerting": {
       "resend": "Emlékeztető időköze (perc)",
       "resendHint": "Ismétli a riasztást, amíg a monitor leállt. A 0 nem küld emlékeztetőt.",
-      "notifyChanges": "Értesítés a beállítások változásáról",
+      "notifyChanges": "Értesítés a tanúsítvány, a DNS és a lejárat változásairól",
       "notifyDegraded": "Riasztás lassú működésnél",
       "degradedAfter": "Lassú működés riasztási késleltetése",
       "degradedAfterHint": "Ennyi ideig kell lassúnak lennie a monitornak, mielőtt riasztunk."

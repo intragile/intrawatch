@@ -507,7 +507,7 @@
     "alerting": {
       "resend": "Reminder interval (minutes)",
       "resendHint": "Repeat the alert while the monitor stays down. 0 sends no reminders.",
-      "notifyChanges": "Notify about configuration changes",
+      "notifyChanges": "Notify about certificate, DNS and expiry changes",
       "notifyDegraded": "Alert when degraded",
       "degradedAfter": "Degraded alert delay",
       "degradedAfterHint": "How long the monitor must stay degraded before an alert is sent."

@@ -106,7 +106,7 @@ export function newForm(info: MonitorTypeInfo, channelIds: number[] = []): Monit
       resend_interval_minutes: 0,
       notify_degraded: false,
       degraded_alert_after_seconds: 0,
-      notify_changes: false,
+      notify_changes: true,
     },
   }
 }

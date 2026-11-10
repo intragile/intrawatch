@@ -87,4 +87,4 @@ A riasztások típusai:
 | Megújult | A tanúsítvány vagy domain lejárata kitolódott. |
 | Megváltozott | Megváltozott a tanúsítvány vagy a DNS-válasz. |
 
-A **Hamarosan lejár**, a **Megújult** és a **Megváltozott** riasztás csak akkor keletkezik, ha a monitornál be van kapcsolva az **Értesítés a beállítások változásáról** kapcsoló. Ha egy riasztásnál az **Egy szülő monitor elnyomta.** felirat áll, a monitor csoportja már leállt, ezért a tag riasztása nem ment ki külön. Részletek: [[manual:monitoring/monitors|Monitorok]].
+A **Hamarosan lejár**, a **Megújult** és a **Megváltozott** riasztás csak akkor keletkezik, ha a monitornál be van kapcsolva az **Értesítés a tanúsítvány, a DNS és a lejárat változásairól** kapcsoló. Ha egy riasztásnál az **Egy szülő monitor elnyomta.** felirat áll, a monitor csoportja már leállt, ezért a tag riasztása nem ment ki külön. Részletek: [[manual:monitoring/monitors|Monitorok]].

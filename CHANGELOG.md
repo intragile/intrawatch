@@ -17,6 +17,11 @@ All notable changes to IntraWatch are recorded here. The format follows
   incidents, maintenance windows and status pages to workspaces, API tokens,
   the audit log, import and account settings. Each chapter has a table of
   contents and links straight to the screens it describes.
+- The new-monitor form sent certificate, DNS and expiry change alerts as off,
+  so TLS and domain monitors created in the interface never warned about an
+  upcoming expiry. These alerts are now on by default, and the switch label
+  names what it covers. Check TLS and domain monitors created earlier and turn
+  the switch on.
 
 ### API
 

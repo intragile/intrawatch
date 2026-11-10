@@ -19,6 +19,12 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
   státuszoldalakon át a munkaterületig, az API-tokenekig, az eseménynaplóig, az
   importálásig és a fiókbeállításokig mindent leír; minden fejezetnek van
   tartalomjegyzéke, és a leírt képernyőkre mutató hivatkozásai.
+- Az új monitor űrlapja eddig kikapcsolva küldte el a tanúsítvány-, DNS- és
+  lejárati változásokról szóló értesítést, ezért a felületen létrehozott TLS- és
+  domain-monitorok nem figyelmeztettek a közelgő lejáratra. Mostantól ez az
+  értesítés alapból be van kapcsolva, és a kapcsoló felirata is megnevezi, mire
+  vonatkozik. A korábban létrehozott TLS- és domain-monitoroknál érdemes
+  ellenőrizni és bekapcsolni.
 
 ### API
 

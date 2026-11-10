@@ -87,4 +87,4 @@ The alert kinds:
 | Renewed | The expiry date of a certificate or domain moved later. |
 | Changed | The certificate or the DNS answer changed. |
 
-**Expiring**, **Renewed** and **Changed** alerts are created only when the monitor's **Notify about configuration changes** switch is on. If an alert shows **Suppressed by a parent monitor.**, the monitor's group was already down, so the member's alert was not sent separately. Details: [[manual:monitoring/monitors|Monitors]].
+**Expiring**, **Renewed** and **Changed** alerts are created only when the monitor's **Notify about certificate, DNS and expiry changes** switch is on. If an alert shows **Suppressed by a parent monitor.**, the monitor's group was already down, so the member's alert was not sent separately. Details: [[manual:monitoring/monitors|Monitors]].
