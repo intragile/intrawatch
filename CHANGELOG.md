@@ -44,6 +44,9 @@ All notable changes to IntraWatch are recorded here. The format follows
 - In the dark theme, text on colored buttons and chips is dark: white text on
   the light fills was hard to read and made every primary button look
   disabled.
+- On phones the connection indicator in the top bar shows a short label
+  ("Offline") instead of running over the logo; the full text is in its
+  tooltip.
 - The Account and security page has a Change password section: the current
   password, the new one and its repetition. This browser stays signed in;
   every other session ends and all of your API tokens are revoked, as with a

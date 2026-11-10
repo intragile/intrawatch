@@ -245,6 +245,7 @@
     "live": "Live",
     "connecting": "Connecting",
     "offline": "Offline — showing last loaded data",
+    "offlineShort": "Offline",
     "label": "Live updates"
   },
   "status": {

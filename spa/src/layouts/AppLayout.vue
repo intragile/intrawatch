@@ -203,7 +203,7 @@ watch(() => session.me, (current) => {
       <AppLogo :size="24" />
     </router-link>
     <v-spacer />
-    <div class="mr-3 d-flex align-center">
+    <div class="mr-3 d-flex align-center status-slot">
       <slot name="status" />
     </div>
   </v-app-bar>
@@ -358,6 +358,12 @@ watch(() => session.me, (current) => {
 </template>
 
 <style scoped>
+/* Lets a long status text shrink and ellipsize instead of running over the logo. */
+.status-slot {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
 .logo-link {
   display: inline-flex;
   color: inherit;

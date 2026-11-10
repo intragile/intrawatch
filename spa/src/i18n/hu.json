@@ -245,6 +245,7 @@
     "live": "Élő",
     "connecting": "Csatlakozás",
     "offline": "Nincs kapcsolat — az utoljára betöltött adatok láthatók",
+    "offlineShort": "Nincs kapcsolat",
     "label": "Élő frissítés"
   },
   "status": {
