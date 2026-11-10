@@ -181,6 +181,11 @@ the change; every other session ends and all of their API tokens are revoked,
 as with a reset, recorded as `auth.password_changed`. Signing out all other
 devices (`POST /api/v1/me/sessions/sign-out-others`) ends the other sessions
 but leaves API tokens alone, recorded as `auth.other_sessions_signed_out`.
+Signing out a single other session (`DELETE /api/v1/me/sessions/{id}`, with
+the `id` from `GET /api/v1/me/sessions`) needs no password, refuses the current
+session (422) and is recorded as `auth.session_signed_out`; like the bulk
+sign-out it also rotates the remember token, so "keep me signed in" stops
+working on the user's other browsers.
 Note that the workspace audit list only shows workspace events; instance-level
 events such as `auth.*` (logins, failed logins, 2FA, password resets and
 changes, session sign-outs) are stored with no workspace and are not exposed

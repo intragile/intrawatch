@@ -230,7 +230,12 @@
       "signOutOthers": "Sign out all other devices",
       "signOutOthersIntro": "Enter your password. You stay signed in on this device and are signed out on every other device. Your API tokens keep working.",
       "signOutConfirm": "Sign out",
-      "signOutOthersDone": "You have been signed out on all other devices."
+      "signOutOthersDone": "You have been signed out on all other devices.",
+      "signOutOne": "Sign out",
+      "signOutOneLabel": "Sign out {device}",
+      "signOutOneTitle": "Sign out this device?",
+      "signOutOneText": "The session on {device} ends, and you will need to sign in there again. You stay signed in on your other devices, but “Keep me signed in” stops working on them.",
+      "signOutOneDone": "{device} has been signed out."
     }
   },
   "home": {

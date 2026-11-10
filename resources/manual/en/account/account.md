@@ -104,6 +104,8 @@ If you see a device you do not recognize, or you signed in on a shared computer 
 
 You stay signed in on this device, and you are signed out everywhere else. Your API tokens keep working; revoke them on the API tokens page if needed. If you think someone else knows your password, change your password instead: that signs out the other devices too.
 
+To sign out a single device, click **Sign out** in its row and confirm. This needs no password; you stay signed in on your other devices, but **Keep me signed in** stops working on them.
+
 ## Confirming your password for sensitive actions
 
 Before some sensitive actions, IntraWatch asks for your password again. Turning two-factor authentication on or off is one example. The **Confirm your password** window then appears. Enter your password in the **Password** field and click **Confirm**. The action then continues.

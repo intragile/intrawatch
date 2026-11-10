@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Support\Audit;
 use App\Support\SignOutOtherSessions;
+use App\Support\SignOutSession;
 use App\Support\UserAgent;
 use App\Support\UserSessions;
 use Illuminate\Http\JsonResponse;
@@ -12,13 +13,17 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The signed-in user's browser sessions. Only the browser session may use it, never an API token.
  */
 class SessionController extends Controller
 {
-    public function __construct(private readonly SignOutOtherSessions $signOutOthers) {}
+    public function __construct(
+        private readonly SignOutOtherSessions $signOutOthers,
+        private readonly SignOutSession $signOutOne,
+    ) {}
 
     /**
      * List my sessions.
@@ -63,6 +68,50 @@ class SessionController extends Controller
             $ended = ($this->signOutOthers)($user, $request, $request->string('password')->toString());
 
             Audit::recordGlobal('auth.other_sessions_signed_out', $user, ['other_sessions' => [$ended, 0]]);
+        });
+
+        return response()->noContent();
+    }
+
+    /**
+     * Sign out one session.
+     *
+     * Ends one of the user's other sessions, by the `id` the list returned; a raw session id is never
+     * accepted. Unlike signing out all other sessions it needs no password: it can only end the user's
+     * own sessions and is easy to undo by signing in again, so a prompt would be friction without much
+     * gain. It has its own limiter (`session-sign-out`, 10 a minute per user) instead of sharing the
+     * password-guessing budget. Because the remember token is per user, every other browser's remember
+     * cookie stops working too; the other sessions themselves keep working, and this browser gets a
+     * fresh remember cookie if it had one.
+     *
+     * The current session is refused with a 422 on `id`: sign out instead. An id that matches none of
+     * the user's unexpired stored sessions is a 404, whoever else it may belong to. Without the database
+     * session driver no other session is stored, so every other id is a 404. API tokens get a 403.
+     *
+     * @param  string  $id  The session's `id` from the list: 32 lowercase hex characters.
+     *
+     * @throws ValidationException when the id is the current session
+     */
+    public function destroy(Request $request, string $id): Response
+    {
+        $user = PasswordController::sessionUser($request, 'API tokens cannot sign out sessions.');
+
+        if (hash_equals(UserSessions::publicId($request->session()->getId()), $id)) {
+            throw ValidationException::withMessages([
+                'id' => ['This is the current session; sign out instead.'],
+            ]);
+        }
+
+        $row = UserSessions::findByPublicId($user, $id);
+        abort_if($row === null, 404, 'No such session.');
+
+        DB::transaction(function () use ($user, $request, $row): void {
+            ($this->signOutOne)($user, $request, $row->id);
+
+            // A label of the ended device, never its session id.
+            Audit::recordGlobal('auth.session_signed_out', $user, [
+                'session' => [array_filter([...UserAgent::parse($row->user_agent), 'ip_address' => $row->ip_address]), null],
+            ]);
         });
 
         return response()->noContent();

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { ApiError } from '../../api'
 import type { UserSession } from '../../api/types'
-import { mdiLogoutVariant, mdiMonitorCellphone } from '@mdi/js'
+import { mdiLogout, mdiLogoutVariant, mdiMonitorCellphone } from '@mdi/js'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api, fieldErrors, unwrap } from '../../api'
 import { useNotify } from '../../composables/useNotify'
 import { asApiError } from '../../utils/errors'
 import { relativeTime } from '../../utils/relativeTime'
+import ConfirmDialog from '../common/ConfirmDialog.vue'
 import ProblemAlert from '../common/ProblemAlert.vue'
 
 const { t, locale } = useI18n()
@@ -24,6 +25,20 @@ const busy = ref(false)
 const error = ref<ApiError | null>(null)
 const fields = computed(() => fieldErrors(error.value))
 const hasOthers = computed(() => sessions.value.some(s => !s.current))
+
+// The one session the confirm dialog is about to end.
+const target = ref<UserSession | null>(null)
+const ending = ref(false)
+const endError = ref<ApiError | null>(null)
+const confirmOpen = computed({
+  get: () => target.value !== null,
+  set: (open: boolean) => {
+    if (!open) {
+      target.value = null
+      endError.value = null
+    }
+  },
+})
 
 async function load(): Promise<void> {
   loading.value = true
@@ -85,6 +100,36 @@ async function signOutOthers(): Promise<void> {
   }
 }
 
+async function signOutOne(): Promise<void> {
+  const session = target.value
+  if (ending.value || !session)
+    return
+  ending.value = true
+  endError.value = null
+  try {
+    await unwrap<void>(api.DELETE('/me/sessions/{id}', {
+      params: {
+        path: { id: session.id },
+      },
+    }))
+  }
+  catch (e) {
+    const failure = asApiError(e)
+    // A 404 means the session has already ended (expired or signed out elsewhere): the goal is met.
+    if (failure.status !== 404) {
+      endError.value = failure
+      ending.value = false
+      return
+    }
+  }
+  ending.value = false
+  confirmOpen.value = false
+  notify(t('account.sessions.signOutOneDone', {
+    device: device(session),
+  }))
+  await load()
+}
+
 onMounted(load)
 
 defineExpose({ load })
@@ -110,10 +155,22 @@ defineExpose({ load })
           :subtitle="details(session)"
           class="px-0"
         >
-          <template v-if="session.current" #append>
-            <v-chip color="primary" size="small" label>
+          <template #append>
+            <v-chip v-if="session.current" color="primary" size="small" label>
               {{ t('account.sessions.thisDevice') }}
             </v-chip>
+            <v-btn
+              v-else
+              data-test="sign-out-one"
+              variant="text"
+              color="error"
+              size="small"
+              :prepend-icon="mdiLogout"
+              :aria-label="t('account.sessions.signOutOneLabel', { device: device(session) })"
+              @click="target = session"
+            >
+              {{ t('account.sessions.signOutOne') }}
+            </v-btn>
           </template>
         </v-list-item>
       </v-list>
@@ -133,6 +190,18 @@ defineExpose({ load })
       </v-btn>
     </v-card-text>
   </v-card>
+
+  <ConfirmDialog
+    v-model="confirmOpen"
+    :title="t('account.sessions.signOutOneTitle')"
+    :confirm-label="t('account.sessions.signOutOne')"
+    :loading="ending"
+    destructive
+    @confirm="signOutOne"
+  >
+    <ProblemAlert :error="endError" />
+    {{ target ? t('account.sessions.signOutOneText', { device: device(target) }) : '' }}
+  </ConfirmDialog>
 
   <v-dialog v-model="dialog" max-width="440" :persistent="busy">
     <v-card :title="t('account.sessions.signOutOthers')">

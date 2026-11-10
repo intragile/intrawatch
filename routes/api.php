@@ -56,6 +56,8 @@ Route::prefix('v1')->group(function (): void {
         Route::put('/me/password', [PasswordController::class, 'update'])->name('me.password.update')->middleware('throttle:password-check');
         Route::get('/me/sessions', [SessionController::class, 'index'])->name('me.sessions.index');
         Route::post('/me/sessions/sign-out-others', [SessionController::class, 'destroyOthers'])->name('me.sessions.sign-out-others')->middleware('throttle:password-check');
+        Route::delete('/me/sessions/{id}', [SessionController::class, 'destroy'])->name('me.sessions.destroy')
+            ->where('id', '[0-9a-f]{32}')->middleware('throttle:session-sign-out');
 
         // The release notes of this installation, from CHANGELOG.md; any signed-in user or token, whatever its abilities.
         Changelog::routes();

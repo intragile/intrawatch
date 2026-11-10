@@ -85,6 +85,10 @@ class TenantScopingTest extends TestCase
                 if ($parameter === 'version' && $route->uri() === 'api/v1/changelog/{version}') {
                     continue;
                 }
+                // A session handle is an HMAC of the user's own session id, not a model id; only that user's rows are matched.
+                if ($parameter === 'id' && $route->uri() === 'api/v1/me/sessions/{id}' && ($wheres[$parameter] ?? null) === '[0-9a-f]{32}') {
+                    continue;
+                }
                 if (is_string($parameter) && $parameter !== 'workspace' && ($wheres[$parameter] ?? null) !== '[0-9]+') {
                     $unconstrained[] = $route->uri().' {'.$parameter.'}';
                 }

@@ -435,6 +435,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sign out one session
+         * @description Ends one of the user's other sessions, by the `id` the list returned; a raw session id is never
+         *     accepted. Unlike signing out all other sessions it needs no password: it can only end the user's
+         *     own sessions and is easy to undo by signing in again, so a prompt would be friction without much
+         *     gain. It has its own limiter (`session-sign-out`, 10 a minute per user) instead of sharing the
+         *     password-guessing budget. Because the remember token is per user, every other browser's remember
+         *     cookie stops working too; the other sessions themselves keep working, and this browser gets a
+         *     fresh remember cookie if it had one.
+         *
+         *     The current session is refused with a 422 on `id`: sign out instead. An id that matches none of
+         *     the user's unexpired stored sessions is a 404, whoever else it may belong to. Without the database
+         *     session driver no other session is stored, so every other id is a 404. API tokens get a 403.
+         */
+        delete: operations["me.sessions.destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/monitor-types": {
         parameters: {
             query?: never;
@@ -2594,6 +2624,30 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "me.sessions.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The session's `id` from the list: 32 lowercase hex characters. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
             422: components["responses"]["ValidationException"];
         };
     };

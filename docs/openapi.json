@@ -1699,6 +1699,41 @@
                 }
             }
         },
+        "/me/sessions/{id}": {
+            "delete": {
+                "operationId": "me.sessions.destroy",
+                "description": "Ends one of the user's other sessions, by the `id` the list returned; a raw session id is never\naccepted. Unlike signing out all other sessions it needs no password: it can only end the user's\nown sessions and is easy to undo by signing in again, so a prompt would be friction without much\ngain. It has its own limiter (`session-sign-out`, 10 a minute per user) instead of sharing the\npassword-guessing budget. Because the remember token is per user, every other browser's remember\ncookie stops working too; the other sessions themselves keep working, and this browser gets a\nfresh remember cookie if it had one.\n\nThe current session is refused with a 422 on `id`: sign out instead. An id that matches none of\nthe user's unexpired stored sessions is a 404, whoever else it may belong to. Without the database\nsession driver no other session is stored, so every other id is a 404. API tokens get a 403.",
+                "summary": "Sign out one session",
+                "tags": [
+                    "Session"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "description": "The session's `id` from the list: 32 lowercase hex characters.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/monitor-types": {
             "get": {
                 "operationId": "monitorType",
