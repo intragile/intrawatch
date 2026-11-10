@@ -10,6 +10,8 @@ import { api, fieldErrors, unwrap, useCursorList } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
@@ -208,9 +210,12 @@ async function invite(): Promise<void> {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-4">
-    {{ t('members.title') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-4">
+    <h1 class="text-h5">
+      {{ t('members.title') }}
+    </h1>
+    <HelpLink v-bind="screenHelp('ws.members')" />
+  </div>
 
   <EmptyState v-if="!can('viewMembers')" :title="t('common.noAccess')" />
 

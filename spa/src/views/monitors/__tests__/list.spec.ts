@@ -70,6 +70,24 @@ describe('monitor list', () => {
     expect(server.unexpected).toEqual([])
   })
 
+  it('links the header to the monitors chapter of the manual', async () => {
+    monitorsApi({
+      null: [
+        monitor({ id: 1, name: 'Site 1' }),
+      ],
+    })
+    const { router } = await mountApp('/w/acme/monitors')
+    await expect.poll(() => text()).toContain('Site 1')
+
+    const link = document.querySelector<HTMLAnchorElement>('.pane-head [data-test="help-link"]')
+    expect(link?.getAttribute('href')).toBe('/help/monitoring/monitors')
+    expect(link?.getAttribute('aria-label')).toBe('Help: Monitors')
+
+    link?.click()
+    // The help view is loaded lazily; the navigation has to settle before the test ends.
+    await expect.poll(() => router.currentRoute.value.name).toBe('help.chapter')
+  })
+
   it('filters are reflected in the URL and switch to flat mode', async () => {
     const { queries } = monitorsApi({
       null: [

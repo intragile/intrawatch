@@ -10,6 +10,8 @@ import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useNotify } from '../../composables/useNotify'
 import { bodyOf } from '../../utils/cursorPage'
@@ -155,9 +157,12 @@ async function copy(): Promise<void> {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-2">
-    {{ t('tokens.title') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-2">
+    <h1 class="text-h5">
+      {{ t('tokens.title') }}
+    </h1>
+    <HelpLink v-bind="screenHelp('ws.tokens')" />
+  </div>
   <p class="mb-4">
     {{ t('tokens.intro') }}
   </p>

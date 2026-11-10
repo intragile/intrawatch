@@ -9,6 +9,8 @@ import ChangePasswordCard from '../../components/account/ChangePasswordCard.vue'
 import SessionsCard from '../../components/account/SessionsCard.vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import { useNotify } from '../../composables/useNotify'
 import { useSession } from '../../stores/session'
 import { asApiError } from '../../utils/errors'
@@ -174,9 +176,12 @@ function downloadCodes(): void {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-4">
-    {{ t('account.title') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-4">
+    <h1 class="text-h5">
+      {{ t('account.title') }}
+    </h1>
+    <HelpLink v-bind="screenHelp('account')" />
+  </div>
 
   <v-card class="mb-4" max-width="720">
     <v-card-title tag="h2" class="text-h6">

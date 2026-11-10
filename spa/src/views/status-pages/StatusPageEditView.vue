@@ -9,6 +9,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, fieldErrors, unwrap } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import { clone, deepEqual } from '../../components/monitors/forms/model'
 import LayoutEditor from '../../components/status-pages/LayoutEditor.vue'
 import {
@@ -281,9 +283,11 @@ async function remove(): Promise<void> {
 
 <template>
   <div class="d-flex align-center flex-wrap ga-2 mb-4">
-    <h1 class="text-h5 flex-grow-1">
+    <h1 class="text-h5">
       {{ isEdit ? t('statusPages.editTitle') : t('statusPages.newTitle') }}
     </h1>
+    <HelpLink v-bind="screenHelp('ws.status-page')" />
+    <v-spacer />
     <template v-if="loaded">
       <v-btn
         data-test="public-link"

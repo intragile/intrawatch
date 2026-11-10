@@ -10,6 +10,8 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { api, fieldErrors, unwrap } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import { BULK_MAX_IDS } from '../../components/monitors/filters'
 import { clone, deepEqual, errorFor, invalidHeaderLines } from '../../components/monitors/forms/model'
 import ChannelFields from '../../components/notifications/ChannelFields.vue'
@@ -477,9 +479,12 @@ watch(leaveOpen, (open) => {
 
 <template>
   <template v-if="canManage">
-    <h1 class="text-h5 mb-4">
-      {{ isEdit ? t('channels.editTitle') : t('channels.newTitle') }}
-    </h1>
+    <div class="d-flex align-center ga-2 mb-4">
+      <h1 class="text-h5">
+        {{ isEdit ? t('channels.editTitle') : t('channels.newTitle') }}
+      </h1>
+      <HelpLink v-bind="screenHelp(isEdit ? 'ws.channel' : 'ws.channel.new')" />
+    </div>
 
     <v-progress-linear v-if="loading" indeterminate :aria-label="t('channels.loading')" />
     <div v-else-if="loadError">

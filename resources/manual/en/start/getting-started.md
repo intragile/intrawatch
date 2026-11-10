@@ -12,6 +12,8 @@ The **Workspace** switcher sits at the top of the left-hand menu. Everything you
 - in the **Manage workspace** group, among others, [[icon:mdi-account-group]] **Members** and [[icon:mdi-key-variant]] **API tokens**
 - in the **Help and news** group, [[icon:mdi-help-circle-outline]] **Help**, this manual, and [[icon:mdi-history]] **Changelog**, what changed in each release
 
+The [[icon:mdi-help-circle-outline]] icon next to a page title opens the help chapter that describes that page.
+
 Click your name at the bottom of the menu to open the **Account menu**. There you find the **Account and security** page, the theme and language switches, and **Sign out**.
 
 The menu shows only the items your role gives you access to. You need at least the **Editor** role to create monitors, channels and status pages. If you do not see a button, ask one of the workspace admins for a higher role. Roles are covered in the [[manual:workspace/workspace|Workspace and members]] chapter.

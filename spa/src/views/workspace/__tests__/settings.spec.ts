@@ -33,6 +33,21 @@ describe('workspace settings', () => {
     expect(wrapper.exists()).toBe(true)
   })
 
+  it('links the header to the settings section of the workspace chapter', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+    })
+    await mountApp('/w/acme/settings')
+    await expect.poll(() => document.querySelector('input[name="settings_name"]')).not.toBeNull()
+
+    const link = document.querySelector('h1')?.parentElement?.querySelector('[data-test="help-link"]')
+    expect(link?.getAttribute('href')).toBe('/help/workspace/workspace#workspace-settings')
+    expect(link?.getAttribute('aria-label')).toBe('Help: Workspace and members')
+  })
+
   it('a viewer sees read-only settings and no delete', async () => {
     fakeApi({
       'GET /setup': json({ required: false }),

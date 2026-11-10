@@ -8,6 +8,8 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { api, fieldErrors, unwrap } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import AlertingFields from '../../components/monitors/forms/AlertingFields.vue'
 import CommonFields from '../../components/monitors/forms/CommonFields.vue'
 import {
@@ -391,9 +393,12 @@ watch(leaveOpen, (open) => {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-4">
-    {{ isEdit ? t('monitorEditor.editTitle') : t('monitorEditor.newTitle') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-4">
+    <h1 class="text-h5">
+      {{ isEdit ? t('monitorEditor.editTitle') : t('monitorEditor.newTitle') }}
+    </h1>
+    <HelpLink v-bind="screenHelp(isEdit ? 'ws.monitor.edit' : 'ws.monitor.new')" />
+  </div>
 
   <v-progress-linear v-if="loading" indeterminate :aria-label="t('monitorEditor.loading')" />
   <div v-else-if="loadError">
