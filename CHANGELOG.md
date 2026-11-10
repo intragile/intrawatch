@@ -37,6 +37,8 @@ All notable changes to IntraWatch are recorded here. The format follows
   published the incident with all its updates. The incident form warns about
   this while the switch is off, and the incident list marks internal
   incidents.
+- The new-monitor form preselects only active default notification channels,
+  as the server does; switched-off channels used to be selected too.
 
 ### API
 

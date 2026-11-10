@@ -42,6 +42,9 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
   egy ilyen monitor kijelölése a frissítéseivel együtt közzétette az
   incidenst. Amíg a kapcsoló ki van kapcsolva, az incidens űrlapja figyelmeztet
   erre, az incidenslista pedig megjelöli a belső incidenseket.
+- Az új monitor űrlapja már csak az aktív alapértelmezett értesítési
+  csatornákat jelöli ki előre, ahogy a szerver is; a kikapcsolt csatornák
+  eddig szintén bekerültek.
 
 ### API
 

@@ -277,6 +277,58 @@ describe('monitor editor', () => {
     expect(router.currentRoute.value.params.monitor).toBe('7')
   })
 
+  it('preselects only active default channels', async () => {
+    const base = {
+      type: 'slack',
+      config: {},
+      secret_keys: [],
+      templates: null,
+      monitor_count: 0,
+      last_success_at: null,
+      last_failure_at: null,
+      last_error: null,
+      created_at: null,
+      updated_at: null,
+    }
+    const server = fakeApi(routes({
+      'GET /workspaces/acme/notification-channels': json(page([
+        {
+          ...base,
+          id: 1,
+          name: 'Ops',
+          is_default: true,
+          active: true,
+        },
+        {
+          ...base,
+          id: 2,
+          name: 'Old pager',
+          is_default: true,
+          active: false,
+        },
+        {
+          ...base,
+          id: 3,
+          name: 'Optional',
+          is_default: false,
+          active: true,
+        },
+      ])),
+      'POST /workspaces/acme/monitors': json({
+        data: { ...MONITOR, id: 10 },
+      }, 201),
+    }))
+    await mountApp('/w/acme/monitors/new')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    fill('input[name="monitor_name"]', 'API')
+    await flushPromises()
+    fill('input[name="config_url"]', 'https://api.example.com')
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
+    const body = server.of('POST /workspaces/acme/monitors')[0]?.body as Record<string, unknown>
+    expect(body.notification_channel_ids).toEqual([1])
+  })
+
   it('a rejected save keeps the form and a later save succeeds', async () => {
     const server = fakeApi(routes({
       'PATCH /workspaces/acme/monitors/1': [

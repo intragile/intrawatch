@@ -209,7 +209,8 @@ function startCreate(next: MonitorType): void {
     return
   type.value = next
   const defaultChannels = canPickChannels.value
-    ? channels.value.filter(c => c.is_default).map(c => c.id)
+    // Like the server's own default: only active default channels are attached to a new monitor.
+    ? channels.value.filter(c => c.is_default && c.active).map(c => c.id)
     : []
   const fresh = newForm(entry, defaultChannels)
   const previous = form.value
