@@ -94,10 +94,13 @@ class TagController extends Controller
     }
 
     /**
-     * @return array<string, mixed>
+     * The `(int)` cast is a no-op at runtime; without it Scramble documents the id of tag.update (a
+     * route-bound tag) as a string.
+     *
+     * @return array{id: int, name: string, color: string}
      */
     private function payload(Tag $tag): array
     {
-        return ['id' => $tag->id, 'name' => $tag->name, 'color' => $tag->color];
+        return ['id' => (int) $tag->id, 'name' => $tag->name, 'color' => $tag->color];
     }
 }
