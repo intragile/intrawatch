@@ -90,22 +90,21 @@ class ManualApiTest extends TestCase
             ->assertJsonPath('data.fallback', false);
     }
 
-    public function test_an_unshipped_language_is_served_in_the_source_language(): void
+    public function test_an_unshipped_language_is_served_through_the_fallback_list(): void
     {
         $user = User::factory()->create();
 
-        // The package resolves a language it does not ship to source_locale; `fallback` (en) only fills
-        // chapters missing from a shipped language.
+        // A language the app does not ship walks the configured `fallback` list (en) before source_locale (hu).
         $this->actingAs($user, 'sanctum')
             ->getJson('/api/v1/manual/chapter?slug=start/getting-started', ['Accept-Language' => 'de'])
             ->assertOk()
-            ->assertJsonPath('data.locale', 'hu')
+            ->assertJsonPath('data.locale', 'en')
             ->assertJsonPath('data.fallback', true);
 
         $this->actingAs($user, 'sanctum')
             ->getJson('/api/v1/manual', ['Accept-Language' => 'de'])
             ->assertOk()
-            ->assertJsonPath('locale', 'hu')
+            ->assertJsonPath('locale', 'en')
             ->assertJsonPath('fallback', true);
     }
 

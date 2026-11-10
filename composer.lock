@@ -2636,7 +2636,7 @@
             "dist": {
                 "type": "path",
                 "url": "../intragile-packagist/laravel-manual",
-                "reference": "11537f1e0078dba61c01857c8728fd365c98afbb"
+                "reference": "b0e1ee40d342a13e91001fb17f38f8094ea52de1"
             },
             "require": {
                 "illuminate/auth": "^12.0|^13.0",
