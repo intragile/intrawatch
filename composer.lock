@@ -2633,16 +2633,16 @@
         },
         {
             "name": "intragile/laravel-manual",
-            "version": "v1.0.1",
+            "version": "v1.0.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/intragile/laravel-manual.git",
-                "reference": "2ab1839aaa685f1628f0ee941800681a2801b552"
+                "reference": "5300d58d0aa95178c3e3a797ce54d7cf9c0a93e5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/intragile/laravel-manual/zipball/2ab1839aaa685f1628f0ee941800681a2801b552",
-                "reference": "2ab1839aaa685f1628f0ee941800681a2801b552",
+                "url": "https://api.github.com/repos/intragile/laravel-manual/zipball/5300d58d0aa95178c3e3a797ce54d7cf9c0a93e5",
+                "reference": "5300d58d0aa95178c3e3a797ce54d7cf9c0a93e5",
                 "shasum": ""
             },
             "require": {
@@ -2708,7 +2708,7 @@
                 "security": "https://github.com/intragile/laravel-manual/security/policy",
                 "source": "https://github.com/intragile/laravel-manual"
             },
-            "time": "2026-11-10T08:28:50+00:00"
+            "time": "2026-11-10T14:30:15+00:00"
         },
         {
             "name": "jeremykendall/php-domain-parser",
