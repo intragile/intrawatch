@@ -81,6 +81,9 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
 - Minden fő képernyő címe mellett megjelenik egy ? ikon, amely a súgó
   megfelelő fejezetét nyitja meg, a szerkesztőkben és a riasztási naplóban
   közvetlenül a vonatkozó szakasznál.
+- A súgó fejezeteiben képernyőképek mutatják a monitorlistát, az új monitor és
+  az új csatorna űrlapját, az incidensfrissítést és a státuszoldal elrendezését.
+  A képeket demóadatokból az `npm run manual:screenshots` készíti újra.
 
 ### API
 

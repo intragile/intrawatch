@@ -70,6 +70,9 @@ All notable changes to IntraWatch are recorded here. The format follows
   color stays readable.
 - A ? icon next to the title of each main screen opens the matching help
   chapter; editors and the alert history open it at the relevant section.
+- Manual chapters now show screenshots of the monitor list, the new monitor and
+  new channel forms, posting an incident update and the status page layout.
+  `npm run manual:screenshots` regenerates them from demo data.
 
 ### API
 
