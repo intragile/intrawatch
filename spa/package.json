@@ -16,6 +16,7 @@
     "verify": "npm run api:check && npm run lint && npm run typecheck && npm run test:serial && npm run build",
     "api:generate": "openapi-typescript ../docs/openapi.json -o src/api/schema.d.ts",
     "api:check": "node scripts/api-check.mjs",
+    "manual:screenshots": "node scripts/manual-screenshots.mjs",
     "e2e": "bash e2e/run.sh"
   },
   "dependencies": {
