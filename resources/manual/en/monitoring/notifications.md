@@ -1,6 +1,6 @@
 # Notification channels
 
-A notification channel decides where your monitors' alerts go: to e-mail, to chat, as a push notification or to a webhook. This chapter shows you how to create a channel, how to test it, and where to follow the alerts that were sent.
+A notification channel decides where your monitors' alerts go: to email, to chat, as a push notification or to a webhook. This chapter shows you how to create a channel, how to test it, and where to follow the alerts that were sent.
 
 ## How does an alert reach you?
 
@@ -25,7 +25,7 @@ You need at least the **Editor** role to create and change channels.
 
 | Type | Required details |
 | --- | --- |
-| E-mail | **Recipients** (one or more e-mail addresses) |
+| Email | **Recipients** (one or more email addresses) |
 | Webhook | **URL**, **HTTP method**, **Body format** |
 | Slack, Discord, Microsoft Teams, Mattermost, Google Chat | **Webhook URL** |
 | Telegram | **Bot token**, **Chat ID** |
@@ -37,7 +37,7 @@ You need at least the **Editor** role to create and change channels.
 | Opsgenie | **API key**, **Region** |
 | Apprise | **Server URL**, plus **Config key** or **Notification URLs** |
 
-By default, the e-mail channel sends through the app's mailer. If you turn on the **Use my own SMTP server** switch, you can enter your own server and sender address.
+By default, the email channel sends through the app's mailer. If you turn on the **Use my own SMTP server** switch, you can enter your own server and sender address.
 
 For a webhook channel, put credentials in the **Secret headers**. If you set a **Signing secret**, the receiving side can verify that the request really came from IntraWatch: the app then also sends an `X-IntraWatch-Signature` header.
 

@@ -59,7 +59,7 @@ final class EmailSender implements ChannelSender
                 detail: $code > 0 ? "code {$code}" : null,
             );
         } catch (MimeException) {
-            throw new DeliveryFailure('Invalid e-mail address', permanent: true);
+            throw new DeliveryFailure('Invalid email address', permanent: true);
         }
     }
 

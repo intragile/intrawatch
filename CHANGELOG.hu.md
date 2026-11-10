@@ -45,6 +45,8 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
 - Az új monitor űrlapja már csak az aktív alapértelmezett értesítési
   csatornákat jelöli ki előre, ahogy a szerver is; a kikapcsolt csatornák
   eddig szintén bekerültek.
+- Az angol felület, a kézikönyv és az e-mailek egységesen amerikai
+  helyesírást használnak (például „email”, „color”, „analyze”).
 
 ### API
 

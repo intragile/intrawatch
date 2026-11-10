@@ -46,13 +46,13 @@ You can invite members with the **Admin** or **Owner** role.
 :::steps
 
 1. Open the [[route:ws.members|Members]] page.
-2. In the **Invite a member** section, enter the **E-mail**.
+2. In the **Invite a member** section, enter the **Email**.
 3. Choose the **Role**. By default it is **Viewer**.
 4. Click **Send invitation**.
 
 :::
 
-IntraWatch sends an invitation link to that address. By default the link is valid for 7 days; the **Pending invitations** table shows the exact expiry. The invited person joins by signing in with that e-mail address, opening the link and clicking **Accept invitation**. The invitation e-mail is written in the language of the inviter's interface.
+IntraWatch sends an invitation link to that address. By default the link is valid for 7 days; the **Pending invitations** table shows the exact expiry. The invited person joins by signing in with that email address, opening the link and clicking **Accept invitation**. The invitation email is written in the language of the inviter's interface.
 
 :::warning
 

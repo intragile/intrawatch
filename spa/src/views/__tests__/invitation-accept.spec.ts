@@ -75,7 +75,7 @@ describe('invitation acceptance', () => {
     await click('[data-test="accept-invitation"]')
 
     await expect.poll(() => document.querySelector('[data-test="invitation-error"]')?.textContent)
-      .toContain('This invitation is invalid, expired or meant for another e-mail address.')
+      .toContain('This invitation is invalid, expired or meant for another email address.')
     expect(router.currentRoute.value.name).toBe('invitation')
     expect(document.querySelector('[data-test="invitation-home"]')).not.toBeNull()
     expect(sessionStorage.getItem(INVITATION_TOKEN_KEY)).toBeNull()

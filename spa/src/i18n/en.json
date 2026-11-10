@@ -30,7 +30,7 @@
   },
   "validation": {
     "required": "This field is required.",
-    "email": "Enter a valid e-mail address.",
+    "email": "Enter a valid email address.",
     "passwordMin": "At least {min} characters.",
     "passwordMatch": "The passwords do not match."
   },
@@ -73,7 +73,7 @@
   "auth": {
     "fields": {
       "name": "Name",
-      "email": "E-mail",
+      "email": "Email",
       "password": "Password",
       "newPassword": "New password",
       "passwordConfirmation": "Repeat the password"
@@ -97,7 +97,7 @@
     },
     "forgot": {
       "title": "Reset your password",
-      "intro": "Enter the e-mail address of your account and we will send you a link to set a new password.",
+      "intro": "Enter the email address of your account and we will send you a link to set a new password.",
       "submit": "Send reset link",
       "sent": "If an account exists for that address, a reset link is on its way. Check your inbox.",
       "back": "Back to sign in"
@@ -262,8 +262,8 @@
     "title": "Members",
     "invite": {
       "title": "Invite a member",
-      "hint": "We e-mail an invitation link to the address, valid for 7 days. The person joins by signing in with that address and accepting it; ask your administrator to create an account if they have none.",
-      "email": "E-mail",
+      "hint": "We email an invitation link to the address, valid for 7 days. The person joins by signing in with that address and accepting it; ask your administrator to create an account if they have none.",
+      "email": "Email",
       "role": "Role",
       "submit": "Send invitation",
       "sent": "Invitation sent to {email}."
@@ -278,7 +278,7 @@
       "revoked": "The invitation of {email} was revoked."
     },
     "name": "Name",
-    "email": "E-mail",
+    "email": "Email",
     "role": "Role",
     "actions": "Actions",
     "roleOf": "Role of {name}",
@@ -582,7 +582,7 @@
     "push": {
       "info": "After you save, the push URL appears on the monitor's detail page. Call it from your job or service at least once per interval to report it as up.",
       "grace": "Grace period",
-      "graceHint": "How long to wait past the expected heartbeat before marking the monitor down."
+      "graceHint": "How long to wait past the expected check-in before marking the monitor down."
     },
     "cron": {
       "info": "After you save, the push URL appears on the monitor's detail page. Call it when your scheduled job finishes (or starts and finishes) to report it.",
@@ -789,7 +789,7 @@
     },
     "empty": {
       "title": "No notification channels",
-      "text": "Add a channel so alerts reach you by e-mail, chat or webhook."
+      "text": "Add a channel so alerts reach you by email, chat or webhook."
     },
     "delete": {
       "title": "Delete channel?",
@@ -846,7 +846,7 @@
       "urls": "Notification URLs"
     },
     "types": {
-      "email": "E-mail",
+      "email": "Email",
       "webhook": "Webhook",
       "slack": "Slack",
       "discord": "Discord",
@@ -1209,7 +1209,7 @@
       "incidentHistoryDays": "Incident history (days)",
       "upcomingMaintenanceDays": "Upcoming maintenance (days)",
       "showLatency": "Show response times",
-      "accentColor": "Accent colour",
+      "accentColor": "Accent color",
       "logoUrl": "Logo URL",
       "faviconUrl": "Favicon URL",
       "footer": "Footer text",
@@ -1274,7 +1274,7 @@
   },
   "import": {
     "title": "Import from Uptime Kuma",
-    "intro": "Upload a copy of your Uptime Kuma database to bring its monitors, notification channels, tags, status pages, incidents and maintenance windows into this workspace. The upload is analysed first; nothing is created until you run the import.",
+    "intro": "Upload a copy of your Uptime Kuma database to bring its monitors, notification channels, tags, status pages, incidents and maintenance windows into this workspace. The upload is analyzed first; nothing is created until you run the import.",
     "upload": {
       "title": "Upload a file",
       "file": "Kuma database or backup",
@@ -1282,7 +1282,7 @@
       "history": "Include uptime history",
       "paused": "Import monitors paused",
       "help": "Take a consistent copy first: stop Uptime Kuma, or run sqlite3 kuma.db \".backup kuma-export.db\" while it runs. See the \"Migrating from Uptime Kuma\" section of the README for the supported sources.",
-      "submit": "Upload and analyse",
+      "submit": "Upload and analyze",
       "noFile": "Choose a file first.",
       "tooLarge": "The file is larger than the {max} MB upload limit."
     },
@@ -1290,8 +1290,8 @@
     "gone": "This import no longer exists. It was deleted or removed after 24 hours.",
     "status": {
       "pending": "Queued",
-      "analyzing": "Analysing",
-      "analyzed": "Analysed",
+      "analyzing": "Analyzing",
+      "analyzed": "Analyzed",
       "running": "Importing",
       "completed": "Completed",
       "failed": "Failed"
@@ -1381,8 +1381,8 @@
     "intro": "Accept the invitation to join the workspace as {email}. The invitation must have been sent to this address.",
     "accept": "Accept invitation",
     "accepted": "You joined {name}.",
-    "invalid": "This invitation is invalid, expired or meant for another e-mail address.",
+    "invalid": "This invitation is invalid, expired or meant for another email address.",
     "home": "Go to the start page",
-    "missing": "This link does not contain an invitation. Open the link from the invitation e-mail again."
+    "missing": "This link does not contain an invitation. Open the link from the invitation email again."
   }
 }

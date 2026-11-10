@@ -76,7 +76,7 @@ In the **What visitors see** section you control how much history is shown:
 
 In the **Branding** section you can match the page to your own brand:
 
-- **Accent colour**: a hex value, for example #2563eb.
+- **Accent color**: a hex value, for example #2563eb.
 - **Logo URL** and **Favicon URL**: an https address without credentials.
 - **Footer text**: the text shown at the bottom of the page.
 - **Custom CSS**: your own style rules for further customization.

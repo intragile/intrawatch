@@ -31,7 +31,7 @@ Make a consistent copy of the database. To do this, stop Uptime Kuma before you 
 2. In the **Upload a file** section, choose the file in the **Kuma database or backup** field.
 3. Decide whether you want **Include uptime history**. It is on by default.
 4. If you do not want the imported monitors to start yet, turn on **Import monitors paused**.
-5. Click **Upload and analyse**.
+5. Click **Upload and analyze**.
 
 :::
 

@@ -61,7 +61,7 @@ Every workspace in `/api/v1/me` and `/api/v1/workspaces` carries `channel` and
 the name from it instead of building it. `can` maps the workspace abilities
 (`view`, `update`, `manageMonitors`, ...) to whether the caller holds them; for
 an API token it is also limited to the token's own abilities. Password-reset
-e-mails link to `{APP_URL}/admin/reset-password/{token}`.
+emails link to `{APP_URL}/admin/reset-password/{token}`.
 
 A request without a session (no matching `Origin`, for example) is answered
 with `400` and `urn:problem:session-unavailable` rather than a login that does
@@ -128,8 +128,8 @@ served: `/admin/`, `/api/`, `/sanctum/` and `/broadcasting/` answer 404 there.
 
 ### Members and invitations
 
-Members are invited by e-mail. `POST /api/v1/workspaces/{workspace}/members`
-(`email`, `role`, optional `locale` `en` or `hu` for the language of the e-mail,
+Members are invited by email. `POST /api/v1/workspaces/{workspace}/members`
+(`email`, `role`, optional `locale` `en` or `hu` for the language of the email,
 default `en`; the admin interface sends its own language; `members:manage`) answers `202` for every address, whether
 or not an account exists for it, and mails a link to
 `{APP_URL}/admin/invitations#token={token}`; the token sits in the fragment, so
@@ -137,7 +137,7 @@ browsers never send it and it stays out of access logs. Only an address that is
 already a member is refused (422). The link is valid for 7 days and works once; inviting the
 same address again replaces the pending invitation and the old link stops
 working. It is accepted by a signed-in browser session (not an API token)
-whose e-mail matches the invitation. Sign-up is not open, so the e-mail tells
+whose email matches the invitation. Sign-up is not open, so the email tells
 the recipient to sign in with that address or ask an administrator for an
 account (`intrawatch:user:create`, see [Quick start](#quick-start)). An
 invitation also stops working when its inviter is removed from the workspace
@@ -151,9 +151,9 @@ included) and 10 per minute per user. The audit log records
 `member.invited`, `member.invitation_revoked` and `member.added`;
 `intrawatch:prune` deletes invitations a month after they expired.
 
-The e-mail is queued (regular queue worker, see [Queues](#queues)) and sent by
+The email is queued (regular queue worker, see [Queues](#queues)) and sent by
 the application mailer, so invitations need working `MAIL_*` settings (see
-[Channels](#channels)); the default mailer, `log`, only writes the e-mail to
+[Channels](#channels)); the default mailer, `log`, only writes the email to
 the container log. Adding a user to a workspace directly is only possible on
 the command line (`intrawatch:user:create --owner-of=<slug>`).
 
@@ -174,7 +174,7 @@ docker exec -it intrawatch php artisan intrawatch:user:reset-password ada@exampl
 ```
 
 Both are recorded in the audit trail with the `system` actor. A password reset,
-by this command or through the e-mail link, also revokes all of the user's API
+by this command or through the email link, also revokes all of the user's API
 tokens and is recorded as `auth.password_reset`. Note that the
 workspace audit list only shows workspace events; instance-level events such
 as `auth.*` (logins, failed logins, 2FA and password resets) are stored with no
@@ -295,7 +295,7 @@ docker exec -it intrawatch php artisan intrawatch:import:kuma /data/kuma-export.
 docker exec intrawatch rm /data/kuma-export.db
 ```
 
-Options: `--dry-run` (analyse only), `--no-history`, `--paused` (import every
+Options: `--dry-run` (analyze only), `--no-history`, `--paused` (import every
 monitor paused) and `--report=<path>` (the full JSON report). For a Kuma that
 uses an external MariaDB, pass `mysql://user:pass@host:3306/kuma` as the
 source; a read-only database user is enough. The embedded MariaDB of Kuma 2.x
@@ -327,7 +327,7 @@ instance from its SQLite database file instead.
 **Not migrated:** users, API keys, Docker hosts and remote browsers (counted in
 the report), minute-level history and individual heartbeats, monitor types and
 notification providers IntraWatch does not support, and manual maintenance
-windows. These are skipped with a note. Settings that would change behaviour
+windows. These are skipped with a note. Settings that would change behavior
 (an unsupported authentication method or proxy protocol, a JSON query that
 cannot be translated, Kuma's `conditions`) import the monitor paused or the
 channel inactive, again with a note. Nothing is dropped silently: every row
@@ -660,13 +660,13 @@ alert kind), `severity`, `title`, `body`, `monitor` (`id`, `name`, `type`,
 `X-IntraWatch-Event` and `X-IntraWatch-Delivery` (a stable id per delivery, for
 deduplication).
 
-E-mail channels without their own `smtp` block (`null` or `{}`) send through
+Email channels without their own `smtp` block (`null` or `{}`) send through
 the application mailer, with the instance's sender address. Only workspace
 owners and admins (for a token: its owner's role) may create such a channel,
 test-send an unsaved one, move a channel onto the application mailer, or
 change its recipients or templates; Editors can still rename, enable,
 disable and test-send saved ones. The mailer is configured with the usual
-Laravel variables (the default, `log`, only writes e-mails to the container
+Laravel variables (the default, `log`, only writes emails to the container
 log):
 
 ```bash
@@ -944,8 +944,8 @@ instead of breaking the image:
 ![website uptime](https://watch.example.com/status/acme/badge/42/uptime.svg?days=90&label=website)
 ```
 
-Colours: operational green, degraded yellow, partial outage orange, major
-outage red, maintenance blue, unknown grey; uptime is green from 99.9%,
+Colors: operational green, degraded yellow, partial outage orange, major
+outage red, maintenance blue, unknown gray; uptime is green from 99.9%,
 yellow-green from 99%, yellow from 95% and red below. Uptime and latency are
 hidden (`n/a`) for a component whose uptime is hidden on the page or whose
 page hides latency. Badges are served with `Cache-Control: public, max-age=60`.

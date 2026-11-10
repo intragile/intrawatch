@@ -6,7 +6,7 @@ On the **Account and security** page you can view your profile and manage two-fa
 
 Click your name at the bottom of the left-hand menu to open the account menu. Here you find:
 
-- your name and e-mail address;
+- your name and email address;
 - [[icon:mdi-shield-account-outline]] **Account and security**: the [[route:account|Account and security]] page;
 - the theme switch (see below);
 - **Language**: the language of the interface;
@@ -16,7 +16,7 @@ Below your name you also see your role in the current workspace.
 
 ## Profile
 
-The **Profile** section shows your **Name** and **E-mail**. You cannot change these in the interface. If you need to change them, contact the admin of your IntraWatch instance.
+The **Profile** section shows your **Name** and **Email**. You cannot change these in the interface. If you need to change them, contact the admin of your IntraWatch instance.
 
 ## Two-factor authentication
 
@@ -78,8 +78,8 @@ You cannot change your password while you are signed in. You can set a new passw
 :::steps
 
 1. On the sign-in page, click the **Forgot your password?** link.
-2. Enter the **E-mail** of your account, and click **Send reset link**.
-3. Open the link you get by e-mail.
+2. Enter the **Email** of your account, and click **Send reset link**.
+3. Open the link you get by email.
 4. Enter the **New password** and **Repeat the password** values, then click **Save password**.
 5. Sign in with your new password.
 
@@ -97,7 +97,7 @@ The theme and language are stored in this browser, not in your account. In anoth
 
 :::
 
-Invitation e-mails are written in the language of the inviter's interface. Details: [[manual:workspace/workspace|Workspace and members]].
+Invitation emails are written in the language of the inviter's interface. Details: [[manual:workspace/workspace|Workspace and members]].
 
 ## Session and signing out
 

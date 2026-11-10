@@ -35,7 +35,7 @@ The check results appear on the monitor's detail page. The [[manual:monitoring/m
 
 ## 2. Notification channel
 
-A notification channel tells IntraWatch where to send an alert when a monitor goes down. A channel can be, for example, e-mail, Slack, Microsoft Teams, Telegram or a webhook.
+A notification channel tells IntraWatch where to send an alert when a monitor goes down. A channel can be, for example, email, Slack, Microsoft Teams, Telegram or a webhook.
 
 :::steps
 

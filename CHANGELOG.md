@@ -39,11 +39,13 @@ All notable changes to IntraWatch are recorded here. The format follows
   incidents.
 - The new-monitor form preselects only active default notification channels,
   as the server does; switched-off channels used to be selected too.
+- The English interface, manual and emails use American spelling throughout
+  (for example "email", "color", "analyze").
 
 ### API
 
 - `GET /api/v1/changelog`, `/changelog/latest` and `/changelog/{version}`
-  return the release notes as sanitised HTML, in the language of the
+  return the release notes as sanitized HTML, in the language of the
   `Accept-Language` header or the `locale` query parameter.
 - `GET /api/v1/manual`, `/manual/chapter` and `/manual/search` serve the user
   manual's table of contents, chapters and full-text search to signed-in users
