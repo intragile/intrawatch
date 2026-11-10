@@ -10,7 +10,7 @@ Ha több munkaterületnek is tagja, a bal oldali menü tetején lévő **Munkate
 
 ## Új munkaterület létrehozása
 
-Ha a példány beállításai megengedik, a **Munkaterület** választó mellett megjelenik az [[icon:mdi-plus]] **Munkaterület létrehozása** gomb. Adja meg a **Munkaterület neve** értékét, majd kattintson a **Létrehozás** gombra. Az új munkaterületnek Ön lesz a tulajdonosa.
+Ha a példány beállításai megengedik, a **Munkaterület** választó mellett megjelenik a [[icon:mdi-plus]] **Munkaterület létrehozása** gomb. Adja meg a **Munkaterület neve** értékét, majd kattintson a **Létrehozás** gombra. Az új munkaterületnek Ön lesz a tulajdonosa.
 
 Ha a gomb nem jelenik meg, a példányon Ön nem hozhat létre munkaterületet. Ilyenkor kérje meg egy meglévő munkaterület tulajdonosát vagy adminisztrátorát, hogy hívja meg.
 

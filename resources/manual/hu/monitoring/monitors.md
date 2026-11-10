@@ -13,7 +13,7 @@ A monitorok létrehozásához és módosításához legalább **Szerkesztő** sz
 | Állapot | Jelentés |
 | --- | --- |
 | Működik | Az utolsó ellenőrzés sikeres volt. |
-| Akadozik | Az ellenőrzés sikerült, de túllépte a beállított lassúsági küszöböt, vagy egy tanúsítvány vagy domain lejáratáig kevesebb nap van hátra, mint a **Akadozik, ha ennél kevesebb nap van hátra** mezőben megadott érték. |
+| Akadozik | Az ellenőrzés sikerült, de túllépte a beállított lassúsági küszöböt, vagy egy tanúsítvány vagy domain lejáratáig kevesebb nap van hátra, mint az **Akadozik, ha ennél kevesebb nap van hátra** mezőben megadott érték. |
 | Függőben | Az új vagy újraindított monitor még nem ellenőrzött, vagy az ellenőrzés hibát jelzett, de az újrapróbálkozások még nem fogytak el. |
 | Leállt | Az ellenőrzés az újrapróbálkozások után is sikertelen. |
 | Karbantartás | A monitor egy karbantartási ablakban van, ezért nem riaszt. |
