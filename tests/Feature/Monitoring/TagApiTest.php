@@ -3,6 +3,7 @@
 namespace Tests\Feature\Monitoring;
 
 use App\Enums\WorkspaceRole;
+use App\Models\Monitor;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\Workspace;
@@ -43,7 +44,7 @@ class TagApiTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors(['color']);
 
         $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['name' => 'production'])
-            ->assertOk()->assertJsonPath('data.name', 'production')->assertJsonPath('data.color', '#ff0000');
+            ->assertOk()->assertJsonPath('data.id', $id)->assertJsonPath('data.name', 'production')->assertJsonPath('data.color', '#ff0000');
 
         $this->actingAs($this->editor)->getJson($this->url())
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', 'production')->assertJsonStructure(['meta' => ['next_cursor', 'limit']]);
@@ -54,6 +55,23 @@ class TagApiTest extends TestCase
         foreach (['tag.created', 'tag.updated', 'tag.deleted'] as $action) {
             $this->assertDatabaseHas('audit_events', ['action' => $action]);
         }
+    }
+
+    public function test_deleting_a_tag_detaches_it_from_its_monitors_and_keeps_them(): void
+    {
+        $tag = Tag::factory()->for($this->ws)->create();
+        $other = Tag::factory()->for($this->ws)->create();
+        $monitor = Monitor::factory()->for($this->ws)->http()->create();
+        $monitor->tags()->attach($tag, ['value' => 'eu']);
+        $monitor->tags()->attach($other);
+
+        $this->actingAs($this->editor)->deleteJson($this->url("/{$tag->id}"))->assertNoContent();
+
+        // The monitor_tag rows go with the tag through the foreign key cascade, on every supported database.
+        $this->assertDatabaseMissing('monitor_tag', ['tag_id' => $tag->id]);
+        $this->assertDatabaseHas('monitor_tag', ['monitor_id' => $monitor->id, 'tag_id' => $other->id]);
+        $this->assertDatabaseHas('monitors', ['id' => $monitor->id]);
+        $this->assertSame([$other->id], $monitor->tags()->pluck('tags.id')->all());
     }
 
     public function test_viewer_reads_but_cannot_write(): void

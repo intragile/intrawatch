@@ -6210,7 +6210,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: {
-                            id: string;
+                            id: number;
                             name: string;
                             color: string;
                         };

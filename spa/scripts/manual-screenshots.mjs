@@ -351,7 +351,9 @@ async function main() {
   const database = join(workdir, 'manual.sqlite')
   const port = await freePort()
   const base = `http://localhost:${port}`
-  // Seeded timestamps and the browser clock share this moment, rounded down so close reruns match.
+  // Seeded timestamps and the browser clock share this moment, rounded down so close reruns match. It is
+  // deliberately not a fixed date: the server computes its own windows (status bars, maintenance calendar)
+  // from its real clock, so the absolute dates shown in a few images change from one run to the next.
   const now = Math.floor(Date.now() / 600_000) * 600
   const env = {
     ...process.env,

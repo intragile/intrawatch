@@ -37,6 +37,8 @@ describe('help link', () => {
 
     expect(link()?.getAttribute('href')).toBe('/help/workspace/api-tokens')
     expect(link()?.getAttribute('aria-label')).toBe('Help: API tokens')
+    // The tooltip repeats the label; describing the link by it would make screen readers say it twice.
+    expect(link()?.hasAttribute('aria-describedby')).toBe(false)
   })
 
   it('opens the heading of the active language, and takes a label override', async () => {
