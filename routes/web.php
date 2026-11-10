@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\SpaAssetController;
 use App\Http\Controllers\SpaController;
+use App\Http\Controllers\SpaManualImageController;
 use App\Http\Controllers\Status\StatusBadgeController;
 use App\Http\Controllers\Status\StatusFeedController;
 use App\Http\Controllers\Status\StatusPageController;
@@ -52,5 +53,7 @@ Route::withoutMiddleware($sessionless)->middleware(ThrottleStatusRequests::class
 // domains never reach these routes (ResolveStatusHost).
 Route::withoutMiddleware($sessionless)->group(function (): void {
     Route::get('/admin/assets/{file}', SpaAssetController::class)->where('file', '[A-Za-z0-9._-]+');
+    Route::get('/admin/manual/{locale}/{file}', SpaManualImageController::class)
+        ->where(['locale' => '[a-z]{2}', 'file' => '[A-Za-z0-9._-]+']);
     Route::get('/admin/{path?}', SpaController::class)->where('path', '.*');
 });

@@ -165,6 +165,36 @@ class SpaTest extends TestCase
         }
     }
 
+    public function test_manual_images_are_served_with_revalidation_and_traversal_is_404(): void
+    {
+        File::ensureDirectoryExists($this->dist.'/manual/hu');
+        File::put($this->dist.'/manual/hu/monitor-list.png', 'png-bytes');
+        File::put($this->dist.'/manual/hu/monitor-list.webp', 'webp-bytes');
+        File::put($this->dist.'/manual/hu/notes.txt', 'text');
+
+        $png = $this->get('/admin/manual/hu/monitor-list.png');
+        $png->assertOk()
+            ->assertHeader('Content-Type', 'image/png')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('Cache-Control', 'max-age=3600, public')
+            ->assertHeaderMissing('Set-Cookie');
+        $this->assertSame('png-bytes', $png->streamedContent());
+        $this->get('/admin/manual/hu/monitor-list.webp')->assertOk()->assertHeader('Content-Type', 'image/webp');
+
+        foreach ([
+            '/admin/manual/hu/missing.png',
+            '/admin/manual/hu/notes.txt',
+            '/admin/manual/en/monitor-list.png',
+            '/admin/manual/hu/..%2F..%2Findex.html',
+            '/admin/manual/..%2Fassets/app-abc123.js',
+            '/admin/manual/hu/nested/monitor-list.png',
+            '/admin/manual/hu',
+            '/admin/manual',
+        ] as $path) {
+            $this->get($path)->assertNotFound();
+        }
+    }
+
     public function test_missing_build_is_problem_503(): void
     {
         config(['intrawatch.spa_path' => $this->dist.'/does-not-exist']);

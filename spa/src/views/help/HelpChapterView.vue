@@ -824,9 +824,20 @@ function onKeydown(event: KeyboardEvent): void {
   background: none;
 }
 
+/* Screenshots: a paragraph holding only an image may use the full width instead of the 68ch text measure. */
+.manual-content :deep(p:has(> img)) {
+  max-width: none;
+}
+
 .manual-content :deep(img) {
+  display: block;
   max-width: 100%;
   height: auto;
+  margin: 0.25rem 0;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 8px;
+  /* The screenshots are taken in the light theme; a backdrop keeps transparent edges legible in dark mode. */
+  background: rgb(var(--v-theme-surface));
 }
 
 .manual-content :deep(a) {
