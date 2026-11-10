@@ -6,7 +6,11 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.3.0] - 2026-11-10
+
+An in-app changelog and a searchable user manual in Hungarian and English,
+a Tags page, internal incidents, and password and sign-in management in the
+account settings.
 
 ### Admin interface
 

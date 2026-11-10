@@ -8,7 +8,11 @@ Az IntraWatch minden lényeges változása itt olvasható. A formátum a
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) ajánlását követi, a
 verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait.
 
-## [Unreleased]
+## [1.3.0] - 2026-11-10
+
+Fejlesztési napló és kereshető magyar–angol kézikönyv az alkalmazásban,
+Címkék oldal, belső incidensek, valamint jelszómódosítás és a bejelentkezések
+kezelése a fiókbeállításokban.
 
 ### Admin felület
 
