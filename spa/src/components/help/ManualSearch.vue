@@ -109,8 +109,12 @@ onUnmounted(() => clearTimeout(timer))
         <!-- eslint-enable vue/no-v-html -->
       </v-list-item>
     </v-list>
-    <p v-else-if="searched !== '' && !loading && !error" class="mt-4 text-medium-emphasis" data-test="search-empty">
-      {{ t('help.searchEmpty') }}
+    <!-- Always present, so screen readers announce the outcome when its text changes. -->
+    <p role="status" aria-live="polite" class="mt-2 text-body-2 text-medium-emphasis" data-test="search-status">
+      <template v-if="searched !== '' && !loading && !error">
+        <span v-if="hits.length > 0">{{ t('help.searchCount', hits.length) }}</span>
+        <span v-else data-test="search-empty">{{ t('help.searchEmpty') }}</span>
+      </template>
     </p>
   </div>
 </template>

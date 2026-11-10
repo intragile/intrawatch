@@ -19,21 +19,25 @@ const manual = ref<Index | null>(null)
 const loading = ref(false)
 const error = ref<ApiError | null>(null)
 
+let sequence = 0
+
+/** Only the latest request counts: a language switch during a load must not show the old language. */
 async function load(): Promise<void> {
-  if (loading.value)
-    return
+  const mine = ++sequence
   loading.value = true
   error.value = null
   try {
     const { data } = await api.GET('/manual')
-    if (data)
+    if (mine === sequence && data)
       manual.value = data
   }
   catch (e) {
-    error.value = failure(e)
+    if (mine === sequence)
+      error.value = failure(e)
   }
   finally {
-    loading.value = false
+    if (mine === sequence)
+      loading.value = false
   }
 }
 

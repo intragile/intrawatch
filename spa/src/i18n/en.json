@@ -141,6 +141,7 @@
     "title": "Help",
     "search": "Search the manual",
     "searchResults": "Search results",
+    "searchCount": "{n} matching chapter | {n} matching chapters",
     "searchEmpty": "No chapter matches your search.",
     "contents": "On this page",
     "backToIndex": "Back to the manual",

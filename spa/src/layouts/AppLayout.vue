@@ -289,14 +289,14 @@ watch(() => session.me, (current) => {
               :title="t('nav.help')"
             />
             <v-list-item
-              :to="{ name: 'account' }"
-              :prepend-icon="mdiShieldAccountOutline"
-              :title="t('nav.account')"
-            />
-            <v-list-item
               :to="{ name: 'changelog' }"
               :prepend-icon="mdiHistory"
               :title="t('nav.changelog')"
+            />
+            <v-list-item
+              :to="{ name: 'account' }"
+              :prepend-icon="mdiShieldAccountOutline"
+              :title="t('nav.account')"
             />
             <v-list-item
               :prepend-icon="isDark ? mdiWeatherSunny : mdiWeatherNight"

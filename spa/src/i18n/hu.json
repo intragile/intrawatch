@@ -141,6 +141,7 @@
     "title": "Súgó",
     "search": "Keresés a súgóban",
     "searchResults": "Találatok",
+    "searchCount": "{n} találat | {n} találat",
     "searchEmpty": "Egyetlen fejezet sem felel meg a keresésnek.",
     "contents": "A fejezet tartalma",
     "backToIndex": "Vissza a súgóhoz",

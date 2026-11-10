@@ -1,13 +1,44 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { flushPromises } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { highlight } from '../../../components/help/manual'
 import { MANUAL_ICON_NAMES, manualIcon } from '../../../components/help/manualIcons'
 import { i18n } from '../../../i18n'
 import { me } from '../../../test/fixtures'
 import { click, fill, mountApp } from '../../../test/mount'
 import { fakeApi, json, problem } from '../../../test/server'
+
+// Switches the TOC to its mobile accordion and the motion preference, per test.
+const flags = vi.hoisted(() => ({ mobile: false, reducedMotion: false }))
+
+vi.mock('vuetify', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vuetify')>()
+  const { computed } = await import('vue')
+  return {
+    ...actual,
+    useDisplay: (...args: Parameters<typeof actual.useDisplay>) => {
+      const display = actual.useDisplay(...args)
+      return {
+        ...display,
+        smAndDown: computed(() => flags.mobile || display.smAndDown.value),
+      }
+    },
+  }
+})
+
+vi.mock('../../../components/help/manual', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../components/help/manual')>()
+  return {
+    ...actual,
+    prefersReducedMotion: () => flags.reducedMotion,
+  }
+})
+
+afterEach(() => {
+  flags.mobile = false
+  flags.reducedMotion = false
+})
 
 const text = () => document.body.textContent ?? ''
 
@@ -191,6 +222,73 @@ describe('help index', () => {
     expect(server.of('GET /manual')).toHaveLength(2)
   })
 
+  it('lets a locale switch during the first load win', async () => {
+    await loadHungarian()
+    let release: (() => void) | undefined
+    fakeApi({
+      ...base(),
+      'GET /manual': [
+        // The first (English) answer arrives only after the Hungarian one.
+        () => new Promise<Response>((r) => {
+          release = () => r(json(index()))
+        }),
+        json(index({
+          data: [
+            {
+              id: 'start',
+              icon: 'mdi-information-outline',
+              title: 'Első lépések',
+              chapters: [],
+            },
+          ],
+          locale: 'hu',
+        })),
+      ],
+    })
+    await mountApp('/help')
+    await expect.poll(() => release).toBeTypeOf('function')
+    i18n.global.locale.value = 'hu'
+    await expect.poll(() => text()).toContain('Első lépések')
+    release?.()
+    await flushPromises()
+    expect(text()).toContain('Első lépések')
+    expect(text()).not.toContain('Getting started')
+  })
+
+  it('announces the search outcome in a live region', async () => {
+    fakeApi({
+      ...base(),
+      'GET /manual': json(index()),
+      'GET /manual/search': json({
+        data: [
+          {
+            slug: 'monitoring/monitors',
+            section: 'monitoring',
+            title: 'Monitors',
+            snippet: 'A monitor checks.',
+            score: 1,
+          },
+          {
+            slug: 'monitoring/notifications',
+            section: 'monitoring',
+            title: 'Notifications',
+            snippet: 'A monitor alerts.',
+            score: 1,
+          },
+        ],
+        locale: 'en',
+        fallback: false,
+      }),
+    })
+    await mountApp('/help')
+    await flushPromises()
+    const status = document.querySelector('[data-test="search-status"]')
+    expect(status?.getAttribute('role')).toBe('status')
+    expect(status?.getAttribute('aria-live')).toBe('polite')
+    fill('[data-test="manual-search"] input', 'monitor')
+    await expect.poll(() => document.querySelector('[data-test="search-status"]')?.textContent).toContain('2 matching chapters')
+  })
+
   it('refetches the tree when the locale changes', async () => {
     await loadHungarian()
     const server = fakeApi({
@@ -334,6 +432,91 @@ describe('help chapter', () => {
     i18n.global.locale.value = 'hu'
     await openChapter(me(), json(chapter({ locale: 'hu', fallback: true })))
     expect(document.querySelector('[data-test="fallback"]')).toBeNull()
+  })
+
+  it('opens a new chapter at the top with focus on its title', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    const { router } = await openChapter()
+    const ours = () => scrollTo.mock.calls.filter(([arg]) => typeof arg === 'object' && arg !== null && 'top' in arg)
+    // The first chapter opens wherever the page is; only a chapter change scrolls.
+    expect(ours()).toHaveLength(0)
+    await click('[data-test="next"]')
+    await expect.poll(() => router.currentRoute.value.params.slug).toBe('monitoring/notifications')
+    await expect.poll(() => ours()).toEqual([
+      [
+        { top: 0, behavior: 'smooth' },
+      ],
+    ])
+    const title = document.querySelector('[data-test="title"]')
+    expect(title?.getAttribute('tabindex')).toBe('-1')
+    expect(document.activeElement).toBe(title)
+
+    flags.reducedMotion = true
+    await router.push('/help/monitoring/monitors')
+    await expect.poll(() => ours()).toHaveLength(2)
+    expect(ours()[1]).toEqual([
+      { top: 0, behavior: 'auto' },
+    ])
+  })
+
+  it('scrolls to a heading from the contents and focuses it', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      await openChapter()
+      await click('[data-test="toc"] a[href="#details"]')
+      const target = document.getElementById('details')
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+      expect(target?.getAttribute('tabindex')).toBe('-1')
+      expect(document.activeElement).toBe(target)
+
+      flags.reducedMotion = true
+      await click('[data-test="toc"] a[href="#first-steps"]')
+      expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'auto', block: 'start' })
+    }
+    finally {
+      // jsdom has no scrollIntoView of its own.
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  })
+
+  it('collapses the contents into a panel above the chapter on small screens', async () => {
+    flags.mobile = true
+    await openChapter()
+    const toc = document.querySelector('[data-test="toc"]')
+    expect(toc?.querySelector('.v-expansion-panel')).not.toBeNull()
+    expect(document.querySelector('aside')).toBeNull()
+    // The panel starts collapsed and sits before the chapter text.
+    expect(toc?.querySelector('a[href="#details"]')).toBeNull()
+    expect(toc!.compareDocumentPosition(document.querySelector('[data-test="content"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await click('[data-test="toc"] .v-expansion-panel-title')
+    await expect.poll(() => toc?.querySelector('a[href="#details"]')).not.toBeNull()
+  })
+
+  it('shows a forbidden error as a problem with retry, not as a missing chapter', async () => {
+    fakeApi({
+      ...base(),
+      'GET /manual/chapter': problem(403, { title: 'Forbidden' }),
+    })
+    await mountApp('/help/monitoring/monitors')
+    await expect.poll(() => document.querySelector('.problem-alert')?.textContent).toContain('Forbidden')
+    expect(document.querySelector('[data-test="not-found"]')).toBeNull()
+    expect(document.querySelector('[data-test="retry"]')).not.toBeNull()
+  })
+
+  it('shows a progress bar while the first load is pending', async () => {
+    let release: (() => void) | undefined
+    fakeApi({
+      ...base(),
+      'GET /manual/chapter': () => new Promise<Response>((r) => {
+        release = () => r(json(chapter()))
+      }),
+    })
+    await mountApp('/help/monitoring/monitors')
+    await expect.poll(() => document.querySelector('[data-test="loading"]')).not.toBeNull()
+    release?.()
+    await expect.poll(() => document.querySelector('[data-test="content"]')).not.toBeNull()
+    expect(document.querySelector('[data-test="loading"]')).toBeNull()
   })
 
   it('shows a not-found state with a way back for an unknown chapter', async () => {

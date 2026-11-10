@@ -3,13 +3,13 @@ import type { RouteLocationRaw } from 'vue-router'
 import type { ApiError } from '../../api'
 import type { components } from '../../api/schema'
 import { mdiArrowLeft, mdiChevronLeft, mdiChevronRight } from '@mdi/js'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { api } from '../../api'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
-import { chapterLocation } from '../../components/help/manual'
+import { chapterLocation, prefersReducedMotion } from '../../components/help/manual'
 import { manualIcon } from '../../components/help/manualIcons'
 import ManualSidebar from '../../components/help/ManualSidebar.vue'
 import { useApiFailure } from '../../composables/useApiFailure'
@@ -32,6 +32,7 @@ const chapter = ref<Chapter | null>(null)
 const loading = ref(false)
 const error = ref<ApiError | null>(null)
 const content = ref<HTMLElement | null>(null)
+const heading = ref<HTMLElement | null>(null)
 /** Bumped on every loaded chapter, so the rendered markup is re-created and enhanced again. */
 const loads = ref(0)
 
@@ -39,7 +40,19 @@ const notFound = computed(() => error.value?.status === 404)
 
 let sequence = 0
 
-async function load(): Promise<void> {
+/** Starts the reader at the top of a newly opened chapter, with focus on its title. */
+async function showTop(): Promise<void> {
+  await nextTick()
+  window.scrollTo({
+    top: 0,
+    behavior: prefersReducedMotion()
+      ? 'auto'
+      : 'smooth',
+  })
+  heading.value?.focus({ preventScroll: true })
+}
+
+async function load(moved = false): Promise<void> {
   const mine = ++sequence
   loading.value = true
   error.value = null
@@ -52,6 +65,8 @@ async function load(): Promise<void> {
     if (mine === sequence && data) {
       chapter.value = data.data
       loads.value++
+      if (moved)
+        void showTop()
     }
   }
   catch (e) {
@@ -70,12 +85,16 @@ async function load(): Promise<void> {
 watch([
   () => props.slug,
   locale,
-], () => {
-  if (props.slug === '') {
+], ([slug], previous) => {
+  if (slug === '') {
     void router.replace({ name: 'help' })
     return
   }
-  void load()
+  // The router keeps the scroll offset, so a different chapter would open where the last one ended.
+  // (On the immediate run Vue passes an empty array, so the first chapter does not count as a move.)
+  const before = previous?.[0]
+  const moved = before !== undefined && before !== slug
+  void load(moved)
 }, { immediate: true })
 
 const showFallback = computed(() => chapter.value !== null && chapter.value.fallback && chapter.value.locale !== locale.value)
@@ -222,11 +241,13 @@ function onKeydown(event: KeyboardEvent): void {
     <template v-else>
       <ProblemAlert :error="error" class="mb-4" />
       <div v-if="error && !chapter" class="mb-4">
-        <v-btn variant="tonal" :loading="loading" data-test="retry" @click="load">
+        <v-btn variant="tonal" :loading="loading" data-test="retry" @click="load()">
           {{ t('common.retry') }}
         </v-btn>
       </div>
     </template>
+
+    <v-progress-linear v-if="loading && !chapter" indeterminate color="primary" class="mb-4" data-test="loading" />
 
     <div v-if="chapter && !notFound" class="layout">
       <article class="article">
@@ -235,7 +256,7 @@ function onKeydown(event: KeyboardEvent): void {
             <span data-test="number">{{ chapter.number }}</span>
             · {{ t('help.readingTime', { minutes: chapter.readingMinutes }) }}
           </p>
-          <h1 class="text-h4 chapter-title">
+          <h1 ref="heading" class="text-h4 chapter-title" tabindex="-1" data-test="title">
             {{ chapter.title }}
           </h1>
         </header>
@@ -322,6 +343,10 @@ function onKeydown(event: KeyboardEvent): void {
 
 .chapter-title {
   overflow-wrap: anywhere;
+}
+
+.chapter-title:focus {
+  outline: none;
 }
 
 .toc-sticky {
