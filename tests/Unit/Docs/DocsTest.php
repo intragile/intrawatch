@@ -9,13 +9,14 @@ class DocsTest extends TestCase
     private const LINE = 'Developed and maintained by [IntrAgile Kft.](https://intragile.eu)';
 
     /**
-     * @return list<string> Repository-relative paths of every tracked Markdown file.
+     * @return list<string> Repository-relative paths of every tracked Markdown file. The in-app user
+     *                      manual (resources/manual) is product content with its own guard (manual:check).
      */
     private static function markdownFiles(): array
     {
         $root = dirname(__DIR__, 3);
         $output = [];
-        exec('git -C '.escapeshellarg($root).' ls-files -z -- '.escapeshellarg('*.md'), $output, $status);
+        exec('git -C '.escapeshellarg($root).' ls-files -z -- '.escapeshellarg('*.md').' '.escapeshellarg(':(exclude)resources/manual'), $output, $status);
         self::assertSame(0, $status, 'git ls-files failed');
 
         return array_values(array_filter(explode("\0", implode("\0", $output))));
