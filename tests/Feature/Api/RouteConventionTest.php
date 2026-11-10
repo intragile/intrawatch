@@ -19,8 +19,8 @@ class RouteConventionTest extends TestCase
             if (str_starts_with($route->getActionName(), 'App\\Http\\Controllers\\Status\\')) {
                 continue;
             }
-            // The admin single-page application shell and its assets are HTML, not API.
-            if (in_array($uri, ['admin/{path?}', 'admin/assets/{file}'], true)) {
+            // The admin single-page application shell, its assets and the manual images are not API.
+            if (in_array($uri, ['admin/{path?}', 'admin/assets/{file}', 'admin/manual/{locale}/{file}'], true)) {
                 continue;
             }
             if (in_array($uri, $allowed, true) || str_starts_with($uri, 'broadcasting/') || str_starts_with($uri, 'api/v1/')) {

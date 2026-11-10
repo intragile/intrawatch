@@ -6,6 +6,98 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Admin interface
+
+- A Changelog page in the main menu lists every release in the interface
+  language, falling back to English per release where no translation exists.
+- A searchable Help section in the main menu holds the user manual in
+  Hungarian and English, from the first monitor through notifications,
+  incidents, maintenance windows and status pages to workspaces, API tokens,
+  the audit log, import and account settings. Each chapter has a table of
+  contents and links straight to the screens it describes.
+- The new-monitor form sent certificate, DNS and expiry change alerts as off,
+  so TLS and domain monitors created in the interface never warned about an
+  upcoming expiry. These alerts are now on by default, and the switch label
+  names what it covers. Check TLS and domain monitors created earlier and turn
+  the switch on.
+- The push monitor form now sets the expected check-in interval and the retry
+  interval. They were hidden before, so a push monitor created in the
+  interface expected the default interval however often the job really runs.
+- The tag picker on the monitor form can create a tag: a typed new name
+  offers a “Create tag …” row. Until now tags could only be created through
+  the API or an Uptime Kuma import.
+- The Hungarian interface and invitation email now address the user formally
+  throughout and use one term per concept, for example for the degraded state
+  and its settings and alerts.
+- An incident can be marked Internal only. An internal incident never
+  appears on a status page, in its feeds, summary or badges, not even when it
+  affects a monitor shown on a public page; until now naming such a monitor
+  published the incident with all its updates. The incident form warns about
+  this while the switch is off, and the incident list marks internal
+  incidents.
+- The new-monitor form preselects only active default notification channels,
+  as the server does; switched-off channels used to be selected too.
+- The English interface, manual and emails use American spelling throughout
+  (for example "email", "color", "analyze").
+- In the dark theme, text on colored buttons and chips is dark: white text on
+  the light fills was hard to read and made every primary button look
+  disabled.
+- On phones the connection indicator in the top bar shows a short label
+  ("Offline") instead of running over the logo; the full text is in its
+  tooltip.
+- In Help, another chapter still opens at the top when the language is
+  switched while it loads, and a failed load is shown at the top too.
+- The Account and security page has a Change password section: the current
+  password, the new one and its repetition. This browser stays signed in;
+  every other session ends and all of your API tokens are revoked, as with a
+  password reset. Until now a password could only be changed by resetting it.
+- A Sessions section on the same page lists the devices where you are signed
+  in, with browser, IP address and last activity, and marks this device. Sign
+  out all other devices ends every other session after asking for your
+  password; API tokens keep working.
+- Each other device in the Sessions list has its own Sign out button. After
+  a confirmation it ends that one session without asking for your password;
+  the other devices stay signed in but have to sign in again once their
+  session expires, because Keep me signed in is reset for all of them.
+- A new Tags page under Manage workspace lets you create, rename, recolor
+  and delete the workspace's tags. Pick one of ten preset colors or enter
+  your own as #rrggbb. A deleted tag is removed from every monitor, but the
+  monitors keep working. Only members who can manage monitors can change
+  tags; everyone else sees the list read-only.
+- Tag chips now choose their text color to match the fill, so every tag
+  color stays readable.
+- A ? icon next to the title of each main screen opens the matching help
+  chapter; editors and the alert history open it at the relevant section.
+- Manual chapters now show screenshots of the monitor list, the new monitor and
+  new channel forms, posting an incident update and the status page layout.
+  `npm run manual:screenshots` regenerates them from demo data.
+
+### API
+
+- `GET /api/v1/changelog`, `/changelog/latest` and `/changelog/{version}`
+  return the release notes as sanitized HTML, in the language of the
+  `Accept-Language` header or the `locale` query parameter.
+- `GET /api/v1/manual`, `/manual/chapter` and `/manual/search` serve the user
+  manual's table of contents, chapters and full-text search to signed-in users
+  and API tokens.
+- Incidents have an `internal` field, false by default. An internal incident
+  is left out of every public status page, feed, summary and badge, and it
+  cannot be linked to status pages: a request that sets both is refused with
+  a 422 on `status_page_ids`.
+- `PUT /api/v1/me/password` changes the signed-in user's password,
+  `GET /api/v1/me/sessions` lists their sessions with an opaque id, and
+  `POST /api/v1/me/sessions/sign-out-others` ends every other session. All
+  three refuse API tokens with a 403; the two that check the current password
+  allow 5 attempts a minute. Both actions are audited as
+  `auth.password_changed` and `auth.other_sessions_signed_out`.
+- `DELETE /api/v1/me/sessions/{id}` ends one other session by the id the
+  session list returns. It needs no password and allows 10 calls a minute;
+  the current session is refused with a 422 on `id`, an unknown id is a 404
+  and API tokens get a 403. It rotates the remember token like signing out
+  all other sessions, and it is audited as `auth.session_signed_out`.
+
 ## [1.2.0] - 2026-11-09
 
 Live group strips from every change, readable outage days on the status page

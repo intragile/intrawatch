@@ -17,8 +17,9 @@ final class SpaController
 
     public function __invoke(?string $path = null): Response
     {
-        // The asset directory and unknown files below it are missing assets, not client-side routes.
-        if ($path === 'assets' || str_starts_with($path ?? '', 'assets/')) {
+        // The asset and manual image directories and unknown files below them are missing files, not
+        // client-side routes.
+        if (in_array($path, ['assets', 'manual'], true) || str_starts_with($path ?? '', 'assets/') || str_starts_with($path ?? '', 'manual/')) {
             throw new NotFoundHttpException;
         }
 

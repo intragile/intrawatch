@@ -64,6 +64,7 @@ class IncidentRequest extends FormRequest
         $rules = [
             'title' => [$presence, 'string', 'max:190'],
             'impact' => [$presence, Rule::enum(IncidentImpact::class)],
+            'internal' => ['sometimes', 'boolean'],
             'started_at' => ['sometimes', 'nullable', 'date', 'before_or_equal:now', 'after_or_equal:1970-01-02'],
             'monitor_ids' => ['sometimes', 'array', 'max:1000'],
             'monitor_ids.*' => ['integer', 'distinct'],
@@ -91,11 +92,38 @@ class IncidentRequest extends FormRequest
             }
 
             $stored = $this->stored();
+            $this->checkInternal($validator, $stored);
+
             $started = $this->startedAt();
             if ($stored?->resolved_at !== null && $started !== null && $started->gt($stored->resolved_at)) {
                 $validator->errors()->add('started_at', 'The start must not be after the resolution.');
             }
         });
+    }
+
+    /**
+     * An internal incident is shown on no status page, so it cannot be linked to one. The stored value of either
+     * field counts when the request leaves it out; switching a linked incident to internal needs the links
+     * emptied in the same request.
+     */
+    private function checkInternal(Validator $validator, ?Incident $stored): void
+    {
+        $internal = $this->exists('internal') ? $this->boolean('internal') : (bool) $stored?->internal;
+        if (! $internal) {
+            return;
+        }
+        $pageIds = $this->statusPageIds();
+        if ($pageIds === null) {
+            if ($stored === null || ! DB::table('status_page_links')->where('linkable_type', 'incident')->where('linkable_id', $stored->id)->exists()) {
+                return;
+            }
+            $validator->errors()->add('status_page_ids', 'The incident is linked to status pages; send an empty list here to unlink them before making it internal.');
+
+            return;
+        }
+        if ($pageIds !== []) {
+            $validator->errors()->add('status_page_ids', 'An internal incident cannot be linked to status pages.');
+        }
     }
 
     private function checkOwnership(Validator $validator, string $field, string $table): void
@@ -137,6 +165,9 @@ class IncidentRequest extends FormRequest
             if ($this->exists($field)) {
                 $attributes[$field] = $this->input($field);
             }
+        }
+        if ($this->exists('internal')) {
+            $attributes['internal'] = $this->boolean('internal');
         }
         $started = $this->startedAt();
         if ($started !== null) {

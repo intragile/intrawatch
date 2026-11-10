@@ -27,4 +27,13 @@ return [
         ],
     ],
 
+    // Demo data of the manual screenshots (database/seeders/ManualScreenshotSeeder.php, which never runs in
+    // production); set by `npm run manual:screenshots`.
+    'manual_screenshots' => [
+        'locale' => env('MANUAL_SEED_LOCALE', 'hu'),
+        'password' => env('MANUAL_SEED_PASSWORD'),
+        // Epoch seconds the seeded timestamps are relative to; empty: the current time.
+        'now' => env('MANUAL_SEED_NOW'),
+    ],
+
 ];

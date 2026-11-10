@@ -27,6 +27,6 @@ class ImportConflict extends RuntimeException
 
     public static function notAnalyzed(): self
     {
-        return new self('urn:problem:import-not-analyzed', 'Only an analysed import can be run.');
+        return new self('urn:problem:import-not-analyzed', 'Only an analyzed import can be run.');
     }
 }

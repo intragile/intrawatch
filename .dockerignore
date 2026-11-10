@@ -26,6 +26,12 @@ docs/*
 docker/compose.example.yml
 *.md
 !README.md
+# The changelog API reads CHANGELOG.md and its translations at runtime.
+!CHANGELOG.md
+!CHANGELOG.*.md
+# The manual API reads resources/manual at runtime. `*.md` above only matches root files, so this is
+# already shipped; the re-include keeps it that way if the markdown rule ever widens to **/*.md.
+!resources/manual/**
 database/*.sqlite*
 storage/app/*
 storage/logs/*

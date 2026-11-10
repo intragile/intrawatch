@@ -108,6 +108,7 @@ class CreateIncident
             Audit::record('incident.created', $incident, [
                 'title' => [null, $incident->title],
                 'impact' => [null, $incident->impact->value],
+                'internal' => [null, $incident->internal],
                 'status' => [null, $status->value],
                 'monitor_ids' => [[], $monitorIds],
                 'status_page_ids' => [[], $statusPageIds],

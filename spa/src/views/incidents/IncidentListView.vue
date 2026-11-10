@@ -9,9 +9,12 @@ import { api, unwrap, useCursorList } from '../../api'
 import DateTime from '../../components/common/DateTime.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import ImpactChip from '../../components/incidents/ImpactChip.vue'
 import IncidentCreateDialog from '../../components/incidents/IncidentCreateDialog.vue'
 import IncidentStatusChip from '../../components/incidents/IncidentStatusChip.vue'
+import InternalChip from '../../components/incidents/InternalChip.vue'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
@@ -87,9 +90,11 @@ async function create(body: IncidentCreateBody): Promise<void> {
 
 <template>
   <div class="d-flex align-center flex-wrap ga-2 mb-4">
-    <h1 class="text-h5 flex-grow-1">
+    <h1 class="text-h5">
       {{ t('incidents.title') }}
     </h1>
+    <HelpLink v-bind="screenHelp('ws.incidents')" />
+    <v-spacer />
     <v-btn
       v-if="canManage"
       data-test="incident-new"
@@ -147,6 +152,7 @@ async function create(body: IncidentCreateBody): Promise<void> {
           <router-link :to="{ name: 'ws.incident', params: { workspace: slug, incident: String(incident.id) } }">
             {{ incident.title }}
           </router-link>
+          <InternalChip v-if="incident.internal" size="x-small" class="ms-2" />
         </td>
         <td>
           <ImpactChip :impact="incident.impact" />

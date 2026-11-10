@@ -488,6 +488,304 @@
                 }
             }
         },
+        "/changelog": {
+            "get": {
+                "operationId": "changelog.index",
+                "description": "`?locale=` is optional on every endpoint: empty behaves like a missing one, and a well-formed but unsupported\nvalue falls through to Accept-Language.\n\n`locale` is the resolved language; `fallback` is true when any returned release is shown in the base language\nbecause it has no translation.",
+                "summary": "List the releases, newest first, paginated",
+                "tags": [
+                    "Changelog"
+                ],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "version": {
+                                                        "type": "string"
+                                                    },
+                                                    "date": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "url": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "unreleased": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "yanked": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "summary_html": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "groups": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "name": {
+                                                                    "type": "string"
+                                                                },
+                                                                "summary_html": {
+                                                                    "type": [
+                                                                        "string",
+                                                                        "null"
+                                                                    ]
+                                                                },
+                                                                "items": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "html": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "text": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "html",
+                                                                            "text"
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "name",
+                                                                "summary_html",
+                                                                "items"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "locale": {
+                                                        "type": "string"
+                                                    },
+                                                    "fallback": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "version",
+                                                    "date",
+                                                    "url",
+                                                    "unreleased",
+                                                    "yanked",
+                                                    "summary_html",
+                                                    "groups",
+                                                    "locale",
+                                                    "fallback"
+                                                ]
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer"
+                                                },
+                                                "last_page": {
+                                                    "type": "integer"
+                                                },
+                                                "per_page": {
+                                                    "type": "integer"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "last_page",
+                                                "per_page",
+                                                "total"
+                                            ]
+                                        },
+                                        "locale": {
+                                            "type": "string"
+                                        },
+                                        "fallback": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta",
+                                        "locale",
+                                        "fallback"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/changelog/latest": {
+            "get": {
+                "operationId": "changelog.latest",
+                "summary": "The newest released version",
+                "tags": [
+                    "Changelog"
+                ],
+                "parameters": [
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ReleaseResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ReleaseResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFoundHttpException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/changelog/{version}": {
+            "get": {
+                "operationId": "changelog.show",
+                "summary": "One release by version number",
+                "tags": [
+                    "Changelog"
+                ],
+                "parameters": [
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ReleaseResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ReleaseResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFoundHttpException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/invitations/accept": {
             "post": {
                 "operationId": "invitation.accept",
@@ -648,6 +946,263 @@
                                     },
                                     "required": [
                                         "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/manual": {
+            "get": {
+                "operationId": "manual.index",
+                "description": "`locale` is the language the tree is served in (the requested one when it is configured,\notherwise the first configured `fallback` language, otherwise the source locale); `fallback`\nis true when that differs from the requested one. A single chapter missing from that language\nis still listed from the next language of the fallback chain; its own `locale`/`fallback` are\nreturned by the chapter endpoint.",
+                "summary": "The manual tree: sections in order, each with its chapters",
+                "tags": [
+                    "Manual"
+                ],
+                "parameters": [
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "icon": {
+                                                        "type": "string"
+                                                    },
+                                                    "title": {
+                                                        "type": "string"
+                                                    },
+                                                    "chapters": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "slug": {
+                                                                    "type": "string"
+                                                                },
+                                                                "number": {
+                                                                    "type": "string"
+                                                                },
+                                                                "title": {
+                                                                    "type": "string"
+                                                                },
+                                                                "summary": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "slug",
+                                                                "number",
+                                                                "title",
+                                                                "summary"
+                                                            ]
+                                                        }
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "icon",
+                                                    "title",
+                                                    "chapters"
+                                                ]
+                                            }
+                                        },
+                                        "locale": {
+                                            "type": "string"
+                                        },
+                                        "fallback": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "locale",
+                                        "fallback"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/manual/chapter": {
+            "get": {
+                "operationId": "manual.chapter",
+                "description": "`data.locale` is the language of the file actually served; `data.fallback` is true when that\ndiffers from the requested language.",
+                "summary": "One rendered chapter by slug (`section/chapter`)",
+                "tags": [
+                    "Manual"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 200
+                        }
+                    },
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ChapterResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ChapterResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFoundHttpException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/manual/search": {
+            "get": {
+                "operationId": "manual.search",
+                "description": "`locale` and `fallback` follow the same rules as the tree.",
+                "summary": "Full-text search; returns matching chapters with a short plain-text snippet",
+                "tags": [
+                    "Manual"
+                ],
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 200
+                        }
+                    },
+                    {
+                        "name": "locale",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "slug": {
+                                                        "type": "string"
+                                                    },
+                                                    "section": {
+                                                        "type": "string"
+                                                    },
+                                                    "title": {
+                                                        "type": "string"
+                                                    },
+                                                    "snippet": {
+                                                        "type": "string"
+                                                    },
+                                                    "score": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "slug",
+                                                    "section",
+                                                    "title",
+                                                    "snippet",
+                                                    "score"
+                                                ]
+                                            }
+                                        },
+                                        "locale": {
+                                            "type": "string"
+                                        },
+                                        "fallback": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "locale",
+                                        "fallback"
                                     ]
                                 }
                             }
@@ -970,6 +1525,208 @@
                                 }
                             }
                         }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/me/password": {
+            "put": {
+                "operationId": "me.password.update",
+                "description": "Needs the current password. The browser that makes the change stays signed in; every other session\nand remember cookie of the user ends, and all of the user's API tokens are revoked, as with a\npassword reset: whoever knew the old password may hold any of them. API tokens get a 403.",
+                "summary": "Change the password",
+                "tags": [
+                    "Password"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "current_password": {
+                                        "type": "string"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "description": "The new password: at least 10 characters, as for a password reset, and not the current one."
+                                    },
+                                    "password_confirmation": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "current_password",
+                                    "password",
+                                    "password_confirmation"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/me/sessions": {
+            "get": {
+                "operationId": "me.sessions.index",
+                "description": "The sessions of the signed-in user that have not expired, the current one first. `id` is an opaque\nhandle, never the session cookie value. Without the database session driver only the current\nsession is listed. API tokens get a 403.",
+                "summary": "List my sessions",
+                "tags": [
+                    "Session"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "ip_address": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "user_agent": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "browser": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "platform": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "last_active_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "current": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "ip_address",
+                                                    "user_agent",
+                                                    "browser",
+                                                    "platform",
+                                                    "last_active_at",
+                                                    "current"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/me/sessions/sign-out-others": {
+            "post": {
+                "operationId": "me.sessions.sign-out-others",
+                "description": "Needs the current password. Ends every session and remember cookie of the user except the one\nmaking the request. API tokens are not revoked, and cannot call this endpoint (403).",
+                "summary": "Sign out all other sessions",
+                "tags": [
+                    "Session"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "password": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "password"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/me/sessions/{id}": {
+            "delete": {
+                "operationId": "me.sessions.destroy",
+                "description": "Ends one of the user's other sessions, by the `id` the list returned; a raw session id is never\naccepted. Unlike signing out all other sessions it needs no password: it can only end the user's\nown sessions and is easy to undo by signing in again, so a prompt would be friction without much\ngain. It has its own limiter (`session-sign-out`, 10 a minute per user) instead of sharing the\npassword-guessing budget. Because the remember token is per user, every other browser's remember\ncookie stops working too; the other sessions themselves keep working, and this browser gets a\nfresh remember cookie if it had one.\n\nThe current session is refused with a 422 on `id`: sign out instead. An id that matches none of\nthe user's unexpired stored sessions is a 404, whoever else it may belong to. Without the database\nsession driver no other session is stored, so every other id is a 404. API tokens get a 403.",
+                "summary": "Sign out one session",
+                "tags": [
+                    "Session"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "description": "The session's `id` from the list: 32 lowercase hex characters.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -3982,6 +4739,9 @@
                                                             "critical"
                                                         ]
                                                     },
+                                                    "internal": {
+                                                        "type": "boolean"
+                                                    },
                                                     "status": {
                                                         "type": "string",
                                                         "enum": [
@@ -4068,6 +4828,7 @@
                                                     "id",
                                                     "title",
                                                     "impact",
+                                                    "internal",
                                                     "status",
                                                     "started_at",
                                                     "resolved_at",
@@ -4122,6 +4883,8 @@
             },
             "post": {
                 "operationId": "incident.store",
+                "description": "An `internal` incident appears on no status page, not even through a monitor shown on a page, so\n`status_page_ids` must be empty or omitted when `internal` is true.",
+                "summary": "Creates an incident with its first timeline update",
                 "tags": [
                     "Incident"
                 ],
@@ -4171,6 +4934,9 @@
                                                         "major",
                                                         "critical"
                                                     ]
+                                                },
+                                                "internal": {
+                                                    "type": "boolean"
                                                 },
                                                 "status": {
                                                     "type": "string",
@@ -4258,6 +5024,7 @@
                                                 "id",
                                                 "title",
                                                 "impact",
+                                                "internal",
                                                 "status",
                                                 "started_at",
                                                 "resolved_at",
@@ -4343,6 +5110,9 @@
                                                         "critical"
                                                     ]
                                                 },
+                                                "internal": {
+                                                    "type": "boolean"
+                                                },
                                                 "status": {
                                                     "type": "string",
                                                     "enum": [
@@ -4429,6 +5199,7 @@
                                                 "id",
                                                 "title",
                                                 "impact",
+                                                "internal",
                                                 "status",
                                                 "started_at",
                                                 "resolved_at",
@@ -4460,6 +5231,8 @@
             },
             "patch": {
                 "operationId": "incident.update",
+                "description": "An `internal` incident appears on no status page, not even through a monitor shown on a page, so it\ncannot be linked to status pages: `status_page_ids` must be empty or omitted while it is internal. To\nswitch an incident with linked pages to internal, send `\"status_page_ids\": []` in the same request;\notherwise the request is refused with a 422 on `status_page_ids` and nothing changes.",
+                "summary": "Updates the incident's own fields and targets; omitted fields keep their stored value",
                 "tags": [
                     "Incident"
                 ],
@@ -4518,6 +5291,9 @@
                                                         "critical"
                                                     ]
                                                 },
+                                                "internal": {
+                                                    "type": "boolean"
+                                                },
                                                 "status": {
                                                     "type": "string",
                                                     "enum": [
@@ -4604,6 +5380,7 @@
                                                 "id",
                                                 "title",
                                                 "impact",
+                                                "internal",
                                                 "status",
                                                 "started_at",
                                                 "resolved_at",
@@ -12569,6 +13346,119 @@
                 ],
                 "title": "ChannelType"
             },
+            "ChapterResource": {
+                "type": "object",
+                "properties": {
+                    "slug": {
+                        "type": "string"
+                    },
+                    "number": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "section": {
+                        "type": "string"
+                    },
+                    "position": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    },
+                    "readingMinutes": {
+                        "type": "integer"
+                    },
+                    "html": {
+                        "type": "string"
+                    },
+                    "headings": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "anchor": {
+                                    "type": "string"
+                                },
+                                "text": {
+                                    "type": "string"
+                                },
+                                "level": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "anchor",
+                                "text",
+                                "level"
+                            ]
+                        }
+                    },
+                    "prev": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "slug": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "slug",
+                            "title"
+                        ]
+                    },
+                    "next": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "slug": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "slug",
+                            "title"
+                        ]
+                    },
+                    "locale": {
+                        "type": "string"
+                    },
+                    "fallback": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "slug",
+                    "number",
+                    "title",
+                    "summary",
+                    "section",
+                    "position",
+                    "total",
+                    "readingMinutes",
+                    "html",
+                    "headings",
+                    "prev",
+                    "next",
+                    "locale",
+                    "fallback"
+                ],
+                "title": "ChapterResource"
+            },
             "DeliveryStatus": {
                 "type": "string",
                 "enum": [
@@ -12598,6 +13488,9 @@
                     },
                     "impact": {
                         "$ref": "#/components/schemas/IncidentImpact"
+                    },
+                    "internal": {
+                        "type": "boolean"
                     },
                     "started_at": {
                         "type": [
@@ -12929,6 +13822,96 @@
                     "name"
                 ],
                 "title": "NotificationChannelRequest"
+            },
+            "ReleaseResource": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "string"
+                    },
+                    "date": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "unreleased": {
+                        "type": "boolean"
+                    },
+                    "yanked": {
+                        "type": "boolean"
+                    },
+                    "summary_html": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "groups": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "summary_html": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "html": {
+                                                "type": "string"
+                                            },
+                                            "text": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "html",
+                                            "text"
+                                        ]
+                                    }
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "summary_html",
+                                "items"
+                            ]
+                        }
+                    },
+                    "locale": {
+                        "type": "string"
+                    },
+                    "fallback": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "version",
+                    "date",
+                    "url",
+                    "unreleased",
+                    "yanked",
+                    "summary_html",
+                    "groups",
+                    "locale",
+                    "fallback"
+                ],
+                "title": "ReleaseResource"
             },
             "SendPasswordResetLinkRequest": {
                 "type": "object",
@@ -13324,6 +14307,9 @@
                     },
                     "impact": {
                         "$ref": "#/components/schemas/IncidentImpact"
+                    },
+                    "internal": {
+                        "type": "boolean"
                     },
                     "started_at": {
                         "type": [
@@ -13861,6 +14847,25 @@
                 }
             },
             "ModelNotFoundException": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Error overview."
+                                }
+                            },
+                            "required": [
+                                "message"
+                            ]
+                        }
+                    }
+                }
+            },
+            "NotFoundHttpException": {
                 "description": "Not found",
                 "content": {
                     "application/json": {

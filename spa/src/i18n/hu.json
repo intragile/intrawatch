@@ -18,6 +18,7 @@
     "delete": "Törlés",
     "remove": "Eltávolítás",
     "loadMore": "További elemek betöltése",
+    "retry": "Próbálja újra",
     "clear": "Törlés",
     "noAccess": "Ehhez a képernyőhöz nincs hozzáférése.",
     "never": "Soha",
@@ -52,11 +53,17 @@
     "settings": "Munkaterület beállításai",
     "members": "Tagok",
     "tokens": "API-tokenek",
+    "tags": "Címkék",
     "audit": "Eseménynapló",
     "account": "Fiók és biztonság",
+    "changelog": "Fejlesztési napló",
+    "new": "Új",
+    "newHint": "új verzió érhető el",
+    "help": "Súgó",
     "workspace": "Munkaterület",
     "accountMenu": "Fiókmenü",
     "mainMenu": "Főmenü",
+    "helpSection": "Súgó és újdonságok",
     "manage": "Munkaterület kezelése",
     "toggleMenu": "Menü megjelenítése vagy elrejtése",
     "signOut": "Kijelentkezés",
@@ -126,6 +133,76 @@
       "submit": "Megerősítés"
     }
   },
+  "changelog": {
+    "title": "Fejlesztési napló",
+    "unreleased": "Kiadás előtt",
+    "yanked": "Visszavonva",
+    "yankedHint": "Ezt a kiadást visszavonták, nem szabad használni.",
+    "fallbackNotice": "Ez a verzió csak angolul érhető el.",
+    "empty": "Még nincs kiadás.",
+    "eyebrow": "Újdonságok",
+    "intro": "Minden kiadás változásai, a legújabbal kezdve.",
+    "latestVersion": "Legújabb verzió:",
+    "filterLabel": "Szűrés terület szerint",
+    "filterAll": "Mind",
+    "versions": "Verziók",
+    "latest": "Legújabb",
+    "changes": "{n} változás | {n} változás",
+    "showDetails": "Részletek",
+    "hideDetails": "Elrejtés",
+    "releasePage": "A kiadás oldala"
+  },
+  "help": {
+    "title": "Súgó",
+    "search": "Keresés a súgóban",
+    "searchResults": "Találatok",
+    "searchCount": "{n} találat | {n} találat",
+    "searchEmpty": "Egyetlen fejezet sem felel meg a keresésnek.",
+    "searchPlaceholder": "Pl. státuszoldal közzététele, API-token, karbantartás",
+    "searchSubmit": "Keresés",
+    "heroTitle": "Miben segíthetünk?",
+    "chapterCount": "{n} fejezet | {n} fejezet",
+    "popularLabel": "Gyakori:",
+    "popular": [
+      { "label": "Mit jelent az Akadozik?", "slug": "monitoring/monitors", "anchor": "mit-jelentenek-az-allapotok" },
+      { "label": "Riasztás Slackre", "slug": "monitoring/notifications", "anchor": "csatornatipusok" },
+      { "label": "Importálás Uptime Kumából", "slug": "workspace/import" }
+    ],
+    "startHere": "Kezdje itt",
+    "whatsNew": "Újdonságok",
+    "fullChangelog": "Teljes napló",
+    "breadcrumb": "Morzsamenü",
+    "openInApp": "Nyissa meg a felületen",
+    "openInAppAction": "{name} megnyitása",
+    "callout": {
+      "tip": "Tipp.",
+      "warning": "Figyelem.",
+      "note": "Megjegyzés."
+    },
+    "contents": "Ebben a fejezetben",
+    "backToIndex": "Vissza a súgóhoz",
+    "previous": "Előző",
+    "next": "Következő",
+    "pager": "Fejezetek",
+    "readingTime": "{minutes} perc olvasás",
+    "fallbackNotice": "Ez a fejezet még csak magyarul érhető el.",
+    "indexFallbackNotice": "A súgó még csak magyarul érhető el.",
+    "notFoundTitle": "A fejezet nem található",
+    "notFound": "Nincs ilyen fejezet. Lehet, hogy áthelyezték vagy átnevezték.",
+    "link": "Súgó: {title}",
+    "chapterTitles": {
+      "monitoring/monitors": "Monitorok",
+      "monitoring/notifications": "Értesítési csatornák",
+      "monitoring/incidents": "Incidensek",
+      "monitoring/maintenances": "Karbantartások",
+      "monitoring/status-pages": "Státuszoldalak",
+      "workspace/workspace": "Munkaterület és tagok",
+      "workspace/api-tokens": "API-tokenek",
+      "workspace/import": "Importálás Uptime Kumából",
+      "workspace/audit": "Eseménynapló",
+      "account/account": "Saját fiók"
+    }
+  },
   "account": {
     "title": "Fiók és biztonság",
     "profile": "Profil",
@@ -149,6 +226,30 @@
       "disable": "Kikapcsolás",
       "disableConfirm": "A bejelentkezéshez ezután elég lesz a jelszó. Bármikor újra bekapcsolhatja.",
       "disabledNotice": "A kétlépcsős azonosítás ki van kapcsolva."
+    },
+    "password": {
+      "title": "Jelszó módosítása",
+      "intro": "Ezen az eszközön bejelentkezve marad, minden más eszközön kijelentkeztetjük, és az összes API-tokenjét visszavonjuk.",
+      "current": "Jelenlegi jelszó",
+      "submit": "Jelszó módosítása",
+      "done": "A jelszava megváltozott."
+    },
+    "sessions": {
+      "title": "Bejelentkezések",
+      "intro": "Azok az eszközök és böngészők, amelyeken be van jelentkezve.",
+      "thisDevice": "Ez az eszköz",
+      "unknownDevice": "Ismeretlen eszköz",
+      "lastActive": "Utoljára aktív: {when}",
+      "noOthers": "Más eszközön nincs bejelentkezve.",
+      "signOutOthers": "Kijelentkezés minden más eszközről",
+      "signOutOthersIntro": "Adja meg a jelszavát. Ezen az eszközön bejelentkezve marad, minden más eszközön kijelentkeztetjük. Az API-tokenjei továbbra is működnek.",
+      "signOutConfirm": "Kijelentkezés",
+      "signOutOthersDone": "Minden más eszközön kijelentkeztettük.",
+      "signOutOne": "Kijelentkeztetés",
+      "signOutOneLabel": "Kijelentkeztetés: {device}",
+      "signOutOneTitle": "Kijelentkezteti ezt az eszközt?",
+      "signOutOneText": "Véget ér ez a bejelentkezés: {device}. Azon az eszközön újra be kell jelentkeznie. A többi eszközén bejelentkezve marad, de ott a „Maradjak bejelentkezve” beállítás megszűnik.",
+      "signOutOneDone": "Kijelentkeztettük: {device}."
     }
   },
   "home": {
@@ -163,6 +264,7 @@
     "live": "Élő",
     "connecting": "Csatlakozás",
     "offline": "Nincs kapcsolat — az utoljára betöltött adatok láthatók",
+    "offlineShort": "Nincs kapcsolat",
     "label": "Élő frissítés"
   },
   "status": {
@@ -274,6 +376,55 @@
       "done": "Kimásoltam"
     }
   },
+  "tags": {
+    "title": "Címkék",
+    "intro": "A címkékkel csoportosíthatja a monitorokat: a monitorlistát címke szerint szűrheti, és a kijelölt monitorokra egyszerre tehet fel vagy vehet le egy címkét. Monitorhoz a monitor szerkesztésekor rendelhet címkét.",
+    "readOnly": "Címkét csak a monitorok kezelésére jogosult tagok hozhatnak létre, módosíthatnak vagy törölhetnek.",
+    "create": {
+      "title": "Címke létrehozása",
+      "submit": "Címke létrehozása"
+    },
+    "edit": {
+      "title": "Címke szerkesztése"
+    },
+    "delete": {
+      "title": "Törli a címkét?",
+      "confirm": "A(z) „{name}” címke lekerül minden monitorról, a monitoronként megadott értékével együtt. A monitorok ugyanúgy tovább működnek és riasztanak, csak ezt a címkét veszítik el. A törlés nem vonható vissza."
+    },
+    "name": "Név",
+    "color": {
+      "label": "Szín",
+      "presets": "Előre megadott színek",
+      "custom": "Egyéni szín (#rrggbb)",
+      "invalid": "Adja meg a színt #rrggbb formában, például #2563eb.",
+      "presetNames": {
+        "gray": "Szürke",
+        "red": "Piros",
+        "orange": "Narancs",
+        "amber": "Borostyán",
+        "green": "Zöld",
+        "teal": "Kékeszöld",
+        "sky": "Égszínkék",
+        "blue": "Kék",
+        "violet": "Ibolya",
+        "pink": "Rózsaszín"
+      }
+    },
+    "preview": "Előnézet:",
+    "previewName": "Címke",
+    "list": "A munkaterület címkéi",
+    "tag": "Címke",
+    "colorColumn": "Szín",
+    "actions": "Műveletek",
+    "empty": {
+      "title": "Még nincs címke",
+      "text": "A címkékkel csoportosíthatók a monitorok: a monitorlista címke szerint szűrhető, és a kijelölt monitorokra egyszerre tehető fel vagy vehető le egy címke.",
+      "textManage": "Hozza létre az első címkét fent, vagy a monitor szerkesztésekor a Címkék mezőben. Utána címke szerint szűrheti a monitorlistát, és a kijelölt monitorokra egyszerre tehet fel vagy vehet le egy címkét."
+    },
+    "created": "Létrejött a(z) „{name}” címke.",
+    "saved": "A címke módosításai mentve.",
+    "deleted": "A(z) „{name}” címke törölve."
+  },
   "audit": {
     "title": "Eseménynapló",
     "filters": "Szűrők",
@@ -362,7 +513,7 @@
       "label": "Tömeges műveletek",
       "selected": "{count} kijelölve",
       "clear": "Kijelölés megszüntetése",
-      "limit": "Egyszerre legfeljebb {max} monitor módosítható. Szüntess meg {extra} kijelölést a folytatáshoz.",
+      "limit": "Egyszerre legfeljebb {max} monitor módosítható. Szüntessen meg {extra} kijelölést a folytatáshoz.",
       "pause": "Szüneteltetés",
       "resume": "Folytatás",
       "delete": "Törlés",
@@ -375,7 +526,7 @@
       "unnotify": "Értesítés kikapcsolása",
       "done": "{count} monitor frissítve.",
       "deleteTitle": "A kijelölt monitorok törlése",
-      "deleteConfirm": "Törlöd a(z) {count} monitort az előzményeikkel együtt? Ez nem vonható vissza."
+      "deleteConfirm": "Törli a(z) {count} monitort az előzményeikkel együtt? Ez nem vonható vissza."
     },
     "more": "További monitorok betöltése",
     "loadingMore": "Monitorok betöltése",
@@ -403,13 +554,13 @@
     "editTitle": "Monitor szerkesztése",
     "loading": "A szerkesztő betöltése",
     "retry": "Újra",
-    "readOnly": "Ezt a monitort megtekintheted, de nem módosíthatod.",
+    "readOnly": "Ezt a monitort megtekintheti, de nem módosíthatja.",
     "noChanges": "Nincs mit menteni, egy mező sem változott.",
     "created": "A monitor létrejött.",
     "updated": "A monitor mentve.",
     "leave": {
-      "title": "Elveted a módosításokat?",
-      "text": "Nem mentett módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "title": "Elveti a módosításokat?",
+      "text": "Mentetlen módosításai vannak. Ha elhagyja az oldalt, elvesznek.",
       "confirm": "Módosítások elvetése"
     },
     "sections": {
@@ -429,25 +580,28 @@
       "timing": "Időzítés",
       "interval": "Ellenőrzési időköz",
       "intervalMin": "Ennél a típusnál az időköz legalább {min} másodperc legyen.",
+      "heartbeatInterval": "Várt jelentkezési időköz",
+      "heartbeatIntervalHint": "Ennyi időnként kell jelentkeznie a feladatnak. A türelmi idő ehhez adódik hozzá.",
       "timeout": "Időtúllépés",
       "timeoutHint": "Legfeljebb az ellenőrzési időköz 80%-a.",
       "retries": "Újrapróbálkozások",
-      "retriesHint": "Ennyiszer ismételjük a sikertelen ellenőrzést, mielőtt leállónak jelöljük.",
+      "retriesHint": "Ennyiszer ismételjük a sikertelen ellenőrzést, mielőtt a monitort leálltnak jelöljük.",
       "retryInterval": "Újrapróbálkozási időköz",
-      "degradedThreshold": "Lassú, ha a válaszidő több mint",
-      "degradedThresholdHint": "A monitor lassúnak számít, ha az ellenőrzés ennél tovább tart. Üresen hagyva ki van kapcsolva."
+      "heartbeatRetryHint": "Egy elmaradt jelentkezés után ennyi idő múlva számít újabb kimaradásnak.",
+      "degradedThreshold": "Akadozik, ha a válaszidő több mint",
+      "degradedThresholdHint": "A monitor akadozónak számít, ha az ellenőrzés ennél tovább tart. Üresen hagyva ki van kapcsolva."
     },
     "parent": {
       "label": "Szülőcsoport",
-      "hint": "Nem kötelező. Keress a csoportok nevében."
+      "hint": "Nem kötelező. Keressen a csoport neve alapján."
     },
     "alerting": {
       "resend": "Emlékeztető időköze (perc)",
       "resendHint": "Ismétli a riasztást, amíg a monitor leállt. A 0 nem küld emlékeztetőt.",
-      "notifyChanges": "Értesítés a beállítások változásáról",
-      "notifyDegraded": "Riasztás lassú működésnél",
-      "degradedAfter": "Lassú működés riasztási késleltetése",
-      "degradedAfterHint": "Ennyi ideig kell lassúnak lennie a monitornak, mielőtt riasztunk."
+      "notifyChanges": "Értesítés a tanúsítvány, a DNS és a lejárat változásairól",
+      "notifyDegraded": "Riasztás akadozáskor",
+      "degradedAfter": "Akadozás riasztási késleltetése",
+      "degradedAfterHint": "Ennyi ideig kell akadoznia a monitornak, mielőtt riasztunk."
     },
     "notifications": {
       "label": "Értesítési csatornák",
@@ -458,6 +612,9 @@
     "tags": {
       "label": "Címkék",
       "none": "Még nincs címke.",
+      "noneCreate": "Még nincs címke. Írjon be egy nevet, és hozza létre.",
+      "create": "„{name}” címke létrehozása",
+      "createFailed": "A címkét nem sikerült létrehozni.",
       "value": "{name} értéke (nem kötelező)"
     },
     "tcp": {
@@ -475,7 +632,7 @@
       "resolver": "Névszerver",
       "resolverHint": "Nem kötelező: IP-cím, opcionálisan porttal. Üresen a rendszer névszerverét használjuk.",
       "expected": "Várt értékek",
-      "expectedHint": "Minden érték után nyomj Entert. Üresen elég, ha érkezik válasz.",
+      "expectedHint": "Minden érték után nyomjon Entert. Üresen elég, ha érkezik válasz.",
       "match": "Egyezés",
       "matchModes": {
         "any": "Bármelyik várt érték",
@@ -497,8 +654,8 @@
       "servername": "Kiszolgálónév (SNI)",
       "servernameHint": "Nem kötelező. Üresen az állomásnevet használjuk.",
       "expiryDays": "Figyelmeztetés lejárat előtt (nap)",
-      "expiryDaysHint": "Minden napszám után nyomj Entert.",
-      "degradedBelowDays": "Lassú, ha ennél kevesebb nap van hátra",
+      "expiryDaysHint": "Minden napszám után nyomjon Entert.",
+      "degradedBelowDays": "Akadozik, ha ennél kevesebb nap van hátra",
       "checkProtocols": "Támogatott protokollok ellenőrzése",
       "checkCiphers": "Titkosítási csomagok ellenőrzése",
       "watchCertificate": "Riasztás, ha a tanúsítvány megváltozik"
@@ -507,22 +664,22 @@
       "domain": "Domainnév",
       "domainHint": "A regisztrált domain, például example.com.",
       "expiryDays": "Figyelmeztetés lejárat előtt (nap)",
-      "expiryDaysHint": "Minden napszám után nyomj Entert.",
-      "degradedBelowDays": "Lassú, ha ennél kevesebb nap van hátra"
+      "expiryDaysHint": "Minden napszám után nyomjon Entert.",
+      "degradedBelowDays": "Akadozik, ha ennél kevesebb nap van hátra"
     },
     "push": {
-      "info": "Mentés után a push URL a monitor részletező oldalán jelenik meg. A feladatodból vagy szolgáltatásodból legalább időközönként hívd meg, hogy működőnek jelentse magát.",
+      "info": "Mentés után a push URL a monitor részletező oldalán jelenik meg. A feladatából vagy szolgáltatásából legalább a várt jelentkezési időközönként hívja meg, hogy működőnek jelentse magát.",
       "grace": "Türelmi idő",
-      "graceHint": "Ennyit várunk a várt jelzés után, mielőtt leállónak jelöljük a monitort."
+      "graceHint": "Ennyi ideig várunk a várt jelentkezés után, mielőtt a monitort leálltnak jelöljük."
     },
     "cron": {
-      "info": "Mentés után a push URL a monitor részletező oldalán jelenik meg. Az ütemezett feladat végén (vagy az elején és a végén) hívd meg, hogy jelentse a futást.",
+      "info": "Mentés után a push URL a monitor részletező oldalán jelenik meg. Az ütemezett feladat végén (vagy az elején és a végén) hívja meg, hogy jelentse a futást.",
       "schedule": "Cron-ütemezés",
       "scheduleHint": "Szabványos, ötmezős kifejezés, például 0 3 * * *.",
       "timezone": "Az ütemezés időzónája",
       "timezoneHint": "Üresen a munkaterület időzónáját használjuk.",
       "grace": "Türelmi idő",
-      "graceHint": "Ennyit várunk az ütemezett időpont után, mielőtt kihagyottnak jelöljük a futást.",
+      "graceHint": "Ennyi ideig várunk az ütemezett időpont után, mielőtt a futást kihagyottnak jelöljük.",
       "maxRuntime": "Legnagyobb futásidő",
       "maxRuntimeHint": "Nem kötelező. A futás hibásnak számít, ha ennél tovább tart."
     },
@@ -545,7 +702,7 @@
       "url": "URL",
       "method": "Metódus",
       "acceptedStatus": "Elfogadott állapotkódok",
-      "acceptedStatusHint": "Minden kód vagy tartomány után nyomj Entert, például 200-299 vagy 301.",
+      "acceptedStatusHint": "Minden kód vagy tartomány után nyomjon Entert, például 200-299 vagy 301.",
       "maxRedirects": "Átirányítások maximális száma",
       "body": "Kérés törzse",
       "headers": "Kérés fejlécei",
@@ -595,12 +752,12 @@
       "tlsVerify": "A kiszolgáló tanúsítványának ellenőrzése",
       "tlsChecks": "A tanúsítvány lejáratának figyelése",
       "tlsExpiryDays": "Figyelmeztetés lejárat előtt (nap)",
-      "tlsExpiryDaysHint": "Minden napszám után nyomj Entert.",
+      "tlsExpiryDaysHint": "Minden napszám után nyomjon Entert.",
       "domainExpiry": "A domain regisztrációja lejáratának figyelése",
       "mtls": "Kliens tanúsítvány küldése (mTLS)",
       "mtlsCert": "Kliens tanúsítvány (PEM)",
       "mtlsKey": "Kliens privát kulcs (PEM)",
-      "pemHint": "Illeszd be a PEM szöveget. Többé nem jelenítjük meg.",
+      "pemHint": "Illessze be a PEM-szöveget. Többé nem jelenítjük meg.",
       "proxy": "Proxy",
       "proxyEnable": "Az ellenőrzések küldése proxyn keresztül",
       "proxyUrl": "Proxy URL",
@@ -667,12 +824,12 @@
       "title": "Push végpont",
       "url": "Push URL",
       "example": "Jelentés szkriptből vagy cron-feladatból:",
-      "secret": "Az URL tartalmazza a push tokent, ezért jelszóként kezeld.",
+      "secret": "Az URL tartalmazza a push tokent, ezért jelszóként kezelje.",
       "hasToken": "A monitornak van push tokenje. Az URL-t csak a monitort szerkeszteni jogosult tagok láthatják.",
       "noToken": "A monitornak nincs push tokenje.",
       "rotate": "Token cseréje",
       "rotateTitle": "Push token cseréje",
-      "rotateText": "A jelenlegi URL azonnal érvénytelen lesz. Frissítsd az összes feladatot, amely ide jelent.",
+      "rotateText": "A jelenlegi URL azonnal érvénytelen lesz. Frissítse az összes feladatot, amely ide jelent.",
       "rotated": "A push token kicserélve."
     },
     "heroFor": "{duration} óta",
@@ -707,7 +864,7 @@
     "applyHint": "Mentéskor a meglévő monitorokat is feliratkoztatja.",
     "mapHint": "Soronként egy fejléc, Név: érték alakban.",
     "mapInvalid": "A(z) {lines}. sor nem Név: érték alakú.",
-    "listHint": "Írj be egy címet, majd nyomj Entert.",
+    "listHint": "Írjon be egy címet, majd nyomjon Entert.",
     "range": "{min} és {max} között.",
     "atLeast": "Legalább {min}.",
     "columns": {
@@ -720,15 +877,15 @@
     },
     "empty": {
       "title": "Még nincs értesítési csatorna",
-      "text": "Adj hozzá egy csatornát, hogy a riasztások e-mailben, chaten vagy webhookon is eljussanak hozzád."
+      "text": "Adjon hozzá egy csatornát, hogy a riasztások e-mailben, chaten vagy webhookon is eljussanak Önhöz."
     },
     "delete": {
-      "title": "Törlöd a csatornát?",
+      "title": "Törli a csatornát?",
       "text": "A riasztások többé nem mennek a(z) „{name}” csatornára. A korábbi riasztási napló megmarad."
     },
     "leave": {
-      "title": "Elveted a módosításokat?",
-      "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "title": "Elveti a módosításokat?",
+      "text": "Mentetlen módosításai vannak. Ha elhagyja az oldalt, elvesznek.",
       "confirm": "Módosítások elvetése"
     },
     "sections": {
@@ -814,7 +971,7 @@
       "ok": "A teszt megérkezett",
       "failed": "A teszt sikertelen",
       "unknown": "A szolgáltató nem adott részleteket.",
-      "saveFirst": "A módosítások kipróbálásához előbb mentsd őket."
+      "saveFirst": "A módosítások kipróbálásához előbb mentse őket."
     },
     "delivery": {
       "queued": "Sorban áll",
@@ -825,7 +982,7 @@
       "title": "Monitorok",
       "count": "Feliratkozott monitorok: {count}",
       "monitors": "Módosítandó monitorok",
-      "hint": "Legfeljebb {max} monitort válassz ki, majd iratkoztasd fel vagy le őket.",
+      "hint": "Legfeljebb {max} monitort válasszon ki, majd iratkoztassa fel vagy le őket.",
       "subscribe": "Feliratkoztatás",
       "unsubscribe": "Leiratkoztatás",
       "subscribed": "{count} monitor feliratkozott.",
@@ -833,8 +990,8 @@
       "bound": "feliratkozva"
     },
     "hints": {
-      "appriseKey": "Az Apprise-kiszolgálón tárolt konfiguráció kulcsa. Kötelező, ha nem adsz meg értesítési URL-eket.",
-      "appriseUrls": "Soronként egy URL. Kötelező, ha nem adsz meg konfigurációs kulcsot."
+      "appriseKey": "Az Apprise-kiszolgálón tárolt konfiguráció kulcsa. Kötelező, ha nem ad meg értesítési URL-eket.",
+      "appriseUrls": "Soronként egy URL. Kötelező, ha nem ad meg konfigurációs kulcsot."
     }
   },
   "alerts": {
@@ -856,7 +1013,7 @@
     "kinds": {
       "down": "Leállt",
       "up": "Újra elérhető",
-      "degraded": "Lassú",
+      "degraded": "Akadozik",
       "still_down": "Még mindig leállt",
       "flapping": "Ingadozik",
       "stable": "Stabil",
@@ -883,7 +1040,7 @@
     "back": "Összes incidens",
     "empty": {
       "title": "Nincs incidens",
-      "text": "Jelents egy incidenst, hogy a státuszoldalak és a feliratkozók tájékozottak maradjanak."
+      "text": "Jelentsen egy incidenst, hogy a státuszoldalak látogatói tájékozottak maradjanak."
     },
     "filter": {
       "label": "Incidensek megjelenítése",
@@ -932,13 +1089,19 @@
     },
     "affected": {
       "title": "Érintettek",
-      "monitors": "Érintett figyelők",
+      "monitors": "Érintett monitorok",
       "statusPages": "Megjelenik a státuszoldalakon",
-      "searchMonitors": "Figyelők keresése",
-      "monitorById": "{id}. figyelő",
+      "searchMonitors": "Monitorok keresése",
+      "monitorById": "{id}. monitor",
       "statusPageById": "{id}. státuszoldal",
-      "hint": "Nem kötelező. A státuszoldal csak akkor mutatja az incidenst, ha itt ki van választva.",
+      "hint": "Nem kötelező. Az itt kijelölt státuszoldal akkor is megjeleníti az incidenst, ha egyik érintett monitor sincs rajta.",
       "truncated": "Csak az első {count} státuszoldal látható a listában."
+    },
+    "internal": {
+      "label": "Csak belső",
+      "hint": "A belső incidens egyetlen státuszoldalon sem jelenik meg, akkor sem, ha nyilvános monitort érint.",
+      "publicHint": "Ha egy kijelölt monitor nyilvános státuszoldalon is szerepel, az incidens ott is megjelenik a frissítéseivel együtt. Ha ezt el akarja kerülni, kapcsolja be a Csak belső kapcsolót.",
+      "chip": "Belső"
     },
     "timeline": {
       "title": "Idővonal",
@@ -959,20 +1122,20 @@
       "saved": "A frissítés mentve."
     },
     "updateDelete": {
-      "title": "Törlöd ezt a frissítést?",
+      "title": "Törli ezt a frissítést?",
       "text": "Az incidens állapota a legújabb megmaradó frissítésből számolódik újra.",
       "deleted": "A frissítés törölve."
     },
     "delete": {
-      "title": "Törlöd az incidenst?",
+      "title": "Törli az incidenst?",
       "text": "A(z) „{title}” és az idővonala eltűnik a státuszoldalakról.",
       "deleted": "Az incidens törölve."
     },
-    "readOnly": "Az incidenst megtekintheted, de nem módosíthatod.",
+    "readOnly": "Az incidenst megtekintheti, de nem módosíthatja.",
     "staleNote": "A nyilvános státuszoldalakon a változás akár 60 másodperc késéssel jelenhet meg.",
     "leave": {
-      "title": "Elveted a módosításokat?",
-      "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "title": "Elveti a módosításokat?",
+      "text": "Mentetlen módosításai vannak. Ha elhagyja az oldalt, elvesznek.",
       "confirm": "Módosítások elvetése"
     }
   },
@@ -985,7 +1148,7 @@
     "retry": "Újra",
     "empty": {
       "title": "Nincs karbantartási ablak",
-      "text": "Ütemezz egyet, hogy a riasztások elnémuljanak, a látogatók pedig értesüljenek a tervezett munkáról."
+      "text": "Ütemezzen egyet, hogy a riasztások elnémuljanak, a látogatók pedig értesüljenek a tervezett munkáról."
     },
     "filter": {
       "label": "Karbantartások megjelenítése",
@@ -999,7 +1162,7 @@
       "strategy": "Ütemezés",
       "state": "Állapot",
       "window": "Ablak",
-      "monitors": "Figyelők",
+      "monitors": "Monitorok",
       "actions": "Műveletek"
     },
     "strategy": {
@@ -1034,7 +1197,7 @@
     },
     "hints": {
       "timezone": "Az alábbi időpontok ebben az időzónában értendők.",
-      "endsAt": "Hagyd üresen, ha nincs vége az ablaknak; később a Befejezés most gombbal zárhatod le.",
+      "endsAt": "Hagyja üresen, ha nincs vége az ablaknak; később a Befejezés most gombbal zárhatja le.",
       "cron": "Öt mező: perc óra nap hónap hétköznap.",
       "monthDays": "A 29–31. nap a rövidebb hónapokban kimarad; az Utolsó nap mindig lefut.",
       "validity": "Nem kötelező. Korlátozza, mely napokon él az ütemezés.",
@@ -1051,8 +1214,8 @@
     },
     "lastDay": "Utolsó nap",
     "targets": {
-      "title": "Érintett figyelők és státuszoldalak",
-      "monitorsRequired": "Válassz ki legalább egy figyelőt.",
+      "title": "Érintett monitorok és státuszoldalak",
+      "monitorsRequired": "Válasszon ki legalább egy monitort.",
       "statusPagesHint": "Nem kötelező. A státuszoldal csak akkor mutatja a karbantartást, ha itt ki van választva."
     },
     "preview": {
@@ -1064,25 +1227,25 @@
     },
     "endNow": "Befejezés most",
     "endNowDialog": {
-      "title": "Befejezed most a karbantartást?",
-      "text": "A(z) „{title}” azonnal véget ér, a figyelők újra riasztanak.",
+      "title": "Befejezi most a karbantartást?",
+      "text": "A(z) „{title}” azonnal véget ér, a monitorok újra riasztanak.",
       "confirm": "Befejezés most",
       "ended": "A karbantartás befejeződött.",
-      "recurring": "Az ismétlődő karbantartást nem lehet befejezni; kapcsold ki az Aktív kapcsolóval."
+      "recurring": "Az ismétlődő karbantartást nem lehet befejezni; kapcsolja ki az Aktív kapcsolóval."
     },
     "delete": {
-      "title": "Törlöd a karbantartást?",
-      "text": "A(z) „{title}” törlődik. Ha éppen fut, a figyelők újra riasztanak.",
+      "title": "Törli a karbantartást?",
+      "text": "A(z) „{title}” törlődik. Ha éppen fut, a monitorok újra riasztanak.",
       "deleted": "A karbantartás törölve."
     },
     "created": "A karbantartás beütemezve.",
     "updated": "A karbantartás frissült.",
     "noChanges": "Nincs módosítás.",
-    "readOnly": "A karbantartást megtekintheted, de nem módosíthatod; a szerkesztő csak olvasható.",
+    "readOnly": "A karbantartást megtekintheti, de nem módosíthatja; a szerkesztő csak olvasható.",
     "staleNote": "A nyilvános státuszoldalakon a változás akár 60 másodperc késéssel jelenhet meg.",
     "leave": {
-      "title": "Elveted a módosításokat?",
-      "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "title": "Elveti a módosításokat?",
+      "text": "Mentetlen módosításai vannak. Ha elhagyja az oldalt, elvesznek.",
       "confirm": "Módosítások elvetése"
     }
   },
@@ -1094,7 +1257,7 @@
     "loading": "Státuszoldal betöltése",
     "retry": "Újra",
     "settings": "Beállítások",
-    "readOnly": "Ehhez a státuszoldalhoz csak olvasási jogod van.",
+    "readOnly": "Ehhez a státuszoldalhoz csak olvasási joga van.",
     "openPublic": "Nyilvános oldal megnyitása",
     "openDomain": "{domain} megnyitása",
     "removeDomain": "Domain eltávolítása",
@@ -1106,7 +1269,7 @@
     "uptimeDays": "{count} nap",
     "empty": {
       "title": "Nincs státuszoldal",
-      "text": "Hozz létre egyet, hogy az ügyfeleid lássák a monitoraid állapotát."
+      "text": "Hozzon létre egyet, hogy az ügyfelei lássák a monitorai állapotát."
     },
     "columns": {
       "title": "Státuszoldal",
@@ -1143,7 +1306,7 @@
     "hints": {
       "slug": "A nyilvános oldal címe: /status/{slug}.",
       "published": "A nem közzétett oldalt a látogatók nem érik el.",
-      "customDomain": "Irányíts egy DNS-rekordot erről a hostról erre a szerverre. A telepítés saját hostját (az APP_URL hostját) a rendszer elutasítja.",
+      "customDomain": "Irányítson egy DNS-rekordot erről a hostról erre a szerverre. A telepítés saját hostját (az APP_URL hostját) a rendszer elutasítja.",
       "customDomainLocked": "Ezen a telepítésen nem lehet egyedi domaint beállítani. Ezt a domaint a munkaterület adminisztrátora eltávolíthatja.",
       "customDomainRemoved": "A domain mentéskor törlődik.",
       "barDays": "7 és 365 között.",
@@ -1164,7 +1327,7 @@
       "help": "A szekciók és a monitorok a nyilvános oldalon ebben a sorrendben jelennek meg. A mentés az egész elrendezést felülírja.",
       "save": "Elrendezés mentése",
       "saved": "Az elrendezés mentve.",
-      "afterCreate": "Előbb hozd létre az oldalt, utána rendezheted a szekciókat és a monitorokat.",
+      "afterCreate": "Előbb hozza létre az oldalt, utána rendezheti a szekciókat és a monitorokat.",
       "addSection": "Szekció hozzáadása",
       "noSections": "Még nincs szekció.",
       "noItems": "Ebben a szekcióban nincs monitor.",
@@ -1182,36 +1345,36 @@
       "moveItemDown": "{name} lejjebb",
       "removeItem": "{name} eltávolítása a szekcióból",
       "removeSectionDialog": {
-        "title": "Törlöd a szekciót?",
-        "text": "A(z) {name} szekció és a monitorlistája törlődik, amikor elmented az elrendezést."
+        "title": "Törli a szekciót?",
+        "text": "A(z) {name} szekció és a monitorlistája törlődik, amikor elmenti az elrendezést."
       }
     },
     "delete": {
-      "title": "Törlöd a státuszoldalt?",
+      "title": "Törli a státuszoldalt?",
       "text": "A(z) {title} és az elrendezése törlődik, a nyilvános címe megszűnik.",
       "deleted": "A státuszoldal törölve."
     },
     "leave": {
-      "title": "Elveted a módosításokat?",
-      "text": "Mentetlen módosításaid vannak. Ha elhagyod az oldalt, elvesznek.",
+      "title": "Elveti a módosításokat?",
+      "text": "Mentetlen módosításai vannak. Ha elhagyja az oldalt, elvesznek.",
       "confirm": "Módosítások elvetése"
     }
   },
   "import": {
     "title": "Importálás Uptime Kumából",
-    "intro": "Töltsd fel az Uptime Kuma adatbázisának egy másolatát, hogy a monitorok, értesítési csatornák, címkék, állapotoldalak, incidensek és karbantartási ablakok átkerüljenek ebbe a munkaterületbe. A feltöltést először elemezzük; addig semmi sem jön létre, amíg el nem indítod az importot.",
+    "intro": "Töltse fel az Uptime Kuma adatbázisának egy másolatát, hogy a monitorok, értesítési csatornák, címkék, státuszoldalak, incidensek és karbantartási ablakok átkerüljenek ebbe a munkaterületbe. A feltöltést először elemezzük; addig semmi sem jön létre, amíg el nem indítja az importot.",
     "upload": {
       "title": "Fájl feltöltése",
       "file": "Kuma-adatbázis vagy mentés",
       "fileHint": "SQLite-adatbázis (.db, .sqlite, .sqlite3) vagy Uptime Kuma 1.23 JSON-mentés. Legfeljebb {max} MB.",
       "history": "Üzemidő-előzmények átvétele",
       "paused": "Monitorok importálása szüneteltetve",
-      "help": "Előbb készíts konzisztens másolatot: állítsd le az Uptime Kumát, vagy futás közben add ki a sqlite3 kuma.db \".backup kuma-export.db\" parancsot. A támogatott forrásokat a README „Migrating from Uptime Kuma” szakasza írja le.",
+      "help": "Előbb készítsen konzisztens másolatot: állítsa le az Uptime Kumát, vagy futás közben adja ki a sqlite3 kuma.db \".backup kuma-export.db\" parancsot. A támogatott forrásokat a README „Migrating from Uptime Kuma” szakasza írja le.",
       "submit": "Feltöltés és elemzés",
-      "noFile": "Előbb válassz ki egy fájlt.",
+      "noFile": "Előbb válasszon ki egy fájlt.",
       "tooLarge": "A fájl nagyobb, mint a {max} MB-os feltöltési korlát."
     },
-    "blocked": "Ebben a munkaterületben már van nyitott import. Fejezd be vagy töröld, mielőtt újabb fájlt töltesz fel.",
+    "blocked": "Ebben a munkaterületben már van nyitott import. Fejezze be vagy törölje, mielőtt újabb fájlt tölt fel.",
     "gone": "Ez az import már nem létezik. Törölték, vagy 24 óra után eltávolították.",
     "status": {
       "pending": "Sorban áll",
@@ -1238,7 +1401,7 @@
       "tag": "Címkék",
       "notification": "Értesítési csatornák",
       "monitor": "Monitorok",
-      "status_page": "Állapotoldalak",
+      "status_page": "Státuszoldalak",
       "incident": "Incidensek",
       "maintenance": "Karbantartási ablakok"
     },
@@ -1246,7 +1409,7 @@
       "tag": "{n} címke",
       "notification": "{n} értesítési csatorna",
       "monitor": "{n} monitor",
-      "status_page": "{n} állapotoldal",
+      "status_page": "{n} státuszoldal",
       "incident": "{n} incidens",
       "maintenance": "{n} karbantartási ablak"
     },
@@ -1278,7 +1441,7 @@
     },
     "run": {
       "action": "Import futtatása",
-      "title": "Elindítod az importot?",
+      "title": "Elindítja az importot?",
       "confirm": "Ez létrehoz: {summary}. A már meglévő elemekhez nem nyúlunk.",
       "nothing": "Az elemzés nem talált új, létrehozandó elemet.",
       "start": "Import futtatása"
@@ -1296,7 +1459,7 @@
       "actions": "Műveletek",
       "view": "Jelentés megnyitása",
       "delete": "Import törlése",
-      "deleteTitle": "Törlöd ezt az importot?",
+      "deleteTitle": "Törli ezt az importot?",
       "deleteConfirm": "A(z) {name} importja és jelentése törlődik. A már létrehozott elemek megmaradnak.",
       "deleted": "Az import törölve."
     }

@@ -23,7 +23,7 @@ function initialTheme(): 'light' | 'dark' {
 
 // Theme colours. Status colours are the text-safe shades (4.5:1 on surface); the brighter fills used by
 // heartbeat strips and status marks live in styles/app.css as --iw-* custom properties.
-const light = {
+export const light: Record<string, string> = {
   'background': '#E8ECF0',
   'surface': '#FFFFFF',
   'surface-light': '#F2F4F7',
@@ -39,7 +39,7 @@ const light = {
   'idle': '#5F6A78',
 }
 
-const dark = {
+export const dark: Record<string, string> = {
   'background': '#111821',
   'surface': '#18212C',
   'surface-light': '#1E2833',
@@ -53,6 +53,16 @@ const dark = {
   'info': '#7FB0E8',
   'maintenance': '#B19EF3',
   'idle': '#8D98A8',
+  // The dark fills are light shades, so text on them must be dark: white on them is about 2:1 and makes
+  // every primary button look disabled.
+  'on-primary': '#0B1118',
+  'on-secondary': '#0B1118',
+  'on-success': '#0B1118',
+  'on-error': '#0B1118',
+  'on-warning': '#0B1118',
+  'on-info': '#0B1118',
+  'on-maintenance': '#0B1118',
+  'on-idle': '#0B1118',
 }
 
 const variables = {

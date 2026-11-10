@@ -8,11 +8,14 @@ import {
   mdiCogOutline,
   mdiDatabaseImportOutline,
   mdiFileDocumentOutline,
+  mdiHelpCircleOutline,
+  mdiHistory,
   mdiKeyVariant,
   mdiLogout,
   mdiMonitorDashboard,
   mdiPlus,
   mdiShieldAccountOutline,
+  mdiTagMultipleOutline,
   mdiTrafficCone,
   mdiWeatherNight,
   mdiWeatherSunny,
@@ -28,6 +31,7 @@ import { useCan } from '../composables/useCan'
 import { useNotify } from '../composables/useNotify'
 import { usePreferences } from '../composables/usePreferences'
 import { WORKSPACE_LIST_ROUTES } from '../router'
+import { useChangelogNews } from '../stores/changelog'
 import { useSession } from '../stores/session'
 import CreateWorkspaceDialog from '../views/workspace/CreateWorkspaceDialog.vue'
 
@@ -40,6 +44,7 @@ interface NavItem {
 
 const { t } = useI18n()
 const session = useSession()
+const news = useChangelogNews()
 const route = useRoute()
 const router = useRouter()
 const can = useCan()
@@ -118,6 +123,12 @@ const adminItems = computed<NavItem[]>(() => [
     ability: 'view',
   },
   {
+    route: 'ws.tags',
+    label: t('nav.tags'),
+    icon: mdiTagMultipleOutline,
+    ability: 'viewMonitors',
+  },
+  {
     route: 'ws.audit',
     label: t('nav.audit'),
     icon: mdiFileDocumentOutline,
@@ -162,6 +173,12 @@ async function signOut(): Promise<void> {
   }
 }
 
+// The "new" mark is a nicety: asked once the session is known, never awaited, failures ignored.
+watch(() => session.user, (user) => {
+  if (user)
+    void news.check()
+}, { immediate: true })
+
 let stopFocusRefresh: (() => void) | null = null
 onMounted(() => {
   stopFocusRefresh = session.watchFocus()
@@ -193,7 +210,7 @@ watch(() => session.me, (current) => {
       <AppLogo :size="24" />
     </router-link>
     <v-spacer />
-    <div class="mr-3 d-flex align-center">
+    <div class="mr-3 d-flex align-center status-slot">
       <slot name="status" />
     </div>
   </v-app-bar>
@@ -259,6 +276,32 @@ watch(() => session.me, (current) => {
       </template>
     </v-list>
 
+    <v-list nav density="compact" class="rail-list rail-help" :aria-label="t('nav.helpSection')">
+      <v-list-subheader class="rail-subheader">
+        {{ t('nav.helpSection') }}
+      </v-list-subheader>
+      <v-list-item
+        data-test="nav-help"
+        :to="{ name: 'help' }"
+        :active="route.name === 'help' || route.name === 'help.chapter'"
+        :prepend-icon="mdiHelpCircleOutline"
+        :title="t('nav.help')"
+      />
+      <v-list-item
+        data-test="nav-changelog"
+        :to="{ name: 'changelog' }"
+        :prepend-icon="mdiHistory"
+        :title="t('nav.changelog')"
+      >
+        <template v-if="news.hasNews" #append>
+          <span class="new-pill" data-test="changelog-new">
+            <span aria-hidden="true">{{ t('nav.new') }}</span>
+            <span class="d-sr-only">{{ t('nav.newHint') }}</span>
+          </span>
+        </template>
+      </v-list-item>
+    </v-list>
+
     <template #append>
       <div class="rail-foot">
         <div v-if="!mobile" class="rail-status">
@@ -322,6 +365,12 @@ watch(() => session.me, (current) => {
 </template>
 
 <style scoped>
+/* Lets a long status text shrink and ellipsize instead of running over the logo. */
+.status-slot {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
 .logo-link {
   display: inline-flex;
   color: inherit;
@@ -376,6 +425,16 @@ watch(() => session.me, (current) => {
 
 .rail-list :deep(.v-list-item--active > .v-list-item__overlay) {
   opacity: 0;
+}
+
+.new-pill {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-primary));
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .rail-subheader {

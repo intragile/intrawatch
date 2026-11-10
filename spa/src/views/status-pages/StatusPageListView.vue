@@ -9,6 +9,8 @@ import { api, unwrap, useCursorList } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
@@ -85,9 +87,11 @@ function editRoute(id: number | string) {
 
 <template>
   <div class="d-flex align-center flex-wrap ga-2 mb-4">
-    <h1 class="text-h5 flex-grow-1">
+    <h1 class="text-h5">
       {{ t('statusPages.title') }}
     </h1>
+    <HelpLink v-bind="screenHelp('ws.status-pages')" />
+    <v-spacer />
     <v-btn
       v-if="canManage"
       data-test="status-page-new"

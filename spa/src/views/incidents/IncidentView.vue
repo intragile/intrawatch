@@ -9,9 +9,12 @@ import { api, fieldErrors, unwrap } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import DateTime from '../../components/common/DateTime.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import AffectedPicker from '../../components/incidents/AffectedPicker.vue'
 import ImpactChip from '../../components/incidents/ImpactChip.vue'
 import IncidentStatusChip from '../../components/incidents/IncidentStatusChip.vue'
+import InternalChip from '../../components/incidents/InternalChip.vue'
 import { INCIDENT_IMPACTS, timelineOf } from '../../components/incidents/model'
 import UpdateComposer from '../../components/incidents/UpdateComposer.vue'
 import UpdateTimeline from '../../components/incidents/UpdateTimeline.vue'
@@ -39,6 +42,7 @@ const canManage = computed(() => can('manageIncidents'))
 interface Details {
   title: string
   impact: IncidentImpact
+  internal: boolean
   monitor_ids: number[]
   status_page_ids: number[]
 }
@@ -55,17 +59,23 @@ function detailsOf(value: Incident): Details {
   return {
     title: value.title,
     impact: value.impact,
+    internal: value.internal,
     monitor_ids: [...value.monitor_ids],
     status_page_ids: [...value.status_page_ids],
   }
 }
 
-/** The id lists compare as sets: the picker may reorder them. */
+/**
+ * The id lists compare as sets: the picker may reorder them. An internal incident links no status page, so
+ * the pages picked before switching it on do not count while it stays on.
+ */
 function sorted(value: Details): Details {
   return {
     ...value,
     monitor_ids: [...value.monitor_ids].sort((a, b) => a - b),
-    status_page_ids: [...value.status_page_ids].sort((a, b) => a - b),
+    status_page_ids: value.internal
+      ? []
+      : [...value.status_page_ids].sort((a, b) => a - b),
   }
 }
 
@@ -126,6 +136,7 @@ const detailKnown = computed(() => Object.keys(saveError.value?.errors ?? {}).fi
   [
     'title',
     'impact',
+    'internal',
     'monitor_ids',
     'status_page_ids',
   ].some(root => key === root || key.startsWith(`${root}.`))))
@@ -140,12 +151,14 @@ async function saveDetails(): Promise<void> {
     body.title = current.title
   if (current.impact !== baseline.impact)
     body.impact = current.impact
+  if (current.internal !== baseline.internal)
+    body.internal = current.internal
   const now = sorted(current)
   const before = sorted(baseline)
   if (!deepEqual(now.monitor_ids, before.monitor_ids))
     body.monitor_ids = current.monitor_ids
   if (!deepEqual(now.status_page_ids, before.status_page_ids))
-    body.status_page_ids = current.status_page_ids
+    body.status_page_ids = now.status_page_ids
   if (Object.keys(body).length === 0) {
     notify(t('incidents.details.noChanges'), 'info')
     return
@@ -334,7 +347,9 @@ async function removeIncident(): Promise<void> {
       <h1 class="text-h5">
         {{ incident.title }}
       </h1>
+      <HelpLink v-bind="screenHelp('ws.incident')" />
       <ImpactChip :impact="incident.impact" />
+      <InternalChip v-if="incident.internal" />
       <span data-test="incident-status">
         <IncidentStatusChip :status="incident.status" />
       </span>
@@ -415,6 +430,18 @@ async function removeIncident(): Promise<void> {
                 :label="t('incidents.fields.impact')"
                 :error-messages="detailFields.impact"
               />
+              <v-switch
+                v-model="details.internal"
+                data-test="incident-internal-switch"
+                name="incident_internal"
+                :label="t('incidents.internal.label')"
+                :hint="t('incidents.internal.hint')"
+                persistent-hint
+                color="primary"
+                inset
+                class="mb-2"
+                :error-messages="detailFields.internal"
+              />
               <AffectedPicker
                 v-model:monitor-ids="details.monitor_ids"
                 v-model:status-page-ids="details.status_page_ids"
@@ -422,6 +449,8 @@ async function removeIncident(): Promise<void> {
                 :disabled="!canManage"
                 :can-list-monitors="can('viewMonitors')"
                 :monitors-error="detailFields.monitor_ids"
+                :monitors-hint="details.internal ? undefined : t('incidents.internal.publicHint')"
+                :hide-status-pages="details.internal"
                 :status-pages-error="detailFields.status_page_ids"
               />
             </v-card-text>

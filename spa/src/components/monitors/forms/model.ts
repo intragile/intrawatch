@@ -87,6 +87,19 @@ export function formFromMonitor(monitor: Monitor): MonitorForm {
   }
 }
 
+/**
+ * Whether the type is timed by a heartbeat rather than polled: a push monitor expects a call every
+ * interval (plus its grace period), and a missed call is retried on the retry interval.
+ */
+export function isHeartbeat(info: Pick<MonitorTypeInfo, 'type'>): boolean {
+  return info.type === 'push'
+}
+
+/** Whether the type shows the interval fields: polled types and heartbeat types. */
+export function hasInterval(info: Pick<MonitorTypeInfo, 'type' | 'scheduled'>): boolean {
+  return info.scheduled || isHeartbeat(info)
+}
+
 export function newForm(info: MonitorTypeInfo, channelIds: number[] = []): MonitorForm {
   return {
     name: '',
@@ -106,7 +119,7 @@ export function newForm(info: MonitorTypeInfo, channelIds: number[] = []): Monit
       resend_interval_minutes: 0,
       notify_degraded: false,
       degraded_alert_after_seconds: 0,
-      notify_changes: false,
+      notify_changes: true,
     },
   }
 }

@@ -18,6 +18,7 @@
     "delete": "Delete",
     "remove": "Remove",
     "loadMore": "Load more",
+    "retry": "Try again",
     "clear": "Clear",
     "noAccess": "You do not have access to this screen.",
     "never": "Never",
@@ -29,7 +30,7 @@
   },
   "validation": {
     "required": "This field is required.",
-    "email": "Enter a valid e-mail address.",
+    "email": "Enter a valid email address.",
     "passwordMin": "At least {min} characters.",
     "passwordMatch": "The passwords do not match."
   },
@@ -52,11 +53,17 @@
     "settings": "Workspace settings",
     "members": "Members",
     "tokens": "API tokens",
+    "tags": "Tags",
     "audit": "Audit log",
     "account": "Account and security",
+    "changelog": "Changelog",
+    "new": "New",
+    "newHint": "new version available",
+    "help": "Help",
     "workspace": "Workspace",
     "accountMenu": "Account menu",
     "mainMenu": "Main menu",
+    "helpSection": "Help and news",
     "manage": "Manage workspace",
     "toggleMenu": "Show or hide the menu",
     "signOut": "Sign out",
@@ -67,7 +74,7 @@
   "auth": {
     "fields": {
       "name": "Name",
-      "email": "E-mail",
+      "email": "Email",
       "password": "Password",
       "newPassword": "New password",
       "passwordConfirmation": "Repeat the password"
@@ -91,7 +98,7 @@
     },
     "forgot": {
       "title": "Reset your password",
-      "intro": "Enter the e-mail address of your account and we will send you a link to set a new password.",
+      "intro": "Enter the email address of your account and we will send you a link to set a new password.",
       "submit": "Send reset link",
       "sent": "If an account exists for that address, a reset link is on its way. Check your inbox.",
       "back": "Back to sign in"
@@ -126,6 +133,76 @@
       "submit": "Confirm"
     }
   },
+  "changelog": {
+    "title": "Changelog",
+    "unreleased": "Unreleased",
+    "yanked": "Yanked",
+    "yankedHint": "This release was withdrawn and should not be used.",
+    "fallbackNotice": "This version is only available in English.",
+    "empty": "There are no releases yet.",
+    "eyebrow": "What's new",
+    "intro": "The changes in every release, newest first.",
+    "latestVersion": "Latest version:",
+    "filterLabel": "Filter by area",
+    "filterAll": "All",
+    "versions": "Versions",
+    "latest": "Latest",
+    "changes": "{n} change | {n} changes",
+    "showDetails": "Details",
+    "hideDetails": "Hide",
+    "releasePage": "Release page"
+  },
+  "help": {
+    "title": "Help",
+    "search": "Search the manual",
+    "searchResults": "Search results",
+    "searchCount": "{n} matching chapter | {n} matching chapters",
+    "searchEmpty": "No chapter matches your search.",
+    "searchPlaceholder": "E.g. publishing a status page, API token, maintenance",
+    "searchSubmit": "Search",
+    "heroTitle": "How can we help?",
+    "chapterCount": "{n} chapter | {n} chapters",
+    "popularLabel": "Popular:",
+    "popular": [
+      { "label": "What does Degraded mean?", "slug": "monitoring/monitors", "anchor": "what-do-the-states-mean" },
+      { "label": "Alerts to Slack", "slug": "monitoring/notifications", "anchor": "channel-types" },
+      { "label": "Import from Uptime Kuma", "slug": "workspace/import" }
+    ],
+    "startHere": "Start here",
+    "whatsNew": "What's new",
+    "fullChangelog": "Full changelog",
+    "breadcrumb": "Breadcrumb",
+    "openInApp": "Open in the app",
+    "openInAppAction": "Open {name}",
+    "callout": {
+      "tip": "Tip.",
+      "warning": "Warning.",
+      "note": "Note."
+    },
+    "contents": "In this chapter",
+    "backToIndex": "Back to the manual",
+    "previous": "Previous",
+    "next": "Next",
+    "pager": "Chapters",
+    "readingTime": "{minutes} min read",
+    "fallbackNotice": "This chapter is only available in Hungarian for now.",
+    "indexFallbackNotice": "The manual is only available in Hungarian for now.",
+    "notFoundTitle": "Chapter not found",
+    "notFound": "There is no such chapter. It may have been moved or renamed.",
+    "link": "Help: {title}",
+    "chapterTitles": {
+      "monitoring/monitors": "Monitors",
+      "monitoring/notifications": "Notification channels",
+      "monitoring/incidents": "Incidents",
+      "monitoring/maintenances": "Maintenance",
+      "monitoring/status-pages": "Status pages",
+      "workspace/workspace": "Workspace and members",
+      "workspace/api-tokens": "API tokens",
+      "workspace/import": "Import from Uptime Kuma",
+      "workspace/audit": "Audit log",
+      "account/account": "Your account"
+    }
+  },
   "account": {
     "title": "Account and security",
     "profile": "Profile",
@@ -149,6 +226,30 @@
       "disable": "Turn off",
       "disableConfirm": "Signing in will only need your password. You can turn it on again at any time.",
       "disabledNotice": "Two-factor authentication is off."
+    },
+    "password": {
+      "title": "Change password",
+      "intro": "You stay signed in on this device. You are signed out on every other device, and all of your API tokens are revoked.",
+      "current": "Current password",
+      "submit": "Change password",
+      "done": "Your password has been changed."
+    },
+    "sessions": {
+      "title": "Sessions",
+      "intro": "The devices and browsers where you are signed in.",
+      "thisDevice": "This device",
+      "unknownDevice": "Unknown device",
+      "lastActive": "Last active {when}",
+      "noOthers": "You are not signed in on any other device.",
+      "signOutOthers": "Sign out all other devices",
+      "signOutOthersIntro": "Enter your password. You stay signed in on this device and are signed out on every other device. Your API tokens keep working.",
+      "signOutConfirm": "Sign out",
+      "signOutOthersDone": "You have been signed out on all other devices.",
+      "signOutOne": "Sign out",
+      "signOutOneLabel": "Sign out {device}",
+      "signOutOneTitle": "Sign out this device?",
+      "signOutOneText": "The session on {device} ends, and you will need to sign in there again. You stay signed in on your other devices, but “Keep me signed in” stops working on them.",
+      "signOutOneDone": "{device} has been signed out."
     }
   },
   "home": {
@@ -163,6 +264,7 @@
     "live": "Live",
     "connecting": "Connecting",
     "offline": "Offline — showing last loaded data",
+    "offlineShort": "Offline",
     "label": "Live updates"
   },
   "status": {
@@ -199,8 +301,8 @@
     "title": "Members",
     "invite": {
       "title": "Invite a member",
-      "hint": "We e-mail an invitation link to the address, valid for 7 days. The person joins by signing in with that address and accepting it; ask your administrator to create an account if they have none.",
-      "email": "E-mail",
+      "hint": "We email an invitation link to the address, valid for 7 days. The person joins by signing in with that address and accepting it; ask your administrator to create an account if they have none.",
+      "email": "Email",
       "role": "Role",
       "submit": "Send invitation",
       "sent": "Invitation sent to {email}."
@@ -215,7 +317,7 @@
       "revoked": "The invitation of {email} was revoked."
     },
     "name": "Name",
-    "email": "E-mail",
+    "email": "Email",
     "role": "Role",
     "actions": "Actions",
     "roleOf": "Role of {name}",
@@ -273,6 +375,55 @@
       "field": "Token",
       "done": "I have copied it"
     }
+  },
+  "tags": {
+    "title": "Tags",
+    "intro": "Tags group your monitors: you can filter the monitor list by tag and add or remove a tag on many selected monitors at once. You assign tags to a monitor while editing it.",
+    "readOnly": "Only members who can manage monitors can create, edit or delete tags.",
+    "create": {
+      "title": "Create tag",
+      "submit": "Create tag"
+    },
+    "edit": {
+      "title": "Edit tag"
+    },
+    "delete": {
+      "title": "Delete the tag?",
+      "confirm": "The tag “{name}” is removed from every monitor, together with the value each monitor gave it. The monitors keep running and alerting as before; they only lose this tag. This cannot be undone."
+    },
+    "name": "Name",
+    "color": {
+      "label": "Color",
+      "presets": "Preset colors",
+      "custom": "Custom color (#rrggbb)",
+      "invalid": "Enter the color as #rrggbb, for example #2563eb.",
+      "presetNames": {
+        "gray": "Gray",
+        "red": "Red",
+        "orange": "Orange",
+        "amber": "Amber",
+        "green": "Green",
+        "teal": "Teal",
+        "sky": "Sky blue",
+        "blue": "Blue",
+        "violet": "Violet",
+        "pink": "Pink"
+      }
+    },
+    "preview": "Preview:",
+    "previewName": "Tag",
+    "list": "Tags of the workspace",
+    "tag": "Tag",
+    "colorColumn": "Color",
+    "actions": "Actions",
+    "empty": {
+      "title": "No tags yet",
+      "text": "Tags group monitors: the monitor list can be filtered by tag, and a tag can be added to or removed from many selected monitors at once.",
+      "textManage": "Create the first tag above, or in the Tags field while editing a monitor. You can then filter the monitor list by tag and add or remove a tag on many selected monitors at once."
+    },
+    "created": "Tag “{name}” created.",
+    "saved": "Tag changes saved.",
+    "deleted": "Tag “{name}” deleted."
   },
   "audit": {
     "title": "Audit log",
@@ -429,11 +580,14 @@
       "timing": "Timing",
       "interval": "Check interval",
       "intervalMin": "The interval must be at least {min} seconds for this type.",
+      "heartbeatInterval": "Expected check-in interval",
+      "heartbeatIntervalHint": "How often the job must check in. The grace period is added on top.",
       "timeout": "Timeout",
       "timeoutHint": "At most 80% of the check interval.",
       "retries": "Retries",
       "retriesHint": "Failed checks repeated before the monitor is marked down.",
       "retryInterval": "Retry interval",
+      "heartbeatRetryHint": "After a missed check-in, the next miss counts after this long.",
       "degradedThreshold": "Degraded above (latency)",
       "degradedThresholdHint": "Mark the monitor degraded when a check takes longer than this. Leave empty to disable."
     },
@@ -444,7 +598,7 @@
     "alerting": {
       "resend": "Reminder interval (minutes)",
       "resendHint": "Repeat the alert while the monitor stays down. 0 sends no reminders.",
-      "notifyChanges": "Notify about configuration changes",
+      "notifyChanges": "Notify about certificate, DNS and expiry changes",
       "notifyDegraded": "Alert when degraded",
       "degradedAfter": "Degraded alert delay",
       "degradedAfterHint": "How long the monitor must stay degraded before an alert is sent."
@@ -458,6 +612,9 @@
     "tags": {
       "label": "Tags",
       "none": "No tags exist yet.",
+      "noneCreate": "No tags yet. Type a name to create one.",
+      "create": "Create tag “{name}”",
+      "createFailed": "The tag could not be created.",
       "value": "Value for {name} (optional)"
     },
     "tcp": {
@@ -513,7 +670,7 @@
     "push": {
       "info": "After you save, the push URL appears on the monitor's detail page. Call it from your job or service at least once per interval to report it as up.",
       "grace": "Grace period",
-      "graceHint": "How long to wait past the expected heartbeat before marking the monitor down."
+      "graceHint": "How long to wait past the expected check-in before marking the monitor down."
     },
     "cron": {
       "info": "After you save, the push URL appears on the monitor's detail page. Call it when your scheduled job finishes (or starts and finishes) to report it.",
@@ -720,7 +877,7 @@
     },
     "empty": {
       "title": "No notification channels",
-      "text": "Add a channel so alerts reach you by e-mail, chat or webhook."
+      "text": "Add a channel so alerts reach you by email, chat or webhook."
     },
     "delete": {
       "title": "Delete channel?",
@@ -777,7 +934,7 @@
       "urls": "Notification URLs"
     },
     "types": {
-      "email": "E-mail",
+      "email": "Email",
       "webhook": "Webhook",
       "slack": "Slack",
       "discord": "Discord",
@@ -883,7 +1040,7 @@
     "back": "All incidents",
     "empty": {
       "title": "No incidents",
-      "text": "Report an incident to keep your status pages and subscribers informed."
+      "text": "Report an incident to keep your status page visitors informed."
     },
     "filter": {
       "label": "Show incidents",
@@ -937,8 +1094,14 @@
       "searchMonitors": "Search monitors",
       "monitorById": "Monitor #{id}",
       "statusPageById": "Status page #{id}",
-      "hint": "Optional. Status pages show the incident only when they are selected here.",
+      "hint": "Optional. A status page selected here shows the incident even when none of the affected monitors is on it.",
       "truncated": "Only the first {count} status pages are listed."
+    },
+    "internal": {
+      "label": "Internal only",
+      "hint": "An internal incident never appears on a status page, even when it affects a public monitor.",
+      "publicHint": "If a selected monitor is also on a public status page, the incident appears there too, with its updates. To prevent that, turn on Internal only.",
+      "chip": "Internal"
     },
     "timeline": {
       "title": "Timeline",
@@ -1134,7 +1297,7 @@
       "incidentHistoryDays": "Incident history (days)",
       "upcomingMaintenanceDays": "Upcoming maintenance (days)",
       "showLatency": "Show response times",
-      "accentColor": "Accent colour",
+      "accentColor": "Accent color",
       "logoUrl": "Logo URL",
       "faviconUrl": "Favicon URL",
       "footer": "Footer text",
@@ -1199,7 +1362,7 @@
   },
   "import": {
     "title": "Import from Uptime Kuma",
-    "intro": "Upload a copy of your Uptime Kuma database to bring its monitors, notification channels, tags, status pages, incidents and maintenance windows into this workspace. The upload is analysed first; nothing is created until you run the import.",
+    "intro": "Upload a copy of your Uptime Kuma database to bring its monitors, notification channels, tags, status pages, incidents and maintenance windows into this workspace. The upload is analyzed first; nothing is created until you run the import.",
     "upload": {
       "title": "Upload a file",
       "file": "Kuma database or backup",
@@ -1207,7 +1370,7 @@
       "history": "Include uptime history",
       "paused": "Import monitors paused",
       "help": "Take a consistent copy first: stop Uptime Kuma, or run sqlite3 kuma.db \".backup kuma-export.db\" while it runs. See the \"Migrating from Uptime Kuma\" section of the README for the supported sources.",
-      "submit": "Upload and analyse",
+      "submit": "Upload and analyze",
       "noFile": "Choose a file first.",
       "tooLarge": "The file is larger than the {max} MB upload limit."
     },
@@ -1215,8 +1378,8 @@
     "gone": "This import no longer exists. It was deleted or removed after 24 hours.",
     "status": {
       "pending": "Queued",
-      "analyzing": "Analysing",
-      "analyzed": "Analysed",
+      "analyzing": "Analyzing",
+      "analyzed": "Analyzed",
       "running": "Importing",
       "completed": "Completed",
       "failed": "Failed"
@@ -1306,8 +1469,8 @@
     "intro": "Accept the invitation to join the workspace as {email}. The invitation must have been sent to this address.",
     "accept": "Accept invitation",
     "accepted": "You joined {name}.",
-    "invalid": "This invitation is invalid, expired or meant for another e-mail address.",
+    "invalid": "This invitation is invalid, expired or meant for another email address.",
     "home": "Go to the start page",
-    "missing": "This link does not contain an invitation. Open the link from the invitation e-mail again."
+    "missing": "This link does not contain an invitation. Open the link from the invitation email again."
   }
 }

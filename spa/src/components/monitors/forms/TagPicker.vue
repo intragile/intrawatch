@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { Tag } from '../../../api/types'
 import type { TagAssignment } from './model'
-import { computed } from 'vue'
+import { mdiTagPlusOutline } from '@mdi/js'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
@@ -11,6 +12,11 @@ const props = defineProps<{
   error?: string
   /** Validation messages keyed relative to `tags.` (e.g. `0.id`). */
   errors: Record<string, string>
+  /**
+   * Creates a tag in the workspace and resolves with it; absent when the user may not create tags.
+   * A rejection carries the message to show.
+   */
+  create?: (name: string) => Promise<Tag>
 }>()
 
 const model = defineModel<TagAssignment[]>({
@@ -18,8 +24,31 @@ const model = defineModel<TagAssignment[]>({
 })
 const { t } = useI18n()
 
+const search = ref('')
+const creating = ref(false)
+const createError = ref<string | null>(null)
+
 const items = computed(() => props.tags.map(tag => ({ value: tag.id, title: tag.name })))
 const selected = computed(() => model.value.map(a => a.id))
+
+/** The typed name, when it is new: no tag has it yet, case aside. */
+const newName = computed(() => {
+  const name = search.value.trim()
+  if (name === '' || props.create === undefined)
+    return null
+  const lower = name.toLocaleLowerCase()
+  return props.tags.some(tag => tag.name.toLocaleLowerCase() === lower)
+    ? null
+    : name
+})
+
+const hint = computed(() => {
+  if (props.tags.length > 0 || props.loading)
+    return undefined
+  return props.create === undefined
+    ? t('monitorEditor.tags.none')
+    : t('monitorEditor.tags.noneCreate')
+})
 
 function nameOf(id: number): string {
   return props.tags.find(tag => tag.id === id)?.name ?? `#${id}`
@@ -27,6 +56,35 @@ function nameOf(id: number): string {
 
 function select(ids: number[]): void {
   model.value = ids.map(id => model.value.find(a => a.id === id) ?? { id, value: null })
+}
+
+async function createTag(): Promise<void> {
+  const name = newName.value
+  if (name === null || props.create === undefined || creating.value)
+    return
+  creating.value = true
+  createError.value = null
+  try {
+    const tag = await props.create(name)
+    select([...selected.value, tag.id])
+    search.value = ''
+  }
+  catch (e) {
+    createError.value = e instanceof Error && e.message !== ''
+      ? e.message
+      : t('monitorEditor.tags.createFailed')
+  }
+  finally {
+    creating.value = false
+  }
+}
+
+/** Enter on a new name creates it; otherwise Enter keeps its usual meaning (pick the highlighted item). */
+function onEnter(event: KeyboardEvent): void {
+  if (newName.value === null)
+    return
+  event.preventDefault()
+  void createTag()
 }
 
 function setValue(id: number, value: string): void {
@@ -46,20 +104,36 @@ function errorAt(index: number): string | undefined {
 </script>
 
 <template>
-  <v-select
+  <v-autocomplete
+    v-model:search="search"
     :model-value="selected"
     name="tags"
     :items="items"
     multiple
     chips
     closable-chips
-    :loading="loading"
+    :loading="loading || creating"
     :label="t('monitorEditor.tags.label')"
-    :hint="tags.length === 0 && !loading ? t('monitorEditor.tags.none') : undefined"
-    :persistent-hint="tags.length === 0 && !loading"
-    :error-messages="error"
+    :hint="hint"
+    :persistent-hint="hint !== undefined"
+    :error-messages="createError ?? error"
+    :hide-no-data="newName === null"
     @update:model-value="select"
-  />
+    @keydown.enter="onEnter"
+  >
+    <template v-if="newName !== null" #prepend-item>
+      <v-list-item
+        data-test="tag-create"
+        :prepend-icon="mdiTagPlusOutline"
+        :title="t('monitorEditor.tags.create', { name: newName })"
+        :disabled="creating"
+        @click="createTag"
+      />
+    </template>
+    <template #no-data>
+      <span />
+    </template>
+  </v-autocomplete>
   <v-text-field
     v-for="(assignment, i) in model"
     :key="assignment.id"

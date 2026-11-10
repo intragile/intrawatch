@@ -32,7 +32,7 @@ export function problem(status: number, body: Record<string, unknown> = {}): Res
 /**
  * Stubs `fetch` with a route table keyed by `"METHOD /path"` (the `/api/v1` prefix is
  * stripped). An array answers in order and keeps repeating its last entry. The CSRF
- * cookie endpoint always succeeds.
+ * cookie endpoint always succeeds; an unrouted `GET /changelog/latest` answers 404 unrecorded.
  */
 export function fakeApi(routes: Record<string, Reply | Reply[]>) {
   const calls: RecordedCall[] = []
@@ -58,6 +58,10 @@ export function fakeApi(routes: Record<string, Reply | Reply[]>) {
       }
     }
     const key = `${req.method} ${path}`
+    // The shell asks for the newest release in the background (the rail's "new" mark); a spec that does
+    // not route it gets "no release" and the request is not recorded.
+    if (key === 'GET /changelog/latest' && routes[key] === undefined)
+      return problem(404, { title: 'Not Found' })
     calls.push({ method: req.method, path, body })
 
     const entry = routes[key]

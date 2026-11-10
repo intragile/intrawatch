@@ -4,6 +4,7 @@ import type { MonitorForm } from './model'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IntField from './IntField.vue'
+import { hasInterval, isHeartbeat } from './model'
 import ParentPicker from './ParentPicker.vue'
 
 const props = defineProps<{
@@ -23,6 +24,8 @@ function patch(change: Partial<MonitorForm>): void {
     ...change,
   }
 }
+
+const heartbeat = computed(() => isHeartbeat(props.info))
 
 const intervalError = computed(() => form.value.interval_seconds < props.info.min_interval_seconds
   ? t('monitorEditor.common.intervalMin', { min: props.info.min_interval_seconds })
@@ -78,19 +81,23 @@ const intervalError = computed(() => form.value.interval_seconds < props.info.mi
     @update:model-value="patch({ inverted: $event === true })"
   />
 
-  <template v-if="info.scheduled">
+  <template v-if="hasInterval(info)">
     <h3 class="text-subtitle-1 mt-6 mb-2">
       {{ t('monitorEditor.common.timing') }}
     </h3>
     <IntField
       :model-value="form.interval_seconds"
       name="interval_seconds"
-      :label="t('monitorEditor.common.interval')"
+      :label="t(heartbeat ? 'monitorEditor.common.heartbeatInterval' : 'monitorEditor.common.interval')"
+      :hint="heartbeat ? t('monitorEditor.common.heartbeatIntervalHint') : undefined"
+      :persistent-hint="heartbeat"
       :min="info.min_interval_seconds"
       suffix="s"
       :error-messages="errors.interval_seconds ?? intervalError"
       @update:model-value="patch({ interval_seconds: $event ?? 0 })"
     />
+  </template>
+  <template v-if="info.scheduled">
     <IntField
       :model-value="form.timeout_seconds"
       name="timeout_seconds"
@@ -116,16 +123,6 @@ const intervalError = computed(() => form.value.interval_seconds < props.info.mi
       @update:model-value="patch({ retries: $event ?? 0 })"
     />
     <IntField
-      :model-value="form.retry_interval_seconds"
-      name="retry_interval_seconds"
-      class="mt-4"
-      :label="t('monitorEditor.common.retryInterval')"
-      min="20"
-      suffix="s"
-      :error-messages="errors.retry_interval_seconds"
-      @update:model-value="patch({ retry_interval_seconds: $event ?? 0 })"
-    />
-    <IntField
       :model-value="form.degraded_threshold_ms"
       name="degraded_threshold_ms"
       class="mt-4"
@@ -138,4 +135,17 @@ const intervalError = computed(() => form.value.interval_seconds < props.info.mi
       @update:model-value="patch({ degraded_threshold_ms: $event })"
     />
   </template>
+  <IntField
+    v-if="hasInterval(info)"
+    :model-value="form.retry_interval_seconds"
+    name="retry_interval_seconds"
+    class="mt-4"
+    :label="t('monitorEditor.common.retryInterval')"
+    :hint="heartbeat ? t('monitorEditor.common.heartbeatRetryHint') : undefined"
+    :persistent-hint="heartbeat"
+    min="20"
+    suffix="s"
+    :error-messages="errors.retry_interval_seconds"
+    @update:model-value="patch({ retry_interval_seconds: $event ?? 0 })"
+  />
 </template>

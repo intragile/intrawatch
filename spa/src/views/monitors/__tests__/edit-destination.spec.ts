@@ -91,10 +91,19 @@ function routes() {
 
 const PATCH = 'PATCH /workspaces/acme/monitors/1'
 
+/**
+ * A save navigates to the monitor's page, whose view is loaded lazily; waiting for that navigation keeps
+ * the import from outliving the test (Vitest reports it as an unhandled error otherwise).
+ */
+async function settled(router: { currentRoute: { value: { name?: unknown } } }): Promise<void> {
+  await expect.poll(() => router.currentRoute.value.name).toBe('ws.monitor')
+  await flushPromises()
+}
+
 describe('monitor editor: secrets follow the destination', () => {
   it('a new url needs the stored bearer token again before anything is sent', async () => {
     const server = fakeApi(routes())
-    await mountApp('/w/acme/monitors/1/edit')
+    const { router } = await mountApp('/w/acme/monitors/1/edit')
     await expect.poll(exists('input[name="config_url"]')).not.toBeNull()
     expect(text()).not.toContain(`${en.monitorEditor.http.bearerToken} *`)
 
@@ -115,11 +124,12 @@ describe('monitor editor: secrets follow the destination', () => {
       config: { url: 'https://elsewhere.example.com' },
       secrets: { bearer_token: 'tok-new' },
     })
+    await settled(router)
   })
 
   it('another config field is saved without the secrets', async () => {
     const server = fakeApi(routes())
-    await mountApp('/w/acme/monitors/1/edit')
+    const { router } = await mountApp('/w/acme/monitors/1/edit')
     await expect.poll(exists('input[name="config_max_redirects"]')).not.toBeNull()
 
     fill('input[name="config_max_redirects"]', '3')
@@ -129,11 +139,12 @@ describe('monitor editor: secrets follow the destination', () => {
       config: { max_redirects: 3 },
     })
     expect(text()).not.toContain(REQUIRED)
+    await settled(router)
   })
 
   it('a stored secret whose control is switched off is removed with the new url', async () => {
     const server = fakeApi(routes())
-    const { wrapper } = await mountApp('/w/acme/monitors/1/edit')
+    const { wrapper, router } = await mountApp('/w/acme/monitors/1/edit')
     await expect.poll(exists('input[name="config_url"]')).not.toBeNull()
 
     choose(wrapper, 'config-auth-type', 'none')
@@ -148,6 +159,7 @@ describe('monitor editor: secrets follow the destination', () => {
       },
       secrets: { bearer_token: null },
     })
+    await settled(router)
   })
 
   it('destination keys come from the type catalogue', () => {

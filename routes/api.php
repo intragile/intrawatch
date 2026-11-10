@@ -18,7 +18,9 @@ use App\Http\Controllers\Api\NotificationChannelController;
 use App\Http\Controllers\Api\NotificationChannelTestController;
 use App\Http\Controllers\Api\NotificationChannelTypeController;
 use App\Http\Controllers\Api\OpenApiController;
+use App\Http\Controllers\Api\PasswordController;
 use App\Http\Controllers\Api\PushController;
+use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\SetupController;
 use App\Http\Controllers\Api\StatusPageController;
 use App\Http\Controllers\Api\StatusPageLayoutController;
@@ -27,6 +29,8 @@ use App\Http\Controllers\Api\TokenController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\PingController;
 use Illuminate\Support\Facades\Route;
+use IntrAgile\Changelog\Facades\Changelog;
+use IntrAgile\Manual\Facades\Manual;
 
 Route::prefix('v1')->group(function (): void {
     Route::get('/ping', PingController::class);
@@ -45,6 +49,21 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/me', MeController::class);
+
+        // The caller's own password and browser sessions; session requests only, never API tokens. The
+        // two that check the current password share a limiter against guessing. Named, because Fortify's reset
+        // route already owns the `password.update` operation id the docs would otherwise derive.
+        Route::put('/me/password', [PasswordController::class, 'update'])->name('me.password.update')->middleware('throttle:password-check');
+        Route::get('/me/sessions', [SessionController::class, 'index'])->name('me.sessions.index');
+        Route::post('/me/sessions/sign-out-others', [SessionController::class, 'destroyOthers'])->name('me.sessions.sign-out-others')->middleware('throttle:password-check');
+        Route::delete('/me/sessions/{id}', [SessionController::class, 'destroy'])->name('me.sessions.destroy')
+            ->where('id', '[0-9a-f]{32}')->middleware('throttle:session-sign-out');
+
+        // The release notes of this installation, from CHANGELOG.md; any signed-in user or token, whatever its abilities.
+        Changelog::routes();
+
+        // The user manual, from resources/manual; any signed-in user or token, whatever its abilities.
+        Manual::routes();
 
         Route::get('/monitor-types', MonitorTypeController::class);
         Route::get('/notification-channel-types', NotificationChannelTypeController::class);

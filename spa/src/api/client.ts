@@ -1,5 +1,6 @@
 import type { paths } from './schema'
 import createClient from 'openapi-fetch'
+import { i18n } from '../i18n'
 import { ensureCsrf, readXsrfToken } from './csrf'
 import { ApiError } from './problem'
 
@@ -86,6 +87,14 @@ export const api = createClient<paths>({
   baseUrl: `${window.location.origin}${API_PREFIX}`,
   credentials: 'same-origin',
   fetch: send,
+})
+
+// The locale is read per request, so a language switch applies to the very next call.
+api.use({
+  onRequest({ request }) {
+    request.headers.set('Accept-Language', i18n.global.locale.value)
+    return request
+  },
 })
 
 /**

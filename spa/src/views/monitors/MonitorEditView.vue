@@ -8,6 +8,8 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { api, fieldErrors, unwrap } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import AlertingFields from '../../components/monitors/forms/AlertingFields.vue'
 import CommonFields from '../../components/monitors/forms/CommonFields.vue'
 import {
@@ -15,6 +17,7 @@ import {
   createBody,
   deepEqual,
   formFromMonitor,
+  hasInterval,
   invalidHeaderLines,
   newForm,
   patchBody,
@@ -29,7 +32,7 @@ import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
 import { useMonitors } from '../../stores/monitors'
 import { useSession } from '../../stores/session'
-import { bodyOf } from '../../utils/cursorPage'
+import { bodyOf, loadAll } from '../../utils/cursorPage'
 import { asApiError } from '../../utils/errors'
 import { requiredSecrets, withReenteredSecrets } from '../../utils/secrets'
 
@@ -44,9 +47,8 @@ const TYPES: MonitorType[] = [
   'cron',
   'group',
 ]
-/** Page size and page cap when the tag and channel pickers load their options. */
+/** Page size when the tag and channel pickers load their options (`loadAll` caps the pages). */
 const OPTION_PAGE = 200
-const OPTION_PAGES = 5
 
 const { t } = useI18n()
 const route = useRoute()
@@ -117,9 +119,10 @@ const knownFields = computed(() => {
     roots.push('notification_channel_ids')
   if (entry?.supports_inverted)
     roots.push('inverted')
-  if (entry?.scheduled) {
-    roots.push('interval_seconds', 'timeout_seconds', 'retries', 'retry_interval_seconds', 'degraded_threshold_ms')
-  }
+  if (entry && hasInterval(entry))
+    roots.push('interval_seconds', 'retry_interval_seconds')
+  if (entry?.scheduled)
+    roots.push('timeout_seconds', 'retries', 'degraded_threshold_ms')
   if (current?.alerting.notify_degraded)
     roots.push('alerting.degraded_alert_after_seconds')
   return Object.keys(error.value?.errors ?? {}).filter(key =>
@@ -140,6 +143,24 @@ const dirty = computed(() => form.value !== null
     || Object.values(secrets.value).some(v => v !== undefined && v !== '')))
 
 const FormComponent = computed(() => FORMS[type.value])
+
+/** Creates a tag for the picker; a rejection carries the message to show under it. */
+async function createTag(name: string): Promise<Tag> {
+  try {
+    const tag = await unwrap<Tag>(api.POST('/workspaces/{workspace}/tags', {
+      params: {
+        path: { workspace: slug.value },
+      },
+      body: { name },
+    }))
+    tags.value = [...tags.value, tag]
+    return tag
+  }
+  catch (e) {
+    const problem = asApiError(e)
+    throw new Error(problem.errors?.name?.[0] ?? problem.message)
+  }
+}
 
 async function loadOptions(): Promise<void> {
   loadingOptions.value = true
@@ -170,26 +191,14 @@ async function loadOptions(): Promise<void> {
   loadingOptions.value = false
 }
 
-async function loadAll<T>(fetchPage: (cursor: string | undefined) => Promise<{ data: T[], meta: { next_cursor: string | null } }>): Promise<T[]> {
-  const out: T[] = []
-  let cursor: string | undefined
-  for (let i = 0; i < OPTION_PAGES; i++) {
-    const page = await fetchPage(cursor)
-    out.push(...page.data)
-    if (page.meta.next_cursor === null)
-      break
-    cursor = page.meta.next_cursor
-  }
-  return out
-}
-
 function startCreate(next: MonitorType): void {
   const entry = typeInfos.value.find(i => i.type === next)
   if (!entry)
     return
   type.value = next
   const defaultChannels = canPickChannels.value
-    ? channels.value.filter(c => c.is_default).map(c => c.id)
+    // Like the server's own default: only active default channels are attached to a new monitor.
+    ? channels.value.filter(c => c.is_default && c.active).map(c => c.id)
     : []
   const fresh = newForm(entry, defaultChannels)
   const previous = form.value
@@ -268,7 +277,7 @@ async function save(): Promise<void> {
   const entry = info.value
   if (!current || !baseline || !entry || saving.value || !canManage.value)
     return
-  if (entry.scheduled && current.interval_seconds < entry.min_interval_seconds)
+  if (hasInterval(entry) && current.interval_seconds < entry.min_interval_seconds)
     return
 
   error.value = null
@@ -384,9 +393,12 @@ watch(leaveOpen, (open) => {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-4">
-    {{ isEdit ? t('monitorEditor.editTitle') : t('monitorEditor.newTitle') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-4">
+    <h1 class="text-h5">
+      {{ isEdit ? t('monitorEditor.editTitle') : t('monitorEditor.newTitle') }}
+    </h1>
+    <HelpLink v-bind="screenHelp(isEdit ? 'ws.monitor.edit' : 'ws.monitor.new')" />
+  </div>
 
   <v-progress-linear v-if="loading" indeterminate :aria-label="t('monitorEditor.loading')" />
   <div v-else-if="loadError">
@@ -459,6 +471,7 @@ watch(leaveOpen, (open) => {
           :loading="loadingOptions"
           :error="fields.tags"
           :errors="tagErrors"
+          :create="canManage ? createTag : undefined"
         />
       </v-card-text>
       <v-card-actions>

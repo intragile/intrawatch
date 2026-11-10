@@ -109,6 +109,11 @@ const workspaceRoutes: RouteRecordRaw[] = [
     component: () => import('../views/workspace/TokensView.vue'),
   },
   {
+    path: 'tags',
+    name: 'ws.tags',
+    component: () => import('../views/workspace/TagsView.vue'),
+  },
+  {
     path: 'audit',
     name: 'ws.audit',
     component: () => import('../views/workspace/AuditView.vue'),
@@ -178,6 +183,23 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('../views/account/AccountView.vue'),
   },
   {
+    path: '/changelog',
+    name: 'changelog',
+    component: () => import('../views/changelog/ChangelogView.vue'),
+  },
+  {
+    path: '/help',
+    name: 'help',
+    component: () => import('../views/help/HelpIndexView.vue'),
+  },
+  {
+    // The slug keeps its slash (`section/chapter`); links build the path, see chapterLocation().
+    path: '/help/:slug(.*)',
+    name: 'help.chapter',
+    component: () => import('../views/help/HelpChapterView.vue'),
+    props: true,
+  },
+  {
     path: '/w/:workspace',
     children: [
       {
@@ -196,6 +218,17 @@ export const routes: RouteRecordRaw[] = [
   },
 ]
 
+/**
+ * Screens outside any workspace that still show the shell's workspace navigation: they keep the last used
+ * workspace as the current one, so the rail does not empty out on the way to help or the changelog.
+ */
+export const WORKSPACE_CONTEXT_ROUTES = new Set([
+  'account',
+  'changelog',
+  'help',
+  'help.chapter',
+])
+
 /** Workspace list screens a workspace switch can stay on (they need no record id). */
 export const WORKSPACE_LIST_ROUTES = new Set([
   'ws.monitors',
@@ -207,6 +240,7 @@ export const WORKSPACE_LIST_ROUTES = new Set([
   'ws.settings',
   'ws.members',
   'ws.tokens',
+  'ws.tags',
   'ws.audit',
   'ws.import',
 ])

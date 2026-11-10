@@ -214,6 +214,22 @@ class OpenApiTest extends TestCase
         $this->assertArrayHasKey('report', $list);
     }
 
+    public function test_operation_ids_are_unique(): void
+    {
+        // A duplicate makes the generated SPA client type one endpoint with another's request body.
+        $ids = [];
+        foreach ((array) ($this->committed()['paths'] ?? []) as $operations) {
+            foreach ((array) $operations as $operation) {
+                if (is_array($operation) && is_string($operation['operationId'] ?? null)) {
+                    $ids[] = $operation['operationId'];
+                }
+            }
+        }
+
+        $this->assertNotEmpty($ids);
+        $this->assertSame([], array_keys(array_filter(array_count_values($ids), fn (int $count) => $count > 1)));
+    }
+
     public function test_spec_documents_versioned_paths_only(): void
     {
         $paths = array_keys((array) $this->getJson('/api/v1/openapi.json')->json('paths'));

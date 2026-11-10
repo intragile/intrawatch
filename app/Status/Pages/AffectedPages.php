@@ -54,11 +54,17 @@ final class AffectedPages
 
     /**
      * Everything a write to the incident can change on a page: its linked pages and the pages showing its monitors.
+     * None for an internal incident, which no page shows, so a write to it moves no public page stamp. A switch to
+     * or from internal is covered by the caller reading the pages on both sides of the write.
      *
      * @return list<int>
      */
     public static function forIncident(int $id): array
     {
+        if (DB::table('incidents')->where('id', $id)->where('internal', true)->exists()) {
+            return [];
+        }
+
         return self::forLinkable('incident', 'incident_monitor', 'incident_id', $id);
     }
 

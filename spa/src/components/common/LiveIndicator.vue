@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useDisplay } from 'vuetify'
 import { useWorkspaceLive } from '../../live/useWorkspaceLive'
 
 const { t } = useI18n()
 const live = useWorkspaceLive()
+// The mobile top bar has room for a word, not a sentence: the full text stays in the tooltip and label.
+const { smAndDown: compact } = useDisplay()
 
 // The dot's colour is paired with its shape (filled, ring, hollow) and the text.
 const look = computed(() => {
@@ -23,6 +26,7 @@ const look = computed(() => {
       return {
         cls: 'offline',
         text: t('live.offline'),
+        short: t('live.offlineShort'),
       }
   }
 })
@@ -35,10 +39,11 @@ const look = computed(() => {
     :data-state="live.state"
     role="status"
     :aria-label="`${t('live.label')}: ${look.text}`"
+    :title="look.text"
     data-test="live-indicator"
   >
     <span class="dot" aria-hidden="true" />
-    <span class="text">{{ look.text }}</span>
+    <span class="text">{{ compact && 'short' in look ? look.short : look.text }}</span>
   </span>
 </template>
 

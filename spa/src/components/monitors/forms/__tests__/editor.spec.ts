@@ -277,6 +277,60 @@ describe('monitor editor', () => {
     expect(router.currentRoute.value.params.monitor).toBe('7')
   })
 
+  it('preselects only active default channels', async () => {
+    const base = {
+      type: 'slack',
+      config: {},
+      secret_keys: [],
+      templates: null,
+      monitor_count: 0,
+      last_success_at: null,
+      last_failure_at: null,
+      last_error: null,
+      created_at: null,
+      updated_at: null,
+    }
+    const server = fakeApi(routes({
+      'GET /workspaces/acme/notification-channels': json(page([
+        {
+          ...base,
+          id: 1,
+          name: 'Ops',
+          is_default: true,
+          active: true,
+        },
+        {
+          ...base,
+          id: 2,
+          name: 'Old pager',
+          is_default: true,
+          active: false,
+        },
+        {
+          ...base,
+          id: 3,
+          name: 'Optional',
+          is_default: false,
+          active: true,
+        },
+      ])),
+      'POST /workspaces/acme/monitors': json({
+        data: { ...MONITOR, id: 10 },
+      }, 201),
+    }))
+    const { router } = await mountApp('/w/acme/monitors/new')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    fill('input[name="monitor_name"]', 'API')
+    await flushPromises()
+    fill('input[name="config_url"]', 'https://api.example.com')
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
+    const body = server.of('POST /workspaces/acme/monitors')[0]?.body as Record<string, unknown>
+    expect(body.notification_channel_ids).toEqual([1])
+    // The save opens the new monitor, a lazily loaded view: let that finish inside the test.
+    await expect.poll(() => router.currentRoute.value.name).toBe('ws.monitor')
+  })
+
   it('a rejected save keeps the form and a later save succeeds', async () => {
     const server = fakeApi(routes({
       'PATCH /workspaces/acme/monitors/1': [
@@ -345,10 +399,100 @@ describe('monitor editor', () => {
     choose(wrapper, 'monitor-type', 'push')
     await flushPromises()
     expect(document.querySelector('input[name="timeout_seconds"]')).toBeNull()
+    expect(document.querySelector('input[name="retries"]')).toBeNull()
+    expect(document.querySelector('input[name="degraded_threshold_ms"]')).toBeNull()
     fill('input[name="monitor_name"]', 'Job')
     await submit('input[name="monitor_name"]')
     await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
     await expect.poll(() => document.querySelector('.problem-alert')?.textContent ?? '').toContain('The timeout is too long.')
+  })
+
+  it('a push monitor sets its expected check-in interval', async () => {
+    const server = fakeApi(routes({
+      'POST /workspaces/acme/monitors': json({
+        data: { ...MONITOR, id: 8 },
+      }, 201),
+    }))
+    const { wrapper, router } = await mountApp('/w/acme/monitors/new')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    choose(wrapper, 'monitor-type', 'push')
+    await flushPromises()
+    expect(document.body.textContent).toContain('Expected check-in interval')
+    // Each field patches the whole form, so let every change render before the next.
+    fill('input[name="monitor_name"]', 'Nightly backup')
+    await flushPromises()
+    fill('input[name="interval_seconds"]', '3600')
+    await flushPromises()
+    fill('input[name="retry_interval_seconds"]', '300')
+    await flushPromises()
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
+    const body = server.of('POST /workspaces/acme/monitors')[0]?.body as Record<string, unknown>
+    expect(body).toMatchObject({
+      type: 'push',
+      name: 'Nightly backup',
+      interval_seconds: 3600,
+      retry_interval_seconds: 300,
+    })
+    // The save opens the new monitor, a lazily loaded view: let that finish inside the test.
+    await expect.poll(() => router.currentRoute.value.name).toBe('ws.monitor')
+  })
+
+  it('creates a tag from the picker and assigns it', async () => {
+    const server = fakeApi(routes({
+      'POST /workspaces/acme/tags': json({
+        data: { id: 31, name: 'backup', color: '#607d8b' },
+      }, 201),
+      'POST /workspaces/acme/monitors': json({
+        data: { ...MONITOR, id: 9 },
+      }, 201),
+    }))
+    const { router } = await mountApp('/w/acme/monitors/new')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    expect(text()).toContain('Type a name to create one.')
+    fill('input[name="monitor_name"]', 'API')
+    await flushPromises()
+    fill('input[name="config_url"]', 'https://api.example.com')
+    await flushPromises()
+    // The picker opens its menu for typed text only while focused, as for a real user.
+    document.querySelector<HTMLInputElement>('input[name="tags"]')?.focus()
+    await flushPromises()
+    fill('input[name="tags"]', 'backup')
+    await expect.poll(exists('[data-test="tag-create"]')).not.toBeNull()
+    expect(text()).toContain('Create tag “backup”')
+    await click('[data-test="tag-create"]')
+    await expect.poll(() => server.of('POST /workspaces/acme/tags')).toHaveLength(1)
+    expect(server.of('POST /workspaces/acme/tags')[0]?.body).toEqual({ name: 'backup' })
+    await expect.poll(exists('input[name="tag_value_31"]')).not.toBeNull()
+
+    await submit('input[name="monitor_name"]')
+    await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
+    const body = server.of('POST /workspaces/acme/monitors')[0]?.body as Record<string, unknown>
+    expect(body.tags).toEqual([
+      { id: 31, value: null },
+    ])
+    // The save opens the new monitor, a lazily loaded view: let that finish inside the test.
+    await expect.poll(() => router.currentRoute.value.name).toBe('ws.monitor')
+  })
+
+  it('shows why a tag could not be created', async () => {
+    fakeApi(routes({
+      'POST /workspaces/acme/tags': problem(422, {
+        title: 'The given data was invalid.',
+        errors: {
+          name: ['The name has already been taken.'],
+        },
+      }),
+    }))
+    await mountApp('/w/acme/monitors/new')
+    await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
+    // The picker opens its menu for typed text only while focused, as for a real user.
+    document.querySelector<HTMLInputElement>('input[name="tags"]')?.focus()
+    await flushPromises()
+    fill('input[name="tags"]', 'backup')
+    await expect.poll(exists('[data-test="tag-create"]')).not.toBeNull()
+    await click('[data-test="tag-create"]')
+    await expect.poll(text).toContain('The name has already been taken.')
   })
 
   it('bare tags and header_checks errors are visible', async () => {

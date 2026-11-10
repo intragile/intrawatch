@@ -129,6 +129,19 @@ jobs:
           php artisan scramble:export --path=/tmp/o.json
           diff -q /tmp/o.json docs/openapi.json
 
+      # CHANGELOG.md parses and every translation (CHANGELOG.hu.md) has its versions and dates.
+      - name: Changelog check
+        if: matrix.db == 'sqlite'
+        timeout-minutes: 2
+        run: php artisan changelog:check --locale=hu
+
+      # resources/manual: every chapter in _meta.php exists in hu and en with the same block structure,
+      # and its manual, route and link tokens resolve.
+      - name: Manual check
+        if: matrix.db == 'sqlite'
+        timeout-minutes: 2
+        run: php artisan manual:check
+
   spa:
     runs-on: ubuntu-latest
     timeout-minutes: 20

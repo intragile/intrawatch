@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError, ensureCsrf, resetCsrf, setAuthHandlers, unwrap } from '..'
+import { i18n } from '../../i18n'
 import { inspect, json, problem, stubFetch } from './helpers'
 
 // Untyped handle for exercising paths regardless of the generated route table.
@@ -267,5 +268,20 @@ describe('api client', () => {
     const odd = (await unwrap(Promise.resolve({ error: 'str' })).catch((e: unknown) => e)) as ApiError
     expect(odd).toBeInstanceOf(ApiError)
     expect(odd.status).not.toBe(0)
+  })
+})
+
+describe('api client Accept-Language', () => {
+  it('sends the current locale on every request and follows changes', async () => {
+    vi.unstubAllGlobals()
+    const fetch = stubFetch(json({ data: {} }), json({ data: {} }))
+    i18n.global.locale.value = 'en'
+    await api.GET('/me')
+    i18n.global.locale.value = 'hu'
+    await api.GET('/me')
+    i18n.global.locale.value = 'en'
+    const calls = fetch.mock.calls.map(inspect)
+    expect(calls[0]?.headers.get('Accept-Language')).toBe('en')
+    expect(calls[1]?.headers.get('Accept-Language')).toBe('hu')
   })
 })

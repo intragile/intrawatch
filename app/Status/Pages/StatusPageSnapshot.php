@@ -452,7 +452,7 @@ final class StatusPageSnapshot
 
     /**
      * Incidents linked to the page or naming a rendered monitor: open ones, and resolved ones within the
-     * page's history.
+     * page's history. An internal incident is never read, so it neither appears nor colours a component.
      *
      * @param  list<int>  $displayed
      * @param  list<array{int, string}>  $occurrences
@@ -472,6 +472,7 @@ final class StatusPageSnapshot
                     $join->on('incident_monitor.incident_id', '=', 'incidents.id')->whereIn('incident_monitor.monitor_id', $chunk);
                 })
                 ->where('incidents.workspace_id', $page->workspace_id)
+                ->where('incidents.internal', false)
                 ->where(fn ($q) => $q->whereNotNull('incident_monitor.monitor_id')->orWhereIn('incidents.id', $linked))
                 ->where(fn ($q) => $q->where('incidents.status', '!=', IncidentStatus::Resolved->value)->orWhere('incidents.resolved_at', '>=', $cutoff))
                 ->get(['incidents.*', 'incident_monitor.monitor_id as affected_monitor_id']);

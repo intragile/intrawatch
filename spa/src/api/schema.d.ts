@@ -210,6 +210,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/changelog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the releases, newest first, paginated
+         * @description `?locale=` is optional on every endpoint: empty behaves like a missing one, and a well-formed but unsupported
+         *     value falls through to Accept-Language.
+         *
+         *     `locale` is the resolved language; `fallback` is true when any returned release is shown in the base language
+         *     because it has no translation.
+         */
+        get: operations["changelog.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/changelog/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The newest released version */
+        get: operations["changelog.latest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/changelog/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One release by version number */
+        get: operations["changelog.show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/invitations/accept": {
         parameters: {
             query?: never;
@@ -231,6 +289,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The manual tree: sections in order, each with its chapters
+         * @description `locale` is the language the tree is served in (the requested one when it is configured,
+         *     otherwise the first configured `fallback` language, otherwise the source locale); `fallback`
+         *     is true when that differs from the requested one. A single chapter missing from that language
+         *     is still listed from the next language of the fallback chain; its own `locale`/`fallback` are
+         *     returned by the chapter endpoint.
+         */
+        get: operations["manual.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/manual/chapter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One rendered chapter by slug (`section/chapter`)
+         * @description `data.locale` is the language of the file actually served; `data.fallback` is true when that
+         *     differs from the requested language.
+         */
+        get: operations["manual.chapter"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/manual/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full-text search; returns matching chapters with a short plain-text snippet
+         * @description `locale` and `fallback` follow the same rules as the tree.
+         */
+        get: operations["manual.search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -242,6 +365,101 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the password
+         * @description Needs the current password. The browser that makes the change stays signed in; every other session
+         *     and remember cookie of the user ends, and all of the user's API tokens are revoked, as with a
+         *     password reset: whoever knew the old password may hold any of them. API tokens get a 403.
+         */
+        put: operations["me.password.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my sessions
+         * @description The sessions of the signed-in user that have not expired, the current one first. `id` is an opaque
+         *     handle, never the session cookie value. Without the database session driver only the current
+         *     session is listed. API tokens get a 403.
+         */
+        get: operations["me.sessions.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sessions/sign-out-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign out all other sessions
+         * @description Needs the current password. Ends every session and remember cookie of the user except the one
+         *     making the request. API tokens are not revoked, and cannot call this endpoint (403).
+         */
+        post: operations["me.sessions.sign-out-others"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sign out one session
+         * @description Ends one of the user's other sessions, by the `id` the list returned; a raw session id is never
+         *     accepted. Unlike signing out all other sessions it needs no password: it can only end the user's
+         *     own sessions and is easy to undo by signing in again, so a prompt would be friction without much
+         *     gain. It has its own limiter (`session-sign-out`, 10 a minute per user) instead of sharing the
+         *     password-guessing budget. Because the remember token is per user, every other browser's remember
+         *     cookie stops working too; the other sessions themselves keep working, and this browser gets a
+         *     fresh remember cookie if it had one.
+         *
+         *     The current session is refused with a 422 on `id`: sign out instead. An id that matches none of
+         *     the user's unexpired stored sessions is a 404, whoever else it may belong to. Without the database
+         *     session driver no other session is stored, so every other id is a 404. API tokens get a 403.
+         */
+        delete: operations["me.sessions.destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -565,6 +783,11 @@ export interface paths {
          */
         get: operations["incident.index"];
         put?: never;
+        /**
+         * Creates an incident with its first timeline update
+         * @description An `internal` incident appears on no status page, not even through a monitor shown on a page, so
+         *     `status_page_ids` must be empty or omitted when `internal` is true.
+         */
         post: operations["incident.store"];
         delete?: never;
         options?: never;
@@ -585,6 +808,13 @@ export interface paths {
         delete: operations["incident.destroy"];
         options?: never;
         head?: never;
+        /**
+         * Updates the incident's own fields and targets; omitted fields keep their stored value
+         * @description An `internal` incident appears on no status page, not even through a monitor shown on a page, so it
+         *     cannot be linked to status pages: `status_page_ids` must be empty or omitted while it is internal. To
+         *     switch an incident with linked pages to internal, send `"status_page_ids": []` in the same request;
+         *     otherwise the request is refused with a 422 on `status_page_ids` and nothing changes.
+         */
         patch: operations["incident.update"];
         trace?: never;
     };
@@ -1137,6 +1367,33 @@ export interface components {
          * @enum {string}
          */
         ChannelType: "email" | "webhook" | "slack" | "discord" | "teams" | "mattermost" | "google_chat" | "telegram" | "ntfy" | "gotify" | "pushover" | "matrix" | "pagerduty" | "opsgenie" | "apprise";
+        /** ChapterResource */
+        ChapterResource: {
+            slug: string;
+            number: string;
+            title: string;
+            summary: string;
+            section: string;
+            position: number;
+            total: number;
+            readingMinutes: number;
+            html: string;
+            headings: {
+                anchor: string;
+                text: string;
+                level: number;
+            }[];
+            prev: {
+                slug: string;
+                title: string;
+            } | null;
+            next: {
+                slug: string;
+                title: string;
+            } | null;
+            locale: string;
+            fallback: boolean;
+        };
         /**
          * DeliveryStatus
          * @enum {string}
@@ -1155,6 +1412,7 @@ export interface components {
         IncidentRequest: {
             title: string;
             impact: components["schemas"]["IncidentImpact"];
+            internal?: boolean;
             /** Format: date-time */
             started_at?: string | null;
             monitor_ids?: number[];
@@ -1259,6 +1517,25 @@ export interface components {
                     [key: string]: string;
                 } | null;
             };
+        };
+        /** ReleaseResource */
+        ReleaseResource: {
+            version: string;
+            date: string | null;
+            url: string | null;
+            unreleased: boolean;
+            yanked: boolean;
+            summary_html: string | null;
+            groups: {
+                name: string;
+                summary_html: string | null;
+                items: {
+                    html: string;
+                    text: string;
+                }[];
+            }[];
+            locale: string;
+            fallback: boolean;
         };
         /** SendPasswordResetLinkRequest */
         SendPasswordResetLinkRequest: {
@@ -1377,6 +1654,7 @@ export interface components {
         UpdateIncidentRequest: {
             title?: string;
             impact?: components["schemas"]["IncidentImpact"];
+            internal?: boolean;
             /** Format: date-time */
             started_at?: string | null;
             monitor_ids?: number[];
@@ -1533,6 +1811,18 @@ export interface components {
         };
         /** @description Not found */
         ModelNotFoundException: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    /** @description Error overview. */
+                    message: string;
+                };
+            };
+        };
+        /** @description Not found */
+        NotFoundHttpException: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1891,6 +2181,114 @@ export interface operations {
             404: components["responses"]["ModelNotFoundException"];
         };
     };
+    "changelog.index": {
+        parameters: {
+            query?: {
+                page?: number;
+                per_page?: number;
+                locale?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            version: string;
+                            date: string | null;
+                            url: string | null;
+                            unreleased: boolean;
+                            yanked: boolean;
+                            summary_html: string | null;
+                            groups: {
+                                name: string;
+                                summary_html: string | null;
+                                items: {
+                                    html: string;
+                                    text: string;
+                                }[];
+                            }[];
+                            locale: string;
+                            fallback: boolean;
+                        }[];
+                        meta: {
+                            current_page: number;
+                            last_page: number;
+                            per_page: number;
+                            total: number;
+                        };
+                        locale: string;
+                        fallback: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "changelog.latest": {
+        parameters: {
+            query?: {
+                locale?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `ReleaseResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ReleaseResource"];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["NotFoundHttpException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "changelog.show": {
+        parameters: {
+            query?: {
+                locale?: string | null;
+            };
+            header?: never;
+            path: {
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `ReleaseResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ReleaseResource"];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["NotFoundHttpException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
     "invitation.accept": {
         parameters: {
             query?: never;
@@ -1956,6 +2354,105 @@ export interface operations {
                     };
                 };
             };
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "manual.index": {
+        parameters: {
+            query?: {
+                locale?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            icon: string;
+                            title: string;
+                            chapters: {
+                                slug: string;
+                                number: string;
+                                title: string;
+                                summary: string;
+                            }[];
+                        }[];
+                        locale: string;
+                        fallback: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "manual.chapter": {
+        parameters: {
+            query: {
+                slug: string;
+                locale?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `ChapterResource` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ChapterResource"];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["NotFoundHttpException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "manual.search": {
+        parameters: {
+            query: {
+                q: string;
+                locale?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            slug: string;
+                            section: string;
+                            title: string;
+                            snippet: string;
+                            score: number;
+                        }[];
+                        locale: string;
+                        fallback: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
             422: components["responses"]["ValidationException"];
         };
     };
@@ -2043,6 +2540,115 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "me.password.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    current_password: string;
+                    /** @description The new password: at least 10 characters, as for a password reset, and not the current one. */
+                    password: string;
+                    password_confirmation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "me.sessions.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            ip_address: string | null;
+                            user_agent: string | null;
+                            browser: string | null;
+                            platform: string | null;
+                            last_active_at: string;
+                            current: boolean;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "me.sessions.sign-out-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "me.sessions.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The session's `id` from the list: 32 lowercase hex characters. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["AuthenticationException"];
+            404: components["responses"]["ModelNotFoundException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     monitorType: {
@@ -3055,6 +3661,7 @@ export interface operations {
                             title: string;
                             /** @enum {string} */
                             impact: "none" | "minor" | "major" | "critical";
+                            internal: boolean;
                             /** @enum {string} */
                             status: "investigating" | "identified" | "monitoring" | "resolved";
                             started_at: string;
@@ -3112,6 +3719,7 @@ export interface operations {
                             title: string;
                             /** @enum {string} */
                             impact: "none" | "minor" | "major" | "critical";
+                            internal: boolean;
                             /** @enum {string} */
                             status: "investigating" | "identified" | "monitoring" | "resolved";
                             started_at: string;
@@ -3163,6 +3771,7 @@ export interface operations {
                             title: string;
                             /** @enum {string} */
                             impact: "none" | "minor" | "major" | "critical";
+                            internal: boolean;
                             /** @enum {string} */
                             status: "investigating" | "identified" | "monitoring" | "resolved";
                             started_at: string;
@@ -3243,6 +3852,7 @@ export interface operations {
                             title: string;
                             /** @enum {string} */
                             impact: "none" | "minor" | "major" | "critical";
+                            internal: boolean;
                             /** @enum {string} */
                             status: "investigating" | "identified" | "monitoring" | "resolved";
                             started_at: string;
