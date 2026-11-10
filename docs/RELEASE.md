@@ -25,6 +25,13 @@ Run every command from the repository root. Replace `1.0.0` for later releases.
    php artisan changelog:check --locale=hu   # expect: Changelog check passed. (exit 0)
    ```
 
+   The in-app manual (`resources/manual`) is valid in both languages, and Dávid
+   has approved the Hungarian chapters (the English ones follow them).
+
+   ```bash
+   php artisan manual:check   # expect: Manual OK (exit 0)
+   ```
+
 2. **Three-database suite** (SQLite, MySQL 8.4, PostgreSQL 16).
 
    ```bash
@@ -129,7 +136,8 @@ Run every command from the repository root. Replace `1.0.0` for later releases.
 
     ```bash
     line='Developed and maintained by [IntrAgile Kft.](https://intragile.eu)'
-    for f in $(git ls-files '*.md'); do
+    # resources/manual is in-app content checked by manual:check, not repository documentation.
+    for f in $(git ls-files '*.md' ':(exclude)resources/manual'); do
       [[ "$(sed -n 3p "$f")" == "$line" && "$(grep -v '^$' "$f" | tail -n 1)" == "$line" ]] || echo "missing: $f"
     done   # expect: no output
     ```
