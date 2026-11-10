@@ -1,15 +1,15 @@
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import { CHANGELOG_SEEN_KEY } from '../../stores/changelog'
 import { useSession } from '../../stores/session'
 import { me, workspace } from '../../test/fixtures'
 import { mountApp } from '../../test/mount'
-import { fakeApi, json } from '../../test/server'
+import { fakeApi, json, problem } from '../../test/server'
 
 const beta = workspace({ id: '01JBBBBBBBBBBBBBBBBBBBBBBB', slug: 'beta', name: 'Beta' })
 
 function api(extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
-    ...extra,
     'GET /setup': json({ required: false }),
     'GET /me': json({
       data: me({
@@ -31,6 +31,7 @@ function api(extra: Parameters<typeof fakeApi>[0] = {}) {
       locale: 'en',
       fallback: false,
     }),
+    ...extra,
   })
 }
 
@@ -109,5 +110,111 @@ describe('app layout navigation', () => {
 
     expect(useSession().current?.slug).toBe('acme')
     expect(railLinks()).toContain('/w/acme/monitors')
+  })
+})
+
+function release(version: string) {
+  return {
+    version,
+    date: '2026-03-05',
+    url: null,
+    unreleased: false,
+    yanked: false,
+    summary_html: null,
+    groups: [],
+    locale: 'en',
+    fallback: false,
+  }
+}
+
+function badge(): Element | null {
+  return rail().querySelector('[data-test="nav-changelog"] [data-test="changelog-new"]')
+}
+
+describe('app layout changelog badge', () => {
+  it('marks a release that was never seen, with an accessible text', async () => {
+    const server = api({
+      'GET /changelog/latest': json({
+        data: release('1.2.0'),
+      }),
+    })
+    await mountApp('/w/acme/monitors')
+    await flushPromises()
+
+    await expect.poll(() => badge()).not.toBeNull()
+    expect(badge()?.textContent).toContain('New')
+    expect(badge()?.querySelector('.d-sr-only')?.textContent).toBe('new version available')
+    expect(badge()?.querySelector('[aria-hidden="true"]')?.textContent).toBe('New')
+    expect(server.of('GET /changelog/latest')).toHaveLength(1)
+  })
+
+  it('marks a release newer than the one seen', async () => {
+    localStorage.setItem(CHANGELOG_SEEN_KEY, '1.1.0')
+    api({
+      'GET /changelog/latest': json({
+        data: release('1.2.0'),
+      }),
+    })
+    await mountApp('/w/acme/monitors')
+    await flushPromises()
+
+    await expect.poll(() => badge()).not.toBeNull()
+  })
+
+  it('does not mark a release already seen', async () => {
+    localStorage.setItem(CHANGELOG_SEEN_KEY, '1.2.0')
+    const server = api({
+      'GET /changelog/latest': json({
+        data: release('1.2.0'),
+      }),
+    })
+    await mountApp('/w/acme/monitors')
+    await flushPromises()
+
+    await expect.poll(() => server.of('GET /changelog/latest')).toHaveLength(1)
+    await flushPromises()
+    expect(badge()).toBeNull()
+  })
+
+  it('stays quiet when there is no release or the request fails', async () => {
+    const server = api({
+      'GET /changelog/latest': problem(500, { title: 'Boom' }),
+    })
+    await mountApp('/w/acme/monitors')
+    await flushPromises()
+
+    await expect.poll(() => server.of('GET /changelog/latest')).toHaveLength(1)
+    await flushPromises()
+    expect(badge()).toBeNull()
+    expect(rail().querySelector('[data-test="nav-help"]')).not.toBeNull()
+    expect(document.querySelector('.v-snackbar')).toBeNull()
+  })
+
+  it('clears the mark once the changelog page was opened', async () => {
+    api({
+      'GET /changelog/latest': json({
+        data: release('1.2.0'),
+      }),
+      'GET /changelog': json({
+        data: [
+          release('1.2.0'),
+        ],
+        meta: {
+          current_page: 1,
+          last_page: 1,
+          per_page: 20,
+          total: 1,
+        },
+        locale: 'en',
+        fallback: false,
+      }),
+    })
+    const { router } = await mountApp('/w/acme/monitors')
+    await flushPromises()
+    await expect.poll(() => badge()).not.toBeNull()
+
+    await router.push('/changelog')
+    await expect.poll(() => badge()).toBeNull()
+    expect(localStorage.getItem(CHANGELOG_SEEN_KEY)).toBe('1.2.0')
   })
 })

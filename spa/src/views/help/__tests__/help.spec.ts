@@ -2,11 +2,11 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { highlight } from '../../../components/help/manual'
+import { fold, highlight } from '../../../components/help/manual'
 import { MANUAL_ICON_NAMES, manualIcon } from '../../../components/help/manualIcons'
 import { i18n } from '../../../i18n'
-import { me } from '../../../test/fixtures'
-import { click, fill, mountApp } from '../../../test/mount'
+import { abilities, me, workspace } from '../../../test/fixtures'
+import { click, fill, mountApp, submit } from '../../../test/mount'
 import { fakeApi, json, problem } from '../../../test/server'
 
 // Switches the TOC to its mobile accordion and the motion preference, per test.
@@ -62,6 +62,12 @@ function index(over: Record<string, unknown> = {}) {
             number: '1.1',
             title: 'First steps',
             summary: 'Sign in and look around.',
+          },
+          {
+            slug: 'start/concepts',
+            number: '1.2',
+            title: 'Concepts',
+            summary: 'Workspaces, monitors and channels.',
           },
         ],
       },
@@ -149,12 +155,153 @@ describe('help index', () => {
     await mountApp('/help')
     await expect.poll(() => document.querySelectorAll('[data-test="section"]').length).toBe(2)
     const sections = document.querySelectorAll('[data-test="section"]')
-    expect(sections[0]?.textContent).toContain('Getting started')
+    // The first section lists its chapters after the featured one.
+    expect(sections[0]?.querySelector('h2')?.textContent).toContain('Getting started')
+    expect([
+      ...sections[0]!.querySelectorAll('[data-test="chapter"]'),
+    ].map(a => a.getAttribute('href'))).toEqual(['/help/start/concepts'])
+    expect(sections[0]?.querySelector('[data-test="section-count"]')?.textContent).toBe('1 chapter')
     expect(sections[1]?.querySelectorAll('[data-test="chapter"]')).toHaveLength(2)
+    expect(sections[1]?.querySelector('[data-test="section-count"]')?.textContent).toBe('2 chapters')
     expect(sections[1]?.querySelector('[data-test="chapter-number"]')?.textContent).toBe('2.1')
     expect(sections[1]?.textContent).toContain('What a monitor checks.')
     expect(sections[1]?.querySelector('a[data-test="chapter"]')?.getAttribute('href')).toBe('/help/monitoring/monitors')
     expect(document.querySelector('[data-test="fallback"]')).toBeNull()
+    expect(document.querySelector('[data-test="eyebrow"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Help · 4 chapters')
+    expect(document.querySelectorAll('h1')).toHaveLength(1)
+    expect(document.querySelector('h1')?.textContent).toContain('How can we help?')
+  })
+
+  it('features the first chapter and leaves out a first section that only holds it', async () => {
+    const tree = index()
+    tree.data[0]!.chapters = tree.data[0]!.chapters.slice(0, 1)
+    fakeApi({
+      ...base(),
+      'GET /manual': json(tree),
+    })
+    await mountApp('/help')
+    await expect.poll(() => document.querySelector('[data-test="featured"]')).not.toBeNull()
+    const featured = document.querySelector('[data-test="featured"]')
+    expect(featured?.getAttribute('href')).toBe('/help/start/getting-started')
+    expect(featured?.textContent).toContain('Start here · 1.1')
+    expect(featured?.textContent).toContain('First steps')
+    expect(featured?.textContent).toContain('Sign in and look around.')
+    const sections = document.querySelectorAll('[data-test="section"]')
+    expect(sections).toHaveLength(1)
+    expect(sections[0]?.textContent).toContain('Monitoring')
+    expect(sections[0]?.querySelector('[aria-hidden="true"]')?.textContent).toBe('02')
+  })
+
+  it('offers the popular links whose chapter is in the tree', async () => {
+    fakeApi({
+      ...base(),
+      'GET /manual': json(index()),
+    })
+    const { router } = await mountApp('/help')
+    await expect.poll(() => document.querySelectorAll('[data-test="popular-link"]').length).toBe(2)
+    const links = [
+      ...document.querySelectorAll('[data-test="popular-link"]'),
+    ].map(a => [
+      a.textContent?.trim(),
+      a.getAttribute('href'),
+    ])
+    // The import chapter is not in this tree, so its link is left out.
+    expect(links).toEqual([
+      ['What does Degraded mean?', '/help/monitoring/monitors#what-do-the-states-mean'],
+      ['Alerts to Slack', '/help/monitoring/notifications#channel-types'],
+    ])
+    await click('[data-test="popular-link"]')
+    await expect.poll(() => router.currentRoute.value.hash).toBe('#what-do-the-states-mean')
+    expect(router.currentRoute.value.name).toBe('help.chapter')
+  })
+
+  it('shows the latest release in the what is new card', async () => {
+    fakeApi({
+      ...base(),
+      'GET /manual': json(index()),
+      'GET /changelog/latest': json({
+        data: {
+          version: '1.2.0',
+          date: '2026-11-09',
+          url: null,
+          unreleased: false,
+          yanked: false,
+          summary_html: '<p>Live <strong>group</strong> bars &amp; more.</p><p>Faster.</p><script>alert(1)</script>',
+          groups: [],
+          locale: 'en',
+          fallback: false,
+        },
+      }),
+    })
+    const { router } = await mountApp('/help')
+    await expect.poll(() => document.querySelector('[data-test="whats-new"]')).not.toBeNull()
+    const card = document.querySelector('[data-test="whats-new"]')
+    expect(card?.getAttribute('href')).toBe('/changelog')
+    expect(card?.querySelector('[data-test="whats-new-version"]')?.textContent).toBe('1.2.0')
+    expect(card?.querySelector('[data-test="whats-new-summary"]')?.textContent).toBe('Live group bars & more. Faster.')
+    expect(card?.querySelector('strong, script')).toBeNull()
+    expect(card?.querySelector('time')?.getAttribute('datetime')).toBe('2026-11-09')
+    expect(card?.querySelector('time')?.textContent).toBe('Nov 9')
+    expect(document.querySelector('.highlights--solo')).toBeNull()
+    await click('[data-test="whats-new"]')
+    await expect.poll(() => router.currentRoute.value.name).toBe('changelog')
+  })
+
+  it('hides the what is new card when there is no release and lets the featured card span the row', async () => {
+    fakeApi({
+      ...base(),
+      'GET /manual': json(index()),
+      'GET /changelog/latest': problem(404, { title: 'Not Found' }),
+    })
+    await mountApp('/help')
+    await expect.poll(() => document.querySelector('[data-test="featured"]')).not.toBeNull()
+    await flushPromises()
+    expect(document.querySelector('[data-test="whats-new"]')).toBeNull()
+    expect(document.querySelector('.highlights--solo [data-test="featured"]')).not.toBeNull()
+    expect(document.querySelector('.problem-alert')).toBeNull()
+  })
+
+  it('does not wait for the latest release', async () => {
+    fakeApi({
+      ...base(),
+      'GET /manual': json(index()),
+      'GET /changelog/latest': () => new Promise<Response>(() => {}),
+    })
+    await mountApp('/help')
+    await expect.poll(() => document.querySelectorAll('[data-test="section"]').length).toBe(2)
+    expect(document.querySelector('[data-test="whats-new"]')).toBeNull()
+  })
+
+  it('searches a query handed over in the URL at once', async () => {
+    const queries: string[] = []
+    fakeApi({
+      ...base(),
+      'GET /manual': json(index()),
+      'GET /manual/search': (req) => {
+        queries.push(new URL(req.url).searchParams.get('q') ?? '')
+        return json({ data: [], locale: 'en', fallback: false })
+      },
+    })
+    await mountApp('/help?q=status%20page')
+    await expect.poll(() => queries).toEqual(['status page'])
+    expect(document.querySelector<HTMLInputElement>('[data-test="manual-search"] input')?.value).toBe('status page')
+    await new Promise(r => setTimeout(r, 350))
+    expect(queries).toHaveLength(1)
+  })
+
+  it('searches at once from the search button', async () => {
+    const server = fakeApi({
+      ...base(),
+      'GET /manual': json(index()),
+      'GET /manual/search': json({ data: [], locale: 'en', fallback: false }),
+    })
+    await mountApp('/help')
+    await flushPromises()
+    fill('[data-test="manual-search"] input', 'token')
+    await click('[data-test="search-submit"]')
+    await expect.poll(() => server.of('GET /manual/search')).toHaveLength(1)
+    await new Promise(r => setTimeout(r, 350))
+    expect(server.of('GET /manual/search')).toHaveLength(1)
   })
 
   it('searches 300 ms after typing stops and marks the words in the escaped snippet', async () => {
@@ -238,8 +385,15 @@ describe('help index', () => {
             {
               id: 'start',
               icon: 'mdi-information-outline',
-              title: 'Első lépések',
-              chapters: [],
+              title: 'Kezdés',
+              chapters: [
+                {
+                  slug: 'start/getting-started',
+                  number: '1.1',
+                  title: 'Első lépések',
+                  summary: 'Bejelentkezés.',
+                },
+              ],
             },
           ],
           locale: 'hu',
@@ -301,8 +455,15 @@ describe('help index', () => {
             {
               id: 'start',
               icon: 'mdi-information-outline',
-              title: 'Első lépések',
-              chapters: [],
+              title: 'Kezdés',
+              chapters: [
+                {
+                  slug: 'start/getting-started',
+                  number: '1.1',
+                  title: 'Első lépések',
+                  summary: 'Bejelentkezés.',
+                },
+              ],
             },
           ],
           locale: 'hu',
@@ -323,16 +484,18 @@ describe('help chapter', () => {
     i18n.global.locale.value = 'en'
   })
 
-  async function openChapter(user = me(), reply = json(chapter())) {
+  async function openChapter(user = me(), reply = json(chapter()), path = '/help/monitoring/monitors', extra: Record<string, Response> = {}) {
     const slugs: string[] = []
     const server = fakeApi({
       ...base(user),
+      'GET /manual': json(index()),
       'GET /manual/chapter': (req) => {
         slugs.push(new URL(req.url).searchParams.get('slug') ?? '')
         return reply.clone()
       },
+      ...extra,
     })
-    const app = await mountApp('/help/monitoring/monitors')
+    const app = await mountApp(path)
     await expect.poll(() => document.querySelector('[data-test="content"]')).not.toBeNull()
     await flushPromises()
     return { ...app, server, slugs }
@@ -489,12 +652,132 @@ describe('help chapter', () => {
     await openChapter()
     const toc = document.querySelector('[data-test="toc"]')
     expect(toc?.querySelector('.v-expansion-panel')).not.toBeNull()
-    expect(document.querySelector('aside')).toBeNull()
+    expect(document.querySelector('aside [data-test="toc"]')).toBeNull()
     // The panel starts collapsed and sits before the chapter text.
     expect(toc?.querySelector('a[href="#details"]')).toBeNull()
     expect(toc!.compareDocumentPosition(document.querySelector('[data-test="content"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     await click('[data-test="toc"] .v-expansion-panel-title')
     await expect.poll(() => toc?.querySelector('a[href="#details"]')).not.toBeNull()
+  })
+
+  it('shows a breadcrumb, the section, the summary as lead and numbered neighbours', async () => {
+    await openChapter()
+    await expect.poll(() => document.querySelector('[data-test="breadcrumb-section"]')?.textContent?.trim()).toBe('Monitoring')
+    const crumbs = [
+      ...document.querySelectorAll('[data-test="breadcrumb"] li'),
+    ].map(li => li.textContent?.trim())
+    expect(crumbs).toEqual(['Help', 'Monitoring', 'Monitors'])
+    expect(document.querySelector('[data-test="breadcrumb"] [aria-current="page"]')?.textContent?.trim()).toBe('Monitors')
+    expect(document.querySelector('[data-test="back"]')?.getAttribute('href')).toBe('/help')
+    expect(document.querySelector('[data-test="lead"]')?.textContent?.trim()).toBe('What a monitor checks.')
+    expect(document.querySelector('.meta')?.textContent).toContain('3 min read')
+    expect(document.querySelector('[data-test="prev"]')?.textContent).toContain('Previous · 1.1')
+    expect(document.querySelector('[data-test="next"]')?.textContent).toContain('2.2 · Next')
+  })
+
+  it('still shows the chapter when the tree cannot be loaded', async () => {
+    await openChapter(me(), json(chapter()), '/help/monitoring/monitors', {
+      'GET /manual': problem(500, { title: 'Boom' }),
+    })
+    expect(document.querySelector('[data-test="breadcrumb-section"]')).toBeNull()
+    expect(document.querySelector('.problem-alert')).toBeNull()
+    expect(document.querySelector('[data-test="next"]')?.textContent).not.toContain('2.2')
+  })
+
+  it('hands the compact search over to the index, which searches at once', async () => {
+    const queries: string[] = []
+    const { router } = await openChapter(me(), json(chapter()), '/help/monitoring/monitors', {
+      'GET /manual/search': json({ data: [], locale: 'en', fallback: false }),
+    })
+    const server = fakeApi({
+      ...base(),
+      'GET /manual': json(index()),
+      'GET /manual/search': (req) => {
+        queries.push(new URL(req.url).searchParams.get('q') ?? '')
+        return json({ data: [], locale: 'en', fallback: false })
+      },
+    })
+    fill('[data-test="chapter-search"] input', ' channel ')
+    await submit('[data-test="chapter-search"]')
+    await expect.poll(() => router.currentRoute.value.name).toBe('help')
+    expect(router.currentRoute.value.query).toEqual({ q: 'channel' })
+    await expect.poll(() => queries).toEqual(['channel'])
+    expect(server.of('GET /manual/search')).toHaveLength(1)
+  })
+
+  it('offers the described screen in the current workspace', async () => {
+    const { router } = await openChapter()
+    const link = document.querySelector('[data-test="open-in-app-link"]')
+    expect(link?.getAttribute('href')).toBe('/w/acme/monitors')
+    expect(link?.textContent).toContain('Open Monitors')
+    await click('[data-test="open-in-app-link"]')
+    await expect.poll(() => router.currentRoute.value.name).toBe('ws.monitors')
+  })
+
+  it('offers no screen without the ability the rail asks for, or without a workspace', async () => {
+    await openChapter(me({
+      workspaces: [
+        workspace({
+          can: abilities(true, { viewMonitors: false }),
+        }),
+      ],
+    }))
+    expect(document.querySelector('[data-test="open-in-app"]')).toBeNull()
+  })
+
+  it('offers no workspace screen when there is no workspace', async () => {
+    await openChapter(me({ workspaces: [] }))
+    expect(document.querySelector('[data-test="open-in-app"]')).toBeNull()
+  })
+
+  it('offers a screen outside the workspace without one', async () => {
+    await openChapter(me({ workspaces: [] }), json(chapter({ slug: 'account/account', section: 'account', title: 'Account' })), '/help/account/account')
+    expect(document.querySelector('[data-test="open-in-app-link"]')?.getAttribute('href')).toBe('/account')
+  })
+
+  it('opens a deep link at its heading', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      await openChapter(me(), json(chapter()), '/help/monitoring/monitors#details')
+      await expect.poll(() => scrollIntoView.mock.contexts.at(-1)).toBe(document.getElementById('details'))
+      expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'smooth', block: 'start' })
+    }
+    finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  })
+
+  it('marks the heading being read in the contents', async () => {
+    await openChapter()
+    const first = document.getElementById('first-steps')!
+    const details = document.getElementById('details')!
+    const at = (el: HTMLElement, top: number) => vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({ top } as DOMRect)
+    at(first, 40)
+    at(details, 600)
+    window.dispatchEvent(new Event('scroll'))
+    await flushPromises()
+    const active = () => document.querySelector('[data-test="toc"] [aria-current="true"]')?.getAttribute('href')
+    expect(active()).toBe('#first-steps')
+    expect(document.querySelector('[data-test="toc"] .toc-link--active')?.getAttribute('href')).toBe('#first-steps')
+    at(details, 80)
+    window.dispatchEvent(new Event('scroll'))
+    await flushPromises()
+    expect(active()).toBe('#details')
+  })
+
+  it('does not repeat an opening paragraph that is the summary shown as lead', async () => {
+    await openChapter(me(), json(chapter({ html: '<h1>Monitors</h1>\n<p>What a <strong>monitor</strong>\nchecks.</p>\n<p>More.</p>', summary: 'What a monitor checks.' })))
+    expect(document.querySelector('[data-test="lead"]')?.textContent?.trim()).toBe('What a monitor checks.')
+    expect(document.querySelector('[data-test="content"]')?.innerHTML.trim()).toBe('<p>More.</p>')
+  })
+
+  it('gives callouts an icon and a label', async () => {
+    await openChapter()
+    const callout = document.querySelector('[data-test="content"] .manual-callout[data-type="tip"]')
+    expect(callout?.querySelector('svg.manual-callout-icon')?.getAttribute('aria-hidden')).toBe('true')
+    expect(callout?.querySelectorAll('svg')).toHaveLength(1)
+    expect(callout?.querySelector('.manual-callout-body p')?.textContent).toBe('Tip. A tip.')
   })
 
   it('shows a forbidden error as a problem with retry, not as a missing chapter', async () => {
@@ -574,6 +857,24 @@ describe('manual helpers', () => {
     // Words below the backend's minimum term length are not searched, so not marked.
     expect(highlight('az ok', 'az')).toBe('az ok')
     expect(highlight('a & b', '')).toBe('a &amp; b')
+  })
+
+  it('points every popular link at an existing chapter and heading', async () => {
+    const root = resolve(process.cwd(), '../resources/manual')
+    const slugify = (text: string) => fold(text).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    for (const locale of ['en', 'hu'] as const) {
+      const messages = (await import(`../../../i18n/${locale}.json`)).default as { help: { popular: Array<{ label: string, slug: string, anchor?: string }> } }
+      expect(messages.help.popular).toHaveLength(3)
+      for (const link of messages.help.popular) {
+        const markdown = readFileSync(join(root, locale, `${link.slug}.md`), 'utf8')
+        if (link.anchor !== undefined) {
+          const anchors = [
+            ...markdown.matchAll(/^#{2,3} (.+)$/gm),
+          ].map(m => slugify(m[1] as string))
+          expect(anchors, `${locale} ${link.slug}`).toContain(link.anchor)
+        }
+      }
+    }
   })
 
   it('maps every icon the manual content and _meta.php name', () => {

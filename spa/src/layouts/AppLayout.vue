@@ -30,6 +30,7 @@ import { useCan } from '../composables/useCan'
 import { useNotify } from '../composables/useNotify'
 import { usePreferences } from '../composables/usePreferences'
 import { WORKSPACE_LIST_ROUTES } from '../router'
+import { useChangelogNews } from '../stores/changelog'
 import { useSession } from '../stores/session'
 import CreateWorkspaceDialog from '../views/workspace/CreateWorkspaceDialog.vue'
 
@@ -42,6 +43,7 @@ interface NavItem {
 
 const { t } = useI18n()
 const session = useSession()
+const news = useChangelogNews()
 const route = useRoute()
 const router = useRouter()
 const can = useCan()
@@ -164,6 +166,12 @@ async function signOut(): Promise<void> {
   }
 }
 
+// The "new" mark is a nicety: asked once the session is known, never awaited, failures ignored.
+watch(() => session.user, (user) => {
+  if (user)
+    void news.check()
+}, { immediate: true })
+
 let stopFocusRefresh: (() => void) | null = null
 onMounted(() => {
   stopFocusRefresh = session.watchFocus()
@@ -277,7 +285,14 @@ watch(() => session.me, (current) => {
         :to="{ name: 'changelog' }"
         :prepend-icon="mdiHistory"
         :title="t('nav.changelog')"
-      />
+      >
+        <template v-if="news.hasNews" #append>
+          <span class="new-pill" data-test="changelog-new">
+            <span aria-hidden="true">{{ t('nav.new') }}</span>
+            <span class="d-sr-only">{{ t('nav.newHint') }}</span>
+          </span>
+        </template>
+      </v-list-item>
     </v-list>
 
     <template #append>
@@ -397,6 +412,16 @@ watch(() => session.me, (current) => {
 
 .rail-list :deep(.v-list-item--active > .v-list-item__overlay) {
   opacity: 0;
+}
+
+.new-pill {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-primary));
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .rail-subheader {

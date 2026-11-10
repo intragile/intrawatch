@@ -1,11 +1,58 @@
 import type { RouteLocationRaw } from 'vue-router'
+import type { Ability } from '../../api/types'
 
 /**
- * The location of a manual chapter. Built as a path because a `help.chapter` params object
- * would encode the slash of `section/chapter` as `%2F`; the path still resolves to that name.
+ * The location of a manual chapter, optionally at one of its heading anchors. Built as a path
+ * because a `help.chapter` params object would encode the slash of `section/chapter` as `%2F`;
+ * the path still resolves to that name.
  */
-export function chapterLocation(slug: string): RouteLocationRaw {
-  return { path: `/help/${slug.split('/').map(encodeURIComponent).join('/')}` }
+export function chapterLocation(slug: string, anchor?: string): RouteLocationRaw {
+  const path = `/help/${slug.split('/').map(encodeURIComponent).join('/')}`
+  return anchor
+    ? { path, hash: `#${anchor}` }
+    : { path }
+}
+
+/** The app screen a chapter describes: a route name and, for workspace routes, the ability the rail asks for. */
+export interface AppTarget {
+  route: string
+  ability?: Ability
+}
+
+/**
+ * Which screen "Open in the app" leads to from a chapter. Workspace (`ws.*`) routes use the same
+ * abilities as the navigation rail, so the card is offered only where the rail would show the item.
+ */
+export const CHAPTER_APP_TARGETS: Readonly<Record<string, AppTarget>> = {
+  'monitoring/monitors': { route: 'ws.monitors', ability: 'viewMonitors' },
+  'monitoring/notifications': { route: 'ws.channels', ability: 'viewNotifications' },
+  'monitoring/incidents': { route: 'ws.incidents', ability: 'viewIncidents' },
+  'monitoring/maintenances': { route: 'ws.maintenances', ability: 'viewIncidents' },
+  'monitoring/status-pages': { route: 'ws.status-pages', ability: 'viewStatusPages' },
+  'workspace/workspace': { route: 'ws.members', ability: 'viewMembers' },
+  'workspace/api-tokens': { route: 'ws.tokens', ability: 'view' },
+  'workspace/import': { route: 'ws.import', ability: 'update' },
+  'workspace/audit': { route: 'ws.audit', ability: 'viewAudit' },
+  'account/account': { route: 'account' },
+}
+
+/** The app target of a chapter, or null when the chapter does not describe one screen. */
+export function chapterAppTarget(slug: string): AppTarget | null {
+  return Object.hasOwn(CHAPTER_APP_TARGETS, slug)
+    ? CHAPTER_APP_TARGETS[slug] ?? null
+    : null
+}
+
+/** The visible text of an HTML fragment (e.g. a release summary), without rendering or running it. */
+export function plainText(html: string | null | undefined): string {
+  if (!html)
+    return ''
+  // Block ends become spaces, so "<p>a</p><p>b</p>" reads "a b".
+  const spaced = html.replace(/<\/(?:p|li|div|h[1-6])>|<br\s*\/?>/gi, '$& ')
+  const doc = new DOMParser().parseFromString(spaced, 'text/html')
+  for (const el of doc.body.querySelectorAll('script, style, template'))
+    el.remove()
+  return (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim()
 }
 
 /** Letters that have no combining-mark decomposition, folded as the backend's Ascii::fold does. */
