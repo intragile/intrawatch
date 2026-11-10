@@ -12,12 +12,20 @@ All notable changes to IntraWatch are recorded here. The format follows
 
 - A Changelog page in the account menu lists every release in the interface
   language, falling back to English per release where no translation exists.
+- A searchable Help section in the account menu holds the user manual in
+  Hungarian and English, from the first monitor through notifications,
+  incidents, maintenance windows and status pages to workspaces, API tokens,
+  the audit log, import and account settings. Each chapter has a table of
+  contents and links straight to the screens it describes.
 
 ### API
 
 - `GET /api/v1/changelog`, `/changelog/latest` and `/changelog/{version}`
   return the release notes as sanitised HTML, in the language of the
   `Accept-Language` header or the `locale` query parameter.
+- `GET /api/v1/manual`, `/manual/chapter` and `/manual/search` serve the user
+  manual's table of contents, chapters and full-text search to signed-in users
+  and API tokens.
 
 ## [1.2.0] - 2026-11-09
 

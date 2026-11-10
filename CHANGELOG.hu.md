@@ -14,12 +14,20 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
 
 - A fiókmenüben új Fejlesztési napló oldal sorolja fel a kiadásokat a felület
   nyelvén; ahol egy verziónak nincs fordítása, ott az angol szöveg jelenik meg.
+- A fiókmenüben új, kereshető Súgó érhető el magyarul és angolul. Az első
+  monitortól az értesítéseken, incidenseken, karbantartásokon és
+  státuszoldalakon át a munkaterületig, az API-tokenekig, az eseménynaplóig, az
+  importálásig és a fiókbeállításokig mindent leír; minden fejezetnek van
+  tartalomjegyzéke, és a leírt képernyőkre mutató hivatkozásai.
 
 ### API
 
 - A `GET /api/v1/changelog`, `/changelog/latest` és `/changelog/{version}`
   végpont biztonságosan szűrt HTML-ként adja vissza a kiadási jegyzeteket, az
   `Accept-Language` fejléc vagy a `locale` lekérdezési paraméter nyelvén.
+- A `GET /api/v1/manual`, `/manual/chapter` és `/manual/search` végpont a
+  bejelentkezett felhasználóknak és az API-tokeneknek adja vissza a súgó
+  tartalomjegyzékét, fejezeteit és teljes szöveges keresését.
 
 ## [1.2.0] - 2026-11-09
 
