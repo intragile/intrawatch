@@ -57,6 +57,9 @@ const loads = ref(0)
 const notFound = computed(() => error.value?.status === 404)
 
 let sequence = 0
+// A move to another chapter still owes a scroll to the top until some load finishes: a language switch
+// or a retry that supersedes the load the move started must not drop it.
+let topPending = false
 
 /** Starts the reader at the top of a newly opened chapter, with focus on its title. */
 async function showTop(): Promise<void> {
@@ -90,6 +93,8 @@ async function showHash(): Promise<boolean> {
 
 async function load(moved = false): Promise<void> {
   const mine = ++sequence
+  if (moved)
+    topPending = true
   loading.value = true
   error.value = null
   try {
@@ -101,8 +106,10 @@ async function load(moved = false): Promise<void> {
     if (mine === sequence && data) {
       chapter.value = data.data
       loads.value++
+      const top = topPending
+      topPending = false
       void showHash().then((shown) => {
-        if (!shown && moved)
+        if (!shown && top)
           void showTop()
       })
     }
@@ -111,6 +118,11 @@ async function load(moved = false): Promise<void> {
     if (mine === sequence) {
       chapter.value = null
       error.value = failure(e)
+      // The error replaces the chapter at the top of the reader, so show it there.
+      if (topPending) {
+        topPending = false
+        void showTop()
+      }
     }
   }
   finally {

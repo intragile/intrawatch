@@ -626,6 +626,44 @@ describe('help chapter', () => {
     ])
   })
 
+  it('still opens at the top when a language switch overtakes the chapter change', async () => {
+    await loadHungarian()
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    let release: (() => void) | undefined
+    let calls = 0
+    const { router } = await openChapter(me(), json(chapter()), '/help/monitoring/monitors', {
+      'GET /manual/chapter': () => {
+        calls++
+        // The first load opens the chapter; the second, started by the move, hangs until released.
+        if (calls === 2)
+          return new Promise<Response>(resolve => (release = () => resolve(json(chapter()))))
+        return json(chapter())
+      },
+    } as never)
+    const ours = () => scrollTo.mock.calls.filter(([arg]) => typeof arg === 'object' && arg !== null && 'top' in arg)
+    await router.push('/help/monitoring/notifications')
+    await expect.poll(() => calls).toBe(2)
+    i18n.global.locale.value = 'hu'
+    await expect.poll(() => calls).toBe(3)
+    await expect.poll(() => ours()).toHaveLength(1)
+    release?.()
+    await flushPromises()
+    expect(ours()).toHaveLength(1)
+  })
+
+  it('shows a failed chapter change at the top', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    let calls = 0
+    const { router } = await openChapter(me(), json(chapter()), '/help/monitoring/monitors', {
+      'GET /manual/chapter': () => ++calls === 1
+        ? json(chapter())
+        : problem(500),
+    } as never)
+    const ours = () => scrollTo.mock.calls.filter(([arg]) => typeof arg === 'object' && arg !== null && 'top' in arg)
+    await router.push('/help/monitoring/notifications')
+    await expect.poll(() => ours()).toHaveLength(1)
+  })
+
   it('scrolls to a heading from the contents and focuses it', async () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView

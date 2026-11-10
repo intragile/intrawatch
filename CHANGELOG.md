@@ -47,6 +47,8 @@ All notable changes to IntraWatch are recorded here. The format follows
 - On phones the connection indicator in the top bar shows a short label
   ("Offline") instead of running over the logo; the full text is in its
   tooltip.
+- In Help, another chapter still opens at the top when the language is
+  switched while it loads, and a failed load is shown at the top too.
 - The Account and security page has a Change password section: the current
   password, the new one and its repetition. This browser stays signed in;
   every other session ends and all of your API tokens are revoked, as with a

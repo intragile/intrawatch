@@ -53,6 +53,8 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
 - Mobilon a fejléc kapcsolatjelzője rövid feliratot mutat („Nincs
   kapcsolat”), és nem csúszik rá a logóra; a teljes szöveg buborékban
   olvasható.
+- A Súgóban egy másik fejezet akkor is a lap tetején nyílik meg, ha közben
+  nyelvet vált, és a betöltési hiba is a lap tetején jelenik meg.
 - A Fiók és biztonság oldalon új Jelszó módosítása rész található: a
   jelenlegi jelszó, az új jelszó és annak megismétlése. Ez a böngésző
   bejelentkezve marad, minden más bejelentkezés megszűnik, és a rendszer az
