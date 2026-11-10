@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8aee5c7422f184e23cbf8c864c1ab06f",
+    "content-hash": "2cba882a1697f0252a9787f8db88ee89",
     "packages": [
         {
             "name": "amphp/amp",
@@ -2632,11 +2632,17 @@
         },
         {
             "name": "intragile/laravel-manual",
-            "version": "dev-main",
-            "dist": {
-                "type": "path",
-                "url": "../intragile-packagist/laravel-manual",
+            "version": "v1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/intragile/laravel-manual.git",
                 "reference": "b0e1ee40d342a13e91001fb17f38f8094ea52de1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/intragile/laravel-manual/zipball/b0e1ee40d342a13e91001fb17f38f8094ea52de1",
+                "reference": "b0e1ee40d342a13e91001fb17f38f8094ea52de1",
+                "shasum": ""
             },
             "require": {
                 "illuminate/auth": "^12.0|^13.0",
@@ -2671,22 +2677,7 @@
                     "IntrAgile\\Manual\\": "src/"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "IntrAgile\\Manual\\Tests\\": "tests/"
-                }
-            },
-            "scripts": {
-                "test": [
-                    "phpunit"
-                ],
-                "analyse": [
-                    "phpstan analyse --memory-limit=1G"
-                ],
-                "format": [
-                    "pint"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -2713,13 +2704,10 @@
             ],
             "support": {
                 "issues": "https://github.com/intragile/laravel-manual/issues",
-                "source": "https://github.com/intragile/laravel-manual",
-                "security": "https://github.com/intragile/laravel-manual/security/policy"
+                "security": "https://github.com/intragile/laravel-manual/security/policy",
+                "source": "https://github.com/intragile/laravel-manual"
             },
-            "transport-options": {
-                "symlink": false,
-                "relative": true
-            }
+            "time": "2026-11-10T00:31:05+00:00"
         },
         {
             "name": "jeremykendall/php-domain-parser",
@@ -12938,9 +12926,7 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "intragile/laravel-manual": 20
-    },
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

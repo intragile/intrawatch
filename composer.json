@@ -17,7 +17,7 @@
         "dedoc/scramble": "^0.13",
         "guzzlehttp/guzzle": "^7.9",
         "intragile/laravel-changelog": "^1.0",
-        "intragile/laravel-manual": "@dev",
+        "intragile/laravel-manual": "^1.0",
         "jeremykendall/php-domain-parser": "^6.4",
         "laravel/fortify": "^1.41",
         "laravel/framework": "^13.17",
@@ -101,14 +101,5 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true,
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../intragile-packagist/laravel-manual",
-            "options": {
-                "symlink": false
-            }
-        }
-    ]
+    "prefer-stable": true
 }
