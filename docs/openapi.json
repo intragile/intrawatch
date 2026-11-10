@@ -1532,6 +1532,173 @@
                 }
             }
         },
+        "/me/password": {
+            "put": {
+                "operationId": "me.password.update",
+                "description": "Needs the current password. The browser that makes the change stays signed in; every other session\nand remember cookie of the user ends, and all of the user's API tokens are revoked, as with a\npassword reset: whoever knew the old password may hold any of them. API tokens get a 403.",
+                "summary": "Change the password",
+                "tags": [
+                    "Password"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "current_password": {
+                                        "type": "string"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "description": "The new password: at least 10 characters, as for a password reset, and not the current one."
+                                    },
+                                    "password_confirmation": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "current_password",
+                                    "password",
+                                    "password_confirmation"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/me/sessions": {
+            "get": {
+                "operationId": "me.sessions.index",
+                "description": "The sessions of the signed-in user that have not expired, the current one first. `id` is an opaque\nhandle, never the session cookie value. Without the database session driver only the current\nsession is listed. API tokens get a 403.",
+                "summary": "List my sessions",
+                "tags": [
+                    "Session"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "ip_address": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "user_agent": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "browser": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "platform": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "last_active_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "current": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "ip_address",
+                                                    "user_agent",
+                                                    "browser",
+                                                    "platform",
+                                                    "last_active_at",
+                                                    "current"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/me/sessions/sign-out-others": {
+            "post": {
+                "operationId": "me.sessions.sign-out-others",
+                "description": "Needs the current password. Ends every session and remember cookie of the user except the one\nmaking the request. API tokens are not revoked, and cannot call this endpoint (403).",
+                "summary": "Sign out all other sessions",
+                "tags": [
+                    "Session"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "password": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "password"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/monitor-types": {
             "get": {
                 "operationId": "monitorType",

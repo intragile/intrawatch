@@ -97,4 +97,6 @@ In the token list, the **Last used** column shows when the token was last used. 
 
 Click the [[icon:mdi-key-remove]] **Revoke** icon in the token's row, then confirm with the **Revoke** button. Everything that uses the token stops working immediately. You cannot undo a revocation.
 
+When you change or reset your password, all of your tokens in every workspace are revoked as well. Details: [[manual:account/account|Your account]].
+
 Creating and revoking tokens are recorded in the [[manual:workspace/audit|Audit log]].

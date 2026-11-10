@@ -212,6 +212,25 @@
       "disable": "Kikapcsolás",
       "disableConfirm": "A bejelentkezéshez ezután elég lesz a jelszó. Bármikor újra bekapcsolhatja.",
       "disabledNotice": "A kétlépcsős azonosítás ki van kapcsolva."
+    },
+    "password": {
+      "title": "Jelszó módosítása",
+      "intro": "Ezen az eszközön bejelentkezve marad, minden más eszközön kijelentkeztetjük, és az összes API-tokenjét visszavonjuk.",
+      "current": "Jelenlegi jelszó",
+      "submit": "Jelszó módosítása",
+      "done": "A jelszava megváltozott."
+    },
+    "sessions": {
+      "title": "Bejelentkezések",
+      "intro": "Azok az eszközök és böngészők, amelyeken be van jelentkezve.",
+      "thisDevice": "Ez az eszköz",
+      "unknownDevice": "Ismeretlen eszköz",
+      "lastActive": "Utoljára aktív: {when}",
+      "noOthers": "Más eszközön nincs bejelentkezve.",
+      "signOutOthers": "Kijelentkezés minden más eszközről",
+      "signOutOthersIntro": "Adja meg a jelszavát. Ezen az eszközön bejelentkezve marad, minden más eszközön kijelentkeztetjük. Az API-tokenjei továbbra is működnek.",
+      "signOutConfirm": "Kijelentkezés",
+      "signOutOthersDone": "Minden más eszközön kijelentkeztettük."
     }
   },
   "home": {

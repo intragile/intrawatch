@@ -5,6 +5,8 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { fieldErrors } from '../../api'
 import * as fortify from '../../auth/fortify'
+import ChangePasswordCard from '../../components/account/ChangePasswordCard.vue'
+import SessionsCard from '../../components/account/SessionsCard.vue'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
 import { useNotify } from '../../composables/useNotify'
@@ -29,6 +31,7 @@ const codes = ref<string[]>([])
 const codesError = ref<ApiError | null>(null)
 const confirmDisable = ref(false)
 const confirmRegenerate = ref(false)
+const sessionsCard = ref<InstanceType<typeof SessionsCard> | null>(null)
 
 const user = computed(() => session.user)
 const enabled = computed(() => user.value?.two_factor_enabled === true)
@@ -185,7 +188,9 @@ function downloadCodes(): void {
     </v-card-text>
   </v-card>
 
-  <v-card max-width="720">
+  <ChangePasswordCard class="mb-4" @changed="sessionsCard?.load()" />
+
+  <v-card class="mb-4" max-width="720">
     <v-card-title tag="h2" class="text-h6 d-flex align-center ga-2">
       {{ t('account.twoFactor.title') }}
       <v-chip
@@ -295,6 +300,8 @@ function downloadCodes(): void {
       </template>
     </v-card-text>
   </v-card>
+
+  <SessionsCard ref="sessionsCard" />
 
   <ConfirmDialog
     v-model="confirmRegenerate"

@@ -19,6 +19,8 @@ const Host = defineComponent({
 describe('account two-factor', () => {
   it('2FA enable shows recovery codes once and requires confirm-password on 423', async () => {
     const server = fakeApi({
+      // The sessions card on the same page loads its list.
+      'GET /me/sessions': json({ data: [] }),
       'POST /auth/user/two-factor-authentication': [
         problem(423, { title: 'Password confirmation required.' }),
         json(''),
@@ -62,6 +64,8 @@ describe('account two-factor', () => {
 
   it('2FA confirm that cannot fetch recovery codes stays out of setup and retries the codes', async () => {
     const server = fakeApi({
+      // The sessions card on the same page loads its list.
+      'GET /me/sessions': json({ data: [] }),
       'POST /auth/user/two-factor-authentication': json(''),
       'GET /auth/user/two-factor-qr-code': json({ svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', url: 'otpauth://totp/x' }),
       'GET /auth/user/two-factor-secret-key': json({ secretKey: 'JBSWY3DPEHPK3PXP' }),

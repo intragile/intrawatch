@@ -47,6 +47,16 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
   eddig szintén bekerültek.
 - Az angol felület, a kézikönyv és az e-mailek egységesen amerikai
   helyesírást használnak (például „email”, „color”, „analyze”).
+- A Fiók és biztonság oldalon új Jelszó módosítása rész található: a
+  jelenlegi jelszó, az új jelszó és annak megismétlése. Ez a böngésző
+  bejelentkezve marad, minden más bejelentkezés megszűnik, és a rendszer az
+  összes API-tokent visszavonja, ahogy a jelszó visszaállításakor is. Eddig
+  jelszót csak visszaállítással lehetett változtatni.
+- Ugyanitt a Bejelentkezések rész sorolja fel azokat az eszközöket, amelyeken
+  be van jelentkezve, a böngészővel, az IP-címmel és az utolsó aktivitással,
+  és megjelöli ezt az eszközt. A Kijelentkezés minden más eszközről gomb a
+  jelszó megadása után minden más bejelentkezést megszüntet; az API-tokenek
+  továbbra is működnek.
 
 ### API
 
@@ -60,6 +70,13 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
   nyilvános státuszoldalon, hírcsatornában, összesítőben és jelvényen sem
   jelenik meg, és nem kapcsolható státuszoldalhoz: ha a kérés mindkettőt
   beállítja, a válasz 422, a hiba a `status_page_ids` mezőnél jelenik meg.
+- A `PUT /api/v1/me/password` a bejelentkezett felhasználó jelszavát
+  módosítja, a `GET /api/v1/me/sessions` átlátszatlan azonosítóval sorolja fel a
+  bejelentkezéseit, a `POST /api/v1/me/sessions/sign-out-others` pedig minden
+  más bejelentkezését megszünteti. Mindhárom 403-mal utasítja el az
+  API-tokeneket; a jelenlegi jelszót ellenőrző kettő percenként 5 próbálkozást
+  enged. Mindkét művelet bekerül az eseménynaplóba
+  (`auth.password_changed`, `auth.other_sessions_signed_out`).
 
 ## [1.2.0] - 2026-11-09
 

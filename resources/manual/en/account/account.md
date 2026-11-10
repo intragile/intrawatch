@@ -1,6 +1,6 @@
 # Your account
 
-On the **Account and security** page you can view your profile and manage two-factor authentication. From the account menu you can switch the theme and language, and sign out.
+On the **Account and security** page you can view your profile, manage two-factor authentication, change your password and see where you are signed in. From the account menu you can switch the theme and language, and sign out.
 
 ## The account menu
 
@@ -67,13 +67,50 @@ If you lose both your authenticator app and your recovery codes, you cannot sign
 
 :::
 
+## Changing your password
+
+You can change your password in the **Change password** section:
+
+:::steps
+
+1. Open the [[route:account|Account and security]] page.
+2. Enter your **Current password**.
+3. Enter the **New password** and **Repeat the password** values. The new password must be at least 10 characters long, and it must differ from the current one.
+4. Click **Change password**.
+
+:::
+
+After the change you stay signed in on this device.
+
+:::warning
+
+Changing your password signs you out on every other device, and revokes all of your API tokens in every workspace. Scripts and integrations that use those tokens stop working until you create new tokens for them. Details: [[manual:workspace/api-tokens|API tokens]].
+
+:::
+
+## Sessions
+
+The **Sessions** section lists the devices and browsers where you are signed in. For each one you see the browser and operating system, the IP address, and when it was last active. **This device** marks the browser you are using now.
+
+If you see a device you do not recognize, or you signed in on a shared computer and forgot to sign out:
+
+:::steps
+
+1. Click **Sign out all other devices**.
+2. Enter your password in the **Password** field.
+3. Click **Sign out**.
+
+:::
+
+You stay signed in on this device, and you are signed out everywhere else. Your API tokens keep working; revoke them on the API tokens page if needed. If you think someone else knows your password, change your password instead: that signs out the other devices too.
+
 ## Confirming your password for sensitive actions
 
 Before some sensitive actions, IntraWatch asks for your password again. Turning two-factor authentication on or off is one example. The **Confirm your password** window then appears. Enter your password in the **Password** field and click **Confirm**. The action then continues.
 
 ## Forgotten password
 
-You cannot change your password while you are signed in. You can set a new password from the sign-in page:
+If you have forgotten your password, you can set a new one from the sign-in page:
 
 :::steps
 

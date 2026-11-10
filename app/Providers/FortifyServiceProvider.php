@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Actions\Fortify\ResetUserPassword;
 use App\Http\Responses\GenericPasswordResetLinkResponse;
+use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
@@ -48,6 +49,13 @@ class FortifyServiceProvider extends ServiceProvider
             $loginId = $request->hasSession() ? $request->session()->get('login.id') : null;
 
             return Limit::perMinute(5)->by(is_string($loginId) || is_int($loginId) ? (string) $loginId : $request->ip() ?? 'unknown');
+        });
+
+        // Changing the password and signing out other sessions both check the current password.
+        RateLimiter::for('password-check', function (Request $request) {
+            $user = $request->user();
+
+            return Limit::perMinute(5)->by('password-check:'.($user instanceof User ? $user->id : $request->ip()));
         });
 
         RateLimiter::for('setup', fn (Request $request) => Limit::perMinute(10)->by((string) $request->ip()));

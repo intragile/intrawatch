@@ -370,6 +370,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the password
+         * @description Needs the current password. The browser that makes the change stays signed in; every other session
+         *     and remember cookie of the user ends, and all of the user's API tokens are revoked, as with a
+         *     password reset: whoever knew the old password may hold any of them. API tokens get a 403.
+         */
+        put: operations["me.password.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my sessions
+         * @description The sessions of the signed-in user that have not expired, the current one first. `id` is an opaque
+         *     handle, never the session cookie value. Without the database session driver only the current
+         *     session is listed. API tokens get a 403.
+         */
+        get: operations["me.sessions.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sessions/sign-out-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign out all other sessions
+         * @description Needs the current password. Ends every session and remember cookie of the user except the one
+         *     making the request. API tokens are not revoked, and cannot call this endpoint (403).
+         */
+        post: operations["me.sessions.sign-out-others"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/monitor-types": {
         parameters: {
             query?: never;
@@ -2445,6 +2510,91 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "me.password.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    current_password: string;
+                    /** @description The new password: at least 10 characters, as for a password reset, and not the current one. */
+                    password: string;
+                    password_confirmation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
+        };
+    };
+    "me.sessions.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            id: string;
+                            ip_address: string | null;
+                            user_agent: string | null;
+                            browser: string | null;
+                            platform: string | null;
+                            last_active_at: string;
+                            current: boolean;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+        };
+    };
+    "me.sessions.sign-out-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     monitorType: {

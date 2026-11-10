@@ -41,6 +41,14 @@ All notable changes to IntraWatch are recorded here. The format follows
   as the server does; switched-off channels used to be selected too.
 - The English interface, manual and emails use American spelling throughout
   (for example "email", "color", "analyze").
+- The Account and security page has a Change password section: the current
+  password, the new one and its repetition. This browser stays signed in;
+  every other session ends and all of your API tokens are revoked, as with a
+  password reset. Until now a password could only be changed by resetting it.
+- A Sessions section on the same page lists the devices where you are signed
+  in, with browser, IP address and last activity, and marks this device. Sign
+  out all other devices ends every other session after asking for your
+  password; API tokens keep working.
 
 ### API
 
@@ -54,6 +62,12 @@ All notable changes to IntraWatch are recorded here. The format follows
   is left out of every public status page, feed, summary and badge, and it
   cannot be linked to status pages: a request that sets both is refused with
   a 422 on `status_page_ids`.
+- `PUT /api/v1/me/password` changes the signed-in user's password,
+  `GET /api/v1/me/sessions` lists their sessions with an opaque id, and
+  `POST /api/v1/me/sessions/sign-out-others` ends every other session. All
+  three refuse API tokens with a 403; the two that check the current password
+  allow 5 attempts a minute. Both actions are audited as
+  `auth.password_changed` and `auth.other_sessions_signed_out`.
 
 ## [1.2.0] - 2026-11-09
 

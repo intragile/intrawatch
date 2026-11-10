@@ -212,6 +212,25 @@
       "disable": "Turn off",
       "disableConfirm": "Signing in will only need your password. You can turn it on again at any time.",
       "disabledNotice": "Two-factor authentication is off."
+    },
+    "password": {
+      "title": "Change password",
+      "intro": "You stay signed in on this device. You are signed out on every other device, and all of your API tokens are revoked.",
+      "current": "Current password",
+      "submit": "Change password",
+      "done": "Your password has been changed."
+    },
+    "sessions": {
+      "title": "Sessions",
+      "intro": "The devices and browsers where you are signed in.",
+      "thisDevice": "This device",
+      "unknownDevice": "Unknown device",
+      "lastActive": "Last active {when}",
+      "noOthers": "You are not signed in on any other device.",
+      "signOutOthers": "Sign out all other devices",
+      "signOutOthersIntro": "Enter your password. You stay signed in on this device and are signed out on every other device. Your API tokens keep working.",
+      "signOutConfirm": "Sign out",
+      "signOutOthersDone": "You have been signed out on all other devices."
     }
   },
   "home": {

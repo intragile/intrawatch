@@ -10,6 +10,7 @@ type JsonRequest<O> = O extends { requestBody?: infer R } ? JsonBody<NonNullable
 export type Schemas = components['schemas']
 
 export type Me = Item<GetOk<'/me'>>
+export type UserSession = Item<GetOk<'/me/sessions'>>
 export type WorkspaceSummary = Me['workspaces'][number]
 export type Ability = keyof WorkspaceSummary['can']
 /** A monitor list item, with the heartbeats the list asks for. */

@@ -1,6 +1,6 @@
 # Saját fiók
 
-A **Fiók és biztonság** oldalon megtekintheti a profilját és kezelheti a kétlépcsős azonosítást. A fiókmenüből válthat témát és nyelvet, és itt jelentkezhet ki.
+A **Fiók és biztonság** oldalon megtekintheti a profilját, kezelheti a kétlépcsős azonosítást, módosíthatja a jelszavát, és megnézheti, hol van bejelentkezve. A fiókmenüből válthat témát és nyelvet, és itt jelentkezhet ki.
 
 ## A fiókmenü
 
@@ -67,13 +67,50 @@ Ha a hitelesítő alkalmazás és a helyreállítási kódok is elvesztek, nem t
 
 :::
 
+## Jelszó módosítása
+
+A jelszavát a **Jelszó módosítása** részben módosíthatja:
+
+:::steps
+
+1. Nyissa meg a [[route:account|Fiók és biztonság]] oldalt.
+2. Adja meg a **Jelenlegi jelszó** értékét.
+3. Adja meg az **Új jelszó** és a **Jelszó még egyszer** értékét. Az új jelszónak legalább 10 karakterből kell állnia, és el kell térnie a jelenlegitől.
+4. Kattintson a **Jelszó módosítása** gombra.
+
+:::
+
+A módosítás után ezen az eszközön bejelentkezve marad.
+
+:::warning
+
+A jelszó módosítása minden más eszközön kijelentkezteti, és az összes munkaterületen visszavonja minden API-tokenjét. Az ezeket használó szkriptek és integrációk addig nem működnek, amíg új tokent nem hoz létre nekik. Részletek: [[manual:workspace/api-tokens|API-tokenek]].
+
+:::
+
+## Bejelentkezések
+
+A **Bejelentkezések** rész azokat az eszközöket és böngészőket sorolja fel, amelyeken be van jelentkezve. Mindegyiknél látja a böngészőt és az operációs rendszert, az IP-címet, és hogy mikor volt utoljára aktív. Az **Ez az eszköz** jelölés azt a böngészőt mutatja, amelyet most használ.
+
+Ha olyan eszközt lát, amelyet nem ismer fel, vagy egy közös gépen elfelejtett kijelentkezni:
+
+:::steps
+
+1. Kattintson a **Kijelentkezés minden más eszközről** gombra.
+2. Adja meg a jelszavát a **Jelszó** mezőben.
+3. Kattintson a **Kijelentkezés** gombra.
+
+:::
+
+Ezen az eszközön bejelentkezve marad, minden más eszközön kijelentkezteti a rendszer. Az API-tokenjei továbbra is működnek; ha szükséges, vonja vissza őket az API-tokenek oldalon. Ha úgy gondolja, hogy más is ismeri a jelszavát, inkább módosítsa a jelszavát: ez a többi eszközön is kijelentkezteti.
+
 ## Jelszó megerősítése érzékeny műveletekhez
 
 Egyes érzékeny műveletek előtt az IntraWatch újra kéri a jelszavát. Ilyen például a kétlépcsős azonosítás bekapcsolása vagy kikapcsolása. Ekkor a **Jelszó megerősítése** ablak jelenik meg. Adja meg a jelszavát a **Jelszó** mezőben, és kattintson a **Megerősítés** gombra. A művelet ezután folytatódik.
 
 ## Elfelejtett jelszó
 
-A felületen bejelentkezve nem lehet jelszót változtatni. Új jelszót a bejelentkezési oldalon állíthat be:
+Ha elfelejtette a jelszavát, újat a bejelentkezési oldalon állíthat be:
 
 :::steps
 

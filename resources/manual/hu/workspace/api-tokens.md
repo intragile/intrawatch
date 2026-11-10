@@ -97,4 +97,6 @@ A tokenek listájában az **Utoljára használva** oszlop mutatja, mikor haszná
 
 Kattintson a token sorában a [[icon:mdi-key-remove]] **Visszavonás** ikonra, majd erősítse meg a **Visszavonás** gombbal. Minden, ami a tokent használja, azonnal leáll. A visszavonás nem vonható vissza.
 
+Ha módosítja vagy visszaállítja a jelszavát, a rendszer az összes munkaterületen visszavonja minden tokenjét. Részletek: [[manual:account/account|Saját fiók]].
+
 A tokenek létrehozása és visszavonása bekerül az [[manual:workspace/audit|Eseménynapló]] bejegyzései közé.

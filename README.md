@@ -175,10 +175,16 @@ docker exec -it intrawatch php artisan intrawatch:user:reset-password ada@exampl
 
 Both are recorded in the audit trail with the `system` actor. A password reset,
 by this command or through the email link, also revokes all of the user's API
-tokens and is recorded as `auth.password_reset`. Note that the
-workspace audit list only shows workspace events; instance-level events such
-as `auth.*` (logins, failed logins, 2FA and password resets) are stored with no
-workspace and are not exposed over the API yet.
+tokens and is recorded as `auth.password_reset`. A signed-in user who changes
+their password (`PUT /api/v1/me/password`) keeps the browser session that made
+the change; every other session ends and all of their API tokens are revoked,
+as with a reset, recorded as `auth.password_changed`. Signing out all other
+devices (`POST /api/v1/me/sessions/sign-out-others`) ends the other sessions
+but leaves API tokens alone, recorded as `auth.other_sessions_signed_out`.
+Note that the workspace audit list only shows workspace events; instance-level
+events such as `auth.*` (logins, failed logins, 2FA, password resets and
+changes, session sign-outs) are stored with no workspace and are not exposed
+over the API yet.
 
 ### What lives in `/data`
 
