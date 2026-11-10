@@ -9,6 +9,9 @@ import { chapterLocation } from './manual'
 /**
  * The "?" next to a screen title: opens the manual chapter (or one section of it) that explains
  * the screen. Usually bound to an entry of SCREEN_HELP: `v-bind="screenHelp('ws.alerts')"`.
+ *
+ * The tooltip shows the same text as the aria-label, so the button drops the aria-describedby that the
+ * tooltip activator adds; otherwise screen readers announce the text twice.
  */
 const props = defineProps<{
   slug: string
@@ -49,6 +52,7 @@ const text = computed(() => {
         class="help-link text-medium-emphasis"
         data-test="help-link"
         :aria-label="text"
+        :aria-describedby="undefined"
         :to="chapterLocation(slug, anchor)"
       >
         <v-icon :icon="mdiHelpCircleOutline" />
