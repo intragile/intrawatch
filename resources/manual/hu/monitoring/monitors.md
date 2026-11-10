@@ -34,7 +34,7 @@ A **Függőben** állapot szándékos átmenet: egyetlen hibás ellenőrzés mé
 
 :::
 
-Az **Értesítési csatornák** mezőben előre ki vannak jelölve azok a csatornák, amelyeket alapértelmezettként jelöltek meg. A csatornák létrehozásáról az [[manual:monitoring/notifications|Értesítési csatornák]] fejezet szól. A **Címkék** mezőben a munkaterület meglévő címkéi közül választhat. Új címkéhez írja be a nevét, és válassza a **„…” címke létrehozása** sort, vagy nyomjon Entert: a címke létrejön, és a monitorhoz is hozzárendelődik. Minden címkéhez megadhat egy nem kötelező értéket is, például `prod` vagy `eu-west`.
+Az **Értesítési csatornák** mezőben előre ki vannak jelölve azok a csatornák, amelyeket alapértelmezettként jelöltek meg. A csatornák létrehozásáról az [[manual:monitoring/notifications|Értesítési csatornák]] fejezet szól. A **Címkék** mezőben a munkaterület meglévő címkéi közül választhat. Új címkéhez írja be a nevét, és válassza a **„…” címke létrehozása** sort, vagy nyomjon Entert: a címke létrejön, és a monitorhoz is hozzárendelődik. Minden címkéhez megadhat egy nem kötelező értéket is, például `prod` vagy `eu-west`. A meglévő címkéket a **Munkaterület kezelése** alatti [[route:ws.tags|Címkék]] képernyőn nevezheti át, színezheti át és törölheti; a törölt címke minden monitorról lekerül, de a monitorok tovább működnek.
 
 ## Monitortípusok
 

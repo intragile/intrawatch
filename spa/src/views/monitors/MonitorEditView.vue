@@ -30,7 +30,7 @@ import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
 import { useMonitors } from '../../stores/monitors'
 import { useSession } from '../../stores/session'
-import { bodyOf } from '../../utils/cursorPage'
+import { bodyOf, loadAll } from '../../utils/cursorPage'
 import { asApiError } from '../../utils/errors'
 import { requiredSecrets, withReenteredSecrets } from '../../utils/secrets'
 
@@ -45,9 +45,8 @@ const TYPES: MonitorType[] = [
   'cron',
   'group',
 ]
-/** Page size and page cap when the tag and channel pickers load their options. */
+/** Page size when the tag and channel pickers load their options (`loadAll` caps the pages). */
 const OPTION_PAGE = 200
-const OPTION_PAGES = 5
 
 const { t } = useI18n()
 const route = useRoute()
@@ -188,19 +187,6 @@ async function loadOptions(): Promise<void> {
     }
   }
   loadingOptions.value = false
-}
-
-async function loadAll<T>(fetchPage: (cursor: string | undefined) => Promise<{ data: T[], meta: { next_cursor: string | null } }>): Promise<T[]> {
-  const out: T[] = []
-  let cursor: string | undefined
-  for (let i = 0; i < OPTION_PAGES; i++) {
-    const page = await fetchPage(cursor)
-    out.push(...page.data)
-    if (page.meta.next_cursor === null)
-      break
-    cursor = page.meta.next_cursor
-  }
-  return out
 }
 
 function startCreate(next: MonitorType): void {

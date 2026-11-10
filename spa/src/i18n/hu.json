@@ -53,6 +53,7 @@
     "settings": "Munkaterület beállításai",
     "members": "Tagok",
     "tokens": "API-tokenek",
+    "tags": "Címkék",
     "audit": "Eseménynapló",
     "account": "Fiók és biztonság",
     "changelog": "Fejlesztési napló",
@@ -356,6 +357,55 @@
       "field": "Token",
       "done": "Kimásoltam"
     }
+  },
+  "tags": {
+    "title": "Címkék",
+    "intro": "A címkékkel csoportosíthatja a monitorokat: a monitorlistát címke szerint szűrheti, és a kijelölt monitorokra egyszerre tehet fel vagy vehet le egy címkét. Monitorhoz a monitor szerkesztésekor rendelhet címkét.",
+    "readOnly": "Címkét csak a monitorok kezelésére jogosult tagok hozhatnak létre, módosíthatnak vagy törölhetnek.",
+    "create": {
+      "title": "Címke létrehozása",
+      "submit": "Címke létrehozása"
+    },
+    "edit": {
+      "title": "Címke szerkesztése"
+    },
+    "delete": {
+      "title": "Törli a címkét?",
+      "confirm": "A(z) „{name}” címke lekerül minden monitorról, a monitoronként megadott értékével együtt. A monitorok ugyanúgy tovább működnek és riasztanak, csak ezt a címkét veszítik el. A törlés nem vonható vissza."
+    },
+    "name": "Név",
+    "color": {
+      "label": "Szín",
+      "presets": "Előre megadott színek",
+      "custom": "Egyéni szín (#rrggbb)",
+      "invalid": "Adja meg a színt #rrggbb formában, például #2563eb.",
+      "presetNames": {
+        "gray": "Szürke",
+        "red": "Piros",
+        "orange": "Narancs",
+        "amber": "Borostyán",
+        "green": "Zöld",
+        "teal": "Kékeszöld",
+        "sky": "Égszínkék",
+        "blue": "Kék",
+        "violet": "Ibolya",
+        "pink": "Rózsaszín"
+      }
+    },
+    "preview": "Előnézet:",
+    "previewName": "Címke",
+    "list": "A munkaterület címkéi",
+    "tag": "Címke",
+    "colorColumn": "Szín",
+    "actions": "Műveletek",
+    "empty": {
+      "title": "Még nincs címke",
+      "text": "A címkékkel csoportosíthatók a monitorok: a monitorlista címke szerint szűrhető, és a kijelölt monitorokra egyszerre tehető fel vagy vehető le egy címke.",
+      "textManage": "Hozza létre az első címkét fent, vagy a monitor szerkesztésekor a Címkék mezőben. Utána címke szerint szűrheti a monitorlistát, és a kijelölt monitorokra egyszerre tehet fel vagy vehet le egy címkét."
+    },
+    "created": "Létrejött a(z) „{name}” címke.",
+    "saved": "A címke módosításai mentve.",
+    "deleted": "A(z) „{name}” címke törölve."
   },
   "audit": {
     "title": "Eseménynapló",

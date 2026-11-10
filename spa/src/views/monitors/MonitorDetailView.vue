@@ -20,6 +20,7 @@ import PushUrlCard from '../../components/monitors/PushUrlCard.vue'
 import ResultsTable from '../../components/monitors/ResultsTable.vue'
 import { monitorTarget } from '../../components/monitors/target'
 import UptimeStats from '../../components/monitors/UptimeStats.vue'
+import TagChip from '../../components/tags/TagChip.vue'
 import { useCan } from '../../composables/useCan'
 import { useWorkspaceLive } from '../../live/useWorkspaceLive'
 import { useMonitors } from '../../stores/monitors'
@@ -337,9 +338,7 @@ void load()
         <div class="meta-row">
           <span class="tag">{{ t(`monitors.types.${monitor.type}`) }}</span>
           <span v-if="target" class="target">{{ target }}</span>
-          <v-chip v-for="tag in monitor.tags" :key="tag.id" size="small" :color="tag.color" variant="tonal">
-            {{ tag.value ? `${tag.name}: ${tag.value}` : tag.name }}
-          </v-chip>
+          <TagChip v-for="tag in monitor.tags" :key="tag.id" :name="tag.name" :color="tag.color" :value="tag.value" />
         </div>
         <div class="hero-row">
           <div class="hero-text">

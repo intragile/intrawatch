@@ -35,5 +35,6 @@ return [
     'ws.settings',
     'ws.status-page',
     'ws.status-pages',
+    'ws.tags',
     'ws.tokens',
 ];

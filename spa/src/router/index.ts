@@ -109,6 +109,11 @@ const workspaceRoutes: RouteRecordRaw[] = [
     component: () => import('../views/workspace/TokensView.vue'),
   },
   {
+    path: 'tags',
+    name: 'ws.tags',
+    component: () => import('../views/workspace/TagsView.vue'),
+  },
+  {
     path: 'audit',
     name: 'ws.audit',
     component: () => import('../views/workspace/AuditView.vue'),
@@ -235,6 +240,7 @@ export const WORKSPACE_LIST_ROUTES = new Set([
   'ws.settings',
   'ws.members',
   'ws.tokens',
+  'ws.tags',
   'ws.audit',
   'ws.import',
 ])
