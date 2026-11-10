@@ -57,6 +57,19 @@ All notable changes to IntraWatch are recorded here. The format follows
   in, with browser, IP address and last activity, and marks this device. Sign
   out all other devices ends every other session after asking for your
   password; API tokens keep working.
+- Each other device in the Sessions list has its own Sign out button. After
+  a confirmation it ends that one session without asking for your password;
+  the other devices stay signed in but have to sign in again once their
+  session expires, because Keep me signed in is reset for all of them.
+- A new Tags page under Manage workspace lets you create, rename, recolor
+  and delete the workspace's tags. Pick one of ten preset colors or enter
+  your own as #rrggbb. A deleted tag is removed from every monitor, but the
+  monitors keep working. Only members who can manage monitors can change
+  tags; everyone else sees the list read-only.
+- Tag chips now choose their text color to match the fill, so every tag
+  color stays readable.
+- A ? icon next to the title of each main screen opens the matching help
+  chapter; editors and the alert history open it at the relevant section.
 
 ### API
 
@@ -76,6 +89,11 @@ All notable changes to IntraWatch are recorded here. The format follows
   three refuse API tokens with a 403; the two that check the current password
   allow 5 attempts a minute. Both actions are audited as
   `auth.password_changed` and `auth.other_sessions_signed_out`.
+- `DELETE /api/v1/me/sessions/{id}` ends one other session by the id the
+  session list returns. It needs no password and allows 10 calls a minute;
+  the current session is refused with a 422 on `id`, an unknown id is a 404
+  and API tokens get a 403. It rotates the remember token like signing out
+  all other sessions, and it is audited as `auth.session_signed_out`.
 
 ## [1.2.0] - 2026-11-09
 

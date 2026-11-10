@@ -9,6 +9,8 @@ import { api, fieldErrors, unwrap } from '../../api'
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import ProblemAlert from '../../components/common/ProblemAlert.vue'
+import HelpLink from '../../components/help/HelpLink.vue'
+import { screenHelp } from '../../components/help/manual'
 import TagChip from '../../components/tags/TagChip.vue'
 import TagColorField from '../../components/tags/TagColorField.vue'
 import { useApiFailure } from '../../composables/useApiFailure'
@@ -212,9 +214,12 @@ async function remove(): Promise<void> {
 </script>
 
 <template>
-  <h1 class="text-h5 mb-2">
-    {{ t('tags.title') }}
-  </h1>
+  <div class="d-flex align-center ga-2 mb-2">
+    <h1 class="text-h5">
+      {{ t('tags.title') }}
+    </h1>
+    <HelpLink v-bind="screenHelp('ws.tags')" />
+  </div>
   <p class="mb-4">
     {{ t('tags.intro') }}
   </p>

@@ -74,6 +74,11 @@ export const SCREEN_HELP: Readonly<Record<string, ScreenHelp>> = {
     slug: 'monitoring/monitors',
     anchor: { hu: 'uj-monitor-letrehozasa', en: 'creating-a-monitor' },
   },
+  // Tags have no chapter of their own; the monitor chapter explains them where a monitor gets its tags.
+  'ws.tags': {
+    slug: 'monitoring/monitors',
+    anchor: { hu: 'uj-monitor-letrehozasa', en: 'creating-a-monitor' },
+  },
   'ws.channel.new': {
     slug: 'monitoring/notifications',
     anchor: { hu: 'uj-csatorna-letrehozasa', en: 'creating-a-channel' },

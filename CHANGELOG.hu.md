@@ -65,6 +65,22 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
   és megjelöli ezt az eszközt. A Kijelentkezés minden más eszközről gomb a
   jelszó megadása után minden más bejelentkezést megszüntet; az API-tokenek
   továbbra is működnek.
+- A Bejelentkezések listában minden más eszköznek saját Kijelentkeztetés
+  gombja van. Megerősítés után jelszó nélkül megszünteti azt az egy
+  bejelentkezést; a többi eszköz bejelentkezve marad, de a munkamenetük
+  lejárta után újra be kell jelentkezniük, mert a „Maradjak bejelentkezve”
+  beállítás mindegyiken megszűnik.
+- A Munkaterület kezelése menüben új Címkék oldal található: itt
+  létrehozhatja, átnevezheti, átszínezheti és törölheti a munkaterület
+  címkéit. A színhez tíz előre megadott árnyalat közül választhat, vagy
+  #rrggbb formában adhat meg egyénit. A törölt címke minden monitorról
+  lekerül, de a monitorok tovább működnek. Címkét csak a monitorok
+  kezelésére jogosult tagok módosíthatnak, a többiek csak megtekinthetik.
+- A címkék chipjein a szöveg színe a háttérhez igazodik, így minden
+  címkeszín mellett jól olvasható marad.
+- Minden fő képernyő címe mellett megjelenik egy ? ikon, amely a súgó
+  megfelelő fejezetét nyitja meg, a szerkesztőkben és a riasztási naplóban
+  közvetlenül a vonatkozó szakasznál.
 
 ### API
 
@@ -85,6 +101,12 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
   API-tokeneket; a jelenlegi jelszót ellenőrző kettő percenként 5 próbálkozást
   enged. Mindkét művelet bekerül az eseménynaplóba
   (`auth.password_changed`, `auth.other_sessions_signed_out`).
+- A `DELETE /api/v1/me/sessions/{id}` a bejelentkezések listájában kapott
+  azonosító alapján egy másik bejelentkezést szüntet meg. Nem kér jelszót, és
+  percenként 10 hívást enged; a jelenlegi bejelentkezésre 422 a válasz (a hiba
+  az `id` mezőnél jelenik meg), ismeretlen azonosítóra 404, API-tokenre 403.
+  A többi bejelentkezés megszüntetéséhez hasonlóan új remember tokent állít
+  be, és bekerül az eseménynaplóba (`auth.session_signed_out`).
 
 ## [1.2.0] - 2026-11-09
 
