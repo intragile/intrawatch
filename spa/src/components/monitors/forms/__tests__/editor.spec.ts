@@ -318,7 +318,7 @@ describe('monitor editor', () => {
         data: { ...MONITOR, id: 10 },
       }, 201),
     }))
-    await mountApp('/w/acme/monitors/new')
+    const { router } = await mountApp('/w/acme/monitors/new')
     await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
     fill('input[name="monitor_name"]', 'API')
     await flushPromises()
@@ -327,6 +327,8 @@ describe('monitor editor', () => {
     await expect.poll(() => server.of('POST /workspaces/acme/monitors')).toHaveLength(1)
     const body = server.of('POST /workspaces/acme/monitors')[0]?.body as Record<string, unknown>
     expect(body.notification_channel_ids).toEqual([1])
+    // The save opens the new monitor, a lazily loaded view: let that finish inside the test.
+    await expect.poll(() => router.currentRoute.value.name).toBe('ws.monitor')
   })
 
   it('a rejected save keeps the form and a later save succeeds', async () => {
@@ -411,7 +413,7 @@ describe('monitor editor', () => {
         data: { ...MONITOR, id: 8 },
       }, 201),
     }))
-    const { wrapper } = await mountApp('/w/acme/monitors/new')
+    const { wrapper, router } = await mountApp('/w/acme/monitors/new')
     await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
     choose(wrapper, 'monitor-type', 'push')
     await flushPromises()
@@ -432,6 +434,8 @@ describe('monitor editor', () => {
       interval_seconds: 3600,
       retry_interval_seconds: 300,
     })
+    // The save opens the new monitor, a lazily loaded view: let that finish inside the test.
+    await expect.poll(() => router.currentRoute.value.name).toBe('ws.monitor')
   })
 
   it('creates a tag from the picker and assigns it', async () => {
@@ -443,7 +447,7 @@ describe('monitor editor', () => {
         data: { ...MONITOR, id: 9 },
       }, 201),
     }))
-    await mountApp('/w/acme/monitors/new')
+    const { router } = await mountApp('/w/acme/monitors/new')
     await expect.poll(exists('input[name="monitor_name"]')).not.toBeNull()
     expect(text()).toContain('Type a name to create one.')
     fill('input[name="monitor_name"]', 'API')
@@ -467,6 +471,8 @@ describe('monitor editor', () => {
     expect(body.tags).toEqual([
       { id: 31, value: null },
     ])
+    // The save opens the new monitor, a lazily loaded view: let that finish inside the test.
+    await expect.poll(() => router.currentRoute.value.name).toBe('ws.monitor')
   })
 
   it('shows why a tag could not be created', async () => {
