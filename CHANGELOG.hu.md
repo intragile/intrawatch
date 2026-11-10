@@ -36,6 +36,12 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
   egységes: az akadozó állapot és a hozzá tartozó beállítások, riasztások
   mindenhol „Akadozik” néven szerepelnek, a „figyelő” helyett „monitor”, az
   „állapotoldal” helyett „státuszoldal” áll.
+- Az incidens megjelölhető Csak belsőként. A belső incidens egyetlen
+  státuszoldalon, annak hírcsatornáiban, összesítőjében és jelvényein sem
+  jelenik meg, akkor sem, ha nyilvános oldalon szereplő monitort érint; eddig
+  egy ilyen monitor kijelölése a frissítéseivel együtt közzétette az
+  incidenst. Amíg a kapcsoló ki van kapcsolva, az incidens űrlapja figyelmeztet
+  erre, az incidenslista pedig megjelöli a belső incidenseket.
 
 ### API
 
@@ -45,6 +51,10 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
 - A `GET /api/v1/manual`, `/manual/chapter` és `/manual/search` végpont a
   bejelentkezett felhasználóknak és az API-tokeneknek adja vissza a súgó
   tartalomjegyzékét, fejezeteit és teljes szöveges keresését.
+- Az incidensek új `internal` mezője alapból hamis. A belső incidens egyetlen
+  nyilvános státuszoldalon, hírcsatornában, összesítőben és jelvényen sem
+  jelenik meg, és nem kapcsolható státuszoldalhoz: ha a kérés mindkettőt
+  beállítja, a válasz 422, a hiba a `status_page_ids` mezőnél jelenik meg.
 
 ## [1.2.0] - 2026-11-09
 

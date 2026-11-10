@@ -1006,8 +1006,14 @@
       "searchMonitors": "Monitorok keresése",
       "monitorById": "{id}. monitor",
       "statusPageById": "{id}. státuszoldal",
-      "hint": "Nem kötelező. A státuszoldal csak akkor mutatja az incidenst, ha itt ki van választva.",
+      "hint": "Nem kötelező. Az itt kijelölt státuszoldal akkor is megjeleníti az incidenst, ha egyik érintett monitor sincs rajta.",
       "truncated": "Csak az első {count} státuszoldal látható a listában."
+    },
+    "internal": {
+      "label": "Csak belső",
+      "hint": "A belső incidens egyetlen státuszoldalon sem jelenik meg, akkor sem, ha nyilvános monitort érint.",
+      "publicHint": "Ha egy kijelölt monitor nyilvános státuszoldalon is szerepel, az incidens ott is megjelenik a frissítéseivel együtt. Ha ezt el akarja kerülni, kapcsolja be a Csak belső kapcsolót.",
+      "chip": "Belső"
     },
     "timeline": {
       "title": "Idővonal",

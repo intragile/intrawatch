@@ -12,6 +12,7 @@ import ProblemAlert from '../../components/common/ProblemAlert.vue'
 import ImpactChip from '../../components/incidents/ImpactChip.vue'
 import IncidentCreateDialog from '../../components/incidents/IncidentCreateDialog.vue'
 import IncidentStatusChip from '../../components/incidents/IncidentStatusChip.vue'
+import InternalChip from '../../components/incidents/InternalChip.vue'
 import { useApiFailure } from '../../composables/useApiFailure'
 import { useCan } from '../../composables/useCan'
 import { useNotify } from '../../composables/useNotify'
@@ -147,6 +148,7 @@ async function create(body: IncidentCreateBody): Promise<void> {
           <router-link :to="{ name: 'ws.incident', params: { workspace: slug, incident: String(incident.id) } }">
             {{ incident.title }}
           </router-link>
+          <InternalChip v-if="incident.internal" size="x-small" class="ms-2" />
         </td>
         <td>
           <ImpactChip :impact="incident.impact" />

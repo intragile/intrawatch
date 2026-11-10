@@ -31,6 +31,12 @@ All notable changes to IntraWatch are recorded here. The format follows
 - The Hungarian interface and invitation email now address the user formally
   throughout and use one term per concept, for example for the degraded state
   and its settings and alerts.
+- An incident can be marked Internal only. An internal incident never
+  appears on a status page, in its feeds, summary or badges, not even when it
+  affects a monitor shown on a public page; until now naming such a monitor
+  published the incident with all its updates. The incident form warns about
+  this while the switch is off, and the incident list marks internal
+  incidents.
 
 ### API
 
@@ -40,6 +46,10 @@ All notable changes to IntraWatch are recorded here. The format follows
 - `GET /api/v1/manual`, `/manual/chapter` and `/manual/search` serve the user
   manual's table of contents, chapters and full-text search to signed-in users
   and API tokens.
+- Incidents have an `internal` field, false by default. An internal incident
+  is left out of every public status page, feed, summary and badge, and it
+  cannot be linked to status pages: a request that sets both is refused with
+  a 422 on `status_page_ids`.
 
 ## [1.2.0] - 2026-11-09
 

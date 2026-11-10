@@ -18,6 +18,7 @@ final class IncidentResource
             'id' => $incident->id,
             'title' => $incident->title,
             'impact' => $incident->impact->value,
+            'internal' => $incident->internal,
             'status' => $incident->status->value,
             'started_at' => $incident->started_at->toIso8601String(),
             'resolved_at' => $incident->resolved_at?->toIso8601String(),

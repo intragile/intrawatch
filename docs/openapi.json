@@ -4537,6 +4537,9 @@
                                                             "critical"
                                                         ]
                                                     },
+                                                    "internal": {
+                                                        "type": "boolean"
+                                                    },
                                                     "status": {
                                                         "type": "string",
                                                         "enum": [
@@ -4623,6 +4626,7 @@
                                                     "id",
                                                     "title",
                                                     "impact",
+                                                    "internal",
                                                     "status",
                                                     "started_at",
                                                     "resolved_at",
@@ -4677,6 +4681,8 @@
             },
             "post": {
                 "operationId": "incident.store",
+                "description": "An `internal` incident appears on no status page, not even through a monitor shown on a page, so\n`status_page_ids` must be empty or omitted when `internal` is true.",
+                "summary": "Creates an incident with its first timeline update",
                 "tags": [
                     "Incident"
                 ],
@@ -4726,6 +4732,9 @@
                                                         "major",
                                                         "critical"
                                                     ]
+                                                },
+                                                "internal": {
+                                                    "type": "boolean"
                                                 },
                                                 "status": {
                                                     "type": "string",
@@ -4813,6 +4822,7 @@
                                                 "id",
                                                 "title",
                                                 "impact",
+                                                "internal",
                                                 "status",
                                                 "started_at",
                                                 "resolved_at",
@@ -4898,6 +4908,9 @@
                                                         "critical"
                                                     ]
                                                 },
+                                                "internal": {
+                                                    "type": "boolean"
+                                                },
                                                 "status": {
                                                     "type": "string",
                                                     "enum": [
@@ -4984,6 +4997,7 @@
                                                 "id",
                                                 "title",
                                                 "impact",
+                                                "internal",
                                                 "status",
                                                 "started_at",
                                                 "resolved_at",
@@ -5015,6 +5029,8 @@
             },
             "patch": {
                 "operationId": "incident.update",
+                "description": "An `internal` incident appears on no status page, not even through a monitor shown on a page, so it\ncannot be linked to status pages: `status_page_ids` must be empty or omitted while it is internal. To\nswitch an incident with linked pages to internal, send `\"status_page_ids\": []` in the same request;\notherwise the request is refused with a 422 on `status_page_ids` and nothing changes.",
+                "summary": "Updates the incident's own fields and targets; omitted fields keep their stored value",
                 "tags": [
                     "Incident"
                 ],
@@ -5073,6 +5089,9 @@
                                                         "critical"
                                                     ]
                                                 },
+                                                "internal": {
+                                                    "type": "boolean"
+                                                },
                                                 "status": {
                                                     "type": "string",
                                                     "enum": [
@@ -5159,6 +5178,7 @@
                                                 "id",
                                                 "title",
                                                 "impact",
+                                                "internal",
                                                 "status",
                                                 "started_at",
                                                 "resolved_at",
@@ -13267,6 +13287,9 @@
                     "impact": {
                         "$ref": "#/components/schemas/IncidentImpact"
                     },
+                    "internal": {
+                        "type": "boolean"
+                    },
                     "started_at": {
                         "type": [
                             "string",
@@ -14082,6 +14105,9 @@
                     },
                     "impact": {
                         "$ref": "#/components/schemas/IncidentImpact"
+                    },
+                    "internal": {
+                        "type": "boolean"
                     },
                     "started_at": {
                         "type": [

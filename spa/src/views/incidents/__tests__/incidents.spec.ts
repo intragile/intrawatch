@@ -12,6 +12,7 @@ function incident(overrides: Record<string, unknown> = {}) {
     id: 5,
     title: 'Checkout is slow',
     impact: 'major',
+    internal: false,
     status: 'investigating',
     started_at: '2026-01-01T10:00:00+00:00',
     resolved_at: null,
@@ -201,5 +202,103 @@ describe('incident page', () => {
 
     await expect.poll(() => text()).toContain('Monitor lookup failed')
     await expect.poll(() => text()).toContain('Only the first 500 status pages are listed.')
+  })
+
+  it('hides the status pages and sends internal without status pages when Internal only is on', async () => {
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+      'GET /workspaces/acme/incidents': json(page([])),
+      'GET /workspaces/acme/status-pages': json(page([
+        { id: 3, title: 'Public' },
+      ])),
+      'POST /workspaces/acme/incidents': json({
+        data: incident({ internal: true }),
+      }, 201),
+      'GET /workspaces/acme/incidents/5': json({
+        data: incident({ internal: true }),
+      }),
+    })
+    const { wrapper } = await mountApp('/w/acme/incidents')
+    await click('[data-test="incident-new"]')
+    await expect.poll(() => document.querySelector('[data-test="incident-internal-switch"]')).not.toBeNull()
+
+    expect(document.querySelector('[data-test="affected-status-pages"]')).not.toBeNull()
+    expect(text()).toContain('If a selected monitor is also on a public status page, the incident appears there too')
+
+    choose(wrapper, 'incident-internal-switch', true)
+    await flushPromises()
+    expect(document.querySelector('[data-test="affected-status-pages"]')).toBeNull()
+    expect(text()).not.toContain('If a selected monitor is also on a public status page')
+    expect(text()).toContain('An internal incident never appears on a status page')
+
+    fill('input[name="incident_title"]', 'Database failover')
+    fill('textarea[name="incident_message"]', 'Internal note.')
+    await click('[data-test="incident-create"]')
+
+    await expect.poll(() => server.of('POST /workspaces/acme/incidents')).toHaveLength(1)
+    const body = server.of('POST /workspaces/acme/incidents')[0]?.body as Record<string, unknown>
+    expect(body.internal).toBe(true)
+    expect(body).not.toHaveProperty('status_page_ids')
+  })
+
+  it('marks internal incidents in the list and on the incident page', async () => {
+    fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+      'GET /workspaces/acme/incidents': json(page([
+        incident({
+          id: 5,
+          title: 'Secret',
+          internal: true,
+          updates: undefined,
+        }),
+        incident({ id: 6, title: 'Public', updates: undefined }),
+      ])),
+    })
+    await mountApp('/w/acme/incidents')
+    await expect.poll(() => document.querySelector('[data-test="incident-row-5"]')).not.toBeNull()
+
+    expect(document.querySelector('[data-test="incident-row-5"] [data-test="incident-internal"]')?.textContent).toContain('Internal')
+    expect(document.querySelector('[data-test="incident-row-6"] [data-test="incident-internal"]')).toBeNull()
+  })
+
+  it('unlinks the status pages when an incident is switched to internal', async () => {
+    const server = fakeApi({
+      'GET /setup': json({ required: false }),
+      'GET /me': json({
+        data: meWith({}),
+      }),
+      'GET /workspaces/acme/incidents/5': json({
+        data: incident({
+          status_page_ids: [3],
+        }),
+      }),
+      'GET /workspaces/acme/status-pages': json(page([
+        { id: 3, title: 'Public' },
+      ])),
+      'PATCH /workspaces/acme/incidents/5': json({
+        data: {
+          ...incident({ internal: true }),
+          updates: undefined,
+        },
+      }),
+    })
+    const { wrapper } = await mountApp('/w/acme/incidents/5')
+    await expect.poll(() => document.querySelector('[data-test="incident-internal-switch"]')).not.toBeNull()
+    expect(document.querySelector('[data-test="incident-internal"]')).toBeNull()
+
+    choose(wrapper, 'incident-internal-switch', true)
+    await flushPromises()
+    expect(document.querySelector('[data-test="affected-status-pages"]')).toBeNull()
+    await click('[data-test="incident-save"]')
+
+    await expect.poll(() => server.of('PATCH /workspaces/acme/incidents/5')).toHaveLength(1)
+    expect(server.of('PATCH /workspaces/acme/incidents/5')[0]?.body).toEqual({ internal: true, status_page_ids: [] })
+    await expect.poll(() => document.querySelector('[data-test="incident-internal"]')?.textContent).toContain('Internal')
   })
 })

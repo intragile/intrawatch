@@ -21,17 +21,25 @@ use Illuminate\Support\Facades\DB;
  * @property int $workspace_id
  * @property string $title
  * @property IncidentImpact $impact
+ * @property bool $internal Hidden from every status page, even when it names a displayed monitor.
  * @property IncidentStatus $status Status of the latest update.
  * @property Carbon $started_at
  * @property Carbon|null $resolved_at
  */
-#[Fillable(['workspace_id', 'title', 'impact', 'status', 'started_at', 'resolved_at'])]
+#[Fillable(['workspace_id', 'title', 'impact', 'internal', 'status', 'started_at', 'resolved_at'])]
 class Incident extends Model
 {
     use BelongsToWorkspace;
 
     /** @use HasFactory<IncidentFactory> */
     use HasFactory;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'internal' => false,
+    ];
 
     protected static function booted(): void
     {
@@ -50,6 +58,7 @@ class Incident extends Model
     {
         return [
             'impact' => IncidentImpact::class,
+            'internal' => 'boolean',
             'status' => IncidentStatus::class,
             'started_at' => 'datetime',
             'resolved_at' => 'datetime',

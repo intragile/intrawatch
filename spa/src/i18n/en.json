@@ -1006,8 +1006,14 @@
       "searchMonitors": "Search monitors",
       "monitorById": "Monitor #{id}",
       "statusPageById": "Status page #{id}",
-      "hint": "Optional. Status pages show the incident only when they are selected here.",
+      "hint": "Optional. A status page selected here shows the incident even when none of the affected monitors is on it.",
       "truncated": "Only the first {count} status pages are listed."
+    },
+    "internal": {
+      "label": "Internal only",
+      "hint": "An internal incident never appears on a status page, even when it affects a public monitor.",
+      "publicHint": "If a selected monitor is also on a public status page, the incident appears there too, with its updates. To prevent that, turn on Internal only.",
+      "chip": "Internal"
     },
     "timeline": {
       "title": "Timeline",

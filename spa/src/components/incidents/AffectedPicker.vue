@@ -19,6 +19,10 @@ const props = withDefaults(defineProps<{
   monitorsLabel?: string
   /** Overrides the hint under the status page picker. */
   statusPagesHint?: string
+  /** A persistent hint under the monitor picker. */
+  monitorsHint?: string
+  /** Hides the status page picker, for targets no status page may show. */
+  hideStatusPages?: boolean
 }>(), {
   disabled: false,
   canListMonitors: true,
@@ -26,6 +30,8 @@ const props = withDefaults(defineProps<{
   statusPagesError: undefined,
   monitorsLabel: undefined,
   statusPagesHint: undefined,
+  monitorsHint: undefined,
+  hideStatusPages: false,
 })
 /** How many monitors one search loads. */
 const MONITOR_OPTIONS = 20
@@ -195,6 +201,8 @@ const pageItems = computed(() => {
     :label="monitorsLabel ?? t('incidents.affected.monitors')"
     :disabled="disabled"
     :error-messages="monitorsError"
+    :hint="monitorsHint"
+    :persistent-hint="monitorsHint !== undefined"
     multiple
     chips
     closable-chips
@@ -202,6 +210,7 @@ const pageItems = computed(() => {
     @focus="searchMonitors(search)"
   />
   <v-autocomplete
+    v-if="!hideStatusPages"
     v-model="statusPageIds"
     data-test="affected-status-pages"
     name="affected_status_pages"

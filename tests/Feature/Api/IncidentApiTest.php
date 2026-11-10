@@ -247,6 +247,49 @@ class IncidentApiTest extends TestCase
         $this->assertSame(0, Incident::query()->where('id', '!=', $id)->count());
     }
 
+    public function test_internal_flag_is_stored_returned_and_audited(): void
+    {
+        $monitor = Monitor::factory()->for($this->ws)->create();
+        $id = $this->int($this->actingAs($this->editor)->postJson($this->url(), $this->body(['internal' => true, 'monitor_ids' => [$monitor->id]]))
+            ->assertCreated()->assertJsonPath('data.internal', true)->assertJsonPath('data.status_page_ids', [])->json('data.id'));
+        $this->assertTrue(Incident::query()->findOrFail($id)->internal);
+        $created = AuditEvent::query()->where('action', 'incident.created')->sole();
+        $this->assertSame([null, true], $created->changes['internal'] ?? null);
+
+        $this->actingAs($this->editor)->getJson($this->url())->assertOk()->assertJsonPath('data.0.internal', true);
+        $this->actingAs($this->editor)->patchJson($this->url("/{$id}"), ['internal' => false])->assertOk()->assertJsonPath('data.internal', false);
+        $updated = AuditEvent::query()->where('action', 'incident.updated')->sole();
+        $this->assertSame(['internal' => [true, false]], $updated->changes);
+
+        // Omitted, it defaults to public, as before the flag existed.
+        $this->actingAs($this->editor)->postJson($this->url(), $this->body())->assertCreated()->assertJsonPath('data.internal', false);
+        $this->actingAs($this->editor)->postJson($this->url(), $this->body(['internal' => 'maybe']))->assertUnprocessable()->assertJsonValidationErrors(['internal']);
+    }
+
+    public function test_an_internal_incident_cannot_be_linked_to_status_pages(): void
+    {
+        $page = StatusPage::factory()->create(['workspace_id' => $this->ws->id]);
+
+        $this->actingAs($this->editor)->postJson($this->url(), $this->body(['internal' => true, 'status_page_ids' => [$page->id]]))
+            ->assertUnprocessable()->assertJsonValidationErrors(['status_page_ids']);
+        $this->assertSame(0, Incident::query()->count());
+
+        $internal = $this->int($this->actingAs($this->editor)->postJson($this->url(), $this->body(['internal' => true, 'status_page_ids' => []]))->assertCreated()->json('data.id'));
+        // The stored flag counts when the request leaves it out.
+        $this->actingAs($this->editor)->patchJson($this->url("/{$internal}"), ['status_page_ids' => [$page->id]])
+            ->assertUnprocessable()->assertJsonValidationErrors(['status_page_ids']);
+
+        // Switching a linked incident to internal needs the links emptied in the same request.
+        $linked = $this->int($this->actingAs($this->editor)->postJson($this->url(), $this->body(['status_page_ids' => [$page->id]]))->assertCreated()->json('data.id'));
+        $this->actingAs($this->editor)->patchJson($this->url("/{$linked}"), ['internal' => true])
+            ->assertUnprocessable()->assertJsonValidationErrors(['status_page_ids']);
+        $this->assertFalse(Incident::query()->findOrFail($linked)->internal);
+        $this->actingAs($this->editor)->patchJson($this->url("/{$linked}"), ['internal' => true, 'status_page_ids' => [$page->id]])
+            ->assertUnprocessable()->assertJsonValidationErrors(['status_page_ids']);
+        $this->actingAs($this->editor)->patchJson($this->url("/{$linked}"), ['internal' => true, 'status_page_ids' => []])
+            ->assertOk()->assertJsonPath('data.internal', true)->assertJsonPath('data.status_page_ids', []);
+    }
+
     public function test_viewers_read_but_cannot_write(): void
     {
         $viewer = User::factory()->memberOf($this->ws, WorkspaceRole::Viewer)->create();

@@ -37,14 +37,15 @@ A státuszoldal mindig a súlyosabb állapotot mutatja: ha a monitor maga rossza
 1. Nyissa meg az [[route:ws.incidents|Incidensek]] képernyőt, és kattintson az [[icon:mdi-plus]] **Új incidens** gombra.
 2. Adja meg a **Cím** mezőt, és válassza ki a **Hatás** értékét.
 3. Az **Első frissítés** alatt válassza ki az **Állapot** értékét, és írja meg az **Üzenet** szövegét. Ez lesz az idővonal első bejegyzése.
-4. Az **Érintettek** alatt válassza ki az **Érintett monitorok** közül az érintett monitorokat, és a **Megjelenik a státuszoldalakon** mezőben azokat a további státuszoldalakat, ahol az incidensnek akkor is látszania kell, ha az érintett monitorok nincsenek rajta.
-5. Kattintson az **Incidens létrehozása** gombra.
+4. Ha az incidens csak a csapatának szól, kapcsolja be a **Csak belső** kapcsolót. A belső incidens egyetlen státuszoldalon sem jelenik meg, akkor sem, ha olyan monitort érint, amely nyilvános státuszoldalon is szerepel.
+5. Az **Érintettek** alatt válassza ki az **Érintett monitorok** közül az érintett monitorokat. Ha az incidens nem belső, a **Megjelenik a státuszoldalakon** mezőben válassza ki azokat a további státuszoldalakat, ahol az incidensnek akkor is látszania kell, ha az érintett monitorok nincsenek rajta. Amíg a **Csak belső** kapcsoló be van kapcsolva, ez a mező nem látható.
+6. Kattintson az **Incidens létrehozása** gombra.
 
 :::
 
 :::warning
 
-A státuszoldal akkor mutatja az incidenst, ha a **Megjelenik a státuszoldalakon** mezőben kiválasztotta az oldalt, vagy ha az **Érintett monitorok** között olyan monitor szerepel, amely az oldalon látható. Ha egy incidenst csak a munkaterületen belül szeretne nyilvántartani, ne jelöljön meg olyan monitort, amely nyilvános státuszoldalon is szerepel.
+A státuszoldal az összes frissítésével együtt mutatja az incidenst, ha a **Megjelenik a státuszoldalakon** mezőben kiválasztotta az oldalt, vagy ha az **Érintett monitorok** között olyan monitor szerepel, amely az oldalon látható. Ha egy incidenst csak a munkaterületen belül szeretne nyilvántartani, kapcsolja be a **Csak belső** kapcsolót: a belső incidens egyetlen státuszoldalon sem jelenik meg, és a státuszoldalak RSS- és Atom-hírcsatornáiban, JSON-összesítőiben és jelvényein sem látszik; az érintett monitoroknak az oldalakon mutatott állapotát sem változtatja meg. Az incidenslistában és az incidens oldalán a belső incidenst **Belső** jelölés mutatja.
 
 :::
 
@@ -77,7 +78,7 @@ Az **Idővonal** kártyán minden frissítés látható az időpontjával. Egy b
 
 ## A részletek módosítása
 
-A **Részletek** kártyán utólag is módosíthatja a **Cím** és a **Hatás** mezőt, valamint az érintett monitorokat és státuszoldalakat. A változásokat a **Részletek mentése** gombbal mentse.
+A **Részletek** kártyán utólag is módosíthatja a **Cím** és a **Hatás** mezőt, a **Csak belső** kapcsolót, valamint az érintett monitorokat és státuszoldalakat. A változásokat a **Részletek mentése** gombbal mentse. Ha egy státuszoldalakon megjelenő incidensnél bekapcsolja a **Csak belső** kapcsolót, a mentés a **Megjelenik a státuszoldalakon** mezőben kijelölt oldalakról is eltávolítja.
 
 ## Az incidenslista
 

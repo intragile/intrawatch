@@ -688,6 +688,11 @@ export interface paths {
          */
         get: operations["incident.index"];
         put?: never;
+        /**
+         * Creates an incident with its first timeline update
+         * @description An `internal` incident appears on no status page, not even through a monitor shown on a page, so
+         *     `status_page_ids` must be empty or omitted when `internal` is true.
+         */
         post: operations["incident.store"];
         delete?: never;
         options?: never;
@@ -708,6 +713,13 @@ export interface paths {
         delete: operations["incident.destroy"];
         options?: never;
         head?: never;
+        /**
+         * Updates the incident's own fields and targets; omitted fields keep their stored value
+         * @description An `internal` incident appears on no status page, not even through a monitor shown on a page, so it
+         *     cannot be linked to status pages: `status_page_ids` must be empty or omitted while it is internal. To
+         *     switch an incident with linked pages to internal, send `"status_page_ids": []` in the same request;
+         *     otherwise the request is refused with a 422 on `status_page_ids` and nothing changes.
+         */
         patch: operations["incident.update"];
         trace?: never;
     };
@@ -1305,6 +1317,7 @@ export interface components {
         IncidentRequest: {
             title: string;
             impact: components["schemas"]["IncidentImpact"];
+            internal?: boolean;
             /** Format: date-time */
             started_at?: string | null;
             monitor_ids?: number[];
@@ -1546,6 +1559,7 @@ export interface components {
         UpdateIncidentRequest: {
             title?: string;
             impact?: components["schemas"]["IncidentImpact"];
+            internal?: boolean;
             /** Format: date-time */
             started_at?: string | null;
             monitor_ids?: number[];
@@ -3443,6 +3457,7 @@ export interface operations {
                             title: string;
                             /** @enum {string} */
                             impact: "none" | "minor" | "major" | "critical";
+                            internal: boolean;
                             /** @enum {string} */
                             status: "investigating" | "identified" | "monitoring" | "resolved";
                             started_at: string;
@@ -3500,6 +3515,7 @@ export interface operations {
                             title: string;
                             /** @enum {string} */
                             impact: "none" | "minor" | "major" | "critical";
+                            internal: boolean;
                             /** @enum {string} */
                             status: "investigating" | "identified" | "monitoring" | "resolved";
                             started_at: string;
@@ -3551,6 +3567,7 @@ export interface operations {
                             title: string;
                             /** @enum {string} */
                             impact: "none" | "minor" | "major" | "critical";
+                            internal: boolean;
                             /** @enum {string} */
                             status: "investigating" | "identified" | "monitoring" | "resolved";
                             started_at: string;
@@ -3631,6 +3648,7 @@ export interface operations {
                             title: string;
                             /** @enum {string} */
                             impact: "none" | "minor" | "major" | "critical";
+                            internal: boolean;
                             /** @enum {string} */
                             status: "investigating" | "identified" | "monitoring" | "resolved";
                             started_at: string;

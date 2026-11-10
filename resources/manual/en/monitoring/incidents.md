@@ -37,14 +37,15 @@ The status page always shows the more serious state: if the monitor itself is in
 1. Open the [[route:ws.incidents|Incidents]] screen and click the [[icon:mdi-plus]] **New incident** button.
 2. Fill in the **Title** field and choose the **Impact**.
 3. Under **First update**, choose the **Status** and write the **Message**. This becomes the first entry on the timeline.
-4. Under **Affected**, choose the affected monitors in **Affected monitors**. In the **Shown on status pages** field, choose any other status pages where the incident should show even if the affected monitors are not on them.
-5. Click **Create incident**.
+4. If the incident is for your team only, turn on the **Internal only** switch. An internal incident never appears on a status page, even when it affects a monitor that is on a public status page.
+5. Under **Affected**, choose the affected monitors in **Affected monitors**. Unless the incident is internal, choose in the **Shown on status pages** field any other status pages where the incident should show even if the affected monitors are not on them. While **Internal only** is on, this field is hidden.
+6. Click **Create incident**.
 
 :::
 
 :::warning
 
-A status page shows the incident if you selected that page in the **Shown on status pages** field, or if **Affected monitors** includes a monitor that is visible on the page. If you want to keep an incident inside the workspace only, do not select any monitor that is also on a public status page.
+A status page shows the incident, with all its updates, if you selected that page in the **Shown on status pages** field, or if **Affected monitors** includes a monitor that is visible on the page. To keep an incident inside the workspace, turn on **Internal only**: an internal incident appears on no status page and in none of the pages' RSS and Atom feeds, JSON summaries or badges, and it does not change the state the pages show for the affected monitors either. In the incident list and on the incident's page, an internal incident has an **Internal** mark.
 
 :::
 
@@ -77,7 +78,7 @@ The **Timeline** card shows every update with its time. Next to an entry:
 
 ## Changing the details
 
-On the **Details** card you can change the **Title** and **Impact** fields, as well as the affected monitors and status pages, at any time. Save your changes with the **Save details** button.
+On the **Details** card you can change the **Title** and **Impact** fields, the **Internal only** switch, as well as the affected monitors and status pages, at any time. Save your changes with the **Save details** button. When you turn on **Internal only** for an incident that is shown on status pages, saving also removes it from the pages selected in **Shown on status pages**.
 
 ## The incident list
 

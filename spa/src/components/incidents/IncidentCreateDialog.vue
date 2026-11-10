@@ -27,6 +27,7 @@ const status = ref<IncidentStatus>('investigating')
 const message = ref('')
 const monitorIds = ref<number[]>([])
 const statusPageIds = ref<number[]>([])
+const internal = ref(false)
 
 // Each opening starts from an empty form.
 watch(open, (isOpen) => {
@@ -38,6 +39,7 @@ watch(open, (isOpen) => {
   message.value = ''
   monitorIds.value = []
   statusPageIds.value = []
+  internal.value = false
 })
 
 const fields = computed(() => fieldErrors(props.error))
@@ -45,6 +47,7 @@ const known = computed(() => Object.keys(props.error?.errors ?? {}).filter(key =
   [
     'title',
     'impact',
+    'internal',
     'status',
     'message',
     'monitor_ids',
@@ -63,14 +66,18 @@ const statusItems = computed(() => INCIDENT_STATUSES.map(value => ({
 function submit(): void {
   if (props.busy)
     return
-  emit('create', {
+  const body: IncidentCreateBody = {
     title: title.value,
     impact: impact.value,
+    internal: internal.value,
     status: status.value,
     message: message.value,
     monitor_ids: monitorIds.value,
-    status_page_ids: statusPageIds.value,
-  })
+  }
+  // No status page may show an internal incident, so none is sent.
+  if (!internal.value)
+    body.status_page_ids = statusPageIds.value
+  emit('create', body)
 }
 </script>
 
@@ -95,6 +102,17 @@ function submit(): void {
             :items="impactItems"
             :label="t('incidents.fields.impact')"
             :error-messages="fields.impact"
+          />
+          <v-switch
+            v-model="internal"
+            data-test="incident-internal-switch"
+            name="incident_internal"
+            :label="t('incidents.internal.label')"
+            :hint="t('incidents.internal.hint')"
+            persistent-hint
+            color="primary"
+            inset
+            :error-messages="fields.internal"
           />
           <h3 class="text-subtitle-1 mt-2 mb-2">
             {{ t('incidents.create.firstUpdate') }}
@@ -124,6 +142,8 @@ function submit(): void {
             :slug="slug"
             :can-list-monitors="can('viewMonitors')"
             :monitors-error="fields.monitor_ids"
+            :monitors-hint="internal ? undefined : t('incidents.internal.publicHint')"
+            :hide-status-pages="internal"
             :status-pages-error="fields.status_page_ids"
           />
         </v-card-text>
