@@ -13,7 +13,8 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
 ### Admin felület
 
 - A Címkék oldal megmutatja, hány monitor használja az egyes címkéket, és a
-  törlés megerősítése is megnevezi, hány monitorról kerül le a címke.
+  törlés megerősítése is megnevezi, hány monitorról kerül le a címke. A számra
+  kattintva a címkére szűrt monitorlista nyílik meg.
 
 ### API
 

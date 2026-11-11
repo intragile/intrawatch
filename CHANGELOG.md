@@ -11,7 +11,8 @@ All notable changes to IntraWatch are recorded here. The format follows
 ### Admin interface
 
 - The Tags page shows how many monitors use each tag, and the delete
-  confirmation names how many monitors lose it.
+  confirmation names how many monitors lose it. Clicking the count opens the
+  monitor list filtered by that tag.
 
 ### API
 

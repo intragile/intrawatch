@@ -218,6 +218,11 @@ describe('tags', () => {
       count(4),
       count(5),
     ]).toEqual(['2', '0', '1'])
+    // A used tag's count opens the monitor list filtered by that tag; an unused one is plain text.
+    const link = row(3)?.querySelector<HTMLAnchorElement>('[data-test="monitors-count"] a')
+    expect(link?.getAttribute('href')).toBe('/w/acme/monitors?tag=3')
+    expect(link?.getAttribute('aria-label')).toBe('Monitors with the tag “prod”: 2')
+    expect(row(4)?.querySelector('[data-test="monitors-count"] a')).toBeNull()
 
     const dialogText = async (id: number): Promise<string> => {
       await click(`[data-test="delete-${id}"]`)
