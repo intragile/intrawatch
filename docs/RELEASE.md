@@ -127,7 +127,10 @@ Run every command from the repository root. Replace `1.0.0` for later releases.
 11. **No attribution strings** in the tree or the commit messages.
 
     ```bash
-    git log --format=%B HEAD | grep -inE 'co-authored-by|generated with|claude|anthropic' || echo clean   # expect: clean (the whole history that ships, not just a branch range)
+    git log --format=%B HEAD | grep -inE 'co-authored-by|generated with|claude|anthropic' \
+      | grep -viE 'co-authored-by: (dependabot\[bot\]|Komjáti Dávid) <' || echo clean
+    # expect: clean (the whole history that ships, not just a branch range). Squash-merged
+    # Dependabot PRs carry dependabot and owner co-author trailers; those are not attribution.
     git grep -inE 'co-authored-by|generated with|anthropic' -- . ':!CHANGELOG.md' ':!docs/RELEASE.md' ':!resources/psl/' || echo clean   # expect: clean (the bundled Public Suffix List names Anthropic as a registrant)
     ```
 
