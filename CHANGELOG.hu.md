@@ -8,7 +8,10 @@ Az IntraWatch minden lényeges változása itt olvasható. A formátum a
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) ajánlását követi, a
 verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait.
 
-## [Unreleased]
+## [1.4.0] - 2026-11-11
+
+A címkék használata egy pillantással: a Címkék oldal megszámolja és
+kilistázza az egyes címkék monitorjait, és az API is megadja ezt a számot.
 
 ### Admin felület
 
@@ -20,6 +23,10 @@ verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait
 
 - A címkék válaszaiban új `monitors_count` mező adja meg, hány monitor
   használja a címkét, a szüneteltetetteket is beleszámítva.
+
+### Docker-image
+
+- Laravel 13.42-re és frissített függőségekre épül.
 
 ## [1.3.0] - 2026-11-10
 

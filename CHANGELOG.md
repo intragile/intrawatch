@@ -6,7 +6,10 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.4.0] - 2026-11-11
+
+Tag usage at a glance: the Tags page counts each tag's monitors and links to
+them, and the API reports the same number.
 
 ### Admin interface
 
@@ -18,6 +21,10 @@ All notable changes to IntraWatch are recorded here. The format follows
 
 - Tag responses carry `monitors_count`, the number of monitors that use the
   tag, paused ones included.
+
+### Docker image
+
+- Built on Laravel 13.42 with updated dependencies.
 
 ## [1.3.0] - 2026-11-10
 
