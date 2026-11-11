@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         timeout-minutes: 5
 
       - uses: shivammathur/setup-php@v2
@@ -32,7 +32,7 @@ jobs:
         timeout-minutes: 2
         run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         timeout-minutes: 5
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
@@ -93,7 +93,7 @@ jobs:
       DB_PASSWORD: ${{ matrix.db == 'sqlite' && '' || 'secret' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         timeout-minutes: 5
 
       - uses: shivammathur/setup-php@v2
@@ -108,7 +108,7 @@ jobs:
         timeout-minutes: 2
         run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         timeout-minutes: 5
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
@@ -160,7 +160,7 @@ jobs:
       DB_CONNECTION: sqlite
       DB_DATABASE: ':memory:'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         timeout-minutes: 5
 
       - uses: shivammathur/setup-php@v2
@@ -184,10 +184,10 @@ jobs:
       run:
         working-directory: spa
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         timeout-minutes: 5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         timeout-minutes: 5
         with:
           node-version: '22'
@@ -207,7 +207,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         timeout-minutes: 5
 
       - name: build-image.sh --out checks
@@ -226,7 +226,7 @@ jobs:
     env:
       IMAGE: intrawatch:ci
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         timeout-minutes: 5
 
       - name: Build the image
@@ -247,7 +247,7 @@ jobs:
           SMOKE_IMAGE: ${{ env.IMAGE }}
         run: bash tests/docker/smoke.sh --pgsql
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         timeout-minutes: 5
         with:
           node-version: '22'
@@ -271,7 +271,7 @@ jobs:
       - name: Upload Playwright traces
         if: failure()
         timeout-minutes: 5
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-test-results
           path: spa/test-results
