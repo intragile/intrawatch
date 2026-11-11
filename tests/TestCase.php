@@ -25,6 +25,10 @@ abstract class TestCase extends BaseTestCase
         ]);
         Cache::forgetDriver('status_pages');
         StampStatusPages::reset();
+
+        // Session garbage collection runs on a random 2 in 100 requests. With the database driver it deletes
+        // expired session rows that a test stored on purpose, so a test would fail about once in ten runs.
+        config(['session.lottery' => [0, 100]]);
     }
 
     /**
