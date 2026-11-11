@@ -389,7 +389,8 @@
     },
     "delete": {
       "title": "Törli a címkét?",
-      "confirm": "A(z) „{name}” címke lekerül minden monitorról, a monitoronként megadott értékével együtt. A monitorok ugyanúgy tovább működnek és riasztanak, csak ezt a címkét veszítik el. A törlés nem vonható vissza."
+      "confirm": "A(z) „{name}” címke lekerül minden monitorról, a monitoronként megadott értékével együtt. A monitorok ugyanúgy tovább működnek és riasztanak, csak ezt a címkét veszítik el. A törlés nem vonható vissza.",
+      "confirmUsed": "A(z) „{name}” címkét {n} monitor használja; mindegyikről lekerül, a monitoronként megadott értékével együtt. A monitorok ugyanúgy tovább működnek és riasztanak, csak ezt a címkét veszítik el. A törlés nem vonható vissza. | A(z) „{name}” címkét {n} monitor használja; mindegyikről lekerül, a monitoronként megadott értékével együtt. A monitorok ugyanúgy tovább működnek és riasztanak, csak ezt a címkét veszítik el. A törlés nem vonható vissza."
     },
     "name": "Név",
     "color": {
@@ -415,6 +416,7 @@
     "list": "A munkaterület címkéi",
     "tag": "Címke",
     "colorColumn": "Szín",
+    "monitorsColumn": "Monitorok",
     "actions": "Műveletek",
     "empty": {
       "title": "Még nincs címke",

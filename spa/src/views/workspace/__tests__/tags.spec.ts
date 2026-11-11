@@ -5,8 +5,18 @@ import { click, fill, mountApp, submit } from '../../../test/mount'
 import { fakeApi, json, problem } from '../../../test/server'
 import { page } from './helpers'
 
-const prod = { id: 3, name: 'prod', color: '#dc2626' }
-const eu = { id: 4, name: 'eu-west', color: '#facc15' }
+const prod = {
+  id: 3,
+  name: 'prod',
+  color: '#dc2626',
+  monitors_count: 2,
+}
+const eu = {
+  id: 4,
+  name: 'eu-west',
+  color: '#facc15',
+  monitors_count: 0,
+}
 
 function base(extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
@@ -57,7 +67,12 @@ describe('tags', () => {
     const server = base({
       'GET /workspaces/acme/tags': json(page([prod])),
       'POST /workspaces/acme/tags': json({
-        data: { id: 9, name: 'staging', color: '#16a34a' },
+        data: {
+          id: 9,
+          name: 'staging',
+          color: '#16a34a',
+          monitors_count: 0,
+        },
       }, 201),
     })
     await mountApp('/w/acme/tags')
@@ -116,7 +131,12 @@ describe('tags', () => {
     const server = base({
       'GET /workspaces/acme/tags': json(page([prod])),
       'PATCH /workspaces/acme/tags/3': json({
-        data: { id: 3, name: 'production', color: '#0d9488' },
+        data: {
+          id: 3,
+          name: 'production',
+          color: '#0d9488',
+          monitors_count: 2,
+        },
       }),
     })
     await mountApp('/w/acme/tags')
@@ -134,6 +154,7 @@ describe('tags', () => {
     await expect.poll(() => server.of('PATCH /workspaces/acme/tags/3')).toHaveLength(1)
     expect(server.of('PATCH /workspaces/acme/tags/3')[0]?.body).toEqual({ name: 'production', color: '#0d9488' })
     await expect.poll(() => row(3)?.textContent).toContain('production')
+    expect(row(3)?.querySelector('[data-test="monitors-count"]')?.textContent?.trim()).toBe('2')
   })
 
   it('shows a 422 of the edit on the field and keeps the dialog open', async () => {
@@ -175,6 +196,42 @@ describe('tags', () => {
     await expect.poll(() => server.of('DELETE /workspaces/acme/tags/3')).toHaveLength(1)
     await expect.poll(() => row(3)).toBeNull()
     expect(row(4)).not.toBeNull()
+  })
+
+  it('shows how many monitors use each tag, and says so before deleting', async () => {
+    const one = {
+      id: 5,
+      name: 'db',
+      color: '#2563eb',
+      monitors_count: 1,
+    }
+    base({
+      'GET /workspaces/acme/tags': json(page([prod, eu, one])),
+    })
+    await mountApp('/w/acme/tags')
+    await expect.poll(() => row(5)).not.toBeNull()
+
+    expect(document.querySelector('thead')?.textContent).toContain('Monitors')
+    const count = (id: number) => row(id)?.querySelector('[data-test="monitors-count"]')?.textContent?.trim()
+    expect([
+      count(3),
+      count(4),
+      count(5),
+    ]).toEqual(['2', '0', '1'])
+
+    const dialogText = async (id: number): Promise<string> => {
+      await click(`[data-test="delete-${id}"]`)
+      await expect.poll(() => document.body.textContent).toContain('Delete the tag?')
+      const text = document.querySelector('.v-overlay--active .v-card')?.textContent ?? ''
+      await click('[data-test="cancel"]')
+      await expect.poll(() => document.querySelector('.v-overlay--active .v-card')).toBeNull()
+      return text
+    }
+    expect(await dialogText(3)).toContain('2 monitors use the tag “prod”')
+    expect(await dialogText(5)).toContain('1 monitor uses the tag “db”')
+    const unused = await dialogText(4)
+    expect(unused).toContain('The tag “eu-west” is removed from every monitor')
+    expect(unused).not.toContain('monitors use')
   })
 
   it('shows the list read-only to a viewer', async () => {

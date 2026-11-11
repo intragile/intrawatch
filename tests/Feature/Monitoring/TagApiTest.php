@@ -57,6 +57,27 @@ class TagApiTest extends TestCase
         }
     }
 
+    public function test_tag_payloads_carry_how_many_monitors_use_the_tag(): void
+    {
+        $used = Tag::factory()->for($this->ws)->create(['name' => 'used']);
+        $unused = Tag::factory()->for($this->ws)->create(['name' => 'unused']);
+        Monitor::factory()->for($this->ws)->http()->create()->tags()->attach($used, ['value' => 'eu']);
+        // A paused monitor still carries the tag, so it counts.
+        Monitor::factory()->for($this->ws)->http()->inactive()->create()->tags()->attach($used);
+        Monitor::factory()->for($this->ws)->http()->create();
+
+        $this->actingAs($this->editor)->getJson($this->url())->assertOk()
+            ->assertJsonPath('data.0.name', 'used')->assertJsonPath('data.0.monitors_count', 2)
+            ->assertJsonPath('data.1.name', 'unused')->assertJsonPath('data.1.monitors_count', 0);
+
+        $this->actingAs($this->editor)->patchJson($this->url("/{$used->id}"), ['color' => '#123456'])
+            ->assertOk()->assertJsonPath('data.monitors_count', 2);
+        $this->actingAs($this->editor)->patchJson($this->url("/{$unused->id}"), ['name' => 'spare'])
+            ->assertOk()->assertJsonPath('data.monitors_count', 0);
+        $this->actingAs($this->editor)->postJson($this->url(), ['name' => 'fresh'])
+            ->assertCreated()->assertJsonPath('data.monitors_count', 0);
+    }
+
     public function test_deleting_a_tag_detaches_it_from_its_monitors_and_keeps_them(): void
     {
         $tag = Tag::factory()->for($this->ws)->create();

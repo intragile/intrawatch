@@ -31,7 +31,7 @@ const { t } = useI18n()
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn variant="text" :disabled="loading" @click="open = false">
+        <v-btn data-test="cancel" variant="text" :disabled="loading" @click="open = false">
           {{ t('common.cancel') }}
         </v-btn>
         <v-btn

@@ -8,6 +8,18 @@ Az IntraWatch minden lényeges változása itt olvasható. A formátum a
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) ajánlását követi, a
 verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait.
 
+## [Unreleased]
+
+### Admin felület
+
+- A Címkék oldal megmutatja, hány monitor használja az egyes címkéket, és a
+  törlés megerősítése is megnevezi, hány monitorról kerül le a címke.
+
+### API
+
+- A címkék válaszaiban új `monitors_count` mező adja meg, hány monitor
+  használja a címkét, a szüneteltetetteket is beleszámítva.
+
 ## [1.3.0] - 2026-11-10
 
 Fejlesztési napló és kereshető magyar–angol kézikönyv az alkalmazásban,
