@@ -1984,7 +1984,7 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": {
-                    password?: string;
+                    password?: string | null;
                 };
             };
         };
@@ -1998,6 +1998,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            422: components["responses"]["ValidationException"];
         };
     };
     "password.confirmation": {
