@@ -118,6 +118,12 @@ jobs:
       - run: composer install --no-interaction --prefer-dist --no-progress
         timeout-minutes: 10
 
+      # Without a .env, every application boot hits dotenv's suppressed file_get_contents warning, and
+      # Collision's printer (unlike PHPUnit's) reports suppressed warnings: each test showed up as WARN,
+      # which buried real warnings. An empty file adds no values; the job's env still configures the run.
+      - name: Empty .env
+        run: touch .env
+
       - name: Test (${{ matrix.db }})
         timeout-minutes: 15
         run: php artisan test
@@ -172,6 +178,10 @@ jobs:
 
       - run: composer install --no-interaction --prefer-dist --no-progress --ignore-platform-req=php+
         timeout-minutes: 10
+
+      # An empty .env, as in the test job: otherwise Collision marks every test WARN.
+      - name: Empty .env
+        run: touch .env
 
       - name: Test (sqlite)
         timeout-minutes: 15
