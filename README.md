@@ -16,7 +16,7 @@ docker run -d --name intrawatch --restart unless-stopped -p 3000:3000 \
 
 The image is published for `linux/amd64` and `linux/arm64` on the GitHub
 Container Registry (`ghcr.io/intragile/intrawatch`) and on Docker Hub
-(`intragile/intrawatch`), with the tags `1.3.0`, `1.3`, `1` and `latest`. Pin
+(`intragile/intrawatch`), with the tags `1.4.0`, `1.4`, `1` and `latest`. Pin
 a version tag (for example `:1.1`) to control when you upgrade. To build the
 image from source instead:
 
@@ -1005,7 +1005,7 @@ OCI archive and never pushes anything. It creates (or reuses) a buildx builder
 named `intrawatch-builder`:
 
 ```bash
-scripts/build-image.sh --version 1.3.0 --platforms linux/amd64,linux/arm64 --out build
+scripts/build-image.sh --version 1.4.0 --platforms linux/amd64,linux/arm64 --out build
 ```
 
 `--out` must be `build/` (or below it) or a directory outside the repository,
@@ -1022,7 +1022,7 @@ The smoke test can run against such an image. `SMOKE_PLATFORM` passes
 import sections with tripled timeouts:
 
 ```bash
-SMOKE_PLATFORM=linux/amd64 SMOKE_SKIP_BUILD=1 SMOKE_IMAGE=intrawatch:1.3.0-amd64 \
+SMOKE_PLATFORM=linux/amd64 SMOKE_SKIP_BUILD=1 SMOKE_IMAGE=intrawatch:1.4.0-amd64 \
   bash tests/docker/smoke.sh --quick
 ```
 
