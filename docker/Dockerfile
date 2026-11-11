@@ -3,7 +3,7 @@
 # The admin single-page application, served by PHP under /admin/. Its output is static files, so it is built
 # once on the build machine's own platform: building it under emulation for every target platform is slow and
 # ran a multi-arch build out of memory.
-FROM --platform=$BUILDPLATFORM node:22-alpine AS spa
+FROM --platform=$BUILDPLATFORM node:26-alpine AS spa
 WORKDIR /spa
 COPY spa/package.json spa/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
