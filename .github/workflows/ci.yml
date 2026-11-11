@@ -179,6 +179,10 @@ jobs:
       - run: composer install --no-interaction --prefer-dist --no-progress --ignore-platform-req=php+
         timeout-minutes: 10
 
+      # An empty .env, as in the test job: otherwise Collision marks every test WARN.
+      - name: Empty .env
+        run: touch .env
+
       - name: Test (sqlite)
         timeout-minutes: 15
         run: php artisan test
