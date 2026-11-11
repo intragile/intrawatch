@@ -157,7 +157,12 @@ async function save(): Promise<void> {
       body,
     }))
     // The generated schema types this response's id as a string; the row keeps its numeric id.
-    const updated: Tag = { id: tag.id, name: result.name, color: result.color }
+    const updated: Tag = {
+      id: tag.id,
+      name: result.name,
+      color: result.color,
+      monitors_count: result.monitors_count,
+    }
     tags.value = tags.value.map(row => row.id === tag.id
       ? updated
       : row)
@@ -186,6 +191,16 @@ const confirmDelete = computed({
       deleteError.value = null
     }
   },
+})
+
+/** Names how many monitors lose the tag; an unused tag keeps the general wording. */
+const deleteText = computed(() => {
+  const tag = deleting.value
+  if (tag === null)
+    return ''
+  return tag.monitors_count > 0
+    ? t('tags.delete.confirmUsed', { name: tag.name, n: tag.monitors_count }, tag.monitors_count)
+    : t('tags.delete.confirm', { name: tag.name })
 })
 
 async function remove(): Promise<void> {
@@ -277,6 +292,9 @@ async function remove(): Promise<void> {
         <th scope="col">
           {{ t('tags.colorColumn') }}
         </th>
+        <th scope="col" class="text-end">
+          {{ t('tags.monitorsColumn') }}
+        </th>
         <th v-if="canManage" scope="col" class="text-end">
           {{ t('tags.actions') }}
         </th>
@@ -289,6 +307,9 @@ async function remove(): Promise<void> {
         </td>
         <td>
           <code>{{ tag.color }}</code>
+        </td>
+        <td class="text-end" data-test="monitors-count">
+          {{ tag.monitors_count }}
         </td>
         <td v-if="canManage" class="text-end text-no-wrap">
           <v-btn
@@ -362,7 +383,7 @@ async function remove(): Promise<void> {
     @confirm="remove"
   >
     <ProblemAlert :error="deleteError" />
-    {{ t('tags.delete.confirm', { name: deleting?.name ?? '' }) }}
+    {{ deleteText }}
   </ConfirmDialog>
 </template>
 

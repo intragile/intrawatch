@@ -22,7 +22,7 @@ class TagController extends Controller
 
     public function index(Request $request, Workspace $workspace): JsonResponse
     {
-        return CursorPage::from($workspace->tags(), $request, function (Model $model): array {
+        return CursorPage::from($workspace->tags()->withCount('monitors'), $request, function (Model $model): array {
             return $this->payload($model instanceof Tag ? $model : throw new \LogicException('Expected a tag.'));
         });
     }
@@ -42,6 +42,8 @@ class TagController extends Controller
 
             return $tag;
         });
+
+        $tag->setAttribute('monitors_count', 0);
 
         return response()->json(['data' => $this->payload($tag)], 201);
     }
@@ -75,7 +77,7 @@ class TagController extends Controller
             }
         });
 
-        return response()->json(['data' => $this->payload($tag)]);
+        return response()->json(['data' => $this->payload($tag->loadCount('monitors'))]);
     }
 
     public function destroy(Workspace $workspace, Tag $tag): Response
@@ -95,12 +97,18 @@ class TagController extends Controller
 
     /**
      * The `(int)` cast is a no-op at runtime; without it Scramble documents the id of tag.update (a
-     * route-bound tag) as a string.
+     * route-bound tag) as a string. `monitors_count` is how many monitors carry the tag, paused ones
+     * included; every caller loads it first (`withCount`, `loadCount`, or 0 for a new tag).
      *
-     * @return array{id: int, name: string, color: string}
+     * @return array{id: int, name: string, color: string, monitors_count: int}
      */
     private function payload(Tag $tag): array
     {
-        return ['id' => (int) $tag->id, 'name' => $tag->name, 'color' => $tag->color];
+        return [
+            'id' => (int) $tag->id,
+            'name' => $tag->name,
+            'color' => $tag->color,
+            'monitors_count' => $tag->monitors_count ?? 0,
+        ];
     }
 }

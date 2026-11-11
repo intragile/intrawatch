@@ -389,7 +389,8 @@
     },
     "delete": {
       "title": "Delete the tag?",
-      "confirm": "The tag “{name}” is removed from every monitor, together with the value each monitor gave it. The monitors keep running and alerting as before; they only lose this tag. This cannot be undone."
+      "confirm": "The tag “{name}” is removed from every monitor, together with the value each monitor gave it. The monitors keep running and alerting as before; they only lose this tag. This cannot be undone.",
+      "confirmUsed": "{n} monitor uses the tag “{name}”; it is removed from it, together with the value the monitor gave it. The monitor keeps running and alerting as before; it only loses this tag. This cannot be undone. | {n} monitors use the tag “{name}”; it is removed from each of them, together with the value each monitor gave it. The monitors keep running and alerting as before; they only lose this tag. This cannot be undone."
     },
     "name": "Name",
     "color": {
@@ -415,6 +416,7 @@
     "list": "Tags of the workspace",
     "tag": "Tag",
     "colorColumn": "Color",
+    "monitorsColumn": "Monitors",
     "actions": "Actions",
     "empty": {
       "title": "No tags yet",

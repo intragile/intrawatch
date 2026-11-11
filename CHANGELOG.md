@@ -6,6 +6,18 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Admin interface
+
+- The Tags page shows how many monitors use each tag, and the delete
+  confirmation names how many monitors lose it.
+
+### API
+
+- Tag responses carry `monitors_count`, the number of monitors that use the
+  tag, paused ones included.
+
 ## [1.3.0] - 2026-11-10
 
 An in-app changelog and a searchable user manual in Hungarian and English,

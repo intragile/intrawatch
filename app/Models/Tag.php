@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property int $workspace_id
  * @property string $name
  * @property string $color
+ * @property-read int|null $monitors_count Set by withCount('monitors') or loadCount('monitors').
  */
 #[Fillable(['workspace_id', 'name', 'color'])]
 class Tag extends Model

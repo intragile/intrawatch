@@ -12789,12 +12789,16 @@
                                                     },
                                                     "color": {
                                                         "type": "string"
+                                                    },
+                                                    "monitors_count": {
+                                                        "type": "integer"
                                                     }
                                                 },
                                                 "required": [
                                                     "id",
                                                     "name",
-                                                    "color"
+                                                    "color",
+                                                    "monitors_count"
                                                 ]
                                             }
                                         },
@@ -12894,12 +12898,16 @@
                                                 },
                                                 "color": {
                                                     "type": "string"
+                                                },
+                                                "monitors_count": {
+                                                    "type": "integer"
                                                 }
                                             },
                                             "required": [
                                                 "id",
                                                 "name",
-                                                "color"
+                                                "color",
+                                                "monitors_count"
                                             ]
                                         }
                                     },
@@ -12989,12 +12997,16 @@
                                                 },
                                                 "color": {
                                                     "type": "string"
+                                                },
+                                                "monitors_count": {
+                                                    "type": "integer"
                                                 }
                                             },
                                             "required": [
                                                 "id",
                                                 "name",
-                                                "color"
+                                                "color",
+                                                "monitors_count"
                                             ]
                                         }
                                     },

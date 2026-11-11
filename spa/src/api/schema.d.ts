@@ -6105,6 +6105,7 @@ export interface operations {
                             id: number;
                             name: string;
                             color: string;
+                            monitors_count: number;
                         }[];
                         meta: {
                             next_cursor: string | null;
@@ -6147,6 +6148,7 @@ export interface operations {
                             id: number;
                             name: string;
                             color: string;
+                            monitors_count: number;
                         };
                     };
                 };
@@ -6214,6 +6216,7 @@ export interface operations {
                             id: number;
                             name: string;
                             color: string;
+                            monitors_count: number;
                         };
                     };
                 };
