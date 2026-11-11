@@ -74,7 +74,7 @@ final class PdoKumaSource implements KumaSource
         }
 
         try {
-            if (! @copy($path, $temp)) {
+            if (! is_readable($path) || ! @copy($path, $temp)) {
                 throw new UnreadableSource('The source file cannot be copied for reading.');
             }
             self::clearWalMode($temp);
@@ -185,7 +185,10 @@ final class PdoKumaSource implements KumaSource
     public function close(): void
     {
         if ($this->tempPath !== null) {
-            @unlink($this->tempPath);
+            // A failed open already removed the copy before this source is destructed.
+            if (is_file($this->tempPath)) {
+                @unlink($this->tempPath);
+            }
             $this->tempPath = null;
         }
     }
