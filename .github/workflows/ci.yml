@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly, so a broken base image, action or dependency release shows up between commits.
+  # Staggered after the IntrAgile packages (02:07-06:07 UTC); never on the hour, which GitHub delays.
+  schedule:
+    - cron: "27 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -141,6 +146,36 @@ jobs:
         if: matrix.db == 'sqlite'
         timeout-minutes: 2
         run: php artisan manual:check
+
+  next-versions:
+    # Early warning against the next PHP release: the locked dependencies, the sqlite test suite.
+    # The Laravel major is not tracked here; in the product it is a deliberate upgrade, not a
+    # constraint to widen. A failure does not fail the run; ./ci-status.sh in the packagist
+    # workspace reports it. Bump the version when a new PHP release ships.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    name: Next / PHP 8.6
+    env:
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@v4
+        timeout-minutes: 5
+
+      - uses: shivammathur/setup-php@v2
+        timeout-minutes: 5
+        with:
+          php-version: '8.6'
+          extensions: pdo_sqlite
+          coverage: none
+
+      - run: composer install --no-interaction --prefer-dist --no-progress --ignore-platform-req=php+
+        timeout-minutes: 10
+
+      - name: Test (sqlite)
+        timeout-minutes: 15
+        run: php artisan test
 
   spa:
     runs-on: ubuntu-latest

@@ -1,0 +1,38 @@
+version: 2
+# The product ships lockfiles: lockfile-only updates composer.lock and spa/package-lock.json within
+# the constraints of composer.json and package.json. A new major outside them is a deliberate
+# upgrade and is not proposed. Monthly and grouped: one pull request per ecosystem.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: monthly
+    versioning-strategy: lockfile-only
+    groups:
+      composer:
+        patterns: ["*"]
+        update-types: [minor, patch]
+  - package-ecosystem: npm
+    directory: /spa
+    schedule:
+      interval: monthly
+    versioning-strategy: lockfile-only
+    groups:
+      spa:
+        patterns: ["*"]
+        update-types: [minor, patch]
+  # The base images in docker/Dockerfile (node, composer, frankenphp).
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: monthly
+    groups:
+      images:
+        patterns: ["*"]
