@@ -417,6 +417,7 @@
     "tag": "Címke",
     "colorColumn": "Szín",
     "monitorsColumn": "Monitorok",
+    "monitorsLink": "A(z) „{name}” címkét használó monitorok: {n}",
     "actions": "Műveletek",
     "empty": {
       "title": "Még nincs címke",

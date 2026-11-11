@@ -417,6 +417,7 @@
     "tag": "Tag",
     "colorColumn": "Color",
     "monitorsColumn": "Monitors",
+    "monitorsLink": "Monitors with the tag “{name}”: {n}",
     "actions": "Actions",
     "empty": {
       "title": "No tags yet",

@@ -309,7 +309,16 @@ async function remove(): Promise<void> {
           <code>{{ tag.color }}</code>
         </td>
         <td class="text-end" data-test="monitors-count">
-          {{ tag.monitors_count }}
+          <router-link
+            v-if="tag.monitors_count > 0"
+            :to="{ name: 'ws.monitors', params: { workspace: slug }, query: { tag: String(tag.id) } }"
+            :aria-label="t('tags.monitorsLink', { name: tag.name, n: tag.monitors_count })"
+          >
+            {{ tag.monitors_count }}
+          </router-link>
+          <template v-else>
+            0
+          </template>
         </td>
         <td v-if="canManage" class="text-end text-no-wrap">
           <v-btn
