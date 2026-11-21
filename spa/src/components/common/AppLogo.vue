@@ -20,13 +20,17 @@ const { t } = useI18n()
       class="app-logo__mark"
       :width="size"
       :height="size"
-      viewBox="0 0 26 26"
+      viewBox="0 0 24 24"
       :role="markOnly ? 'img' : undefined"
       :aria-label="markOnly ? t('app.name') : undefined"
       :aria-hidden="markOnly ? undefined : 'true'"
     >
-      <rect x="1" y="1" width="24" height="24" rx="6" class="app-logo__tile" />
-      <path d="M5 14 H9 L11 9 L14 18 L16 12 L17 14 H21" class="app-logo__pulse" />
+      <!-- The intrawatch.eu mark: blue tile, white bars, the third bar (the signal) coral. -->
+      <rect width="24" height="24" rx="5.5" class="app-logo__tile" />
+      <rect x="3" y="7" width="3" height="10" rx="1" class="app-logo__bar" />
+      <rect x="8" y="7" width="3" height="10" rx="1" class="app-logo__bar" />
+      <rect x="13" y="7" width="3" height="10" rx="1" class="app-logo__signal" />
+      <rect x="18" y="7" width="3" height="10" rx="1" class="app-logo__bar" />
     </svg>
     <span v-if="!markOnly" class="app-logo__word iw-display">{{ t('app.name') }}</span>
   </span>
@@ -48,12 +52,12 @@ const { t } = useI18n()
   fill: #2346b5;
 }
 
-.app-logo__pulse {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.app-logo__bar {
+  fill: #fff;
+}
+
+.app-logo__signal {
+  fill: #e2816e;
 }
 
 .app-logo__word {

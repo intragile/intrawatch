@@ -8,6 +8,17 @@ Az IntraWatch minden lényeges változása itt olvasható. A formátum a
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) ajánlását követi, a
 verziószámozás pedig a [Semantic Versioning](https://semver.org/) szabályait.
 
+## [1.4.1] - 2026-11-21
+
+Az alkalmazás mostantól ugyanazt a jelet viseli, mint a weboldala, az
+intrawatch.eu.
+
+### Admin felület
+
+- A logó, a favicon és az alkalmazásikon az intrawatch.eu sávos jelét
+  használja a korábbi pulzusjel helyett, így az alkalmazás és a weboldala
+  ugyanazt a márkát viseli.
+
 ## [1.4.0] - 2026-11-11
 
 A címkék használata egy pillantással: a Címkék oldal megszámolja és
