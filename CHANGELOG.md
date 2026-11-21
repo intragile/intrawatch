@@ -6,6 +6,13 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Admin interface
+
+- The logo, favicon and app icon use the intrawatch.eu bars mark instead of
+  the pulse mark, so the app and its website carry the same brand.
+
 ## [1.4.0] - 2026-11-11
 
 Tag usage at a glance: the Tags page counts each tag's monitors and links to
