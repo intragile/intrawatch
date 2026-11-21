@@ -6,7 +6,9 @@ All notable changes to IntraWatch are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.4.1] - 2026-11-21
+
+The app now carries the same mark as its website, intrawatch.eu.
 
 ### Admin interface
 
