@@ -7,6 +7,38 @@ English | [Magyar](README.hu.md)
 A free, self-hosted uptime monitor and status page. One container, no external
 services required, all state in a single volume.
 
+![The monitor list next to a monitor's live status, availability and latency chart](docs/images/monitors.png)
+
+## Highlights
+
+- **Built for teams.** Workspaces, four roles (owner, admin, editor, viewer),
+  email invitations, two-factor authentication and an audit log.
+- **A complete REST API.** The admin interface is built on the same public API,
+  with an OpenAPI reference at `/api/v1/openapi.json` and API tokens limited to
+  the abilities you grant (for example read-only monitors).
+- **Scales out.** One check worker handles about 1 000 HTTP monitors at a
+  60-second interval on two CPU cores; add workers, or spread shards over
+  several hosts on a shared MySQL or PostgreSQL database.
+- **Fewer, better alerts.** Flapping detection, child monitors silenced while
+  their group is down, digests when many alerts fire at once, and
+  transactional alerting: a recorded result is evaluated once, so an alert is
+  neither lost nor sent twice (with the default database queue). 15 built-in channels, from email, Slack and
+  Teams to PagerDuty, Opsgenie and signed webhooks, plus Apprise for the rest.
+- **Status pages people can trust.** Incidents with an update timeline,
+  scheduled maintenance (one-off, weekly, monthly or cron), RSS and Atom feeds,
+  a JSON summary, SVG badges and custom domains. The page is plain HTML with no
+  JavaScript, no cookies and no internal details leaked.
+- **Long history at low cost.** Raw results roll up into minute, hour and day
+  aggregates; day-level uptime is kept for two years by default.
+- **Monitor types.** HTTP (keyword, JSON and header assertions), TCP, ping,
+  DNS, TLS certificates, domain expiry, push heartbeats, cron jobs and groups.
+- **Coming from Uptime Kuma?** The built-in importer brings over monitors,
+  notification channels, status pages, incidents, maintenance windows and
+  uptime history, and push monitors keep their tokens. See
+  [Migrating from Uptime Kuma](#migrating-from-uptime-kuma).
+
+![A public status page](docs/images/status-page.png)
+
 ## Quick start
 
 ```bash

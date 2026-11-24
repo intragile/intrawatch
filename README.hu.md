@@ -7,6 +7,42 @@ Developed and maintained by [IntrAgile Kft.](https://intragile.eu)
 Ingyenes, saját szerveren futtatható uptime-monitor és státuszoldal. Egyetlen
 konténer, külső szolgáltatás nélkül, az összes állapot egyetlen kötetben.
 
+![A monitorlista egy monitor élő állapotával, rendelkezésre állásával és válaszidő-grafikonjával](docs/images/monitors.png)
+
+## Fő jellemzők
+
+- **Csapatoknak készült.** Munkaterületek, négy szerepkör (tulajdonos, admin,
+  szerkesztő, megtekintő), meghívás e-mailben, kétlépcsős azonosítás és
+  eseménynapló.
+- **Teljes REST API.** Az admin felület ugyanarra a nyilvános API-ra épül,
+  OpenAPI-leírással (`/api/v1/openapi.json`) és olyan API-tokenekkel, amelyek
+  csak a megadott jogokat kapják (például csak olvasható monitorok).
+- **Vízszintesen skálázható.** Egy ellenőrző worker két processzormagon nagyjából
+  1 000 HTTP monitort visz 60 másodperces gyakorisággal. Több worker indítható,
+  a shardok pedig több hostra is szétoszthatók közös MySQL vagy PostgreSQL
+  adatbázissal.
+- **Kevesebb, de jobb riasztás.** Flapping-felismerés, a csoport leállása alatt
+  elnémuló gyerek monitorok, összesítő üzenet, ha egyszerre sok riasztás jön, és
+  tranzakciós riasztás: a rögzített eredményt egyszer értékeli ki, így a riasztás
+  nem vész el és nem megy ki kétszer (az alapértelmezett adatbázis-sorral).
+  15 beépített csatorna az e-mailtől, a Slacktől és a Teamstől a PagerDutyig, az
+  Opsgenie-ig és az aláírt webhookokig, a többihez pedig Apprise.
+- **Megbízható státuszoldalak.** Incidensek frissítési idővonallal, ütemezett
+  karbantartás (egyszeri, heti, havi vagy cron), RSS- és Atom-hírcsatorna,
+  JSON-összesítő, SVG-jelvények és saját domain. Az oldal egyszerű HTML,
+  JavaScript és sütik nélkül, és nem mutat belső részleteket.
+- **Hosszú előzmény olcsón.** A nyers eredményekből perces, órás és napi
+  összesítés készül, a napi szintű uptime alapból két évig megmarad.
+- **Monitortípusok.** HTTP (kulcsszó-, JSON- és fejléc-ellenőrzéssel), TCP,
+  ping, DNS, TLS-tanúsítvány, domainlejárat, push heartbeat, cron feladat és
+  csoport.
+- **Uptime Kumáról érkezik?** A beépített importáló áthozza a monitorokat, az
+  értesítési csatornákat, a státuszoldalakat, az incidenseket, a karbantartási
+  ablakokat és az uptime-előzményt, a push monitorok pedig megtartják a
+  tokenjüket. Lásd: [Migrálás Uptime Kumából](#migrálás-uptime-kumából).
+
+![Egy nyilvános státuszoldal](docs/images/status-page.png)
+
 ## Gyors indítás
 
 ```bash
